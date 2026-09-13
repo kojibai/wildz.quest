@@ -23,6 +23,7 @@ import type { WildsBossKnowledge } from "./wilds-raid-history";
 import type { WildsTrainerProjection } from "./wilds-saga-trainers";
 import { canRestoreFocus } from "./focus-recovery";
 
+import { projectWildsRemoteRoamingMarkers } from "./wilds-roaming-presence";
 import { useWildsCrewMap } from "./use-wilds-crew-map";
 import type { WildsCrewMapSource } from "./wilds-crew-map";
 
@@ -66,7 +67,9 @@ export function WildsWorldMap({
   onClose: () => void;
   onRift: (destination: { x: number; z: number }) => void | Promise<void>;
 }) {
-  const crewMarkers = useWildsCrewMap(crewMapSource, open);
+  const ownCrewMarkers = useWildsCrewMap(crewMapSource, open);
+  const remoteCrewMarkers = useMemo(() => projectWildsRemoteRoamingMarkers(remotePlayers, "self"), [remotePlayers]);
+  const crewMarkers = [...ownCrewMarkers, ...remoteCrewMarkers];
   const [zoom, setZoom] = useState<WildsAtlasZoom>("world");
   const [recenterRequest, setRecenterRequest] = useState(0);
   const [fitRequest, setFitRequest] = useState(0);
@@ -251,8 +254,8 @@ export function WildsWorldMap({
           <aside className="wilds-atlas-intelligence" aria-label="Current expedition">
             <span>Creature expeditions · {crewMarkers.length}</span>
             {crewMarkers.length > 0 ? <ul aria-label="Roaming creatures" style={{ maxHeight: 150, overflowY: "auto", paddingLeft: 16, fontSize: 12 }}>
-              {crewMarkers.map(marker => <li key={marker.assetId} style={{ color: marker.returning ? "#ffdc87" : "#d0bfff", marginBottom: 5 }}>
-                <strong>{marker.name}</strong> · {marker.status}<br />
+              {crewMarkers.map(marker => <li key={`${marker.ownerId ?? "self"}:${marker.assetId}`} style={{ color: marker.returning ? "#ffdc87" : marker.remote ? "#65e4ff" : "#d0bfff", marginBottom: 5 }}>
+                <strong>{marker.name}</strong>{marker.ownerHandle ? ` · ${marker.ownerHandle}` : ""} · {marker.status}<br />
                 X {Math.round(marker.position.x)} · Z {Math.round(marker.position.z)}
               </li>)}
             </ul> : null}

@@ -1,7 +1,10 @@
 "use client";
+import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
+
+import type { WildsRoamingPresenceUpload } from "./wilds-roaming-presence";
 
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createInviteRoom, roomKeyForPosition, type WildsPresence } from "./multiplayer-core";
+import { createInviteRoom, expirePresence, roomKeyForPosition, type WildsPresence } from "./multiplayer-core";
 import type { WildsMultiplayerSnapshot } from "./multiplayer-ledger";
 import type { PvpIntent } from "./pvp-battle-engine";
 import type { PortableCardAsset } from "./portable-card";
@@ -18,7 +21,7 @@ const GUEST_KEY = "receiz:wilds:multiplayer-guest:v1";
 const WILDS_MULTIPLAYER_HEARTBEAT_MS = 2_500;
 const WILDS_GLOBAL_PRESENCE_REFRESH_MS = 1_000;
 
-function samePresence(left: WildsPresence[], right: WildsPresence[]) {
+export function sameWildsMultiplayerPresence(left: WildsPresence[], right: WildsPresence[]) {
   if (left.length !== right.length) return false;
   return left.every((player, index) => {
     const candidate = right[index];
@@ -27,7 +30,9 @@ function samePresence(left: WildsPresence[], right: WildsPresence[]) {
       && player.x === candidate.x
       && player.z === candidate.z
       && player.status === candidate.status
-      && player.activeCard.proofDigest === candidate.activeCard.proofDigest);
+      && player.lastSeenAt === candidate.lastSeenAt
+      && player.activeCard.proofDigest === candidate.activeCard.proofDigest
+      && JSON.stringify(player.roamingCreatures ?? []) === JSON.stringify(candidate.roamingCreatures ?? []));
   });
 }
 
@@ -72,6 +77,7 @@ export function buildWildsMultiplayerHeartbeatBody(input: {
   heading: number;
   card: PortableCardAsset;
   cardAdmission: WildzVaultCardMembershipProof | null;
+  roamingCreatures?: readonly WildsRoamingPresenceUpload[];
 }, cardAlreadyAdmitted: boolean) {
   return {
     roomKey: input.roomKey,
@@ -80,6 +86,9 @@ export function buildWildsMultiplayerHeartbeatBody(input: {
     x: input.x,
     z: input.z,
     heading: input.heading,
+    ...(input.roamingCreatures ? { roamingCreatures: input.roamingCreatures.map(({ card, cardAdmission, ...pose }) => ({
+      ...pose, ...(cardAlreadyAdmitted ? { cardRef: { assetId: card.id, proofDigest: card.proof.digest } } : { card, ...(cardAdmission ? { cardAdmission } : {}) })
+    })) } : {}),
     ...(cardAlreadyAdmitted ? {
       cardRef: { assetId: input.card.id, proofDigest: input.card.proof.digest }
     } : {
@@ -96,6 +105,7 @@ export function useWildsMultiplayer(input: {
   position: { x: number; z: number };
   activeCard: PortableCardAsset | null;
   cardAdmission: WildzVaultCardMembershipProof | null;
+  readRoamingCreatures?: () => readonly WildsRoamingPresenceUpload[];
 }) {
   const [guestId, setGuestId] = useState("");
   const [roomOverride, setRoomOverride] = useState<string | null>(null);
@@ -135,7 +145,8 @@ export function useWildsMultiplayer(input: {
       return;
     }
     if (Date.now() < retryAfter.current) return;
-    const admissionPin = `${guestId}:${activeCard.id}:${activeCard.proof.digest}`;
+    const roamingCreatures = current.readRoamingCreatures?.() ?? [];
+    const admissionPin = `${guestId}:${activeCard.id}:${activeCard.proof.digest}:${roamingCreatures.map(item => `${item.card.id}:${item.card.proof.digest}`).join(",")}`;
     try {
       const sendHeartbeat = (cardAlreadyAdmitted: boolean) => jsonRequest<{
         actor: { playerId: string; practice: boolean };
@@ -152,7 +163,8 @@ export function useWildsMultiplayer(input: {
           z: current.position.z,
           heading: 0,
           card: activeCard,
-          cardAdmission: current.cardAdmission
+          cardAdmission: current.cardAdmission,
+          roamingCreatures
         }, cardAlreadyAdmitted))
       });
       const compactHeartbeat = admittedHeartbeatCards.current.has(admissionPin);
@@ -162,20 +174,21 @@ export function useWildsMultiplayer(input: {
       } catch (cause) {
         if (!compactHeartbeat
           || !(cause instanceof Error)
-          || cause.message !== "wilds_multiplayer_card_required") throw cause;
+          || !(["wilds_multiplayer_card_required", "wilds_roaming_card_required"].includes(cause.message))) throw cause;
         // Serverless instances do not share the compact admission cache. Heal a
         // cold-instance miss immediately with the full verified card and never
         // surface this expected protocol retry as a connection failure.
         admittedHeartbeatCards.current.delete(admissionPin);
         result = await sendHeartbeat(false);
       }
+      if (admittedHeartbeatCards.current.size >= 128) admittedHeartbeatCards.current.delete(admittedHeartbeatCards.current.values().next().value!);
       admittedHeartbeatCards.current.add(admissionPin);
       setSelfId(result.actor.playerId);
       const requiresAttention = result.snapshot.challenges.some((challenge) => (
         challenge.opponentId === result.actor.playerId && challenge.state === "offered"
       )) || result.snapshot.battles.some((battle) => (
         Boolean(battle.players[result.actor.playerId]) && battle.phase !== "settled"
-      ));
+      )) || (result.snapshot.roamingEncounters ?? []).some(notice => sameWildzPlayerCoordinate(notice.defenderId, result.actor.playerId));
       // The global atlas owns passive world discovery. Keep room detail only
       // while its UI is open or an incoming interaction needs attention, so a
       // routine self-heartbeat cannot rerender the game every 2.5 seconds.
@@ -251,7 +264,12 @@ export function useWildsMultiplayer(input: {
   }, [heartbeat, refresh]);
 
   const refreshGlobalPresence = useCallback(async () => {
-    if (!latest.current.enabled || document.visibilityState !== "visible" || !guestId || !shouldAttemptWildsNetwork()) return;
+    if (!latest.current.enabled || document.visibilityState !== "visible" || !guestId) return;
+    setGlobalPlayers(players => {
+      const live = expirePresence(players);
+      return live.length === players.length ? players : live;
+    });
+    if (!shouldAttemptWildsNetwork()) return;
     const current = latest.current;
     try {
       const params = new URLSearchParams({
@@ -262,7 +280,7 @@ export function useWildsMultiplayer(input: {
       const result = await jsonRequest<{ players: WildsPresence[] }>(`/api/wilds/atlas?${params.toString()}`, { cache: "no-store" });
       const players = result.players ?? [];
       startTransition(() => {
-        setGlobalPlayers((currentPlayers) => samePresence(currentPlayers, players) ? currentPlayers : players);
+        setGlobalPlayers((currentPlayers) => sameWildsMultiplayerPresence(currentPlayers, players) ? currentPlayers : players);
       });
     } catch {
       // Retain the last short-lived atlas projection until the next heartbeat.

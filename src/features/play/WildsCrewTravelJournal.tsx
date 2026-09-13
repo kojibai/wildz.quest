@@ -1,9 +1,10 @@
 "use client";
 import { useRef, useState } from "react";
 import type { WildsCrewExpedition } from "./wilds-crew-expedition";
+import type { WildsRoamingHistoryReport } from "./wilds-roaming-report-store";
 
 export type WildsCrewTravelHistory = (assetId: string, beforeHead?: string, limit?: number) => Promise<{
-  observations: WildsCrewExpedition[]; nextCursor: string | null;
+  observations: WildsCrewExpedition[]; nextCursor: string | null; battles?: WildsRoamingHistoryReport[];
 }>;
 
 const labels: Record<WildsCrewExpedition["kind"], string> = {
@@ -43,6 +44,13 @@ export function WildsCrewTravelJournal({ assetId, name, readHistory }: {
     </button>
     {open ? <section aria-label={`${name} travel journal`} aria-busy={busy}>
       <p style={{ opacity: .75 }}>Actual trips recorded on this device · newest first</p>
+      {!busy && !error && page?.battles?.length ? <div aria-label="Roaming battle reports">
+        <strong>Roaming battles</strong>
+        {page.battles.map(battle => <details key={battle.encounterId} style={{ marginBlock: 8 }}>
+          <summary>{battle.outcome === "capture-eligible" ? "Challenger won" : battle.outcome === "defended" ? "Creature defended itself" : battle.outcome === "retreated" ? "Challenger retreated" : "Battle ended"} · Kai {battle.kaiUPulse}</summary>
+          <ol>{battle.events.map((event, index) => <li key={index}>{event}</li>)}</ol>
+        </details>)}
+      </div> : null}
       {busy ? <p role="status">Opening travel records…</p> : error ? <p role="status">Travel records could not be opened. <button type="button" onClick={() => void load()}>Retry</button></p>
         : page?.observations.length ? <ol style={{ paddingLeft: 20, display: "grid", gap: 12 }}>
           {page.observations.map(row => <li key={row.head}>

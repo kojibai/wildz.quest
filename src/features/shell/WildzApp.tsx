@@ -1,4 +1,6 @@
 "use client";
+import { validateWildsRoamingHandoffCard } from "../../lib/receiz/wilds-roaming-handoff";
+import { pruneWildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
 
 import { emitWildsPlaytestEvent } from "@/features/play/wilds-playtest-events";
 import { wildsCardArtwork } from "@/features/play/wilds-card-artwork";
@@ -23,7 +25,9 @@ import {
   removeWildzAssetsFromActiveVault
 } from "@/features/identity/wildz-ownership-reconciliation";
 import {
+  defaultWildzProofSourceRepository,
   bootstrapWildzContinuity,
+  reopenWildzContinuityCrewCustody,
   commitWildzArtifactContinuity,
   alignWildzContinuityWithProofSession,
   claimWildzProfileIdentity,
@@ -45,6 +49,7 @@ import {
   type WildzUiArtifactRestore
 } from "@/lib/receiz/wildz-identity-adapter";
 import { shouldClearWildzResumeAfterError } from "@/lib/receiz/wildz-resume-errors";
+import { startWildzLiveOwnershipRefresh, WILDZ_OWNERSHIP_REFRESH_EVENT } from "@/features/identity/wildz-live-ownership";
 import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
 import {
   WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS
@@ -394,6 +399,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }, []);
 
   const acceptSnapshot = useCallback((snapshot: WildzContinuitySnapshot) => {
+    snapshot = { ...snapshot, crewCustody: pruneWildzCrewCustody(snapshot.crewCustody, snapshot.session.actorId, snapshot.playState?.inventory ?? []) };
     const previous = continuityRef.current;
     continuityRef.current = snapshot;
     setContinuity(snapshot);
@@ -406,6 +412,19 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       setProofSessionGeneration("");
     }
   }, []);
+
+  useEffect(() => {
+    const snapshot = continuityRef.current;
+    if (!snapshot || snapshot.crewCustody) return;
+    let disposed = false;
+    void reopenWildzContinuityCrewCustody(snapshot).then(custody => {
+      const current = continuityRef.current;
+      if (disposed || !custody || !current || current.session.keyId !== snapshot.session.keyId
+        || current.session.actorId !== snapshot.session.actorId || current.restoreEpoch !== snapshot.restoreEpoch) return;
+      acceptSnapshot({ ...current, crewCustody: pruneWildzCrewCustody(custody, current.session.actorId, current.playState?.inventory ?? []) });
+    }).catch(() => undefined);
+    return () => { disposed = true; };
+  }, [identity?.keyId, identity?.actorId, continuity?.restoreEpoch, acceptSnapshot]);
 
   useEffect(() => {
     if (!identity) return;
@@ -582,6 +601,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             playState: resumed.restore.playState,
             character: resumed.restore.character,
             playerContinuity: resumed.restore.playerContinuity,
+            crewCustody: resumed.restore.crewCustody,
             restoreEpoch: resumed.restore.restoreEpoch
           });
           return;
@@ -753,7 +773,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     confirmCardOnly: WildzCardOnlyConfirmation,
     currentPlayState?: PlayState,
     intent: WildzRestoreIntent = surface === "genesis" ? "activate-identity" : "merge-vault",
-    prepared?: WildzPreparedRestore
+    prepared?: WildzPreparedRestore,
+    roamingCaptureCard?: PortableCardAsset
   ): Promise<WildzUiArtifactRestore> => {
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_restore_identity_missing");
@@ -764,8 +785,15 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       current,
       currentPlayState ?? current.playState,
       intent,
-      prepared
+      prepared,
+      roamingCaptureCard
     );
+    if (roamingCaptureCard) {
+      const latest = continuityRef.current;
+      if (!latest || latest.session.keyId !== current.session.keyId || latest.session.actorId !== current.session.actorId
+        || latest.restoreEpoch !== current.restoreEpoch)
+        throw new Error("The capture was saved for its keeper. Its downloaded artifact can be reopened in that account.");
+    }
     const next = commitWildzArtifactContinuity(outcome);
     clearWildzRuntimeCheckpoint(window.localStorage, {
       keyId: outcome.session.keyId,
@@ -786,6 +814,29 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     }
     return outcome;
   }, [acceptSnapshot]);
+
+  const restoreRoamingCapture = useCallback(async (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState) => {
+    const current = continuityRef.current;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    // Claim already committed remotely. Preserve its exact successor before any
+    // verification, account switch, retention or local restore can fail.
+    downloadBlob(new Blob([bytes.slice().buffer], { type: file.type }), file.name);
+    const sidecar = structuredClone(currentCard);
+    if (!current) throw new Error("wildz_restore_identity_missing");
+    const opened = await openWildzArtifactSameOrigin({ bytes, mimeType: file.type, name: file.name });
+    if (opened.compatibility !== "current-native" || !opened.ownershipWitness
+      || !sameWildzPlayerCoordinate(opened.ownerReceizId, current.session.actorId)
+      || !sameWildzPlayerCoordinate(opened.ownershipWitness.ownerReceizId, current.session.actorId))
+      throw new Error("The captured artifact did not verify for this keeper.");
+    validateWildsRoamingHandoffCard(opened.payloadBytes, sidecar);
+    await defaultWildzProofSourceRepository.retain({ bytes, filename: file.name, mimeType: file.type, assetId: sidecar.id });
+    const prepared = await prepareWildzRestore(file);
+    const latest = continuityRef.current;
+    if (!latest || latest.session.keyId !== current.session.keyId || latest.session.actorId !== current.session.actorId
+      || latest.restoreEpoch !== current.restoreEpoch)
+      throw new Error("The captured artifact was downloaded. Reopen its keeper account to restore it.");
+    return restoreArtifact(file, "card-vault", true, latest.playState ?? currentPlayState, "merge-vault", prepared, sidecar);
+  }, [restoreArtifact]);
 
   const activateIdentitySeal = useCallback(async (file: File) => {
     const prepared = await prepareWildzRestore(file);
@@ -873,6 +924,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (!sameWildzPlayerCoordinate(continuityRef.current?.session.actorId ?? "", current.session.actorId)) {
       throw new Error("Ownership was claimed by the original account. Its artifact was downloaded; reopen that account to restore it.");
     }
+    // Index only single-card native custody. A multi-card Vault must never become
+    // a claimable per-creature source; its existing restore/save path is unchanged.
+    if (artifactAssetIds.length === 1) await defaultWildzProofSourceRepository.retain({
+      bytes, filename, mimeType, assetId: artifactAssetIds[0]!
+    });
     const claimedFile = new File([bytes.slice().buffer], filename, { type: mimeType });
     const outcome = await restoreArtifact(claimedFile, "card-vault", true, undefined, "merge-vault");
     recordLocalWildzOwnershipTransfer(window.localStorage, outcome.session.actorId, artifactAssetIds,
@@ -1057,7 +1113,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         })();
     const worldTruthChanged = current.playState?.ownedWorldAdditions !== playState.ownedWorldAdditions;
     const identityTruthChanged = cardTruthChanged || worldTruthChanged;
-    const snapshot = { ...current, playState, playerContinuity };
+    const snapshot = { ...current, playState, playerContinuity, crewCustody: pruneWildzCrewCustody(current.crewCustody, current.session.actorId, playState.inventory) };
     continuityRef.current = snapshot;
     if (cardTruthChanged) {
       setContinuity(snapshot);
@@ -1125,7 +1181,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }, [removeLostVaultAssets, continuity?.session.actorId, continuity?.playState?.inventory]);
 
   useEffect(() => {
-    if (!proofSessionConnected || overlay?.kind !== "market") return;
+    if (!proofSessionConnected) return;
     let disposed = false;
     let reconcileInFlight = false;
     let controller: AbortController | null = null;
@@ -1161,22 +1217,26 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           || !response.ok
           || result?.status !== "ready"
           || !Array.isArray(result.lostAssetIds)
-          || result.lostAssetIds.some((id) => typeof id !== "string")
+          || result.lostAssetIds.some((id) => typeof id !== "string" || !assetIds.includes(id))
           || !sameWildzPlayerCoordinate(continuityRef.current?.session.actorId ?? "", requestedActorId)) return;
         removeLostVaultAssets(result.lostAssetIds as string[]);
       } catch {
-        // Sync unavailability changes no local custody; reopening Market retries.
+        // Sync unavailability changes no local custody; the visible world retries.
       } finally {
         reconcileInFlight = false;
         controller = null;
       }
     };
-    void reconcileActiveVaultOwnership();
+    const stop = startWildzLiveOwnershipRefresh({
+      refresh: reconcileActiveVaultOwnership, visibility: document, notifications: window,
+      setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval
+    });
     return () => {
       disposed = true;
+      stop();
       controller?.abort();
     };
-  }, [overlay?.kind, proofSessionConnected, removeLostVaultAssets]);
+  }, [proofSessionConnected, identity?.keyId, identity?.actorId, removeLostVaultAssets]);
 
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;
@@ -1187,7 +1247,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         || message.assetIds.some((id) => typeof id !== "string")) return;
       const current = continuityRef.current;
       if (!current?.playState || sameWildzPlayerCoordinate(current.session.actorId, message.ownerActorId)) return;
-      removeLostVaultAssets(message.assetIds as string[]);
+      // A broadcast is a location hint, never proof that the sender owns a card.
+      window.dispatchEvent(new Event(WILDZ_OWNERSHIP_REFRESH_EVENT));
     });
     return () => channel.close();
   }, [removeLostVaultAssets]);
@@ -1208,6 +1269,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           walletPublicUsername={identity.username ?? null}
           initialState={ownerPlayState}
           initialPlayerContinuity={continuity.playerContinuity}
+          crewCustody={continuity.crewCustody}
           initialWorld={worldBootstrap}
           ownerReceizId={ownerUsername}
           playerDisplayName={identity.displayName ?? `@${ownerUsername}`}
@@ -1220,6 +1282,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           onExportVault={(assets, player) => downloadWildzIdentityPlayerVault(identity, assets, player)}
           vaultAdmission={vaultAdmission}
           onRestoreArtifact={claimAndRestoreVaultArtifact}
+          onRestoreRoamingCapture={restoreRoamingCapture}
           onOpenProfile={(origin) => openShellOverlay({ kind: "profile", username: `@${ownerUsername}` }, origin)}
           onOpenMarket={(origin) => openShellOverlay({ kind: "market" }, origin)}
           onListAsset={async (asset, priceCents) => {

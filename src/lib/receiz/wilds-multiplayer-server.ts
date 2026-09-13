@@ -1,3 +1,4 @@
+import { WILDS_ROAMING_PRESENCE_LIMIT, type WildsRoamingCreaturePresence } from "@/features/play/wilds-roaming-presence";
 import type { NextRequest } from "next/server";
 import type { JsonObject } from "@receiz/sdk";
 import { pvpCardFromAsset } from "@/features/play/multiplayer-card";
@@ -252,4 +253,47 @@ export async function publishWildsPresenceToReceiz(
   }
   attempts.set(sourceUrl, now);
   return publishWildsRoomToReceiz(request, actor, room);
+}
+
+
+const roamingCardKey = Symbol.for("wildz.multiplayer.roaming-cards.v1");
+function roamingCardCache() {
+  const root = globalThis as typeof globalThis & { [roamingCardKey]?: Map<string, { card: PvpCard; admittedAt: number }> };
+  return root[roamingCardKey] ??= new Map();
+}
+/** Strict authenticated card admission, deliberately separate from bearer-only
+ * active-avatar presence. This transports discovery, not proof of current custody. */
+export function authorizeWildsRoamingPresence(actor: WildsMultiplayerActor, value: unknown, now = Date.now()): WildsRoamingCreaturePresence[] {
+  if (value === undefined || value === null || actor.practice) return [];
+  if (!Array.isArray(value) || value.length > WILDS_ROAMING_PRESENCE_LIMIT) throw new Error("wilds_roaming_presence_invalid");
+  const seen = new Set<string>();
+  const cache = roamingCardCache();
+  // Bounded ephemeral verification cache; a cold instance asks for exact cards again.
+  for (const [key, entry] of cache) if (now - entry.admittedAt > 60_000) cache.delete(key);
+  return value.map(raw => {
+    if (!raw || typeof raw !== "object") throw new Error("wilds_roaming_presence_invalid");
+    const item = raw as Record<string, unknown>;
+    if (typeof item.x !== "number" || typeof item.z !== "number" || !Number.isFinite(item.x) || !Number.isFinite(item.z)
+      || Math.abs(item.x) > 1_000_000 || Math.abs(item.z) > 1_000_000
+      || !["roaming", "observing", "returning", "blocked", "paused"].includes(String(item.phase))
+      || typeof item.returning !== "boolean") throw new Error("wilds_roaming_presence_invalid");
+    const ref = item.cardRef as { assetId?: unknown; proofDigest?: unknown } | undefined;
+    let card: PvpCard;
+    if (item.card) {
+      card = authorizeWildsMultiplayerCard(actor, item.card, item.cardAdmission);
+      const key = JSON.stringify([actor.playerId, actor.vaultCardRootSha256 ?? "", card.assetId, card.proofDigest]);
+      if (cache.size >= 4096) cache.delete(cache.keys().next().value!);
+      cache.set(key, { card, admittedAt: now });
+    } else {
+      if (typeof ref?.assetId !== "string" || typeof ref.proofDigest !== "string") throw new Error("wilds_roaming_card_required");
+      const entry = cache.get(JSON.stringify([actor.playerId, actor.vaultCardRootSha256 ?? "", ref.assetId, ref.proofDigest]));
+      if (!entry) throw new Error("wilds_roaming_card_required");
+      card = entry.card;
+    }
+    if (seen.has(card.assetId)) throw new Error("wilds_roaming_presence_duplicate");
+    seen.add(card.assetId);
+    return { assetId: card.assetId, proofDigest: card.proofDigest, name: card.name.slice(0, 120),
+      ownerId: actor.playerId, ownerHandle: actor.handle, x: item.x, z: item.z,
+      phase: item.phase as WildsRoamingCreaturePresence["phase"], returning: item.returning };
+  });
 }

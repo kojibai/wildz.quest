@@ -1,0 +1,31 @@
+.backdrop { position: fixed; inset: 0; z-index: 160; display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); background: rgb(3 9 17 / 78%); }
+.dialog { width: min(100%, 620px); max-height: 90dvh; overflow: auto; padding: 24px; border: 1px solid #638998; border-radius: 20px; color: #f1f7f4; background: linear-gradient(145deg, #142a31, #0c141f); box-shadow: 0 20px 80px #0009; font: 15px/1.5 system-ui, sans-serif; }
+.header span, .fighter > span { color: #abcfce; font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+.header h2 { margin: 4px 0 20px; font-size: 25px; }
+.fighters { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.fighter { min-width: 0; padding: 14px; border: 1px solid #47616e; border-radius: 12px; background: #081822; }
+.fighter strong { display: block; margin: 5px 0 12px; overflow-wrap: anywhere; font-size: 18px; }
+.health { height: 9px; overflow: hidden; border-radius: 9px; background: #3c4852; }
+.health i { display: block; height: 100%; background: #7ce8b4; transition: width .25s ease; }
+.fighter:last-child .health i { background: #efbf75; }
+.fighter small { display: block; margin-top: 5px; color: #c6d8dc; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+.actions button { min-height: 52px; padding: 10px 12px; border: 1px solid #69919e; border-radius: 10px; color: #f1f7f4; background: #233e49; cursor: pointer; font: inherit; }
+.actions small { display: block; color: #cbdddd; font-size: 12px; }
+.actions .primary { color: #092519; background: #93e9b7; border-color: #c9f7d8; font-weight: 700; }
+.actions button:hover:not(:disabled) { filter: brightness(1.16); }
+.actions button:disabled { opacity: .55; cursor: wait; }
+.dialog :focus-visible { outline: 3px solid #e9d891; outline-offset: 4px; }
+.transcript { margin-top: 16px; border-top: 1px solid #47616e; padding-top: 12px; }
+.transcript summary { cursor: pointer; }
+.transcript ol { max-height: 170px; overflow: auto; padding-left: 24px; font-size: 13px; color: #c8dbde; }
+.transcript p { margin: 4px 0; }
+.transcript li { margin: 12px 0; }
+.error { padding: 10px; border: 1px solid #f39f90; border-radius: 8px; color: #ffd6cc; }
+@media (max-width: 420px) { .dialog { padding: 16px; } .fighters { gap: 8px; } .fighter { padding: 10px; } .fighter strong { font-size: 15px; } }
+@media (prefers-reduced-motion: reduce) { .health i { transition: none; } }
+.nearby { position: absolute; right: 16px; bottom: 110px; z-index: 24; display: grid; gap: 7px; width: min(235px, 55vw); max-height: 220px; overflow: auto; padding: 10px; border: 1px solid #638998; border-radius: 12px; color: #f1f7f4; background: #0c1b26ed; font: 12px/1.4 system-ui, sans-serif; }
+.nearby button { padding: 9px; min-height: 44px; border: 1px solid #53778a; border-radius: 8px; text-align: left; color: inherit; background: #23404e; cursor: pointer; }
+.nearby small { display: block; color: #c1d8dc; }
+.nearby button:disabled { opacity: .55; cursor: wait; }
+.nearby button:focus-visible { outline: 3px solid #e9d891; outline-offset: 2px; }

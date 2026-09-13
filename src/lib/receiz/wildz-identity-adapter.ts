@@ -1,3 +1,5 @@
+import { mergeWildzCrewCustody, readWildzArtifactCrewCustody, type WildzCrewCustody } from "./wildz-artifact-codec";
+import { reopenWildzCrewCustody, wildzCrewCustodySourceKey } from "./wildz-crew-custody-source";
 import { defaultContinuityDatabase, defaultIdentityRepository } from "./wildz-active-identity";
 import {
   buildReceizIdContinueRequest,
@@ -124,6 +126,7 @@ let continuityRestoreEpoch = 0;
 let continuityQueue: Promise<void> = Promise.resolve();
 
 export type WildzContinuitySnapshot = {
+  crewCustody?: WildzCrewCustody | null;
   session: WildzIdentitySession;
   playState: PlayState | null;
   character: WildzCharacterGenesis | null;
@@ -131,12 +134,13 @@ export type WildzContinuitySnapshot = {
   restoreEpoch: number;
 };
 
-export type WildzUiArtifactRestore = WildzCommittedArtifactRestore & { restoreEpoch: number };
+export type WildzUiArtifactRestore = WildzCommittedArtifactRestore & { restoreEpoch: number; crewCustody?: WildzCrewCustody | null };
 export type WildzRestoreIntent = "merge-vault" | "activate-identity";
 
 export function commitWildzBootstrapContinuity(input: WildzContinuitySnapshot): WildzContinuitySnapshot {
   return {
     session: input.session,
+    crewCustody: input.crewCustody,
     playState: input.playState,
     character: input.character,
     playerContinuity: input.playerContinuity,
@@ -145,7 +149,7 @@ export function commitWildzBootstrapContinuity(input: WildzContinuitySnapshot): 
 }
 
 export function commitWildzArtifactContinuity(
-  outcome: Pick<WildzUiArtifactRestore, "session" | "playState" | "character" | "playerContinuity" | "restoreEpoch">
+  outcome: Pick<WildzUiArtifactRestore, "session" | "playState" | "character" | "playerContinuity" | "restoreEpoch" | "crewCustody">
 ): WildzContinuitySnapshot {
   return commitWildzBootstrapContinuity(outcome);
 }
@@ -456,6 +460,15 @@ export async function bootstrapWildzContinuity(
   });
 }
 
+/** Optional source reopening runs after bootstrap so offline verification cannot
+ * hold the world or original creatures behind a captured-card source. */
+export async function reopenWildzContinuityCrewCustody(snapshot: WildzContinuitySnapshot) {
+  if (!snapshot.playState || snapshot.crewCustody) return snapshot.crewCustody ?? null;
+  return reopenWildzCrewCustody({ owner: snapshot.session.actorId, cards: snapshot.playState.inventory,
+    sources: await defaultContinuityDatabase.read("meta", wildzCrewCustodySourceKey(snapshot.session.keyId, snapshot.session.actorId)),
+    history: defaultArtifactHistory, codec: defaultArtifactCodec });
+}
+
 export async function createNamedWildzIdentity(
   current: WildzContinuitySnapshot,
   input: { username: string; displayName?: string },
@@ -494,7 +507,8 @@ export async function restoreWildzFileForSurface(
   current: WildzContinuitySnapshot,
   currentPlayState: PlayState | null = current.playState,
   intent: WildzRestoreIntent,
-  prepared?: WildzPreparedRestore
+  prepared?: WildzPreparedRestore,
+  roamingCaptureCard?: PortableCardAsset
 ): Promise<WildzUiArtifactRestore> {
   const admitted = prepared ?? await prepareWildzRestore(file);
   if (admitted.file !== file) throw new Error("wildz_restore_prepared_file_mismatch");
@@ -520,11 +534,14 @@ export async function restoreWildzFileForSurface(
       confirmCardOnly,
       currentPlayerContinuity: current.playerContinuity,
       currentCharacter: current.character,
+      ...(roamingCaptureCard ? { roamingCaptureCard } : {}),
       ...(currentPlayState ? { currentPlayState } : {}),
       ...(intent === "merge-vault" ? { preserveActiveIdentity: true } : { carryCurrentVault: true })
     });
+    const crewCustody = mergeWildzCrewCustody(outcome.session.actorId,
+      [current.crewCustody, readWildzArtifactCrewCustody(inspection)], outcome.playState.inventory);
     continuityRestoreEpoch += 1;
-    return { ...outcome, restoreEpoch: continuityRestoreEpoch };
+    return { ...outcome, crewCustody, restoreEpoch: continuityRestoreEpoch };
   });
 }
 

@@ -1,3 +1,4 @@
+import { isVerifiedWildzCardDescendant } from "./wildz-card-descendant";
 import {
   projectReceizIdentityAccount,
   readReceizIdentityArtifact,
@@ -26,6 +27,53 @@ import { requireWildzIdentityBindingFromEnvelope } from "./wildz-identity-bindin
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import type { WildzAdmittedArtifact } from "./wildz-artifact-custody";
 import { openWildzSealedDocument } from "./wildz-sealed-document";
+
+/** Operational custody is issued only while inspecting an opened native source. */
+export type WildzCrewCustody = Readonly<{ owner: string }>;
+export type WildzCrewCustodySource = Readonly<{ artifactSha256: string; assetIds: readonly string[] }>;
+type CrewCustodyEntry = { card: PortableCardAsset; artifactSha256: string };
+const crewAdmissions = new WeakMap<WildzCrewCustody, readonly CrewCustodyEntry[]>();
+const inspectionCrewAdmissions = new WeakMap<object, WildzCrewCustody>();
+function issueCrewCustody(owner: string, entries: readonly CrewCustodyEntry[]): WildzCrewCustody {
+  const token = Object.freeze({ owner });
+  crewAdmissions.set(token, entries);
+  return token;
+}
+export function readWildzArtifactCrewCustody(inspection: WildzArtifactInspection) {
+  return inspectionCrewAdmissions.get(inspection) ?? null;
+}
+export function mergeWildzCrewCustody(owner: string, tokens: readonly (WildzCrewCustody | null | undefined)[], inventory: readonly PortableCardAsset[]) {
+  const ids = new Set(inventory.map(card => card.id));
+  const entries = new Map<string, CrewCustodyEntry>();
+  for (const token of tokens) {
+    if (!token || !sameWildzPlayerCoordinate(token.owner, owner)) continue;
+    for (const entry of crewAdmissions.get(token) ?? []) if (ids.has(entry.card.id)) entries.set(entry.card.id, entry);
+  }
+  return entries.size ? issueCrewCustody(owner, [...entries.values()]) : null;
+}
+export function pruneWildzCrewCustody(token: WildzCrewCustody | null | undefined, owner: string, inventory: readonly PortableCardAsset[]) {
+  if (!token || !sameWildzPlayerCoordinate(token.owner, owner)) return null;
+  const entries = crewAdmissions.get(token);
+  if (!entries) return null;
+  const ids = new Set(inventory.map(card => card.id));
+  const retained = entries.filter(entry => ids.has(entry.card.id));
+  return retained.length === entries.length ? token : retained.length ? issueCrewCustody(owner, retained) : null;
+}
+export function wildzCrewCustodySources(token: WildzCrewCustody | null | undefined): WildzCrewCustodySource[] {
+  const sources = new Map<string, string[]>();
+  for (const entry of token ? crewAdmissions.get(token) ?? [] : []) {
+    const ids = sources.get(entry.artifactSha256) ?? [];
+    ids.push(entry.card.id); sources.set(entry.artifactSha256, ids);
+  }
+  return [...sources].map(([artifactSha256, assetIds]) => ({ artifactSha256, assetIds }));
+}
+export function canOperateWildzCrewCard(card: PortableCardAsset, owner: string, token?: WildzCrewCustody | null) {
+  if (sameWildzPlayerCoordinate(card.manifest.ownerReceizId, owner)) return true;
+  if (!token || !sameWildzPlayerCoordinate(token.owner, owner)) return false;
+  const source = crewAdmissions.get(token)?.find(entry => entry.card.id === card.id)?.card;
+  return Boolean(source && (canonicalPortableCardJson(source) === canonicalPortableCardJson(card)
+    || isVerifiedWildzCardDescendant(source, card)));
+}
 
 export type WildzPlayerBinding = "identity-portable-state" | "identity-v3-binding" | "artifact-v4-required" | null;
 
@@ -389,8 +437,18 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
           playerBinding
         };
       }
+      const admitCrewInspection = <T extends WildzArtifactInspection>(result: T): T => {
+        if (proofObject?.compatibility === "current-native" && proofObjectPayload) {
+          const exact = extractVerifiedWildzCards({ pngBasis: null, verifiedPortableSnapshot: null,
+            restoredVaultFiles: [], proofObjectPayload, retirementAuthorityVerifier: input.retirementAuthorityVerifier });
+          const entries = exact.assets.filter(card => !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, proofObject!.ownerReceizId))
+            .map(card => ({ card: structuredClone(card), artifactSha256: proofObject!.artifactBasisSha256 }));
+          if (entries.length) inspectionCrewAdmissions.set(result, issueCrewCustody(proofObject.ownerReceizId, entries));
+        }
+        return result;
+      };
       if (identity && extraction.player && playerBinding === "identity-v3-binding") {
-        return {
+        return admitCrewInspection({
           kind: "card-vault",
           identity,
           assets: extraction.assets,
@@ -398,7 +456,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
           player: extraction.player,
           playerBinding,
           proofObject
-        };
+        });
       }
       if (identity) {
         return {
@@ -414,14 +472,14 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
         };
       }
       if (extraction.assets.length) {
-        return {
+        return admitCrewInspection({
           kind: "card-vault",
           assets: extraction.assets,
           vaultDigest: vaultDigest(extraction.assets),
           player: extraction.player,
           playerBinding,
           proofObject
-        };
+        });
       }
       if (artifact.mimeType === "image/png" && pngBasis === null) {
         return invalid("wildz_restore_schema_unsupported");

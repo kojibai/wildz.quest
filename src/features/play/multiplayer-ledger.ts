@@ -1,3 +1,6 @@
+import { deriveKaiKlokMoment } from "./kai-klok-moment";
+import type { WildsRoamingEncounterNotice } from "./wilds-roaming-encounter";
+import { sanitizeWildsRoamingPresence, type WildsRoamingCreaturePresence } from "./wilds-roaming-presence";
 import {
   acceptChallenge,
   cancelChallenge,
@@ -28,6 +31,7 @@ export type WildsMultiplayerRoom = {
   messages: WildsRoomMessage[];
   challenges: WildsChallenge[];
   battles: PvpBattle[];
+  roamingEncounters?: WildsRoamingEncounterNotice[];
 };
 
 export type WildsMultiplayerSnapshot = WildsMultiplayerRoom & {
@@ -70,7 +74,8 @@ function cleanRoom(room: WildsMultiplayerRoom, now: string): WildsMultiplayerRoo
         ? { ...challenge, state: "expired" as const, closedAt: now, revision: challenge.revision + 1 }
         : challenge)
       .slice(-20),
-    battles: room.battles.slice(-12)
+    battles: room.battles.slice(-12),
+    roamingEncounters: (room.roamingEncounters ?? []).filter(notice => notice.expiresKaiUPulse > deriveKaiKlokMoment({ occurredAt: now, authority: "world" }).uPulse).slice(-24)
   };
 }
 
@@ -80,9 +85,15 @@ function save(room: WildsMultiplayerRoom, now: string) {
   return next;
 }
 
+function publicRoamingCreatures(player: Pick<WildsPresence, "playerId" | "handle" | "practice" | "status" | "roamingCreatures">): WildsRoamingCreaturePresence[] {
+  return sanitizeWildsRoamingPresence(player, player.roamingCreatures);
+}
+
 function snapshot(room: WildsMultiplayerRoom): WildsMultiplayerSnapshot {
   return {
     ...room,
+    players: room.players.map(player => ({ ...player, roamingCreatures: publicRoamingCreatures(player) })),
+    roamingEncounters: (room.roamingEncounters ?? []).slice(-24).map(({ id, roomKey, challengerId, defenderId, assetId, proofDigest, expiresKaiUPulse }) => ({ id, roomKey, challengerId, defenderId, assetId, proofDigest, expiresKaiUPulse })),
     capabilities: {
       friendlyBattle: true,
       cardStake: false,
@@ -140,12 +151,13 @@ export function getWildsAtlasPresence(input: {
   // anonymous and are represented only by regional counts below.
   const visiblePlayers = players
     .filter((player) => player.status !== "private")
-    .map((player) => ({
+    .map((player): WildsPresence => ({
       ...player,
+      roamingCreatures: publicRoamingCreatures(player),
       activeCard: {
         ...player.activeCard,
         stats: { ...player.activeCard.stats },
-        abilities: player.activeCard.abilities.map((ability) => ({ ...ability }))
+        abilities: [{ ...player.activeCard.abilities[0] }, { ...player.activeCard.abilities[1] }]
       }
     }));
   const visibleIds = new Set(visiblePlayers.map((player) => player.playerId));
@@ -198,6 +210,7 @@ export function heartbeatWildsPresence(input: {
   heading: number;
   practice: boolean;
   activeCard: PvpCard;
+  roamingCreatures?: readonly WildsRoamingCreaturePresence[];
   now?: string;
 }) {
   const now = input.now ?? new Date().toISOString();
@@ -215,7 +228,8 @@ export function heartbeatWildsPresence(input: {
     status: room.battles.some((battle) => battle.phase === "active" && battle.players[input.playerId]) ? "busy" : "available",
     lastSeenAt: now,
     practice: input.practice,
-    activeCard: input.activeCard
+    activeCard: input.activeCard,
+    roamingCreatures: input.practice ? [] : (input.roamingCreatures ?? []).map(creature => ({ ...creature }))
   };
   const players = [...room.players.filter((player) => player.playerId !== input.playerId), presence];
   const saved = save({ ...room, players, capabilities: undefined } as unknown as WildsMultiplayerRoom, now);
@@ -338,4 +352,11 @@ export function submitWildsBattleIntent(input: {
     : room.challenges;
   const saved = save({ ...room, battles, challenges, capabilities: undefined } as unknown as WildsMultiplayerRoom, now);
   return { battle, snapshot: snapshot(saved) };
+}
+
+/** Public discovery only: exact battle cards and transcripts use private appState. */
+export function announceWildsRoamingEncounter(notice: WildsRoamingEncounterNotice, now = new Date().toISOString()) {
+  const room: WildsMultiplayerRoom = rooms().get(notice.roomKey) ?? emptyRoom(notice.roomKey, now);
+  const notices = [...(room.roamingEncounters ?? []).filter(item => item.id !== notice.id), notice].slice(-24);
+  return snapshot(save({ ...room, roamingEncounters: notices }, now));
 }

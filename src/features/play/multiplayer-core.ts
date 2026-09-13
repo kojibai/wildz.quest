@@ -1,3 +1,4 @@
+import type { WildsRoamingCreaturePresence } from "./wilds-roaming-presence";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import type { PvpCard } from "./pvp-battle-engine";
 
@@ -16,6 +17,8 @@ export type WildsPresence = {
   lastSeenAt: string;
   practice: boolean;
   activeCard: PvpCard;
+  /** Expiring owner-reported discovery, never custody or battle authority. */
+  roamingCreatures?: readonly WildsRoamingCreaturePresence[];
 };
 
 export type WildsRoomMessage = {

@@ -1,4 +1,6 @@
 "use client";
+import { createWildsCrewBattleRecallQueue } from "./wilds-crew-battle-recall";
+import { createWildsRoamingReportStore } from "./wilds-roaming-report-store";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { observeWildsCrewTravelPause } from "./wilds-crew-travel-pause";
 import { createWildsCrewExpeditions, wildsCrewReturnNeedsRetarget, WILDS_CREW_EXPEDITION_ARRIVAL_RADIUS, WILDS_CREW_EXPEDITION_OBSERVE_UPULSES, type WildsCrewExpedition } from "./wilds-crew-expedition";
@@ -6,14 +8,14 @@ import { prepareWildsCrewDisposition, readWildsCrewCondition } from "./wilds-cre
 import { prepareWildsCrewExpeditionStops } from "./wilds-crew-expedition-stops";
 import { canWildsCrewTravel } from "./wilds-crew-physical-navigation";
 import { observeWildsKaiUPulse } from "./wilds-kai-runtime";
-import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
+import { canOperateWildzCrewCard, type WildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
 import { createWildsCrewTravelRuntime, wildsCrewTransportAccompanyingIds } from "./wilds-crew-travel-runtime";
 import type { PlayState } from "./game-state";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import type { WildsTerrainObstacle } from "./wilds-terrain-obstacles";
 
-type Scope = { owner:string; cards:readonly PortableCardAsset[] };
+type Scope = { owner:string; cards:readonly PortableCardAsset[]; custody?:WildzCrewCustody|null };
 type CrewReports = Readonly<Record<string,string>>;
 const scopeKey=(scope:Scope)=>JSON.stringify([scope.owner,...scope.cards.map(c=>[c.id,c.proof.digest,c.manifest.ownerReceizId])]);
 const EMPTY_REPORTS: CrewReports=Object.freeze({});
@@ -30,7 +32,7 @@ export function createWildsCrewExpeditionGuard(readScope:()=>Scope) {
     const scope=readScope();
     if(scope.cards!==cachedCards){cachedCards=scope.cards;cardsById=new Map(scope.cards.map(card=>[card.id,card]));}
     const card=cardsById.get(assetId);
-    return card&&sameWildzPlayerCoordinate(card.manifest.ownerReceizId,scope.owner)
+    return card&&canOperateWildzCrewCard(card,scope.owner,scope.custody)
       ? {owner:scope.owner,assetId,proofDigest:card.proof.digest,sequence:0}:null;
   };
   const contextValid=(ticket:WildsCrewExpeditionTicket)=>{
@@ -53,11 +55,12 @@ export function createWildsCrewExpeditionGuard(readScope:()=>Scope) {
   };
 }
 
-export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;cards:readonly PortableCardAsset[];
+export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;cards:readonly PortableCardAsset[];custody?:WildzCrewCustody|null;
   accompanyingAssetIds?:readonly string[];
   siteRuntime:WildsSiteRuntimeProjection;obstacles:readonly WildsTerrainObstacle[];
   feedback:(message:string)=>void;onFinished:(assetId:string)=>void;onResumed?:(assetId:string)=>void}) {
   const latest=useRef(input);latest.current=input;
+  const battleReports=useMemo(()=>createWildsRoamingReportStore(),[]);
   const store=useRef<ReturnType<typeof createWildsCrewExpeditions>|null>(null);
   const [runtimeMembershipRevision,setRuntimeMembershipRevision]=useState(0);
   const [runtimeMap]=useState(()=>createWildsCrewTravelRuntime(()=>setRuntimeMembershipRevision(v=>v+1)));
@@ -69,6 +72,26 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
   const rows=useRef(new Map<string,WildsCrewExpedition>());
   const guard=useRef<ReturnType<typeof createWildsCrewExpeditionGuard>|null>(null);
   if(!guard.current)guard.current=createWildsCrewExpeditionGuard(()=>latest.current);
+  const battleHolds=useRef(new Set<string>());
+  const persistBattleRecall=(assetId:string,queued:boolean)=>{
+    const key=`wildz:crew-battle-recalls:v1:${latest.current.owner}`;
+    let value:unknown=[];
+    try{value=JSON.parse(window.localStorage.getItem(key)??"[]");}catch{value=[];}
+    const ids=new Set<string>(Array.isArray(value)?value.filter((id):id is string=>typeof id==="string").slice(-256):[]);
+    if(queued)ids.add(assetId);else ids.delete(assetId);
+    window.localStorage.setItem(key,JSON.stringify([...ids]));
+  };
+  const hasPersistedBattleRecall=(assetId:string)=>{
+    try{const value=JSON.parse(window.localStorage.getItem(`wildz:crew-battle-recalls:v1:${latest.current.owner}`)??"[]") as unknown;return Array.isArray(value)&&value.includes(assetId);}catch{return false;}
+  };
+  const recallAction=useRef<((assetId:string)=>Promise<boolean>)|null>(null);
+  const [battleRecallQueue]=useState(()=>createWildsCrewBattleRecallQueue({
+    readScope:()=>latest.current.owner,
+    readPending:hasPersistedBattleRecall,
+    writePending:(assetId,pending)=>{persistBattleRecall(assetId,pending);},
+    recall:async assetId=>recallAction.current?.(assetId)??false,
+    onError:error=>latest.current.feedback(error instanceof Error?error.message:"The queued return is waiting to retry.")
+  }));
   const preparing=useRef(new Set<string>());
   const nextRouteRetry=useRef(new Map<string,number>());
   const nextPreparation=useRef(new Map<string,number>());
@@ -107,7 +130,7 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     if(!row.goal){release(ticket);return false;}
     const existing=runtime.current.get(row.assetId);
     runtime.current.set(row.assetId,{proofDigest:row.proofDigest,spaceId:row.spaceId,target:{...row.goal},position:existing?.spaceId===row.spaceId?existing.position??{...(row.actualPosition??row.origin)}:{...(row.actualPosition??row.origin)},
-      ...(existing?.spaceId===row.spaceId&&existing.proofDigest===row.proofDigest?{visualStep:existing.visualStep}:{}),blocked:false,paused:row.phase==="blocked",halted:row.phase==="blocked"});
+      ...(existing?.spaceId===row.spaceId&&existing.proofDigest===row.proofDigest?{visualStep:existing.visualStep}:{}),blocked:false,paused:row.phase==="blocked"||battleHolds.current.has(row.assetId),halted:row.phase==="blocked"||battleHolds.current.has(row.assetId)});
     if(row.spaceId!==latest.current.state.siteSpace.spaceId){
       runtime.current.get(row.assetId)!.paused=true;release(ticket);
       setReports(old=>({...old,[row.assetId]:"Exploration is paused in another space. Return there to resume."}));
@@ -121,7 +144,7 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     const current=latest.current,g=guard.current!;
     const before=restoredScope.current,proofs=new Map(current.cards.map(card=>[card.id,card.proof.digest]));
     if(before.owner!==current.owner){
-      g.clear();activeTrips.current.clear();rows.current.clear();runtime.current.clear();blockedSince.current.clear();pausedSince.current.clear();nextPreparation.current.clear();nextRouteRetry.current.clear();preparing.current.clear();setReports({});
+      g.clear();battleHolds.current.clear();activeTrips.current.clear();rows.current.clear();runtime.current.clear();blockedSince.current.clear();pausedSince.current.clear();nextPreparation.current.clear();nextRouteRetry.current.clear();preparing.current.clear();setReports({});
     }else{
       for(const [assetId,proof] of before.proofs){
         if(proofs.get(assetId)===proof)continue;
@@ -179,7 +202,7 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     const current=latest.current,g=guard.current!,destination=origin(current),spaceId=current.state.siteSpace.spaceId;
     // Read every accompanying member, including a restore/start still in flight.
     const accompanying=new Set(wildsCrewTransportAccompanyingIds(current.accompanyingAssetIds??current.cards.slice(0,3).map(card=>card.id),current.state.crewPreferences?.byAssetId,activeTrips.current));
-    for(const card of current.cards.filter(card=>accompanying.has(card.id))){
+    for(const card of current.cards.filter(card=>accompanying.has(card.id)&&!battleHolds.current.has(card.id))){
       runtime.current.delete(card.id);blockedSince.current.delete(card.id);pausedSince.current.delete(card.id);
       const ticket=g.begin(card.id);if(!ticket)continue;protect(ticket);
       void g.run(card.id,async()=>{
@@ -201,8 +224,10 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
         for(let index=0;index<count;index++){
           let next=iterator.next();if(next.done){iterator=runtime.current.keys();next=iterator.next();}if(next.done)break;
           const assetId=next.value;
+          if(!battleHolds.current.has(assetId))battleRecallQueue.resume(assetId);
           const g=guard.current!,ticket=g.current(assetId);if(!ticket)continue;
           await g.run(assetId,async()=>{
+            if(battleHolds.current.has(assetId))return;
             const current=latest.current,row=rows.current.get(assetId),entry=runtime.current.get(assetId);
             if(cancelled||!row||!matches(row,ticket)||!entry?.position||row.spaceId!==current.state.siteSpace.spaceId||row.phase==="completed")return;
             const change={ownerReceizId:ticket.owner,assetId,expectedHead:row.head,kaiUPulse:observeWildsKaiUPulse()};
@@ -277,20 +302,33 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     const row=rows.current.get(ticket.assetId);
     if(!row||!matches(row,ticket)||row.phase==="completed"||row.phase==="blocked"||row.spaceId!==latest.current.state.siteSpace.spaceId)release(ticket);
   };
-  return {runtime,reports,expeditions:rows.current as ReadonlyMap<string,WildsCrewExpedition>,activeTrips,activeTripRevision,runtimeMembershipRevision,
+  const controls = {runtime,reports,
+    setBattleHold(assetId:string,held:boolean){
+      if(held){
+        battleHolds.current.add(assetId);
+        const entry=runtime.current.get(assetId);if(entry){entry.halted=true;entry.paused=true;}
+        setReports(old=>({...old,[assetId]:"Defending against a roaming challenger"}));
+      }else{
+        battleHolds.current.delete(assetId);
+        const entry=runtime.current.get(assetId),row=rows.current.get(assetId);if(entry){entry.halted=row?.phase==="blocked";entry.paused=Boolean(entry.halted)||row?.spaceId!==latest.current.state.siteSpace.spaceId;}
+        battleRecallQueue.resume(assetId);
+      }
+    },
+    isBattleHeld:(assetId:string)=>battleHolds.current.has(assetId),expeditions:rows.current as ReadonlyMap<string,WildsCrewExpedition>,activeTrips,activeTripRevision,runtimeMembershipRevision,
     async history(assetId:string,beforeHead?:string,limit=24){
-      const current=latest.current,card=current.state.inventory.find(c=>c.id===assetId&&sameWildzPlayerCoordinate(c.manifest.ownerReceizId,current.owner));
+      const current=latest.current,card=current.state.inventory.find(c=>c.id===assetId&&canOperateWildzCrewCard(c,current.owner,current.custody));
       if(!card)throw new Error("This creature is no longer in your owned inventory.");
       const owner=current.owner,proofDigest=card.proof.digest;
       const result=await getStore().history(owner,assetId,beforeHead,limit);
+      const battles=beforeHead?[]:await battleReports.history(owner,assetId);
       const now=latest.current;
-      if(now.owner!==owner||!now.state.inventory.some(c=>c.id===assetId&&c.proof.digest===proofDigest&&sameWildzPlayerCoordinate(c.manifest.ownerReceizId,owner)))
+      if(now.owner!==owner||!now.state.inventory.some(c=>c.id===assetId&&c.proof.digest===proofDigest&&canOperateWildzCrewCard(c,owner,now.custody)))
         throw new Error("Creature ownership or proof changed while loading history.");
-      return result;
+      return {...result,battles};
     },
     async roam(card:PortableCardAsset) {
       const g=guard.current!,context=g.context(card.id);
-      if(!context||context.proofDigest!==card.proof.digest||!sameWildzPlayerCoordinate(card.manifest.ownerReceizId,context.owner))return false;
+      if(!context||context.proofDigest!==card.proof.digest||!canOperateWildzCrewCard(card,context.owner,latest.current.custody))return false;
       const ticket=g.begin(card.id)!;protect(ticket);
       blockedSince.current.delete(card.id);pausedSince.current.delete(card.id);
       return g.run(card.id,async()=>{
@@ -321,6 +359,11 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
       }).finally(()=>releaseUnlessActive(ticket));
     },
     async recall(assetId:string) {
+      if(battleHolds.current.has(assetId)){
+        battleRecallQueue.request(assetId);
+        setReports(old=>({...old,[assetId]:"Return queued until the roaming encounter ends"}));
+        latest.current.feedback("Return queued. This creature is defending its roaming encounter.");return true;
+      }
       const g=guard.current!,ticket=g.begin(assetId);if(!ticket)return false;protect(ticket);
       blockedSince.current.delete(assetId);pausedSince.current.delete(assetId);
       // Queued behind an already committing start, so recall cannot lose that trip.
@@ -340,4 +383,6 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
       }).finally(()=>releaseUnlessActive(ticket));
     }
   };
+  recallAction.current=controls.recall;
+  return controls;
 }

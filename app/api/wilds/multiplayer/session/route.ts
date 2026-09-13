@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { heartbeatWildsPresence } from "@/features/play/multiplayer-ledger";
-import { authorizeWildsMultiplayerHeartbeatCard, hydrateWildsRoomFromReceiz, parseWildsRoomKey, publishWildsPresenceToReceiz, resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
+import { authorizeWildsMultiplayerHeartbeatCard, authorizeWildsRoamingPresence, hydrateWildsRoomFromReceiz, parseWildsRoomKey, publishWildsPresenceToReceiz, resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
 import { wildsMultiplayerError } from "@/lib/receiz/wilds-multiplayer-response";
 
 export const runtime = "nodejs";
@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       body?.cardAdmission,
       body?.cardRef
     );
+    const roamingCreatures = authorizeWildsRoamingPresence(actor, body?.roamingCreatures);
     const result = heartbeatWildsPresence({
       roomKey,
       playerId: actor.playerId,
@@ -32,7 +33,8 @@ export async function POST(request: NextRequest) {
       z,
       heading,
       practice: actor.practice,
-      activeCard
+      activeCard,
+      roamingCreatures
     });
     const publication = await publishWildsPresenceToReceiz(request, actor, result.snapshot);
     return NextResponse.json({

@@ -1,3 +1,4 @@
+import { isVerifiedWildzCardDescendant, sameLivingOrigin } from "./wildz-card-descendant";
 import {
   readPortableCardFromPng,
   readWildzProofAppendsFromPng,
@@ -12,11 +13,9 @@ import {
   type PortableCardAsset
 } from "../../features/play/portable-card";
 import {
-  admitLegacyCard,
   compareLivingCardHistoryHeads,
   currentCreatureHistoryProjection,
   currentRevision,
-  isLivingCardHistoryDescendant,
   livingCardHasIrreversibleMortality,
   verifyLivingCardRetirementAuthority
 } from "../../features/play/living-card-proof";
@@ -54,33 +53,6 @@ const MAX_PORTABLE_DEPTH = 12;
 const MAX_RESTORED_FILES = 1_000;
 const MAX_RESTORED_BYTES = 64 * 1024 * 1024;
 
-function livingOriginBasis(asset: LivingCardAsset) {
-  const {
-    evolvedAt: _evolvedAt,
-    childAssetIds: _childAssetIds,
-    ...lineageOrigin
-  } = asset.manifest.lineage;
-  return canonicalPortableCardJson({
-    schema: asset.manifest.schema,
-    catalogVersion: asset.manifest.catalogVersion,
-    assetId: asset.manifest.assetId,
-    familyId: asset.manifest.familyId,
-    ownerReceizId: asset.manifest.ownerReceizId,
-    encounterId: asset.manifest.encounterId,
-    capturedAt: asset.manifest.capturedAt,
-    variant: asset.manifest.variant,
-    lineage: lineageOrigin,
-    birth: asset.manifest.birth,
-    birthGenome: asset.manifest.birthGenome
-  });
-}
-
-function sameLivingOrigin(ancestor: LivingCardAsset, descendant: LivingCardAsset) {
-  return livingOriginBasis(ancestor) === livingOriginBasis(descendant)
-    && ancestor.manifest.lineage.childAssetIds.every(
-      (assetId) => descendant.manifest.lineage.childAssetIds.includes(assetId)
-    );
-}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -149,44 +121,11 @@ export function extractVerifiedWildzCards(input: {
     }
   };
 
-  const isVerifiedDescendant = (ancestor: PortableCardAsset, descendant: PortableCardAsset) => {
-    if (ancestor.id !== descendant.id || !isLivingCardAsset(descendant)) return false;
-    if (!isLivingCardAsset(ancestor)) {
-      if (descendant.manifest.birth.kind !== "legacy_admission"
-        || descendant.manifest.birth.legacyDigest !== ancestor.proof.digest) return false;
-      const admitted = admitLegacyCard(ancestor, descendant.proof.sealedAt);
-      if (!sameLivingOrigin(admitted, descendant)
-        || !admitted.manifest.revisions.every(
-          (revision, index) => descendant.manifest.revisions[index]?.digest === revision.digest
-        )) return false;
-      if (admitted.manifest.history && descendant.manifest.history
-        && isLivingCardHistoryDescendant(admitted, descendant)) {
-        try {
-          return compareLivingCardHistoryHeads(admitted, descendant, input.historyAuthorityVerifier) === "right";
-        } catch {
-          return false;
-        }
-      }
-      return true;
-    }
-    if (!sameLivingOrigin(ancestor, descendant)) return false;
-    if (ancestor.manifest.history && descendant.manifest.history
-      && isLivingCardHistoryDescendant(ancestor, descendant)) {
-      try {
-        return compareLivingCardHistoryHeads(ancestor, descendant, input.historyAuthorityVerifier) === "right";
-      } catch {
-        return false;
-      }
-    }
-    return descendant.manifest.revisions.length > ancestor.manifest.revisions.length
-      && ancestor.manifest.revisions.every(
-        (revision, index) => descendant.manifest.revisions[index]?.digest === revision.digest
-      );
-  };
+
 
   const resolveConflict = (left: PortableCardAsset, right: PortableCardAsset) => {
-    if (isVerifiedDescendant(left, right)) return right;
-    if (isVerifiedDescendant(right, left)) return left;
+    if (isVerifiedWildzCardDescendant(left, right, input.historyAuthorityVerifier)) return right;
+    if (isVerifiedWildzCardDescendant(right, left, input.historyAuthorityVerifier)) return left;
     if (isLivingCardAsset(left) && isLivingCardAsset(right)
       && sameLivingOrigin(left, right)) {
       const leftRetired = Boolean(currentRevision(left).growth.life?.retired)

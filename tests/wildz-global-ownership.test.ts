@@ -202,7 +202,7 @@ test("Vault upload disposition treats bearer claiming as transfer-only", () => {
   }, asset.manifest.ownerReceizId), "claim-bearer");
 });
 
-test("cross-device Vault invalidation runs only at the explicit Market boundary", () => {
+test("cross-device Vault invalidation uses guarded live refresh outside Market", () => {
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
 
   assert.match(shell, /const removeLostVaultAssets = useCallback/);
@@ -219,6 +219,9 @@ test("cross-device Vault invalidation runs only at the explicit Market boundary"
     shell.lastIndexOf("useEffect(() => {", shell.indexOf("const reconcileActiveVaultOwnership")),
     shell.indexOf("useEffect(() => {", shell.indexOf("const reconcileActiveVaultOwnership") + 1)
   );
-  assert.match(reconciliation, /overlay\?\.kind !== "market"/);
-  assert.doesNotMatch(reconciliation, /setInterval|addEventListener/);
+  assert.doesNotMatch(reconciliation, /overlay\?\.kind/);
+  assert.match(reconciliation, /startWildzLiveOwnershipRefresh/);
+  assert.match(reconciliation, /identity\?\.keyId, identity\?\.actorId/);
+  assert.match(reconciliation, /controller\?\.abort\(\)/);
+  assert.match(reconciliation, /!assetIds\.includes\(id\)/);
 });

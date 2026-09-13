@@ -1,3 +1,6 @@
+import { isVerifiedWildzCardDescendant } from "../../lib/receiz/wildz-card-descendant";
+import { readWildzArtifactCrewCustody, mergeWildzCrewCustody, wildzCrewCustodySources, type WildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
+import { normalizeWildzCrewCustodySources, wildzCrewCustodySourceKey } from "../../lib/receiz/wildz-crew-custody-source";
 import {
   applyWildsInput,
   createOwnerBoundInitialPlayState,
@@ -103,6 +106,7 @@ export type StoredWildzOwnerState = WildzPlayerContinuity & {
 export type StoredWildzPlayState = StoredWildzOwnerState;
 
 export type WildzCommittedArtifactRestore = {
+  crewCustody?: WildzCrewCustody | null;
   restoreStatus: "committed";
   surface: "genesis" | "card-vault";
   artifactKind: "identity-seal" | "card-vault" | "commerce-vault";
@@ -375,7 +379,7 @@ export async function saveWildzRestoredPlayState(input: {
   character?: WildzCharacterGenesis | null;
 }) {
   const scope = wildzOwnerScope(input.session.keyId, input.session.actorId);
-  return input.database.transaction(["ownerStates"], "readwrite", async (tx) => {
+  return input.database.transaction(["ownerStates", "meta"], "readwrite", async (tx) => {
     const current = storedOwnerState(await tx.get<unknown>("ownerStates", scope), input.session);
     const stored = createStoredWildzPlayState(
       input.session,
@@ -384,6 +388,11 @@ export async function saveWildzRestoredPlayState(input: {
       new Date().toISOString(),
       input.character === undefined ? current?.character ?? null : input.character
     );
+    const sourceKey = wildzCrewCustodySourceKey(input.session.keyId, input.session.actorId);
+    const sources = normalizeWildzCrewCustodySources(await tx.get("meta", sourceKey));
+    const ids = new Set(stored.playState.inventory.map(card => card.id));
+    const retained = sources.map(source => ({ ...source, assetIds: source.assetIds.filter(id => ids.has(id)) })).filter(source => source.assetIds.length);
+    if (JSON.stringify(sources) !== JSON.stringify(retained)) await tx.put("meta", retained, sourceKey);
     await tx.put("ownerStates", stored, scope);
     return stored.playState;
   });
@@ -405,6 +414,7 @@ export async function restoreWildzArtifactForSurface(input: {
   preserveActiveIdentity?: boolean;
   carryCurrentVault?: boolean;
   proofSealedPlayer?: boolean;
+  roamingCaptureCard?: PortableCardAsset;
 }): Promise<WildzCommittedArtifactRestore> {
   const inspection = input.inspection ?? await input.codec.inspect({
     bytes: input.bytes,
@@ -440,7 +450,20 @@ export async function restoreWildzArtifactForSurface(input: {
   if (player && !shouldMergeIntoActiveVault && inspection.playerBinding === "artifact-v4-required" && !input.proofSealedPlayer) {
     throw new Error("wildz_restore_binding_invalid");
   }
-  const assets = inspectionAssets(inspection);
+  let assets = inspectionAssets(inspection);
+  if (input.roamingCaptureCard) {
+    const sidecar = structuredClone(input.roamingCaptureCard);
+    const base = assets[0];
+    const admission = readWildzArtifactCrewCustody(inspection);
+    if (inspection.kind !== "card-vault" || inspection.proofObject?.compatibility !== "current-native"
+      || !sameWildzPlayerCoordinate(inspection.proofObject.ownerReceizId, session.actorId)
+      || assets.length !== 1 || !base || !verifyAnyWildsCard(sidecar).ok
+      || (!sameWildzPlayerCoordinate(base.manifest.ownerReceizId, session.actorId)
+        && (!admission || !sameWildzPlayerCoordinate(admission.owner, session.actorId)))
+      || (canonicalPortableCardJson(base) !== canonicalPortableCardJson(sidecar)
+        && !isVerifiedWildzCardDescendant(base, sidecar))) throw new Error("wildz_roaming_sidecar_invalid");
+    assets = [sidecar];
+  }
   const playerForSession = player && shouldMergeIntoActiveVault
     ? createWildsPlayerVault({
         playerId: session.actorId,
@@ -453,6 +476,7 @@ export async function restoreWildzArtifactForSurface(input: {
         receipts: player.receipts
       })
     : player;
+  const crewCustody = mergeWildzCrewCustody(session.actorId, [readWildzArtifactCrewCustody(inspection)], assets);
   const verifiedAssetIds = [...new Set(assets.map((asset) => asset.id))].sort();
   const scope = wildzOwnerScope(session.keyId, session.actorId);
   let committedOwnerState: StoredWildzOwnerState | null = null;
@@ -550,6 +574,15 @@ export async function restoreWildzArtifactForSurface(input: {
         }
       }
       await tx.put("ownerStates", record, scope);
+      const sourceKey = wildzCrewCustodySourceKey(session.keyId, session.actorId);
+      const admittedSources = wildzCrewCustodySources(crewCustody);
+      const previousSources = normalizeWildzCrewCustodySources(await tx.get("meta", sourceKey));
+      const admittedIds = new Set(admittedSources.flatMap(source => source.assetIds));
+      const activeIds = new Set(record.playState.inventory.map(card => card.id));
+      const retained = previousSources.map(source => ({ ...source,
+        assetIds: source.assetIds.filter(id => activeIds.has(id) && !admittedIds.has(id)) })).filter(source => source.assetIds.length);
+      if (admittedSources.length || JSON.stringify(previousSources) !== JSON.stringify(retained))
+        await tx.put("meta", [...retained, ...admittedSources], sourceKey);
       committedOwnerState = record;
     });
   } catch (error) {
@@ -560,6 +593,7 @@ export async function restoreWildzArtifactForSurface(input: {
   const committed = committedOwnerState as StoredWildzOwnerState;
   return {
     restoreStatus: "committed",
+    crewCustody,
     surface: input.surface,
     artifactKind: inspection.kind,
     session,

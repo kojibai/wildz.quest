@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { WILDS_MAJOR_ROUTES } from "./wilds-world-geography";
 import { WILDS_FLAGSHIP_LANDMARKS } from "./wilds-landmarks";
 
-import { projectWildsCrewMinimapPoint, type WildsCrewMapSource } from "./wilds-crew-map";
+import { projectWildsCrewMinimapPoint, type WildsCrewMapMarker, type WildsCrewMapSource } from "./wilds-crew-map";
 import { useWildsCrewMap } from "./use-wilds-crew-map";
 
 const VIEW_RADIUS = 22;
@@ -16,8 +16,9 @@ function mapPoint(worldX: number, worldZ: number, playerX: number, playerZ: numb
   };
 }
 
-export function WildzMinimap({ disabled = false, x, z, heading = 0, onOpen, crewMapSource }: { crewMapSource?: WildsCrewMapSource; disabled?: boolean; x: number; z: number; heading?: number; onOpen: () => void }) {
-  const crewMarkers = useWildsCrewMap(crewMapSource, !disabled);
+export function WildzMinimap({ disabled = false, x, z, heading = 0, onOpen, crewMapSource, remoteCrewMarkers = [] }: { remoteCrewMarkers?: readonly WildsCrewMapMarker[]; crewMapSource?: WildsCrewMapSource; disabled?: boolean; x: number; z: number; heading?: number; onOpen: () => void }) {
+  const ownCrewMarkers = useWildsCrewMap(crewMapSource, !disabled);
+  const crewMarkers = useMemo(() => [...ownCrewMarkers, ...remoteCrewMarkers], [ownCrewMarkers, remoteCrewMarkers]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -71,7 +72,7 @@ export function WildzMinimap({ disabled = false, x, z, heading = 0, onOpen, crew
     }
     for (const marker of crewMarkers) {
       const point = projectWildsCrewMinimapPoint(marker.position, { x, z }, size, VIEW_RADIUS);
-      context.fillStyle = marker.returning ? "#ffdc87" : "#ad8bff";
+      context.fillStyle = marker.returning ? "#ffdc87" : marker.remote ? "#65e4ff" : "#ad8bff";
       context.strokeStyle = "#251c39";
       context.lineWidth = 2;
       context.beginPath();
@@ -85,7 +86,7 @@ export function WildzMinimap({ disabled = false, x, z, heading = 0, onOpen, crew
     }
     context.restore();
   }, [x, z, crewMarkers]);
-  return <button className="wildz-minimap" aria-label={`Open world map. Current position X ${Math.round(x)}, Z ${Math.round(z)}. ${crewMarkers.length} roaming creatures${crewMarkers.length ? ": " + crewMarkers.map(marker => `${marker.name}, ${marker.status}`).join("; ") : ""}` } disabled={disabled} onClick={onOpen} type="button">
+  return <button className="wildz-minimap" aria-label={`Open world map. Current position X ${Math.round(x)}, Z ${Math.round(z)}. ${crewMarkers.length} roaming creatures${crewMarkers.length ? ": " + crewMarkers.map(marker => `${marker.name}${marker.ownerHandle ? ` from ${marker.ownerHandle}` : ""}, ${marker.status}`).join("; ") : ""}` } disabled={disabled} onClick={onOpen} type="button">
     <canvas ref={canvasRef} />
     <span aria-hidden="true" className="wildz-minimap-heading" style={{ transform: `translate(-50%, -50%) rotate(${heading}rad)` }}>▲</span>
     <b>X {Math.round(x)} · Z {Math.round(z)}</b>

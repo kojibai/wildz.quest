@@ -747,11 +747,11 @@ function CrewLights({ projection, markers }: { projection: WildsAtlasProjection;
   return <group name="atlas-owned-roaming-creatures">{markers.map(marker => {
     const x = atlasLocalCoordinate(marker.position.x, projection.centerRegion.x, projection.regionUnit);
     const z = atlasLocalCoordinate(marker.position.z, projection.centerRegion.z, projection.regionUnit);
-    const color = marker.returning ? "#ffdc87" : "#ad8bff";
-    return <group key={marker.assetId} name={`atlas-crew-${marker.assetId}`} position={[x, atlasTerrainHeight(marker.position.x, marker.position.z, projection.regionUnit) + .25, z]}>
+    const color = marker.returning ? "#ffdc87" : marker.remote ? "#65e4ff" : "#ad8bff";
+    return <group key={`${marker.ownerId ?? "self"}:${marker.assetId}`} name={`atlas-crew-${marker.assetId}`} position={[x, atlasTerrainHeight(marker.position.x, marker.position.z, projection.regionUnit) + .25, z]}>
       <mesh raycast={() => {}}><octahedronGeometry args={[.14, 0]} /><meshBasicMaterial color={color} depthTest={false} /></mesh>
       <Html center position={[0, .3, 0]} wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[2, 1]}>
-        <span className="wilds-atlas-trainer-label" style={{ color, pointerEvents: "none" }}>{marker.name} · {marker.status}</span>
+        <span className="wilds-atlas-trainer-label" style={{ color, pointerEvents: "none" }}>{marker.name}{marker.ownerHandle ? ` · ${marker.ownerHandle}` : ""} · {marker.status}</span>
       </Html>
     </group>;
   })}</group>;

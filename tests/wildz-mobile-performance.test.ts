@@ -125,8 +125,10 @@ test("proof admission does not activate recurring work on the gameplay hot path"
     shell.lastIndexOf("useEffect(() => {", shell.indexOf("const reconcileActiveVaultOwnership")),
     shell.indexOf("useEffect(() => {", shell.indexOf("const reconcileActiveVaultOwnership") + 1)
   );
-  assert.match(ownership, /overlay\?\.kind !== "market"/);
-  assert.doesNotMatch(ownership, /setInterval|addEventListener/);
+  assert.doesNotMatch(ownership, /overlay\?\.kind !== "market"/);
+  assert.match(ownership, /startWildzLiveOwnershipRefresh/);
+  assert.match(ownership, /reconcileInFlight/);
+  assert.doesNotMatch(ownership, /setInterval\s*\(|addEventListener\s*\(/);
 });
 
 test("artifact upload follow-up work stays off visible gameplay", () => {

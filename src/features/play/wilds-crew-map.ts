@@ -1,3 +1,4 @@
+import { canOperateWildzCrewCard, type WildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsCrewExpedition } from "./wilds-crew-expedition";
@@ -5,12 +6,17 @@ import type { WildsCrewTravelEntry } from "./wilds-crew-travel-runtime";
 
 export type WildsCrewMapSource = {
   owner: string;
+  custody?: WildzCrewCustody | null;
   cards: readonly PortableCardAsset[];
   expeditions: ReadonlyMap<string, WildsCrewExpedition>;
   runtime: ReadonlyMap<string, WildsCrewTravelEntry>;
 };
 export type WildsCrewMapMarker = {
   assetId: string;
+  ownerId?: string;
+  ownerHandle?: string;
+  proofDigest?: string;
+  remote?: boolean;
   name: string;
   position: { x: number; z: number };
   status: "Roaming" | "Observing" | "Returning" | "Blocked" | "Return blocked" | "Paused" | "Return paused";
@@ -24,7 +30,7 @@ export function projectWildsCrewMap(source?: WildsCrewMapSource): WildsCrewMapMa
   const markers: WildsCrewMapMarker[] = [];
   const seen = new Set<string>();
   for (const card of source.cards) {
-    if (seen.has(card.id) || !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, source.owner)) continue;
+    if (seen.has(card.id) || !canOperateWildzCrewCard(card, source.owner, source.custody)) continue;
     seen.add(card.id);
     const row = source.expeditions.get(card.id);
     if (!row || row.phase === "completed" || row.assetId !== card.id || row.proofDigest !== card.proof.digest

@@ -1,4 +1,12 @@
 "use client";
+import { receizBase64UrlEncode, receizBase64UrlDecode } from "@receiz/sdk";
+import { useWildsRoamingBattle } from "./use-wilds-roaming-battle";
+import { WildsRoamingBattle } from "./WildsRoamingBattle";
+import { WildsRoamingNearby } from "./WildsRoamingNearby";
+import { prepareWildsRoamingOwnerFile } from "../../lib/receiz/wilds-roaming-source-browser";
+import { createKaiTemporalRoot } from "./kai-temporal-root";
+
+import { canOperateWildzCrewCard, type WildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
 import { isWildsCrewPhysicallyActive, settleWildsCrewPendingGrowth, type WildsCrewActiveTrips } from "./wilds-crew-passive-settlement";
 import { nextWildsPartyTravelRevision } from "./wilds-party-transport";
 import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
@@ -9,6 +17,7 @@ import { requestWildsDive } from "./wilds-vertical-traversal";
 import { resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
+import { buildWildsRoamingPresenceUploads, projectWildsRemoteRoamingMarkers, type WildsRoamingPresenceUpload } from "./wilds-roaming-presence";
 import { createWildsPlayStateSourceAdmission } from "./wilds-play-state-source";
 import type { WildsCrewMapSource } from "./wilds-crew-map";
 import { useWildsCrewExpeditions } from "./use-wilds-crew-expeditions";
@@ -264,13 +273,15 @@ export function PlayCampaign({
   onOpenMarket = () => {},
   initialState = initialPlayState,
   initialPlayerContinuity = null,
+  crewCustody = null,
   initialWorld = null,
   onPlayStateChange,
   onPrepareCard,
   onExportCard,
   onExportVault,
   vaultAdmission,
-  onRestoreArtifact
+  onRestoreArtifact,
+  onRestoreRoamingCapture
 }: {
   campaignName?: string;
   enabled: boolean;
@@ -291,12 +302,14 @@ export function PlayCampaign({
   onOpenMarket?: (restoreOrigin: HTMLElement | null) => void;
   initialState?: PlayState;
   initialPlayerContinuity?: WildzPlayerContinuity | null;
+  crewCustody?: WildzCrewCustody | null;
   initialWorld?: { projection: WildsWorldProjection; mode: "receiz_live" | "kai_live" } | null;
   onPlayStateChange: (state: PlayState, playerContinuity: WildzPlayerContinuity) => void;
   onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
   onExportCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: (assets: PortableCardAsset[], player: WildsPlayerVaultPayload) => Promise<unknown>;
   vaultAdmission: WildzVaultCardAdmission | null;
+  onRestoreRoamingCapture: (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState) => Promise<WildzCommittedArtifactRestore>;
   onRestoreArtifact: (
     file: File,
     confirmCardOnly: WildzCardOnlyConfirmation,
@@ -304,7 +317,7 @@ export function PlayCampaign({
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
   const [state, setState] = useState(() => initialState);
-  const crewPreferences = useMemo(() => sanitizeWildsCrewPreferences(state.crewPreferences, state.inventory, ownerReceizId), [state.crewPreferences, state.inventory, ownerReceizId]);
+  const crewPreferences = useMemo(() => sanitizeWildsCrewPreferences(state.crewPreferences, state.inventory, ownerReceizId, crewCustody), [state.crewPreferences, state.inventory, ownerReceizId, crewCustody]);
   const admittedSourceStateRef = useRef(initialState);
   const [sourceAdmission] = useState(createWildsPlayStateSourceAdmission);
   const [saveRestored, setSaveRestored] = useState(false);
@@ -446,6 +459,8 @@ export function PlayCampaign({
   const explorerStyle = character.gender;
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
+  const [roamingDialogOpen, setRoamingDialogOpen] = useState(false);
+  const [roamingAuthorizationPending, setRoamingAuthorizationPending] = useState(false);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
   const walletPlayStateSeed = useMemo(() => projectWildsWalletPlayStateSeed({
     ascensionCatalysts: state.ascensionCatalysts,
@@ -544,7 +559,7 @@ export function PlayCampaign({
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
   const homeCompanions = useMemo(() => playableInventory({inventory:state.inventory,adventureConditions:state.adventureConditions}), [state.inventory, state.adventureConditions]);
-  const crewCards = useMemo(() => homeCompanions.filter(card => sameWildzPlayerCoordinate(card.manifest.ownerReceizId, ownerReceizId)), [homeCompanions, ownerReceizId]);
+  const crewCards = useMemo(() => homeCompanions.filter(card => canOperateWildzCrewCard(card, ownerReceizId, crewCustody)), [homeCompanions, ownerReceizId, crewCustody]);
   const journeyStructures = useMemo(() => Object.values(state.ownedWorldAdditions.structures).filter(item => sameWildzPlayerCoordinate(item.ownerReceizId, ownerReceizId)), [state.ownedWorldAdditions.structures, ownerReceizId]);
   const journeyHome = useMemo(() => journeyStructures.filter(item => item.blueprint === "trail-shelter").sort((a, b) => Math.hypot(a.position.x-state.player.x,a.position.z-state.player.z)-Math.hypot(b.position.x-state.player.x,b.position.z-state.player.z))[0], [journeyStructures, state.player.x, state.player.z]);
   const homeResidents = useMemo(() => journeyHome ? { shelterPosition: journeyHome.position, cards: homeCompanions } : undefined, [journeyHome, homeCompanions]);
@@ -637,6 +652,7 @@ export function PlayCampaign({
       return null;
     }
   }, [activeAsset, currentVaultAdmission]);
+  const roamingPresenceReader = useRef<() => readonly WildsRoamingPresenceUpload[]>(() => []);
   const multiplayer = useWildsMultiplayer({
     // Global presence is available to every internet-connected explorer.
     // networkEnabled still protects canonical world writes, but must not turn
@@ -646,7 +662,8 @@ export function PlayCampaign({
     style: explorerStyle,
     position: state.player,
     activeCard: activeAsset,
-    cardAdmission
+    cardAdmission,
+    readRoamingCreatures: () => roamingPresenceReader.current()
   });
   const messengerSelfHandle = multiplayer.snapshot?.players.find((entry) => entry.playerId === multiplayer.selfId)?.handle
     ?? multiplayer.selfId.replace(/^guest:/, "Explorer ").slice(0, 80)
@@ -702,7 +719,7 @@ export function PlayCampaign({
     pvp: Boolean(multiplayer.activeBattle)
   });
   const modalOwner = projectPlayShellOwner({
-    combat: combatSurface !== null,
+    combat: combatSurface !== null || roamingDialogOpen,
     trainer: Boolean(activeTrainer && activeAsset && trainerEncounter && ["challenge", "transition", "result"].includes(trainerEncounter.phase)),
     memorial: memorialAssetId !== null,
     reward: isCaptureRewardModalOwner(state.encounter.phase, Boolean(captureRewardAsset)),
@@ -946,18 +963,20 @@ export function PlayCampaign({
   );
   const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
   const accompanyingCrew = useMemo(() => state.inventory.filter(card => card.id === state.selectedAssetId || state.supportAssetIds.includes(card.id)).slice(0, 3), [state.inventory, state.selectedAssetId, state.supportAssetIds]);
-  const crewControlScope = useRef({ owner: ownerReceizId, inventory: state.inventory });
-  crewControlScope.current = { owner: ownerReceizId, inventory: state.inventory };
-  const crewExpeditions = useWildsCrewExpeditions({ owner: ownerReceizId, state, cards: crewCards,
+  const crewControlScope = useRef({ owner: ownerReceizId, inventory: state.inventory, custody: crewCustody });
+  crewControlScope.current = { owner: ownerReceizId, inventory: state.inventory, custody: crewCustody };
+  const crewExpeditions = useWildsCrewExpeditions({ owner: ownerReceizId, state, cards: crewCards, custody: crewCustody,
     accompanyingAssetIds: accompanyingCrew.map(card=>card.id), siteRuntime, obstacles: livingPhysicalObstacles,
     feedback: showWorldFeedback,
     onResumed: assetId => setState(current => current.crewPreferences?.ownerReceizId === ownerReceizId && current.crewPreferences.byAssetId[assetId] === "roam" ? current
-      : ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, "roam") })),
+      : ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, "roam", crewCustody) })),
     onFinished: assetId => setState(current => current.crewPreferences?.ownerReceizId === ownerReceizId && current.crewPreferences.byAssetId[assetId] === "follow" ? current
-      : ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, "follow") })) });
+      : ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, "follow", crewCustody) })) });
   const crewMapSource = useMemo<WildsCrewMapSource>(() => ({
-    owner: ownerReceizId, cards: crewCards, expeditions: crewExpeditions.expeditions, runtime: crewExpeditions.runtime.current
-  }), [ownerReceizId, crewCards, crewExpeditions.expeditions, crewExpeditions.runtime]);
+    owner: ownerReceizId, cards: crewCards, custody: crewCustody, expeditions: crewExpeditions.expeditions, runtime: crewExpeditions.runtime.current
+  }), [ownerReceizId, crewCards, crewCustody, crewExpeditions.expeditions, crewExpeditions.runtime]);
+  roamingPresenceReader.current = () => networkEnabled ? buildWildsRoamingPresenceUploads(crewMapSource, card => createWildzVaultCardMembershipProof(currentVaultAdmission, card)) : [];
+  const remoteCrewMarkers = useMemo(() => projectWildsRemoteRoamingMarkers(multiplayer.remotePlayers, multiplayer.selfId), [multiplayer.remotePlayers, multiplayer.selfId]);
   physicalCrewTrips.current = crewExpeditions.activeTrips.current;
   useEffect(() => {
     const nextDueAt = state.inventory.reduce<number | null>((earliest, asset) => {
@@ -1008,6 +1027,44 @@ export function PlayCampaign({
     mode: livingWorld.mode,
     cursor: livingWorld.snapshot?.cursor ?? null
   });
+  const roamingBattle = useWildsRoamingBattle({
+    enabled: enabled && networkEnabled,
+    selfId: multiplayer.selfId,
+    notices: multiplayer.snapshot?.roamingEncounters ?? [],
+    reportOwner: ownerReceizId,
+    getKai: () => createKaiTemporalRoot(kaiMoment),
+    readChallengerCard: () => activeAsset && canOperateWildzCrewCard(activeAsset, ownerReceizId, crewCustody)
+      ? { card: activeAsset, cardAdmission: createWildzVaultCardMembershipProof(currentVaultAdmission, activeAsset) } : null,
+    readOwnedRoamer: (assetId, proofDigest) => {
+      const card = crewCards.find(candidate => candidate.id === assetId && candidate.proof.digest === proofDigest);
+      const expedition = crewExpeditions.expeditions.get(assetId);
+      if (!card || !expedition || expedition.proofDigest !== proofDigest || expedition.recallRequested
+        || !["outbound", "observing"].includes(expedition.phase)) return null;
+      return { card, expeditionId: expedition.expeditionId, cardAdmission: createWildzVaultCardMembershipProof(currentVaultAdmission, card) };
+    },
+    onBattleLock: crewExpeditions.setBattleHold,
+    onWinningBattle: async encounter => {
+      const currentCard = crewControlScope.current.inventory.find(card => card.id === encounter.defenderAssetId
+        && canOperateWildzCrewCard(card, crewControlScope.current.owner, crewControlScope.current.custody));
+      if (!currentCard || crewControlScope.current.owner !== ownerReceizId) throw new Error("This creature is no longer in your custody.");
+      const source = await prepareWildsRoamingOwnerFile(currentCard, ownerReceizId);
+      const response = await fetch("/api/wilds/roaming/capture?action=offer", { method: "POST", headers: { "content-type": "application/json" }, cache: "no-store",
+        body: JSON.stringify({ battleId: encounter.id, currentCard, source: { exactBytesB64u: receizBase64UrlEncode(source.artifactBytes), filename: source.filename, mimeType: source.mimeType } }) });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Capture preparation could not complete.");
+    },
+    isCaptureRestored: encounter => state.inventory.some(card => card.id === encounter.defenderAssetId && canOperateWildzCrewCard(card, ownerReceizId, crewCustody)),
+    onClaim: async encounter => {
+      const response = await fetch("/api/wilds/roaming/capture?action=claim", { method: "POST", headers: { "content-type": "application/json" }, cache: "no-store", body: JSON.stringify({ battleId: encounter.id }) });
+      const result = await response.json() as { error?: string; card?: PortableCardAsset; artifact?: { exactBytesB64u: string; filename: string; mimeType: string } };
+      if (!response.ok || !result.card || !result.artifact) throw new Error(result.error ?? "Capture could not complete.");
+      const file = new File([receizBase64UrlDecode(result.artifact.exactBytesB64u).slice().buffer], result.artifact.filename, { type: result.artifact.mimeType });
+      const committed = await onRestoreRoamingCapture(file, result.card, state);
+      setState(committed.playState);
+      showWorldFeedback(`${result.card.manifest.name} joined your collection.`);
+    }
+  });
+  useEffect(() => { setRoamingDialogOpen(roamingBattle.dialogProps.open); }, [roamingBattle.dialogProps.open]);
   const saga = projectWildsSaga({
     moment: kaiMoment,
     framework: wildsSagaFramework(),
@@ -2285,16 +2342,24 @@ export function PlayCampaign({
     }
   };
   const handleCrewModeChange = async (assetId: string, mode: "follow" | "roam") => {
-    const card = state.inventory.find(asset => asset.id === assetId && sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, ownerReceizId));
+    const card = state.inventory.find(asset => asset.id === assetId && canOperateWildzCrewCard(asset, ownerReceizId, crewCustody));
     if (!card) return;
     try {
-      if (mode === "roam" && !await crewExpeditions.roam(card)) return;
+      if (mode === "roam") {
+        if (networkEnabled) {
+          showWorldFeedback(`Authorizing ${card.manifest.name} for live roaming…`);
+          await walletController.secureTransferAuthority();
+          showWorldFeedback(`Preparing ${card.manifest.name} for roaming encounters…`);
+          await prepareWildsRoamingOwnerFile(card, ownerReceizId);
+        }
+        if (!await crewExpeditions.roam(card)) return;
+      }
       if (mode === "follow" && await crewExpeditions.recall(assetId)) return;
     } catch (error) { showWorldFeedback(error instanceof Error ? error.message : "This creature cannot start exploring here."); return; }
     const latestCrew = crewControlScope.current;
     if (latestCrew.owner !== ownerReceizId || !latestCrew.inventory.some(asset => asset.id === assetId
-      && asset.proof.digest === card.proof.digest && sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, latestCrew.owner))) return;
-    setState(current => ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, mode) }));
+      && asset.proof.digest === card.proof.digest && canOperateWildzCrewCard(asset, latestCrew.owner, latestCrew.custody))) return;
+    setState(current => ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, mode, crewCustody) }));
     void recordWildsCrewModeObservation({ ownerReceizId, assetId, mode, genomeProofDigest: card.proof.digest })
       .catch(() => showWorldFeedback("Movement preference saved; activity history could not be saved."));
   };
@@ -2749,6 +2814,7 @@ export function PlayCampaign({
 
             <div aria-hidden={referenceHomeBlocked} className="wildz-reference-home" inert={referenceHomeBlocked ? true : undefined}>
               <WildzReferenceHud
+              remoteCrewMarkers={remoteCrewMarkers}
               crewMapSource={crewMapSource}
                 character={character}
                 interactionEnabled={worldInteractionEnabled}
@@ -2762,6 +2828,19 @@ export function PlayCampaign({
                 }}
               />
             </div>
+
+            <WildsRoamingBattle {...roamingBattle.dialogProps} />
+            {exclusiveOwner === "none" ? <WildsRoamingNearby players={multiplayer.remotePlayers} selfId={multiplayer.selfId}
+              position={state.player} pending={roamingAuthorizationPending || roamingBattle.dialogProps.pending}
+              resumeLabel={roamingBattle.resumableEncounter ? roamingBattle.resumableEncounter.capturePhase === "captured" ? "Restore captured creature" : "Resume roaming encounter" : undefined}
+              onResume={roamingBattle.resume}
+              onChallenge={target => {
+                if (!canUseWorldStage() || roamingAuthorizationPending) return;
+                setRoamingAuthorizationPending(true);
+                void walletController.secureTransferAuthority().then(() => roamingBattle.challenge(target))
+                  .catch(cause => showWorldFeedback(cause instanceof Error ? cause.message : "The challenge could not start."))
+                  .finally(() => setRoamingAuthorizationPending(false));
+              }} /> : null}
 
             <WildsBalancedStatusHud
               audio={{
