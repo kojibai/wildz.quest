@@ -55,7 +55,12 @@ export function createWildsCrewPhysicalScheduler(input:{
           route={target,direct:createWildsCrewPathStepState(),step:createWildsCrewPathStepState(),waypoints:[],directWaypoints:[target],proofDigest:entry.proofDigest};routes.set(assetId,route);
         }
         if(route.target.x!==entry.target.x||route.target.y!==entry.target.y||route.target.z!==entry.target.z){
-          Object.assign(route.target,entry.target);route.waypoints=[];route.step.waypointIndex=0;route.step.reason="arrived";
+          // A moving owner must not erase an admitted detour every update.
+          const changedJourney=Math.hypot(route.target.x-entry.target.x,route.target.z-entry.target.z)>8;
+          Object.assign(route.target,entry.target);
+          if(changedJourney || route.step.reason!=="moving"){
+            route.waypoints=[];route.step.waypointIndex=0;route.step.reason="arrived";
+          }
         }
         const beforeX=entry.position.x,beforeY=entry.position.y,beforeZ=entry.position.z;
         writeWildsCrewFollowingStep(entry.position,route.target,route.waypoints,route.step,route.direct,route.directWaypoints,{...authority,speed:5.5,deltaSeconds:WILDS_CREW_PHYSICAL_TICK_MS/1000});

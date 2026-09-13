@@ -1,3 +1,4 @@
+import { pngCrc32 as crc32 } from "../../lib/png-crc32";
 import { creatureForm } from "./creature-catalog";
 import { wildzSealedDownloadFilename } from "../../lib/receiz/wildz-sealed-document";
 import QRCode from "qrcode";
@@ -265,15 +266,6 @@ function concatBytes(parts: readonly Uint8Array[]) {
   return result;
 }
 
-function crc32(bytes: Uint8Array) {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
 function parsePng(bytes: Uint8Array): PngChunk[] {
   if (bytes.length < PNG_SIGNATURE.length || PNG_SIGNATURE.some((byte, index) => bytes[index] !== byte)) throw new Error("png_signature_invalid");
   const chunks: PngChunk[] = [];
@@ -289,7 +281,7 @@ function parsePng(bytes: Uint8Array): PngChunk[] {
     if (!/^[A-Za-z]{4}$/.test(type)) throw new Error("png_chunk_type_invalid");
     const data = bytes.slice(offset + 8, offset + 8 + length);
     const expectedCrc = uint32(bytes, offset + 8 + length);
-    if (crc32(concatBytes([typeBytes, data])) !== expectedCrc) throw new Error(`png_crc_invalid:${type}`);
+    if (crc32(typeBytes, data) !== expectedCrc) throw new Error(`png_crc_invalid:${type}`);
     chunks.push({ type, data });
     offset = end;
     if (type === "IEND") {
@@ -304,7 +296,7 @@ function parsePng(bytes: Uint8Array): PngChunk[] {
 
 function makeChunk(type: string, data: Uint8Array) {
   const typeBytes = new TextEncoder().encode(type);
-  return concatBytes([uint32Bytes(data.length), typeBytes, data, uint32Bytes(crc32(concatBytes([typeBytes, data])))]);
+  return concatBytes([uint32Bytes(data.length), typeBytes, data, uint32Bytes(crc32(typeBytes, data))]);
 }
 
 function imageDigest(chunks: readonly PngChunk[]) {

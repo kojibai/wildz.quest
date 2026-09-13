@@ -120,3 +120,18 @@ it("finishes the already admitted visual segment when a large roster shrinks",()
  const visual={x:0,y:0,z:0};writeWildsCrewVisualPosition(visual,value,2199);assert.ok(visual.x<.55);
  scheduler.tick(2200);assert.equal(value.visualStep.from.x,.55);assert.ok(value.position.x>.55);assert.equal(value.visualStep.durationMs,100);
 });
+
+it("keeps a safe detour while the returning destination moves behind a wide rock",()=>{
+ const value={...entry(),target:{x:10,y:0,z:0}},runtime=new Map([["returning",value]]);
+ const obstacle:WildsCrewNavigationAuthority={...clear,sampleSegment:(from,to,_mode,out)=>{
+   out.y=0;out.allowed=true;
+   for(let i=0;i<=30;i++)if(Math.hypot(from.x+(to.x-from.x)*i/30-4,from.z+(to.z-from.z)*i/30)<2)out.allowed=false;
+ }};
+ const scheduler=createWildsCrewPhysicalScheduler({runtime:()=>runtime,admit:()=>obstacle});
+ for(let i=0;i<160;i++){
+   value.target={x:10,y:0,z:i%2? .1:0};
+   scheduler.tick(i*100);
+   assert.ok(Math.hypot(value.position!.x-4,value.position!.z)>=2,"never walks through the rock");
+ }
+ assert.ok(value.position!.x>9,"returns around the obstacle despite moving owner");
+});

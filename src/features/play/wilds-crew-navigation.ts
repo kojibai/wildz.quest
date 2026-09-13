@@ -51,7 +51,8 @@ export function planWildsCrewPath(input: WildsCrewNavigationAuthority & {
   const heuristic = (p: WildsCrewNavigationPoint) => Math.hypot(p.x - target.x, p.y - target.y, p.z - target.z);
   const first: Node = { p: start, ix: 0, iz: 0, cost: 0, score: heuristic(start), parent: null, closed: false };
   const nodes = new Map<string, Node>([["0,0", first]]), open = [first];
-  const offsets = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+  // Diagonals still use the same swept collision test, including corners.
+  const offsets = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
   let visited = 0, limited = false;
   while (open.length) {
     let best = 0;
@@ -154,7 +155,7 @@ export function planWildsCrewPathNearTarget(input: Parameters<typeof planWildsCr
   if(input.routeTarget)input={...input,target:input.routeTarget(input.start,input.target)};
   const maximum = input.maxNodes ?? 192;
   if (!Number.isInteger(maximum) || maximum < 1 || maximum > 4096) return { reason: "invalid-input", visitedNodes: 0, waypoints: [] };
-  const exact = planWildsCrewPath({ ...input, maxNodes: Math.min(maximum, 96) });
+  const exact = planWildsCrewPath({ ...input, maxNodes: Math.max(1, maximum - Math.min(48, Math.floor(maximum / 4))) });
   if (exact.reason !== "blocked-target" && exact.reason !== "unreachable" && exact.reason !== "budget-exhausted") return exact;
   let visited = exact.visitedNodes;
   const candidates: WildsCrewNavigationPoint[] = [];

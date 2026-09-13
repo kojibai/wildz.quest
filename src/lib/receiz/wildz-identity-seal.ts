@@ -1,3 +1,4 @@
+import { pngCrc32 as crc32 } from "../png-crc32";
 import { deriveKaiKlokMoment } from "../../features/play/kai-klok-moment";
 import {
   appendReceizIdentityArtifactTrailerToPng,
@@ -73,24 +74,13 @@ function uint32Bytes(value: number) {
   ]);
 }
 
-function crc32(bytes: Uint8Array) {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) {
-      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
-    }
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
 function pngChunk(type: string, data: Uint8Array) {
   const typeBytes = new TextEncoder().encode(type);
   return concatBytes([
     uint32Bytes(data.byteLength),
     typeBytes,
     data,
-    uint32Bytes(crc32(concatBytes([typeBytes, data])))
+    uint32Bytes(crc32(typeBytes, data))
   ]);
 }
 

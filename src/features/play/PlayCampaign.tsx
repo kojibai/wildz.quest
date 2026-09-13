@@ -463,6 +463,7 @@ export function PlayCampaign({
   const explorerStyle = character.gender;
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
+  const [mapVisited, setMapVisited] = useState(false);
   const [roamingDialogOpen, setRoamingDialogOpen] = useState(false);
   const [roamingAuthorizationPending, setRoamingAuthorizationPending] = useState(false);
   const [multiplayerRosterOpen, setMultiplayerRosterOpen] = useState(false);
@@ -1319,17 +1320,18 @@ export function PlayCampaign({
       const timer = window.setTimeout(() => {
         const uPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
         setState((current) => applyWildsInput(current, rootWildsInputInKai({ type: "start-battle", at: kaiUPulseToISOString(uPulse) }, uPulse)));
-      }, 650);
+      }, reducedMotion ? 0 : 180);
       return () => window.clearTimeout(timer);
     }
-    const delay = state.encounter.phase === "emerging" ? 1_050 : state.encounter.phase === "capsule" ? 1_250 : state.encounter.phase === "sealed" ? 700 : null;
+    const duration = state.encounter.phase === "emerging" ? 300 : state.encounter.phase === "capsule" ? 360 : state.encounter.phase === "sealed" ? 180 : null;
+    const delay = duration === null ? null : reducedMotion ? 0 : duration;
     if (delay === null) return;
     const timer = window.setTimeout(() => {
       const uPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
       setState((current) => applyWildsInput(current, rootWildsInputInKai({ type: "advance-encounter", at: kaiUPulseToISOString(uPulse) }, uPulse)));
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [state.encounter.phase]);
+  }, [state.encounter.phase, reducedMotion]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -2025,6 +2027,7 @@ export function PlayCampaign({
     if (!canUseWorldStage()) return;
     claimPlayModalOwner("map");
     setCommandDismissSignal((signal) => signal + 1);
+    setMapVisited(true);
     setMapOpen(true);
   };
   const openWorldMapFromCommandPanel = () => {
@@ -2032,6 +2035,7 @@ export function PlayCampaign({
     dispatchStageOverlay({ type: "panel", key: null });
     claimPlayModalOwner("map");
     setCommandDismissSignal((signal) => signal + 1);
+    setMapVisited(true);
     setMapOpen(true);
   };
   const discoveryActive = state.encounter.phase === "idle" || state.encounter.phase === "searching" || state.encounter.phase === "hint";
@@ -3020,7 +3024,7 @@ export function PlayCampaign({
 
         </div>
       </div>
-      <WildsWorldMap
+      {mapVisited ? <WildsWorldMap
         crewMapSource={crewMapSource}
         currentPosition={state.player}
         discoveredLandmarkIds={discoveredLandmarkIds}
@@ -3042,7 +3046,7 @@ export function PlayCampaign({
         ecologyKnowledge={state.ecologyKnowledge}
         bossKnowledge={state.bossKnowledge}
         trainers={sagaTrainers}
-      />
+      /> : null}
       <WildsLandmarkExperience
         access={activeLandmarkId && activeLandmarkId !== "wayfinder-hollow" ? evaluateLandmarkAccess(WILDS_FLAGSHIP_LANDMARKS.find((item) => item.id === activeLandmarkId)!, landmarkProgress) : null}
         card={activeAsset}
