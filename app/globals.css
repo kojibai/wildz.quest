@@ -17081,23 +17081,25 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
     box-shadow: 0 3px 10px rgb(22 41 31 / 16%), inset 0 1px rgb(255 255 255 / 65%);
   }
   .wilds-map-status-home .wilds-live-pill.event {
-    width: calc((100vw - 22px) / 2);
+    width: calc(100% - var(--wildz-phone-identity) - 148px);
     max-width: none;
-    height: 28px;
-    min-height: 28px;
-    padding: 0 10px;
-    gap: 4px;
-    font-size: 8px;
-    letter-spacing: .01em;
+    height: 20px;
+    min-height: 20px;
+    padding: 0 5px;
+    gap: 3px;
+    font-size: 7px;
+    letter-spacing: 0;
   }
   .wilds-map-status-home .wilds-live-pill.event:not(.ecology),
   .wilds-map-status-home .wilds-live-pill.event.ecology {
-    top: calc(158px + var(--wildz-stage-safe-top));
-    right: max(8px, env(safe-area-inset-right));
+    right: auto;
+    left: calc(var(--wildz-phone-edge) + var(--wildz-phone-identity) + var(--wildz-phone-gap));
   }
   .wilds-map-status-home .wilds-live-pill.event.ecology {
-    right: auto;
-    left: max(8px, env(safe-area-inset-left));
+    top: calc(110px + var(--wildz-stage-safe-top));
+  }
+  .wilds-map-status-home .wilds-live-pill.event:not(.ecology) {
+    top: calc(132px + var(--wildz-stage-safe-top));
   }
   .wilds-map-status-home .wilds-live-pill.event span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .wilds-map-status-home .wilds-live-pill.event b { flex: 0 0 auto; }

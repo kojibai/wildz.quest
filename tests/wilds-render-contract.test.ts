@@ -749,7 +749,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(inventory, /QRCode\.toDataURL\(record\.sourceUrl/);
     assert.match(inventory, /<WildsCardScene asset=\{selected\} condition=\{state\.adventureConditions\[selected\.id\]\} origin=\{origin\} qr=\{qr\}/);
     assert.match(inventory, />Import card or vault</);
-    assert.match(inventory, />Save verified vault</);
+    assert.match(inventory, /"Save verified vault"/);
     assert.match(inventory, /cardSave\.button/);
     assert.match(inventory, /aria-label="Import card or vault"/);
     assert.match(inventory, /aria-label="Save verified vault"/);

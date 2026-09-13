@@ -1,4 +1,5 @@
 "use client";
+import type { WildzPreparedIdentityPlayerVault } from "../../lib/receiz/wildz-prepared-player-vault";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -67,6 +68,7 @@ export function WildsInventory({
   onPrepareCard,
   onExportCard,
   onExportVault,
+  onPrepareVault,
   onInput,
   onListAsset,
   onRestoreArtifact,
@@ -83,7 +85,8 @@ export function WildsInventory({
   vaultAdmission: WildzVaultCardAdmission;
   onPrepareCard: (asset: PlayState["inventory"][number], player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
   onExportCard: (asset: PlayState["inventory"][number], player: () => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
-  onExportVault: (assets: PlayState["inventory"], player: WildsPlayerVaultPayload) => Promise<unknown>;
+  onExportVault: (assets: PlayState["inventory"], player: WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityPlayerVault) => Promise<unknown>;
+  onPrepareVault?: (assets: PlayState["inventory"], player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityPlayerVault>;
   onInput: (input: WildsInput) => void;
   onListAsset?: (asset: PlayState["inventory"][number], priceCents: number) => Promise<PlayState["inventory"][number] | null>;
   onRestoreArtifact: (
@@ -127,6 +130,23 @@ export function WildsInventory({
   const previousFocusedAssetId = useRef(focusedAssetId);
   const playerVaultRef = useRef(playerVault);
   const selectedCardRef = useRef<PlayState["inventory"][number] | undefined>(undefined);
+  const preparedVault = useRef<{ state: PlayState; player: WildsPlayerVaultPayload; artifact: WildzPreparedIdentityPlayerVault } | null>(null);
+  const [vaultPreparing, setVaultPreparing] = useState(false);
+  const prepareVaultRef = useRef(onPrepareVault);
+  prepareVaultRef.current = onPrepareVault;
+  useEffect(() => {
+    preparedVault.current = null;
+    if (!prepareVaultRef.current || !state.inventory.length) return;
+    let active = true;
+    setVaultPreparing(true);
+    void Promise.resolve().then(async () => {
+      const player = playerVault();
+      const artifact = await prepareVaultRef.current!(state.inventory, player);
+      if (active) preparedVault.current = { state, player, artifact };
+    }).catch(() => { /* Explicit Save can unlock the identity if necessary. */ })
+      .finally(() => { if (active) setVaultPreparing(false); });
+    return () => { active = false; };
+  }, [state, ownerReceizId, playerVault]);
   const prepareCardRef = useRef(onPrepareCard);
   prepareCardRef.current = onPrepareCard;
   const preparedCardArtifacts = useMemo(
@@ -345,11 +365,12 @@ export function WildsInventory({
 
   const saveVerifiedVault = async () => {
     setVaultSaving(true);
-      setVaultMessage("Sealing the Vault for the active Receiz ID…");
+      setVaultMessage("Opening your Vault save panel…");
     try {
-      const player = playerVault();
-      await onExportVault(state.inventory, player);
-      setVaultMessage("Receiz-sealed Vault opened in your device save panel for Photos, Files, or sharing.");
+      const ready = preparedVault.current?.state === state ? preparedVault.current : null;
+      const player = ready?.player ?? playerVault();
+      await onExportVault(state.inventory, player, ready?.artifact);
+      setVaultMessage("Signed Vault opened in your device save panel for Photos, Files, or sharing.");
     } catch (error) {
       setVaultMessage(error instanceof Error ? `Vault save failed: ${error.message}` : "Vault save failed. Try again from this browser.");
     } finally {
@@ -405,13 +426,13 @@ export function WildsInventory({
             aria-label="Save verified vault"
             aria-busy={vaultSaving}
             className={`wilds-import-card vault wilds-action-feedback${vaultSaving ? " wilds-action-busy" : ""}`}
-            disabled={!state.inventory.length || vaultSaving}
+            disabled={!state.inventory.length || vaultSaving || vaultPreparing}
             onClick={() => { void saveVerifiedVault(); }}
             title="Save verified vault"
             type="button"
           >
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16v13H4zM8 6V4h8v2m-4 3v6m0 0-3-3m3 3 3-3" /></svg>
-            <span>Save verified vault</span>
+            <span>{vaultPreparing ? "Preparing vault…" : "Save verified vault"}</span>
           </button>
           <button aria-label="Fuse cards" className="wilds-import-card fusion wilds-action-feedback" disabled={state.inventory.length < 2} onClick={() => setFusionOpen((value) => !value)} title="Fuse cards" type="button">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 7h5l2 3 2-3h5M5 17h5l2-3 2 3h5" /></svg>

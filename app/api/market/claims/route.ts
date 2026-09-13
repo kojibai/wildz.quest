@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import type { WildzOwnershipReceipt } from "@/features/market/wildz-market";
 import { createReceizCommerceAdapter } from "@/lib/receiz/adapter";
 import { claimWildzBearerArtifact } from "@/lib/receiz/wildz-bearer-ownership";
@@ -82,69 +82,69 @@ export async function POST(request: NextRequest) {
       assetIds,
       idempotencyKey
     );
-
-    const repository = createReceizWildzMarketRepository({
-      rail: resolveWildzMarketConditionalAppendRail(adapter)
-    });
-    let marketProjection: "admitted" | "unavailable" = "admitted";
-    for (const asset of extracted.assets) {
-      let loaded = await repository.load();
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        if (loaded.status !== "ready") {
-          marketProjection = "unavailable";
-          break;
+    // The native artifact has already admitted custody. Market listing indexes
+    // are secondary projections; Next completes them after returning the file.
+    after(async () => {
+      const repository = createReceizWildzMarketRepository({
+        rail: resolveWildzMarketConditionalAppendRail(adapter)
+      });
+      for (const asset of extracted.assets) {
+        let loaded = await repository.load();
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          if (loaded.status !== "ready") {
+            break;
+          }
+          const previousOwnerReceizId = ownershipWitness.previousOwnerReceizId;
+          if (sameWildzPlayerCoordinate(previousOwnerReceizId, actor.actorId)) break;
+          const occurredAt = ownershipWitness.witnessedAt;
+          const receipt: WildzOwnershipReceipt = {
+            schema: "receiz.wilds_ownership_receipt.v1",
+            assetId: asset.id,
+            proofDigest: asset.proof.digest,
+            previousOwnerReceizId,
+            ownerReceizId: actor.actorId,
+            transferId: `bearer:${admitted.claimId}:${asset.id}`,
+            ledgerEventId: `bearer-ledger:${admitted.artifactSha256}:${asset.id}`,
+            proofBundle: {
+              schema: "receiz.wilds_bearer_claim.v120",
+              artifactSha256: admitted.artifactSha256,
+              payloadSha256: admitted.payloadSha256,
+              claimId: admitted.claimId,
+              recordId: admitted.recordId,
+              verifyPath: admitted.verifyPath,
+              ownerReceizId: admitted.ownerReceizId,
+              ownershipArtifactId: ownershipWitness.artifactId,
+              ownershipHeadReference: ownershipWitness.headReference,
+              ownershipHistoryDigestSha256: ownershipWitness.historyDigestSha256,
+              ownershipAppendCount: ownershipWitness.appendCount,
+              witnessedKaiPulse: ownershipWitness.witnessedKaiPulse,
+              witnessedAt: ownershipWitness.witnessedAt,
+              authority: {
+                claim: "witnessed-kai-pulse-in-sealed-artifact",
+                server: "synchronization-projection-only"
+              }
+            },
+            transferredAt: occurredAt
+          };
+          const admission = await repository.compareAndAppend({
+            current: loaded.state,
+            expectedRevision: loaded.state.revision,
+            expectedAppendAnchorId: loaded.state.appendAnchorId,
+            idempotencyKey: `${idempotencyKey}:${asset.id}`,
+            occurredAt,
+            event: { type: "bearer-claim-admitted", asset, receipt }
+          });
+          if (admission.status === "admitted" || admission.status === "replayed") {
+            break;
+          }
+          if (admission.status !== "market_revision_conflict") {
+            break;
+          }
+          loaded = await repository.load();
         }
-        const previousOwnerReceizId = ownershipWitness.previousOwnerReceizId;
-        if (sameWildzPlayerCoordinate(previousOwnerReceizId, actor.actorId)) break;
-        const occurredAt = ownershipWitness.witnessedAt;
-        const receipt: WildzOwnershipReceipt = {
-          schema: "receiz.wilds_ownership_receipt.v1",
-          assetId: asset.id,
-          proofDigest: asset.proof.digest,
-          previousOwnerReceizId,
-          ownerReceizId: actor.actorId,
-          transferId: `bearer:${admitted.claimId}:${asset.id}`,
-          ledgerEventId: `bearer-ledger:${admitted.artifactSha256}:${asset.id}`,
-          proofBundle: {
-            schema: "receiz.wilds_bearer_claim.v120",
-            artifactSha256: admitted.artifactSha256,
-            payloadSha256: admitted.payloadSha256,
-            claimId: admitted.claimId,
-            recordId: admitted.recordId,
-            verifyPath: admitted.verifyPath,
-            ownerReceizId: admitted.ownerReceizId,
-            ownershipArtifactId: ownershipWitness.artifactId,
-            ownershipHeadReference: ownershipWitness.headReference,
-            ownershipHistoryDigestSha256: ownershipWitness.historyDigestSha256,
-            ownershipAppendCount: ownershipWitness.appendCount,
-            witnessedKaiPulse: ownershipWitness.witnessedKaiPulse,
-            witnessedAt: ownershipWitness.witnessedAt,
-            authority: {
-              claim: "witnessed-kai-pulse-in-sealed-artifact",
-              server: "synchronization-projection-only"
-            }
-          },
-          transferredAt: occurredAt
-        };
-        const admission = await repository.compareAndAppend({
-          current: loaded.state,
-          expectedRevision: loaded.state.revision,
-          expectedAppendAnchorId: loaded.state.appendAnchorId,
-          idempotencyKey: `${idempotencyKey}:${asset.id}`,
-          occurredAt,
-          event: { type: "bearer-claim-admitted", asset, receipt }
-        });
-        if (admission.status === "admitted" || admission.status === "replayed") {
-          break;
-        }
-        if (admission.status !== "market_revision_conflict") {
-          marketProjection = "unavailable";
-          break;
-        }
-        loaded = await repository.load();
       }
-    }
-    return claimedArtifactResponse(admitted, assetIds, marketProjection, ownershipSync);
+    });
+    return claimedArtifactResponse(admitted, assetIds, "unavailable", ownershipSync);
   } catch (cause) {
     const failure = marketRouteError(cause, "market_bearer_claim_invalid");
     return json(failure.body, failure.status);

@@ -1,4 +1,5 @@
 "use client";
+import type { WildzPreparedIdentityPlayerVault } from "../../lib/receiz/wildz-prepared-player-vault";
 import { receizBase64UrlEncode, receizBase64UrlDecode } from "@receiz/sdk";
 import { useWildsRoamingBattle } from "./use-wilds-roaming-battle";
 import { WildsRoamingBattle } from "./WildsRoamingBattle";
@@ -279,6 +280,7 @@ export function PlayCampaign({
   onPrepareCard,
   onExportCard,
   onExportVault,
+  onPrepareVault,
   vaultAdmission,
   onRestoreArtifact,
   onRestoreRoamingCapture
@@ -307,7 +309,8 @@ export function PlayCampaign({
   onPlayStateChange: (state: PlayState, playerContinuity: WildzPlayerContinuity) => void;
   onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
   onExportCard: (asset: PortableCardAsset, player: () => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
-  onExportVault: (assets: PortableCardAsset[], player: WildsPlayerVaultPayload) => Promise<unknown>;
+  onExportVault: (assets: PortableCardAsset[], player: WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityPlayerVault) => Promise<unknown>;
+  onPrepareVault?: (assets: PlayState["inventory"], player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityPlayerVault>;
   vaultAdmission: WildzVaultCardAdmission | null;
   onRestoreRoamingCapture: (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState) => Promise<WildzCommittedArtifactRestore>;
   onRestoreArtifact: (
@@ -1168,6 +1171,22 @@ export function PlayCampaign({
     enabled,
     initialAudioSettings: initialPlayerContinuity?.settings.audio
   });
+  const vaultWorldId = livingWorld.snapshot ? "wilds:global:v3" : initialPlayerContinuity?.canonicalCursor.worldId ?? "wilds:global:v3";
+  const vaultWorldRevision = livingWorld.snapshot?.revision ?? initialPlayerContinuity?.canonicalCursor.revision ?? 0;
+  const vaultWorldEventId = livingWorld.snapshot ? livingWorld.snapshot.cursor?.eventId ?? null : initialPlayerContinuity?.canonicalCursor.eventId ?? null;
+  // Presentation clock renders must not retire an in-flight Vault preparation.
+  const createCurrentPlayerVault = useCallback(() => createWildsPlayerVault({
+    playerId: ownerReceizId,
+    exportedAt: new Date().toISOString(),
+    playState: state,
+    character,
+    settings: { avatarStyle: explorerStyle, movementMode, audio: presentation.audioSettings, cardOrder, visual: visualSettings },
+    personalEvents: initialPlayerContinuity?.personalEvents ?? [],
+    canonicalCursor: { worldId: vaultWorldId, revision: vaultWorldRevision, eventId: vaultWorldEventId },
+    receipts: initialPlayerContinuity?.receipts ?? []
+  }), [ownerReceizId, state, character, explorerStyle, movementMode, presentation.audioSettings, cardOrder, visualSettings,
+    initialPlayerContinuity?.personalEvents, initialPlayerContinuity?.receipts, vaultWorldId, vaultWorldRevision, vaultWorldEventId]);
+
   const previousKaiTransitionKey = useRef<KaiWorldExpression["transitionKey"] | null>(null);
   const kaiDayKey = kaiExpression.transitionKey.day;
   const kaiBeatKey = kaiExpression.transitionKey.beat;
@@ -2624,32 +2643,12 @@ export function PlayCampaign({
             focusedAssetId={vaultFocusedAssetId ?? state.selectedAssetId}
             cardOrder={cardOrder}
             onCardOrderChange={setCardOrder}
-            playerVault={() => createWildsPlayerVault({
-              playerId: ownerReceizId,
-              exportedAt: new Date().toISOString(),
-              playState: state,
-              character,
-              settings: {
-                avatarStyle: explorerStyle,
-                movementMode,
-                audio: presentation.audioSettings,
-                cardOrder,
-                visual: visualSettings
-              },
-              personalEvents: initialPlayerContinuity?.personalEvents ?? [],
-              canonicalCursor: livingWorld.snapshot
-                ? {
-                    worldId: "wilds:global:v3",
-                    revision: livingWorld.snapshot.revision,
-                    eventId: livingWorld.snapshot.cursor?.eventId ?? null
-                  }
-                : initialPlayerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
-              receipts: initialPlayerContinuity?.receipts ?? []
-            })}
+            playerVault={createCurrentPlayerVault}
             vaultAdmission={currentVaultAdmission}
             onPrepareCard={onPrepareCard}
             onExportCard={onExportCard}
             onExportVault={onExportVault}
+            onPrepareVault={onPrepareVault}
             onInput={dispatch}
             onListAsset={onListAsset}
             onRestoreArtifact={async (file, confirmCardOnly, currentPlayState) => {

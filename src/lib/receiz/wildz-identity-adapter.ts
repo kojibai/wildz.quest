@@ -1,3 +1,5 @@
+import { createWildzIdentityPlayerVaultPreparer, savePreparedWildzIdentityPlayerVault } from "./wildz-prepared-player-vault";
+export { savePreparedWildzIdentityPlayerVault, type WildzPreparedIdentityPlayerVault } from "./wildz-prepared-player-vault";
 import { mergeWildzCrewCustody, readWildzArtifactCrewCustody, type WildzCrewCustody } from "./wildz-artifact-codec";
 import { reopenWildzCrewCustody, wildzCrewCustodySourceKey } from "./wildz-crew-custody-source";
 import { defaultContinuityDatabase, defaultIdentityRepository } from "./wildz-active-identity";
@@ -23,13 +25,10 @@ import {
   createReceizProofObjectArtifact,
   downloadBlob,
   saveBlobToDevice,
-  downloadReceizProofObject,
   embedPortableVaultInPng,
   portableCardPngBlobForIdentityOwnership,
   portableCreatureFilename,
   portableVaultPngBlob,
-  readPortableVaultFromPng,
-  readWildzPlayerVaultAppendFromPng,
 } from "../../features/play/card-export";
 import type { PortableCardAsset } from "../../features/play/portable-card";
 import { cardArtifactFingerprint } from "../../features/play/prepared-card-artifact";
@@ -604,50 +603,18 @@ export async function createWildzIdentityPlayerCard(input: {
   });
 }
 
-export async function downloadWildzIdentityPlayerVault(
-  session: WildzIdentitySession,
-  assets: PortableCardAsset[],
-  player: WildsPlayerVaultPayload,
-  options: {
-    passphrase?: string;
-    requestPassphrase?: () => string | null;
-  } = {}
-) {
-  if (session.localAuthority !== "verified") {
-    throw new Error("wildz_identity_vault_authority_required");
-  }
-  const sealed = await portableVaultPngBlob(assets, player);
-  const sealedBytes = new Uint8Array(await sealed.arrayBuffer());
-  const proof = readPortableVaultFromPng(sealedBytes);
-  const playerAppend = readWildzPlayerVaultAppendFromPng(sealedBytes);
-  if (playerAppend.base.vaultDigest !== proof.vaultDigest) {
-    throw new Error("wildz_vault_export_proof_invalid");
-  }
-  const combined = await defaultIdentityRepository.withKeyFile(session.keyId, async (keyFile) => {
-    let passphrase = options.passphrase;
-    if (identityKeyNeedsPassphrase(keyFile) && passphrase === undefined) {
-      passphrase = options.requestPassphrase?.()
-        ?? (typeof window !== "undefined"
-          ? window.prompt("Enter this Identity Seal's passphrase to sign the Vault export.") ?? undefined
-          : undefined);
-    }
-    return createWildzIdentityBoundPlayerVault({
-      keyFile,
-      vaultBytes: sealedBytes,
-      ...(passphrase !== undefined ? { passphrase } : {})
-    });
-  });
-  const digest = proof.vaultDigest.slice(7, 19);
-  await downloadReceizProofObject(
-    new Blob([combined.slice().buffer], { type: "image/png" }),
-    `wilds-vault-${digest}.png`,
-    "vault",
-    { outputFilename: `wilds-vault-${digest}.receized.png`,
-      verifyProofObject: async (bytes, mimeType, filename) => {
-        await defaultWildzProofSourceRepository.retain({ bytes, filename, mimeType });
-      }
-    }
-  );
+const preparePlayerVault = createWildzIdentityPlayerVaultPreparer({
+  render: portableVaultPngBlob,
+  sign: (keyId, action) => defaultIdentityRepository.withKeyFile(keyId, action)
+});
+
+export function prepareWildzIdentityPlayerVault(...args: Parameters<typeof preparePlayerVault>) {
+  return preparePlayerVault(...args);
+}
+
+export async function downloadWildzIdentityPlayerVault(...args: Parameters<typeof preparePlayerVault>) {
+  const prepared = await prepareWildzIdentityPlayerVault(...args);
+  await savePreparedWildzIdentityPlayerVault(prepared);
   return { identityBound: true } as const;
 }
 

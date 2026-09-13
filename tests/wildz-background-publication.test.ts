@@ -82,6 +82,24 @@ test("a timed-out request is cancelled and retries automatically", async () => {
   h.job.stop();
 });
 
+test("a publisher that ignores cancellation cannot strand retries or confirm a retired attempt", async () => {
+  let finishRetired!: () => void;
+  let calls = 0;
+  const h = harness(async () => {
+    if (++calls === 1) await new Promise<void>(resolve => { finishRetired = resolve; });
+  });
+  h.fire(300); await flush();
+  h.fire(30_000); await flush();
+  assert.equal(h.statuses.at(-1), "unpublished");
+  assert.equal(h.failures.at(-1)?.kind, "timeout");
+  h.fire(15_000); await flush();
+  assert.equal(calls, 2);
+  assert.equal(h.statuses.at(-1), "ready");
+  finishRetired(); await flush();
+  assert.equal(h.statuses.filter(status => status === "ready").length, 1);
+  assert.equal(h.timers.size, 0);
+});
+
 test("card progress renews the deadline so large restored vaults can finish publishing", async () => {
   let progress!: () => void;
   let finish!: () => void;

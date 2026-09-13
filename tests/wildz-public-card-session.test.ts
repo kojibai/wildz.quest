@@ -134,7 +134,8 @@ test("card and Vault sealing use the active Wildz Receiz ID without a Connect re
   assert.match(route, /requireVerifiedWildzPng/);
   assert.match(route, /\/api\/document-seal/);
   assert.doesNotMatch(route, /verifyReceizArtifact/);
-  assert.match(identityAdapter, /downloadReceizProofObject/);
+  assert.match(identityAdapter, /prepareWildzIdentityPlayerVault/);
+  assert.match(identityAdapter, /savePreparedWildzIdentityPlayerVault/);
   assert.doesNotMatch(identityAdapter, /identityBound:\s*false/);
 });
 
@@ -269,4 +270,23 @@ test("a missing public revision is published and then anonymously verified", asy
   }) as typeof fetch;
   await publicCardRegistry.requireGloballyAvailablePublicWildsCard(asset, fetcher);
   assert.deepEqual(methods, ["GET", "POST", "GET"]);
+});
+
+test("a missing anonymous revision invalidates a previous local publication acknowledgment", async () => {
+  const asset = initialPlayState.inventory[0]!;
+  const record = createPublicWildsCardRecord(asset, "https://wildz.quest", "2026-09-09T11:00:00.000Z");
+  let publications = 0;
+  const methods: string[] = [];
+  const fetcher = (async (_url: string, init?: RequestInit) => {
+    const method = init?.method ?? "GET";
+    methods.push(method);
+    if (method === "POST") publications++;
+    // The first acknowledged upload is no longer available to anonymous readers.
+    return method === "POST" || publications > 1
+      ? Response.json({ ok: true, record }) : Response.json({ ok: false }, { status: 404 });
+  }) as typeof fetch;
+  await registerPublicWildsCard(asset, fetcher);
+  await publicCardRegistry.requireGloballyAvailablePublicWildsCard(asset, fetcher);
+  assert.deepEqual(methods, ["POST", "GET", "POST", "GET"]);
+  assert.equal(publications, 2);
 });

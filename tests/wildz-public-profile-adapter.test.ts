@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { sanitizePublicWildzProfile } from "../src/features/profile/public-profile";
-import { createOwnerBoundInitialPlayState } from "../src/features/play/game-state";
+import { nearbyHiddenHotspots } from "../src/features/play/hidden-hotspots";
+import { applyWildsInput, createOwnerBoundInitialPlayState } from "../src/features/play/game-state";
 import { sealCollectedCard, type PortableCardAsset } from "../src/features/play/portable-card";
 import {
   fetchPublicWildzProfile,
@@ -321,4 +322,32 @@ test("a live older profile cannot mark changed local content synced",async()=>{
   }) as typeof fetch;
   await assert.rejects(publishCurrentWildzProfile(profile,[],fetcher,{confirmExisting:true}),/publication_unavailable/);
   assert.deepEqual(calls,["GET","POST"]);
+});
+
+test("a new capture reaches profile verification without waiting for the separate anonymous card projection", async () => {
+  const initial = createOwnerBoundInitialPlayState("fern");
+  const hotspot = nearbyHiddenHotspots(initial.player)[0]!;
+  const discovered = applyWildsInput(initial, { type: "search-point", x: hotspot.position.x, z: hotspot.position.z, searchedAt: "2026-09-13T12:00:00.000Z", ownerReceizId: "fern" });
+  assert.notEqual(discovered.encounter.phase, "idle");
+  if (discovered.encounter.phase === "idle") throw new Error("expected encounter");
+  const captured = applyWildsInput({ ...discovered, encounter: { ...discovered.encounter, phase: "capsule" } }, { type: "advance-encounter", at: "2026-09-13T12:00:08.000Z" });
+  assert.equal(captured.inventory.length, initial.inventory.length + 1);
+  const toProfile = (assets: readonly PortableCardAsset[]) => sanitizePublicWildzProfile({ ...fernProfile, vault: assets.map(asset => ({ id: asset.id, name: asset.manifest.name, proofDigest: asset.proof.digest, visibility: "public" })) });
+  const profile = toProfile(captured.inventory);
+  const calls: string[] = [];
+  const fetcher = (async (url: string, init?: RequestInit) => {
+    const method = init?.method ?? "GET";
+    calls.push(`${method} ${url}`);
+    if (url.startsWith("/api/cards/")) {
+      if (method === "GET") return Response.json({ ok: false }, { status: 404 });
+      const { asset } = JSON.parse(String(init?.body)) as { asset: PortableCardAsset };
+      assert.deepEqual(asset, captured.inventory.find(card => card.id === asset.id));
+      return Response.json({ ok: true, record: { schema: "receiz.wilds_public_card.v1", assetId: asset.id, sourceUrl: `https://wildz.quest/cards/${encodeURIComponent(asset.id)}`, registeredAt: "2026-09-13T12:00:00.000Z", asset } });
+    }
+    if (method === "GET") return Response.json({ ok: true, profile: toProfile(initial.inventory) });
+    assert.deepEqual(JSON.parse(String(init?.body)), profile);
+    return Response.json({ ok: true, profile });
+  }) as typeof fetch;
+  assert.deepEqual(await publishCurrentWildzProfile(profile, captured.inventory, fetcher, { confirmExisting: true }), profile);
+  assert.deepEqual(calls, ["GET /api/profiles/fern", ...captured.inventory.map(asset => `POST /api/cards/${encodeURIComponent(asset.id)}`), "POST /api/profiles/fern"]);
 });

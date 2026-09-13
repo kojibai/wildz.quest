@@ -35,6 +35,9 @@ import {
   downloadWildzIdentityPlayerCard,
   downloadWildzIdentityOwnedCard,
   downloadWildzIdentityPlayerVault,
+  prepareWildzIdentityPlayerVault,
+  savePreparedWildzIdentityPlayerVault,
+  type WildzPreparedIdentityPlayerVault,
   isWildzIdentityActivationInspection,
   prepareWildzRestore,
   restoreWildzFileForSurface,
@@ -744,9 +747,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     }
   };
 
-  const saveCombinedVault = async () => {
-    const current = continuityRef.current;
-    if (!current) throw new Error("wildz_identity_missing");
+  const preparedCombinedVault = useRef<{ snapshot: WildzContinuitySnapshot; artifact: WildzPreparedIdentityPlayerVault } | null>(null);
+  const [combinedVaultPreparing, setCombinedVaultPreparing] = useState(false);
+  const buildCombinedVault = useCallback((current: WildzContinuitySnapshot, allowPrompt: boolean) => {
     const playerContinuity = current.playerContinuity;
     const playState = current.playState ?? createOwnerBoundInitialPlayState(current.session.actorId, current.session.createdAt);
     const player = createWildsPlayerVault({
@@ -764,7 +767,45 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       canonicalCursor: playerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
       receipts: playerContinuity?.receipts ?? []
     });
-    await downloadWildzIdentityPlayerVault(current.session, playState.inventory, player);
+    return prepareWildzIdentityPlayerVault(current.session, playState.inventory, player, { allowPrompt });
+  }, []);
+
+  useEffect(() => {
+    // Gameplay movement updates this ref without forcing a shell render. Opening
+    // Vault must prepare that latest state, not the last card-change snapshot.
+    const current = continuityRef.current;
+    if (!current) return;
+    const held = preparedCombinedVault.current;
+    if (held && held.snapshot.session.keyId === current.session.keyId
+      && held.snapshot.playState === current.playState && held.snapshot.character === current.character
+      && held.snapshot.playerContinuity === current.playerContinuity) return;
+    let cancelled = false;
+    preparedCombinedVault.current = null;
+    const timer = window.setTimeout(() => {
+      setCombinedVaultPreparing(true);
+      void Promise.resolve().then(() => buildCombinedVault(current, false)).then(artifact => {
+        if (!cancelled) preparedCombinedVault.current = { snapshot: current, artifact };
+      }).catch(() => { /* An explicit Save can request a locked identity's passphrase. */ })
+        .finally(() => { if (!cancelled) setCombinedVaultPreparing(false); });
+    }, overlay?.kind === "vault" ? 0 : 300);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [overlay?.kind, continuity?.session.keyId, continuity?.playState, continuity?.character, continuity?.playerContinuity, buildCombinedVault]);
+
+  const saveCombinedVault = async () => {
+    const current = continuityRef.current;
+    if (!current) throw new Error("wildz_identity_missing");
+    const held = preparedCombinedVault.current;
+    if (held && held.snapshot.session.keyId === current.session.keyId
+      && held.snapshot.playState === current.playState && held.snapshot.character === current.character
+      && held.snapshot.playerContinuity === current.playerContinuity) {
+      // No await precedes the native sheet: preserve the Save tap on iOS.
+      await savePreparedWildzIdentityPlayerVault(held.artifact);
+      return;
+    }
+    const artifact = await buildCombinedVault(current, true);
+    if (continuityRef.current?.session.keyId !== current.session.keyId) throw new Error("wildz_identity_changed");
+    preparedCombinedVault.current = { snapshot: current, artifact };
+    await savePreparedWildzIdentityPlayerVault(artifact);
   };
 
   const restoreArtifact = useCallback(async (
@@ -1279,7 +1320,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           onExportCard={(asset, player, prepared) => prepared && matchesPreparedWildzIdentityOwnedCard(prepared, identity, asset)
             ? savePreparedWildzIdentityOwnedCard(prepared)
             : downloadWildzIdentityOwnedCard(identity, asset, player())}
-          onExportVault={(assets, player) => downloadWildzIdentityPlayerVault(identity, assets, player)}
+          onPrepareVault={(assets, player) => prepareWildzIdentityPlayerVault(identity, assets, player, { allowPrompt: false })}
+          onExportVault={(assets, player, prepared) => prepared && prepared.keyId === identity.keyId
+            && sameWildzPlayerCoordinate(prepared.ownerReceizId, identity.actorId)
+            ? savePreparedWildzIdentityPlayerVault(prepared)
+            : downloadWildzIdentityPlayerVault(identity, assets, player)}
           vaultAdmission={vaultAdmission}
           onRestoreArtifact={claimAndRestoreVaultArtifact}
           onRestoreRoamingCapture={restoreRoamingCapture}
@@ -1355,6 +1400,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             }}
             onClaimBearer={proofSessionConnected ? claimBearerArtifact : undefined}
             onSaveVault={saveCombinedVault}
+            savePreparing={combinedVaultPreparing}
           /> : overlay.kind === "market" ? <WildzMarketSheet
             listings={[]}
             buyer={`@${ownerUsername}`}

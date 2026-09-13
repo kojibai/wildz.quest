@@ -3,12 +3,13 @@
 import type { PublicWildzCard } from "@/features/profile/public-profile";
 import { useRef, useState } from "react";
 
-export function WildzVaultSheet({ cards, title = "Public Vault", onAddVault, onClaimBearer, onSaveVault }: {
+export function WildzVaultSheet({ cards, title = "Public Vault", onAddVault, onClaimBearer, onSaveVault, savePreparing = false }: {
   cards: PublicWildzCard[];
   title?: string;
   onAddVault?: (file: File) => Promise<number>;
   onClaimBearer?: (file: File) => Promise<number | null>;
   onSaveVault?: () => Promise<void>;
+  savePreparing?: boolean;
 }) {
   const addInputRef = useRef<HTMLInputElement>(null);
   const claimInputRef = useRef<HTMLInputElement>(null);
@@ -20,7 +21,7 @@ export function WildzVaultSheet({ cards, title = "Public Vault", onAddVault, onC
     {onAddVault || onClaimBearer || onSaveVault ? <section className="wildz-vault-popover-actions" aria-label="Vault actions">
       {onAddVault ? <button disabled={busy !== null} onClick={() => addInputRef.current?.click()} type="button">{busy === "add" ? "Adding Vault…" : "Add Vault"}</button> : null}
       {onClaimBearer ? <button disabled={busy !== null} onClick={() => claimInputRef.current?.click()} type="button">{busy === "claim" ? "Claiming…" : "Claim bearer artifact"}</button> : null}
-      {onSaveVault ? <button disabled={busy !== null} onClick={async () => {
+      {onSaveVault ? <button disabled={busy !== null || savePreparing} onClick={async () => {
         setBusy("save");
         setMessage("Saving the combined Vault…");
         try {
@@ -31,7 +32,7 @@ export function WildzVaultSheet({ cards, title = "Public Vault", onAddVault, onC
         } finally {
           setBusy(null);
         }
-      }} type="button">{busy === "save" ? "Saving…" : "Save combined Vault"}</button> : null}
+      }} type="button">{busy === "save" ? "Saving…" : savePreparing ? "Preparing Vault…" : "Save combined Vault"}</button> : null}
       {onAddVault ? <input ref={addInputRef} accept="image/png,.png,.receized.png,.receizbundle,application/vnd.receiz.bundle+json,application/json,application/octet-stream,.receizvault,application/vnd.receiz.vault+zip,application/zip" className="wilds-import-input" disabled={busy !== null} onChange={async (event) => {
         const file = event.currentTarget.files?.[0];
         event.currentTarget.value = "";

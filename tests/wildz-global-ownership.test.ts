@@ -42,7 +42,8 @@ test("same-device ownership broadcasts retain active-custody removal", () => {
   const route = readFileSync("app/api/market/claims/route.ts", "utf8");
   assert.match(route, /claimedArtifactResponse\(admitted/);
   assert.match(route, /x-receiz-artifact-sha256/);
-  assert.match(route, /marketProjection = "unavailable"/);
+  assert.match(route, /after\(async \(\) =>/);
+  assert.match(route, /claimedArtifactResponse\(admitted, assetIds, "unavailable", ownershipSync\)/);
 });
 
 test("a verified same-device bearer transfer removes the card when the previous owner returns", () => {

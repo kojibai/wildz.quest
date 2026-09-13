@@ -313,6 +313,10 @@ export async function requireGloballyAvailablePublicWildsCard(
   // A card already live at this exact revision needs no publication credentials or upload.
   const existing = await waitForPublicCardRegistration(readPublicRevision(), options.signal);
   if (existing) return existing;
+  // An old upload acknowledgment cannot override the anonymous read we just
+  // performed. Otherwise every profile retry reuses that cached acknowledgment
+  // and never republishes a revision that is missing from the public projection.
+  publicCardRegistrationState(fetcher).admitted.delete(`${asset.id}:${asset.proof.digest}`);
   await registerPublicWildsCard(asset, fetcher, options);
   const record = await waitForPublicCardRegistration(readPublicRevision(), options.signal);
   if (!record) throw new Error("wildz_public_card_anonymous_read_required");

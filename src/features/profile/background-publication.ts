@@ -10,6 +10,15 @@ export function wildzProfilePublicationDisposition(key: string, confirmedKey: st
 
 type Timer = ReturnType<typeof setTimeout>;
 
+function waitForPublication(publication: Promise<unknown>, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+    void publication.then(() => resolve(), reject).finally(() => signal.removeEventListener("abort", abort));
+  });
+}
+
 /** One background publication per profile revision; retries never require UI interaction. */
 export function startWildzProfilePublication(input: {
   publish: (signal: AbortSignal, progress: () => void) => Promise<unknown>;
@@ -51,7 +60,9 @@ export function startWildzProfilePublication(input: {
         deadline = setTimer(() => { timedOut = true; controller?.abort(); }, 30_000);
       };
       progress();
-      await input.publish(controller.signal, progress);
+      // Worker serialization and local signing can ignore AbortSignal. Release
+      // this attempt on its deadline even when those operations never settle.
+      await waitForPublication(input.publish(controller.signal, progress), controller.signal);
       if (!active) return;
       controller.signal.throwIfAborted();
       complete = true;

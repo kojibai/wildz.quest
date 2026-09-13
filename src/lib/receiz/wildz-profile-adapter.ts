@@ -6,7 +6,7 @@ import {
   sanitizePublicWildzProfile,
   type PublicWildzProfile
 } from "@/features/profile/public-profile";
-import { registerPublicWildsCard, requireGloballyAvailablePublicWildsCard } from "@/features/play/public-card-registry";
+import { registerPublicWildsCard } from "@/features/play/public-card-registry";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import type { WildzAdmittedVaultProofObjects } from "./wildz-vault-card-admission";
 import { createReceizCommerceAdapter } from "./adapter";
@@ -248,7 +248,10 @@ export async function publishCurrentWildzProfile(
   // Never use that display limit as the standalone-card publication queue.
   for (const asset of assetsById.values()) {
     options.signal?.throwIfAborted();
-    await (options.confirmExisting ? requireGloballyAvailablePublicWildsCard : registerPublicWildsCard)(asset, fetcher, { proofObjects: options.proofObjects, signal: options.signal, prepareBody: options.prepareBody });
+    // Profile POST verifies each exact card revision and its owner through the
+    // registry. The separate anonymous card projection can lag those uploads;
+    // its QR-readiness check must not prevent submitting an updated profile.
+    await registerPublicWildsCard(asset, fetcher, { proofObjects: options.proofObjects, signal: options.signal, prepareBody: options.prepareBody });
     options.onProgress?.();
   }
   options.signal?.throwIfAborted();
