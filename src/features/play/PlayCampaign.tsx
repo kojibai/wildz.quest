@@ -1048,6 +1048,9 @@ export function PlayCampaign({
     },
     onBattleLock: crewExpeditions.setBattleHold,
     onWinningBattle: async encounter => {
+      // Transfer authority belongs to capture settlement, not ordinary travel.
+      // A wallet or artifact service outage must not stop a companion roaming.
+      await walletController.secureTransferAuthority();
       const currentCard = crewControlScope.current.inventory.find(card => card.id === encounter.defenderAssetId
         && canOperateWildzCrewCard(card, crewControlScope.current.owner, crewControlScope.current.custody));
       if (!currentCard || crewControlScope.current.owner !== ownerReceizId) throw new Error("This creature is no longer in your custody.");
@@ -2365,15 +2368,7 @@ export function PlayCampaign({
     const card = state.inventory.find(asset => asset.id === assetId && canOperateWildzCrewCard(asset, ownerReceizId, crewCustody));
     if (!card) return;
     try {
-      if (mode === "roam") {
-        if (networkEnabled) {
-          showWorldFeedback(`Authorizing ${card.manifest.name} for live roaming…`);
-          await walletController.secureTransferAuthority();
-          showWorldFeedback(`Preparing ${card.manifest.name} for roaming encounters…`);
-          await prepareWildsRoamingOwnerFile(card, ownerReceizId);
-        }
-        if (!await crewExpeditions.roam(card)) return;
-      }
+      if (mode === "roam" && !await crewExpeditions.roam(card)) return;
       if (mode === "follow" && await crewExpeditions.recall(assetId)) return;
     } catch (error) { showWorldFeedback(error instanceof Error ? error.message : "This creature cannot start exploring here."); return; }
     const latestCrew = crewControlScope.current;

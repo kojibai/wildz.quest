@@ -79,21 +79,28 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ha
     }
     const actorId = requestedHandle.slice(1);
     const adapter = createReceizCommerceAdapter(actor?.accessToken ? {accessToken: actor.accessToken} : undefined);
-    const ownershipAuthority = await loadVerifiedWildzPublicOwnershipAuthority(adapter);
+    // A signed collection projection is source-supplied display data, not a
+    // native ownership transfer. Its exact cards were verified by the envelope
+    // parser and its identity signature is admitted by publishSigned below.
+    // Older callers without carried proofs still use the registry validation.
+    const sourceCollection = signed?.record.vaultCards !== undefined;
     const requestedCardIds = new Set<string>();
     for (const requested of profile.vault) {
       if (requestedCardIds.has(requested.id)) throw new Error("wildz_public_profile_card_unverified");
       requestedCardIds.add(requested.id);
     }
     // Bound network concurrency without serializing up to 120 independent public reads.
-    for (let offset = 0; offset < profile.vault.length; offset += 6) {
-      await Promise.all(profile.vault.slice(offset, offset + 6).map(async requested => {
-        const card = await resolveSdkPublicWildzCard(requested.id, {adapter, requestOrigin: WILDZ_PRODUCT.origin});
-        if (!card || !verifyAnyWildsCard(card).ok || card.proof.digest !== requested.proofDigest) {
-          throw new Error("wildz_public_profile_card_unverified");
-        }
-        requireCurrentWildzPublicOwner(ownershipAuthority, card, actorId, "wildz_public_profile_card_not_owned");
-      }));
+    if (!sourceCollection) {
+      const ownershipAuthority = await loadVerifiedWildzPublicOwnershipAuthority(adapter);
+      for (let offset = 0; offset < profile.vault.length; offset += 6) {
+        await Promise.all(profile.vault.slice(offset, offset + 6).map(async requested => {
+          const card = await resolveSdkPublicWildzCard(requested.id, {adapter, requestOrigin: WILDZ_PRODUCT.origin});
+          if (!card || !verifyAnyWildsCard(card).ok || card.proof.digest !== requested.proofDigest) {
+            throw new Error("wildz_public_profile_card_unverified");
+          }
+          requireCurrentWildzPublicOwner(ownershipAuthority, card, actorId, "wildz_public_profile_card_not_owned");
+        }));
+      }
     }
 
     if (signed) {

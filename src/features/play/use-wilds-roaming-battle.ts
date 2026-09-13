@@ -8,7 +8,7 @@ import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordin
 import type { PortableCardAsset } from "./portable-card";
 import { canonicalPortableCardJson } from "./portable-card";
 import type { KaiTemporalRoot } from "./kai-temporal-root";
-import { replayWildsRoamingBattle, projectWildsRoamingBattleReport, type WildsRoamingBattleIntent } from "./wilds-roaming-battle";
+import { createWildsRoamingBattleVerifier, projectWildsRoamingBattleReport, type WildsRoamingBattleIntent } from "./wilds-roaming-battle";
 import { shouldPollWildsRoamingEncounter, wildsRoamingEncounterHoldExpiry, type WildsRoamingEncounter, type WildsRoamingEncounterNotice } from "./wilds-roaming-encounter";
 
 export type WildsRoamingBattleCard = { card: PortableCardAsset; cardAdmission?: WildzVaultCardMembershipProof | null };
@@ -27,7 +27,7 @@ export type WildsRoamingBattleControllerInput = {
   onClaim: (encounter: WildsRoamingEncounter) => void | Promise<void>;
   isCaptureRestored?: (encounter: WildsRoamingEncounter) => boolean;
 };
-type Accepted = { expeditionId: string; genesis: string; defenderAsset: PortableCardAsset };
+type Accepted = { expeditionId: string; genesis: string; defenderAsset: PortableCardAsset; verify: ReturnType<typeof createWildsRoamingBattleVerifier> };
 const genesis = (row: WildsRoamingEncounter) => canonicalPortableCardJson([row.id, row.challenger, row.challengerAsset, row.defenderId, row.defenderAssetId, row.defenderProofDigest, row.requestedKaiUPulse, row.expiresKaiUPulse]);
 const endpoint = "/api/wilds/multiplayer/roaming-battle";
 async function request(body?: Record<string, unknown>, encounterId?: string) {
@@ -149,7 +149,7 @@ export function useWildsRoamingBattle(input: WildsRoamingBattleControllerInput) 
             if (!row.session && !row.cancelled) {
               const owned = current.readOwnedRoamer(row.defenderAssetId, row.defenderProofDigest);
               if (!owned || (locks.current.has(row.defenderAssetId) && locks.current.get(row.defenderAssetId) !== row.id)) continue;
-              accepted.current.set(row.id, { expeditionId: owned.expeditionId, genesis: genesis(row), defenderAsset: owned.card });
+              accepted.current.set(row.id, { expeditionId: owned.expeditionId, genesis: genesis(row), defenderAsset: owned.card, verify: createWildsRoamingBattleVerifier() });
               if (!locks.current.has(row.defenderAssetId)) { locks.current.set(row.defenderAssetId, row.id); lockExpiries.current.set(row.defenderAssetId, wildsRoamingEncounterHoldExpiry(row)); current.onBattleLock(row.defenderAssetId, true); }
               row = await request({ action: "accept", encounterId: row.id, ...owned, kai: current.getKai() });
               if (disposed || mine !== generation.current) break;
@@ -158,7 +158,7 @@ export function useWildsRoamingBattle(input: WildsRoamingBattleControllerInput) 
               // A signed server admission may resume only the same still-active owned expedition.
               const owned = current.readOwnedRoamer(row.defenderAssetId, row.defenderProofDigest);
               if (owned && owned.expeditionId === row.expeditionId) {
-                accepted.current.set(row.id, { expeditionId: owned.expeditionId, genesis: genesis(row), defenderAsset: owned.card });
+                accepted.current.set(row.id, { expeditionId: owned.expeditionId, genesis: genesis(row), defenderAsset: owned.card, verify: createWildsRoamingBattleVerifier() });
                 if (!locks.current.has(row.defenderAssetId) && row.capturePhase !== "captured" && row.capturePhase !== "expired" && current.getKai().uPulse < wildsRoamingEncounterHoldExpiry(row)) {
                   locks.current.set(row.defenderAssetId, row.id); lockExpiries.current.set(row.defenderAssetId, wildsRoamingEncounterHoldExpiry(row)); current.onBattleLock(row.defenderAssetId, true);
                 }
@@ -166,7 +166,7 @@ export function useWildsRoamingBattle(input: WildsRoamingBattleControllerInput) 
             }
             const local = accepted.current.get(row.id);
             if (row.session && local && local.genesis === genesis(row) && local.expeditionId === row.expeditionId) {
-              replayWildsRoamingBattle(row.session, { challengerAsset: row.challengerAsset, defenderAsset: local.defenderAsset });
+              local.verify(row.session, { challengerAsset: row.challengerAsset, defenderAsset: local.defenderAsset });
               if (row.session.outcome !== "active" && row.ownerAcknowledgedRevision !== row.session.revision) {
                 row = await request({ action: "acknowledge", encounterId: row.id, expectedRevision: row.session.revision, expeditionId: local.expeditionId, kai: current.getKai() });
               }

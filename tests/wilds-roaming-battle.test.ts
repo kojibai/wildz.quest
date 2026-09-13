@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { sealCollectedCard, evolvePortableCard, type PortableCardAsset } from "../src/features/play/portable-card";
-import { replayWildsRoamingBattle, createWildsRoamingBattle, chooseWildsRoamingDefenderIntent, submitWildsRoamingBattleIntent, projectWildsRoamingBattleReport, WILDS_ROAMING_BATTLE_MAX_TURNS, type WildsRoamingBattle, type WildsRoamingBattleIntent } from "../src/features/play/wilds-roaming-battle";
+import { createWildsRoamingBattleVerifier, replayWildsRoamingBattle, createWildsRoamingBattle, chooseWildsRoamingDefenderIntent, submitWildsRoamingBattleIntent, projectWildsRoamingBattleReport, WILDS_ROAMING_BATTLE_MAX_TURNS, type WildsRoamingBattle, type WildsRoamingBattleIntent } from "../src/features/play/wilds-roaming-battle";
 const at = "2026-09-13T12:00:00.000Z";
 function card(formId: string, ownerReceizId: string, encounterId: string) {
   const family = formId.slice(0, -2);
@@ -120,4 +120,19 @@ test("gameplay accepts an admitted current keeper without rewriting the birth ow
   const session = createWildsRoamingBattle({ ...assets, challengerId: "challenger", defenderId: "current_keeper", sessionId: "current-keeper", kaiUPulse: 100, at });
   assert.equal(session.defenderId, "current_keeper");
   assert.equal(assets.defenderAsset.manifest.ownerReceizId, "defender");
+});
+
+test("unchanged encounter polls reuse verification but changed same-revision bytes reject", () => {
+  const input = fixture();
+  const session = finish(input);
+  const verify = createWildsRoamingBattleVerifier();
+  verify(session, input.assets);
+  verify(structuredClone(session), structuredClone(input.assets));
+  const forged = structuredClone(session);
+  forged.battle.players.defender.hp = 1;
+  assert.throws(() => verify(forged, input.assets), /replay_mismatch/);
+  const forgedAssets = structuredClone(input.assets);
+  forgedAssets.defenderAsset.manifest.stats.power += 1000;
+  assert.throws(() => verify(session, forgedAssets), /verification_failed/);
+  verify(session, input.assets);
 });

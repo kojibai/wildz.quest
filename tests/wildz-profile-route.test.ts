@@ -14,7 +14,7 @@ test("canonical shareable player route opens the profile and the legacy path red
   assert.match(canonical, /<WildzPublicProfilePage/);
   assert.doesNotMatch(canonical, /WildzApp|initialOverlay/);
   const page = readFileSync("src/features/profile/WildzPublicProfilePage.tsx", "utf8");
-  assert.match(page, /fetchPublicWildzProfile\(username\)/);
+  assert.match(page, /fetchPublicWildzProfile\(username(?:,|\))/);
   assert.doesNotMatch(page, /PlayCampaign|WildzApp|canvas/);
   assert.match(canonical, /canonicalWildzProfilePath\(username\)/);
   assert.doesNotMatch(canonical, /marketplace|PublicStorefront/);

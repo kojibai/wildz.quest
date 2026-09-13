@@ -372,3 +372,35 @@ test("profile uploads overlap independent cards, cap concurrency, and reuse conf
   await publishCurrentWildzProfile(profile, assets, fetcher);
   assert.equal(writes, assets.length, "unchanged cards must not be published twice");
 });
+
+test("signed source collections publish additions and removals without waiting on separate card pages", async () => {
+  const asset = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "previous_keeper", encounterId: "source-profile-upload", capturedAt: "2026-09-13T12:00:00.000Z" });
+  const empty = sanitizePublicWildzProfile({ ...fernProfile, vault: [] });
+  const full = sanitizePublicWildzProfile({ ...fernProfile, vault: [{ id: asset.id, name: asset.manifest.name, proofDigest: asset.proof.digest, visibility: "public" }] });
+  let live = empty, submitted = 0;
+  const fetcher = (async (url: string, init?: RequestInit) => {
+    assert.ok(url.startsWith("/api/profiles/"));
+    assert.notEqual(init?.method, "POST", "source publication uses the signed publisher directly");
+    return Response.json({ ok: true, profile: live });
+  }) as typeof fetch;
+  const options = { confirmExisting: true, publishSourceProfile: async (profile: typeof full, cards: readonly PortableCardAsset[]) => {
+    submitted++; assert.equal(cards.length, profile.vault.length); live = profile; return profile;
+  } };
+  assert.deepEqual(await publishCurrentWildzProfile(full, [asset], fetcher, options), full);
+  assert.deepEqual(await publishCurrentWildzProfile(empty, [], fetcher, options), empty);
+  assert.equal(submitted, 2);
+});
+
+test("source profile waits for exact public visibility and does not repeat an accepted write", async () => {
+  const old = sanitizePublicWildzProfile(fernProfile);
+  const next = sanitizePublicWildzProfile({ ...fernProfile, displayName: "Updated Fern" });
+  let live = old, submitted = 0;
+  const fetcher = (async () => Response.json({ ok: true, profile: live })) as typeof fetch;
+  const options = { confirmExisting: true, publishSourceProfile: async () => { submitted++; return next; } };
+  await assert.rejects(publishCurrentWildzProfile(next, [], fetcher, options), /publication_unconfirmed/);
+  await assert.rejects(publishCurrentWildzProfile(next, [], fetcher, options), /publication_unconfirmed/);
+  assert.equal(submitted, 1);
+  live = next;
+  assert.deepEqual(await publishCurrentWildzProfile(next, [], fetcher, options), next);
+  assert.equal(submitted, 1);
+});

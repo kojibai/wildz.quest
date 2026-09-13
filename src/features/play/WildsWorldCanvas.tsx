@@ -242,6 +242,9 @@ export function WildsWorldCanvas({
         frameloop={suspended ? "never" : "always"}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         onCreated={({ gl, size }) => {
+          // Shader log reads synchronize the GPU on first use. Keep diagnostic
+          // checks in development rather than stalling production exploration.
+          gl.debug.checkShaderErrors = WILDS_DIAGNOSTICS_ENABLED;
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = 1.08;

@@ -1,4 +1,4 @@
-import { canonicalPortableCardJson } from "../../features/play/portable-card";
+import { canonicalPortableCardJson, verifyAnyWildsCard } from "../../features/play/portable-card";
 import { publishWildzProfileWithIdentityProof } from "./wildz-profile-identity-publication";
 import {
   canonicalWildzHandle,
@@ -15,6 +15,7 @@ import type { WildzPublicProjectionRepository } from "./wildz-public-repository"
 import { advanceWildzPublicState } from "./wildz-public-state";
 
 export const WILDZ_PUBLIC_PROFILE_SCHEMA = "receiz.wilds_public_profile.v1" as const;
+const pendingSourceProfiles = new WeakMap<typeof fetch, Map<string, string>>();
 
 export type PublicWildzProfileRecord = {
   schema: typeof WILDZ_PUBLIC_PROFILE_SCHEMA;
@@ -22,7 +23,24 @@ export type PublicWildzProfileRecord = {
   sourceUrl: string;
   publishedAt: string;
   profile: PublicWildzProfile;
+  /** Exact public card proofs carried by the player's signed collection projection.
+   * This projection is not a native transfer or command authorization. */
+  vaultCards?: readonly PortableCardAsset[];
 };
+
+export function verifiedWildzProfileCards(profile: PublicWildzProfile, value: unknown): PortableCardAsset[] {
+  if (!Array.isArray(value) || value.length !== profile.vault.length || value.length > 120) throw new Error("wildz_public_profile_card_unverified");
+  const cards = new Map<string, PortableCardAsset>();
+  for (const asset of value as PortableCardAsset[]) {
+    if (!asset || !verifyAnyWildsCard(asset).ok || cards.has(asset.id)) throw new Error("wildz_public_profile_card_unverified");
+    cards.set(asset.id, asset);
+  }
+  return profile.vault.map(entry => {
+    const asset = cards.get(entry.id);
+    if (!asset || asset.proof.digest !== entry.proofDigest) throw new Error("wildz_public_profile_card_unverified");
+    return asset;
+  });
+}
 
 export type WildzPublicProfileAdapterPort = {
   publishPublicStore(input: Record<string, unknown>, options?: { idempotencyKey?: string }): Promise<unknown>;
@@ -99,6 +117,7 @@ export function parsePublicWildzProfileRecord(value: unknown): PublicWildzProfil
           String(candidate.sourceUrl ?? ""),
           String(candidate.publishedAt ?? "")
         );
+        if (candidate.vaultCards !== undefined) record.vaultCards = verifiedWildzProfileCards(record.profile, candidate.vaultCards);
         return record.handle === handle ? record : null;
       } catch {
         return null;
@@ -225,7 +244,7 @@ export async function publishCurrentWildzProfile(
   profile: PublicWildzProfile,
   assetsOrFetcher: readonly PortableCardAsset[] | typeof fetch = [],
   suppliedFetcher: typeof fetch = globalThis.fetch,
-  options: { confirmExisting?: boolean; signal?: AbortSignal; onProgress?: () => void; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string>; publishWithIdentityProof?: (profile: PublicWildzProfile, signal?: AbortSignal) => Promise<PublicWildzProfile> } = {}
+  options: { confirmExisting?: boolean; signal?: AbortSignal; onProgress?: () => void; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string>; publishSourceProfile?: (profile: PublicWildzProfile, assets: readonly PortableCardAsset[], signal?: AbortSignal) => Promise<PublicWildzProfile>; publishWithIdentityProof?: (profile: PublicWildzProfile, signal?: AbortSignal) => Promise<PublicWildzProfile> } = {}
 ) {
   const assets = typeof assetsOrFetcher === "function" ? [] : assetsOrFetcher;
   const fetcher = typeof assetsOrFetcher === "function" ? assetsOrFetcher : suppliedFetcher;
@@ -242,7 +261,32 @@ export async function publishCurrentWildzProfile(
   if (options.confirmExisting) {
     const existing = await fetchPublicWildzProfile(profile.username, fetcher, { signal: options.signal });
     options.signal?.throwIfAborted();
-    if (existing && canonicalPortableCardJson(existing) === canonicalPortableCardJson(sanitizePublicWildzProfile(profile))) return existing;
+    if (existing && canonicalPortableCardJson(existing) === canonicalPortableCardJson(sanitizePublicWildzProfile(profile))) {
+      pendingSourceProfiles.get(fetcher)?.delete(profile.username);
+      return existing;
+    }
+  }
+  // The current signed collection carries its own exact card proofs. Publishing
+  // it need not wait for separate card pages or a stale public ownership index.
+  if (options.publishSourceProfile) {
+    const gallery = profile.vault.map(entry => assetsById.get(entry.id)!);
+    let pending = pendingSourceProfiles.get(fetcher);
+    if (!pending) { pending = new Map(); pendingSourceProfiles.set(fetcher, pending); }
+    const key = canonicalPortableCardJson(profile);
+    if (pending.get(profile.username) !== key) {
+      const published = await options.publishSourceProfile(profile, gallery, options.signal);
+      options.signal?.throwIfAborted();
+      if (canonicalPortableCardJson(published) !== key) throw new Error("wildz_public_profile_publication_unconfirmed");
+      pending.set(profile.username, key);
+      if (pending.size > 32) pending.delete(pending.keys().next().value!);
+      options.onProgress?.();
+    }
+    // An accepted append is not evidence that the public reader sees it yet.
+    // Retry only the read while this exact successful write is awaiting delivery.
+    const confirmed = await fetchPublicWildzProfile(profile.username, fetcher, { signal: options.signal });
+    if (!confirmed || canonicalPortableCardJson(confirmed) !== key) throw new Error("wildz_public_profile_publication_unconfirmed");
+    pending.delete(profile.username);
+    return confirmed;
   }
   // The supplied publishable Vault is complete; profile.vault is a bounded gallery.
   // Never use that display limit as the standalone-card publication queue.

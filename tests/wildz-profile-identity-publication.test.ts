@@ -54,3 +54,29 @@ test("an original seal can publish its aligned canonical profile without rewriti
   session.remoteStatus = "unknown";
   await assert.rejects(publishWildzProfileWithIdentityProof(profile, { repository, fetcher }), /owner_mismatch/);
 });
+
+test("signed collection carries exact uploaded card proofs without rewriting their original owner", async () => {
+  const { sealCollectedCard } = await import("../src/features/play/portable-card");
+  const identity = await createReceizIdIdentity({ username: "new_keeper", displayName: "Keeper" });
+  const session = { schema: "receiz.wildz.identity_session.v1", keyId: identity.keyFile.keyId, actorId: "new_keeper", username: "new_keeper", portableStateStatus: "verified", localAuthority: "verified", remoteStatus: "connected" } as WildzIdentitySession;
+  const repository: Pick<WildzIdentityRepository, "active" | "withKeyFile"> = { active: async () => session, withKeyFile: async (_id, op) => op(identity.keyFile) };
+  const asset = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "previous_keeper", encounterId: "signed-upload-profile", capturedAt: "2026-09-13T12:00:00.000Z" });
+  const profile = sanitizePublicWildzProfile({ username: "@new_keeper", displayName: "Keeper", vault: [{ id: asset.id, name: asset.manifest.name, proofDigest: asset.proof.digest, visibility: "public" }] });
+  let requests = 0;
+  const fetcher = (async (_url, init) => {
+    requests++;
+    const raw = String(init?.body);
+    assert.doesNotMatch(raw, /privateKeyPkcs8|passphrase|keyFile/);
+    const body = JSON.parse(raw);
+    const admitted = parseSignedWildzProfilePublication(body.signedPublication, profile);
+    assert.deepEqual(admitted.record.vaultCards, [asset]);
+    assert.equal(admitted.record.vaultCards![0]!.manifest.ownerReceizId, "previous_keeper");
+    const tampered = structuredClone(body.signedPublication);
+    tampered.storeStateRecord.vaultCards[0].manifest.ownerReceizId = "new_keeper";
+    assert.throws(() => parseSignedWildzProfilePublication(tampered, profile), /signed_publication_invalid/);
+    return Response.json({ ok: true, profile });
+  }) as typeof fetch;
+  assert.deepEqual(await publishWildzProfileWithIdentityProof(profile, { repository, assets: [asset], fetcher }), profile);
+  await assert.rejects(publishWildzProfileWithIdentityProof(profile, { repository, assets: [], fetcher }), /card_unverified/);
+  assert.equal(requests, 1);
+});

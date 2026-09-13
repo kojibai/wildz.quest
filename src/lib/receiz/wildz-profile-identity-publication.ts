@@ -1,8 +1,8 @@
 import { defaultIdentityRepository } from "./wildz-active-identity";
 import { createReceizClient, type JsonObject } from "@receiz/sdk";
-import { canonicalPortableCardJson } from "../../features/play/portable-card";
+import { canonicalPortableCardJson, type PortableCardAsset } from "../../features/play/portable-card";
 import { canonicalWildzProfilePath, type PublicWildzProfile } from "../../features/profile/public-profile";
-import { createPublicWildzProfileRecord } from "./wildz-profile-adapter";
+import { createPublicWildzProfileRecord, verifiedWildzProfileCards } from "./wildz-profile-adapter";
 import { WILDZ_PRODUCT } from "../wildz/product";
 import type { WildzIdentityRepository } from "./wildz-identity-repository";
 import { sameWildzPlayerCoordinate, parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
@@ -13,6 +13,7 @@ export async function publishWildzProfileWithIdentityProof(profile: PublicWildzP
   fetcher?: typeof fetch;
   signal?: AbortSignal;
   occurredAt?: string;
+  assets?: readonly PortableCardAsset[];
 } = {}) {
   options.signal?.throwIfAborted();
   const repository = options.repository ?? defaultIdentityRepository;
@@ -21,6 +22,7 @@ export async function publishWildzProfileWithIdentityProof(profile: PublicWildzP
   if (!session || session.localAuthority !== "verified") throw new Error("wildz_profile_identity_seal_required");
   if (!owner || !sameWildzPlayerCoordinate(owner.actorId, session.actorId)) throw new Error("wildz_public_profile_owner_mismatch");
   const record = createPublicWildzProfileRecord(profile as unknown as Record<string, unknown>, `${WILDZ_PRODUCT.origin}${canonicalWildzProfilePath(profile.username)}`, options.occurredAt);
+  if (options.assets !== undefined) record.vaultCards = verifiedWildzProfileCards(record.profile, options.assets);
   // A connected session has already aligned this exact key with Receiz. Older seal
   // metadata may predate that canonical handle; the registry still verifies its signature.
   await repository.withKeyFile(session.keyId, async keyFile => {

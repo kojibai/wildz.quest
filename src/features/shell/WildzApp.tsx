@@ -84,6 +84,7 @@ import { startWildzProfilePublication, wildzProfilePublicationDisposition, type 
 import type { ProfilePublicationFailure } from "@/features/profile/publication-failure";
 import { downloadBlob } from "@/features/play/card-export";
 import { downloadRestoredWildzCard } from "@/lib/receiz/wildz-upload-card-download";
+import { publishWildzProfileWithIdentityProof } from "@/lib/receiz/wildz-profile-identity-publication";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
 import { canRestoreFocus } from "@/features/play/focus-recovery";
 import type { WildzPlayerStateRecord } from "@/lib/receiz/wildz-player-state-sync";
@@ -292,25 +293,21 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     })().catch(() => undefined);
     return () => { cancelled = true; };
   }, [ownerPlayState.inventory]);
-  const publishablePublicProfile = useMemo(() => createOwnerPublicWildzProfile({
-    username: ownerUsername,
-    displayName: identity?.displayName ?? undefined,
-    avatarImageUrl,
-    explorer: character,
-    assets: publishableOwnerAssets
-  }), [avatarImageUrl, character, identity?.displayName, ownerUsername, publishableOwnerAssets]);
+  // Publish the same complete local collection shown in the owner’s profile.
+  const publishablePublicProfile = ownerSourceProfile;
   // Equal public content must not cancel a request when gameplay saves replace object references.
-  const profilePublicationKey = `${identity?.keyId ?? ""}:${JSON.stringify(publishablePublicProfile)}`;
+  const profilePublicationKey = useMemo(() => `${identity?.keyId ?? ""}:${JSON.stringify(publishablePublicProfile)}`,
+    [identity?.keyId, publishablePublicProfile]);
   const profilePublicationRequestRef = useRef({
     key: profilePublicationKey,
     profile: publishablePublicProfile,
-    assets: publishableOwnerAssets,
+    assets: ownerPlayState.inventory,
     proofObjects: admittedProofObjects
   });
   profilePublicationRequestRef.current = {
     key: profilePublicationKey,
     profile: publishablePublicProfile,
-    assets: publishableOwnerAssets,
+    assets: ownerPlayState.inventory,
     proofObjects: admittedProofObjects
   };
   const campaignExplorer = useMemo(() => continuity ? projectWildzContinuityExplorer(continuity) : null, [continuity]);
@@ -555,6 +552,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           onProgress: progress,
           confirmExisting: true,
           proofObjects: profilePublicationRequest.proofObjects,
+          publishSourceProfile: (profile, assets, signal) => publishWildzProfileWithIdentityProof(profile, { assets, signal }),
           prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
             ?? wildzGameplayBackground.run(() => JSON.stringify(value))
         });

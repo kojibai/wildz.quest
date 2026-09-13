@@ -151,3 +151,16 @@ export function replayWildsRoamingBattle(value: WildsRoamingBattle, assets: Asse
   if (canonicalPortableCardJson(replay) !== canonicalPortableCardJson(value)) fail("replay_mismatch");
   return replay;
 }
+
+/** Keep only the last exact replay input for one accepted encounter. Identical
+ * polling responses need no second combat replay; changed bytes always reverify.
+ * This cache supplies no custody authority and never returns mutable proof data. */
+export function createWildsRoamingBattleVerifier() {
+  let verifiedInput: string | undefined;
+  return (value: WildsRoamingBattle, assets: Assets): void => {
+    const input = canonicalPortableCardJson([value, assets]);
+    if (input === verifiedInput) return;
+    replayWildsRoamingBattle(value, assets);
+    verifiedInput = input;
+  };
+}
