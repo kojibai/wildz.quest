@@ -7,6 +7,10 @@ import { splitWildzPngEnvelope } from "./wildz-png-envelope";
 import { admitLegacyCard } from "../../features/play/living-card-proof";
 import { isLivingCardAsset } from "../../features/play/living-card-types";
 
+export function normalizedWildzExportCardFingerprint(asset: PortableCardAsset) {
+  return cardArtifactFingerprint(isLivingCardAsset(asset) ? asset : admitLegacyCard(asset, asset.manifest.capturedAt));
+}
+
 /** Only reuse a current, single-card export signed by this identity. The caller
  * separately verifies the enclosing retained seal before opening this payload. */
 export async function matchesWildzOwnedCardExport(payload: Uint8Array, input: {
@@ -22,7 +26,6 @@ export async function matchesWildzOwnedCardExport(payload: Uint8Array, input: {
   const expected = isLivingCardAsset(input.asset) ? input.asset
     : admitLegacyCard(input.asset, input.asset.manifest.capturedAt);
   return binding.keyId === input.keyId && sameWildzPlayerCoordinate(binding.playerId, input.ownerReceizId)
-    && sameWildzPlayerCoordinate(input.asset.manifest.ownerReceizId, input.ownerReceizId)
     && vault.assets.length === 1
     && cardArtifactFingerprint(vault.assets[0]) === cardArtifactFingerprint(portableCardBaseProofAsset(input.asset))
     && current.filter((asset) => asset.id === input.asset.id).length === 1

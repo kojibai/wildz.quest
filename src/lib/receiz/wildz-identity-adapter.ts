@@ -34,7 +34,7 @@ import type { PortableCardAsset } from "../../features/play/portable-card";
 import { cardArtifactFingerprint } from "../../features/play/prepared-card-artifact";
 import { createWildzPreparedCardCache } from "./wildz-prepared-card-cache";
 import { openWildzSealedDocument, verifyWildzSealedExport } from "./wildz-sealed-document";
-import { matchesWildzOwnedCardExport } from "./wildz-owned-card-export";
+import { matchesWildzOwnedCardExport, normalizedWildzExportCardFingerprint } from "./wildz-owned-card-export";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import { receizBase64UrlDecode } from "@receiz/sdk";
 import {
@@ -672,7 +672,13 @@ export function createWildzIdentityOwnedCardPreparer(dependencies: {
   ): Promise<WildzPreparedIdentityOwnedCard> {
     if (session.localAuthority !== "verified") throw new Error("wildz_identity_card_authority_required");
     const ownerReceizId = session.username ?? session.actorId;
-    if (!sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, ownerReceizId)) throw new Error("wildz_identity_card_owner_mismatch");
+    // Export the active player's retained collection, preserving the card's
+    // immutable first owner. A local export does not create a native transfer.
+    if (!sameWildzPlayerCoordinate(player.playerId, ownerReceizId)
+      || !player.playState.inventory.some(card => card.id === asset.id
+        && normalizedWildzExportCardFingerprint(card) === normalizedWildzExportCardFingerprint(asset))) {
+      throw new Error("wildz_identity_card_owner_mismatch");
+    }
     const fingerprint = cardArtifactFingerprint(asset);
     const cacheKey = JSON.stringify(["wildz.prepared-owned-card.v1", session.keyId, ownerReceizId, asset.id, fingerprint]);
     const localCacheKey = JSON.stringify(["wildz.prepared-local-card.v1", session.keyId, ownerReceizId, asset.id]);

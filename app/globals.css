@@ -15884,7 +15884,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
   min-height: 22px;
   padding: 3px 2px;
@@ -15894,6 +15894,12 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   background: rgba(7, 29, 29, .92);
   font-size: 9px;
   line-height: 1.2;
+}
+
+.wildz-passive-capabilities svg {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
 }
 
 .wildz-passive-capabilities small {

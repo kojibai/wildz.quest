@@ -351,3 +351,24 @@ test("a new capture reaches profile verification without waiting for the separat
   assert.deepEqual(await publishCurrentWildzProfile(profile, captured.inventory, fetcher, { confirmExisting: true }), profile);
   assert.deepEqual(calls, ["GET /api/profiles/fern", ...captured.inventory.map(asset => `POST /api/cards/${encodeURIComponent(asset.id)}`), "POST /api/profiles/fern"]);
 });
+
+test("profile uploads overlap independent cards, cap concurrency, and reuse confirmed registrations", async () => {
+  const assets = Array.from({ length: 13 }, (_, i) => sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "fern", encounterId: `profile-bounded-${i}`, capturedAt: "2026-09-13T12:00:00.000Z" }));
+  const profile = sanitizePublicWildzProfile({ ...fernProfile, vault: assets.map(asset => ({ id: asset.id, name: asset.manifest.name, proofDigest: asset.proof.digest, visibility: "public" })) });
+  let active = 0, peak = 0, completed = 0, writes = 0;
+  const fetcher = (async (url: string, init?: RequestInit) => {
+    if (url.startsWith("/api/cards/")) {
+      const { asset } = JSON.parse(String(init?.body)) as { asset: PortableCardAsset };
+      writes++; active++; peak = Math.max(peak, active);
+      await new Promise(resolve => setTimeout(resolve, 5));
+      active--; completed++;
+      return Response.json({ ok: true, record: { schema: "receiz.wilds_public_card.v1", assetId: asset.id, sourceUrl: `https://wildz.quest/cards/${encodeURIComponent(asset.id)}`, registeredAt: "2026-09-13T12:00:00.000Z", asset } });
+    }
+    assert.equal(completed, assets.length, "profile cannot outrun its required card publications");
+    return Response.json({ ok: true, profile });
+  }) as typeof fetch;
+  await publishCurrentWildzProfile(profile, assets, fetcher);
+  assert.equal(peak, 6);
+  await publishCurrentWildzProfile(profile, assets, fetcher);
+  assert.equal(writes, assets.length, "unchanged cards must not be published twice");
+});

@@ -246,13 +246,17 @@ export async function publishCurrentWildzProfile(
   }
   // The supplied publishable Vault is complete; profile.vault is a bounded gallery.
   // Never use that display limit as the standalone-card publication queue.
-  for (const asset of assetsById.values()) {
-    options.signal?.throwIfAborted();
-    // Profile POST verifies each exact card revision and its owner through the
-    // registry. The separate anonymous card projection can lag those uploads;
-    // its QR-readiness check must not prevent submitting an updated profile.
-    await registerPublicWildsCard(asset, fetcher, { proofObjects: options.proofObjects, signal: options.signal, prepareBody: options.prepareBody });
-    options.onProgress?.();
+  const pendingCards = [...assetsById.values()];
+  for (let offset = 0; offset < pendingCards.length; offset += 6) {
+    // Independent exact-card publications share the registration cache. Bound
+    // concurrency rather than adding every card's network latency in sequence.
+    const results = await Promise.allSettled(pendingCards.slice(offset, offset + 6).map(async asset => {
+      options.signal?.throwIfAborted();
+      await registerPublicWildsCard(asset, fetcher, { proofObjects: options.proofObjects, signal: options.signal, prepareBody: options.prepareBody });
+      options.onProgress?.();
+    }));
+    const failed = results.find(result => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
   }
   options.signal?.throwIfAborted();
   const response = await fetcher(publicProfileEndpoint(profile.username), {

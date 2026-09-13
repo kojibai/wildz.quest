@@ -70,11 +70,11 @@ test("Vault reopening and repeated Save use retained signed bytes without render
   assert.deepEqual({ renders, signs, networkSeals }, { renders: 0, signs: 0, networkSeals: 0 });
 });
 
-test("fresh Save stays local and never requests another seal", async () => {
+for (const originalOwner of ["keeper", "previous_keeper"]) test(`fresh Save preserves ${originalOwner} provenance and never requests another seal`, async () => {
   const { createWildzIdentityOwnedCardPreparer } = await import("../src/lib/receiz/wildz-identity-adapter");
   const { createMemoryWildzContinuityDatabase } = await import("./support/memory-wildz-continuity-database");
   const identity = await createReceizIdentityKeyFile({ owner: { uid: "retention-failure-test", username: "keeper" } });
-  const asset = admitLegacyCard(sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "keeper", encounterId: "retention-failure-test", capturedAt: "2026-07-15T21:00:00.000Z" }), "2026-07-15T21:00:00.000Z");
+  const asset = admitLegacyCard(sealCollectedCard({ formId: "mintcub-1", ownerReceizId: originalOwner, encounterId: "retention-failure-test", capturedAt: "2026-07-15T21:00:00.000Z" }), "2026-07-15T21:00:00.000Z");
   const player = createWildsPlayerVault({ playerId: "keeper", exportedAt: "2026-07-15T21:01:00.000Z",
     playState: { ...initialPlayState, inventory: [asset] }, settings: { avatarStyle: null, movementMode: "walk", audio: {} },
     personalEvents: [], canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null }, receipts: [] });
@@ -93,6 +93,9 @@ test("fresh Save stays local and never requests another seal", async () => {
   const prepare = createWildzIdentityOwnedCardPreparer(dependencies);
   const saved = await prepare(session, asset, player);
   assert.ok(saved.bytes.length > png.length);
+  assert.equal(asset.manifest.ownerReceizId, originalOwner);
+  await assert.rejects(prepare(session, asset, { ...player, playerId: "someone_else" }), /owner_mismatch/);
+  await assert.rejects(prepare(session, asset, { ...player, playState: { ...player.playState, inventory: [] } }), /owner_mismatch/);
   assert.equal(await prepare(session, asset, player), saved);
   assert.deepEqual({ seals, verifies, retentions }, { seals: 0, verifies: 0, retentions: 0 });
   assert.equal(saved.mimeType, "image/png");
