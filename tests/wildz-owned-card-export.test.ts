@@ -91,7 +91,22 @@ for (const originalOwner of ["keeper", "previous_keeper"]) test(`fresh Save pres
     verifySeal: async () => { verifies++; }
   };
   const prepare = createWildzIdentityOwnedCardPreparer(dependencies);
-  const saved = await prepare(session, asset, player);
+  const { downloadRestoredWildzCard } = await import("../src/lib/receiz/wildz-upload-card-download");
+  let downloaded: Blob | undefined;
+  let downloads = 0;
+  const outcome = { restoreStatus: "committed" as const, surface: "card-vault" as const,
+    artifactKind: "card-vault" as const, session, playState: player.playState, character: null,
+    playerContinuity: { settings: player.settings, personalEvents: player.personalEvents,
+      canonicalCursor: player.canonicalCursor, receipts: player.receipts },
+    verifiedAssetIds: [asset.id], commerceProjection: null };
+  const saved = await downloadRestoredWildzCard(outcome, asset.id, { prepare,
+    download: (blob, filename) => { downloads++; downloaded = blob; assert.ok(filename.endsWith(".png")); } });
+  assert.equal(downloads, 1, "successful upload starts its download without another Save action");
+  assert.deepEqual(new Uint8Array(await downloaded!.arrayBuffer()), saved.bytes);
+  await assert.rejects(downloadRestoredWildzCard({ ...outcome, verifiedAssetIds: [] }, asset.id, {
+    prepare, download: () => { downloads++; }
+  }), /upload_card_missing/);
+  assert.equal(downloads, 1, "unverified card never downloads");
   assert.ok(saved.bytes.length > png.length);
   assert.equal(asset.manifest.ownerReceizId, originalOwner);
   await assert.rejects(prepare(session, asset, { ...player, playerId: "someone_else" }), /owner_mismatch/);

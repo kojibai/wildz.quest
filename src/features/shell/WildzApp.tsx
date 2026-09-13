@@ -83,6 +83,7 @@ import { usePublicCardPublisher } from "@/features/play/use-public-card-publishe
 import { startWildzProfilePublication, wildzProfilePublicationDisposition, type ProfilePublicationStatus } from "@/features/profile/background-publication";
 import type { ProfilePublicationFailure } from "@/features/profile/publication-failure";
 import { downloadBlob } from "@/features/play/card-export";
+import { downloadRestoredWildzCard } from "@/lib/receiz/wildz-upload-card-download";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
 import { canRestoreFocus } from "@/features/play/focus-recovery";
 import type { WildzPlayerStateRecord } from "@/lib/receiz/wildz-player-state-sync";
@@ -930,7 +931,18 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const disposition = wildzVaultUploadDisposition(inspection, current.session.actorId);
     const artifactAssetIds = inspection.assets.map((asset) => asset.id);
     if (disposition === "merge-owned" || disposition === "restore-portable") {
-      return restoreArtifact(file, "card-vault", true, currentPlayState, "merge-vault", prepared);
+      const outcome = await restoreArtifact(file, "card-vault", true, currentPlayState, "merge-vault", prepared);
+      if (artifactAssetIds.length === 1) {
+        try {
+          await downloadRestoredWildzCard(outcome, artifactAssetIds[0]!, {
+            prepare: prepareWildzIdentityOwnedCard,
+            download: downloadBlob
+          });
+        } catch {
+          throw new Error("Your card was added to the Vault, but its automatic download could not start. Use Save on the card to download it.");
+        }
+      }
+      return outcome;
     }
     // Foreign custody changes only after native Record -> Seal succeeds. Awaiting
     // this action keeps rendering live and avoids restoring/resealing twice.
