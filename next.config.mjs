@@ -50,6 +50,9 @@ const nextConfig = {
   outputFileTracingRoot: root,
   outputFileTracingExcludes: {
     "/*": [
+      // Compiler caches are build inputs, never serverless runtime files.
+      // Tracing them multiplies gigabytes across Vercel function packages.
+      ".next/cache/**/*",
       ".git/**/*",
       ".playwright-cli/**/*",
       ".pnpm-store/**/*",

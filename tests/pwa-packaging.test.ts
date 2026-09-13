@@ -51,6 +51,7 @@ test("Vercel output tracing excludes transient runtime-guard and local-only file
   const excludes = nextConfig.outputFileTracingExcludes?.["/*"] ?? [];
 
   assert.ok(excludes.includes("tmp/**/*"), "the deleted runtime marker must never enter a server trace");
+  assert.ok(excludes.includes(".next/cache/**/*"), "Webpack build caches must never be copied into serverless functions");
   assert.ok(excludes.includes(".git/**/*"), "git internals are not runtime dependencies");
   assert.ok(excludes.includes(".test-build/**/*"), "compiled test output is not a runtime dependency");
   assert.ok(excludes.includes("tests/**/*"), "test sources are not runtime dependencies");
