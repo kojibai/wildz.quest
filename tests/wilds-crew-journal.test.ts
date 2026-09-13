@@ -9,8 +9,9 @@ it("atomically arbitrates concurrent workers competing for the same material", a
   const a = createWildsCrewJournal("owner",db), b = createWildsCrewJournal("owner",db);
   const results = await Promise.allSettled([a.append(request),b.append({...request,workerId:"b",commandDigest:"b"})]);
   assert.equal(results.filter(r=>r.status === "fulfilled").length,1);
-  assert.equal((await a.reservation("lot"))?.workerId,"a");
-  assert.equal(await b.workerHead("b"),null);
+  const winner=results.find(result=>result.status==="fulfilled")!.value.event.workerId;
+  assert.equal((await a.reservation("lot"))?.workerId,winner);
+  assert.equal(await b.workerHead(winner==="a"?"b":"a"),null);
 });
 
 it("preserves pending reservations and complete history across journal instances", async () => {

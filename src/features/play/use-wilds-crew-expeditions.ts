@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { observeWildsCrewTravelPause } from "./wilds-crew-travel-pause";
 import { createWildsCrewExpeditions, WILDS_CREW_EXPEDITION_OBSERVE_UPULSES, type WildsCrewExpedition } from "./wilds-crew-expedition";
 import { prepareWildsCrewDisposition, readWildsCrewCondition } from "./wilds-crew-policy";
@@ -24,8 +24,12 @@ export function createWildsCrewExpeditionGuard(readScope:()=>Scope) {
   let sequence=0;
   const tickets=new Map<string,WildsCrewExpeditionTicket>();
   const queues=new Map<string,Promise<unknown>>();
+  let cachedCards:readonly PortableCardAsset[]|undefined;
+  let cardsById=new Map<string,PortableCardAsset>();
   const context=(assetId:string)=>{
-    const scope=readScope(),card=scope.cards.find(c=>c.id===assetId);
+    const scope=readScope();
+    if(scope.cards!==cachedCards){cachedCards=scope.cards;cardsById=new Map(scope.cards.map(card=>[card.id,card]));}
+    const card=cardsById.get(assetId);
     return card&&sameWildzPlayerCoordinate(card.manifest.ownerReceizId,scope.owner)
       ? {owner:scope.owner,assetId,proofDigest:card.proof.digest,sequence:0}:null;
   };
@@ -37,6 +41,7 @@ export function createWildsCrewExpeditionGuard(readScope:()=>Scope) {
     context,contextValid,
     begin(assetId:string){const ticket=context(assetId);if(!ticket)return null;ticket.sequence=++sequence;tickets.set(assetId,ticket);return ticket;},
     current:(assetId:string)=>tickets.get(assetId)??null,
+    invalidate(assetId:string){tickets.delete(assetId);},
     valid:(ticket:WildsCrewExpeditionTicket)=>contextValid(ticket)&&tickets.get(ticket.assetId)?.sequence===ticket.sequence,
     clear(){tickets.clear();},
     run<T>(assetId:string,operation:()=>Promise<T>):Promise<T>{
@@ -49,6 +54,7 @@ export function createWildsCrewExpeditionGuard(readScope:()=>Scope) {
 }
 
 export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;cards:readonly PortableCardAsset[];
+  accompanyingAssetIds?:readonly string[];
   siteRuntime:WildsSiteRuntimeProjection;obstacles:readonly WildsTerrainObstacle[];
   feedback:(message:string)=>void;onFinished:(assetId:string)=>void;onResumed?:(assetId:string)=>void}) {
   const latest=useRef(input);latest.current=input;
@@ -63,15 +69,16 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
   if(!guard.current)guard.current=createWildsCrewExpeditionGuard(()=>latest.current);
   const blockedSince=useRef(new Map<string,number>());
   const pausedSince=useRef(new Map<string,number>());
+  const restoredScope=useRef<{owner:string;proofs:Map<string,string>}>({owner:"",proofs:new Map()});
   const [reportState,setReportState]=useState<{scope:string;values:CrewReports}>({scope:"",values:EMPTY_REPORTS});
   const setReports=(update:CrewReports|((previous:CrewReports)=>CrewReports))=>{
-    const scope=scopeKey(latest.current);
+    const scope=latest.current.owner;
     setReportState(previous=>{
       const values=typeof update==="function"?update(previous.scope===scope?previous.values:EMPTY_REPORTS):update;
       return previous.scope===scope&&previous.values===values?previous:{scope,values};
     });
   };
-  const reports=reportState.scope===scopeKey(input)?reportState.values:EMPTY_REPORTS;
+  const reports=reportState.scope===input.owner?reportState.values:EMPTY_REPORTS;
   const getStore=()=>store.current??(store.current=createWildsCrewExpeditions());
   const origin=(current=latest.current)=>({x:current.state.player.x,y:current.state.siteSpace.position.y,z:current.state.player.z});
   const matches=(row:WildsCrewExpedition,ticket:WildsCrewExpeditionTicket)=>guard.current!.valid(ticket)
@@ -92,47 +99,83 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
       if(prior?.head!==row.head||latest.current.state.crewPreferences?.byAssetId[row.assetId]!=="follow")latest.current.onFinished(row.assetId);
       return true;
     }
-    if(row.spaceId!==latest.current.state.siteSpace.spaceId){
-      runtime.current.delete(row.assetId);release(ticket);
-      setReports(old=>({...old,[row.assetId]:"Earlier trip is in another space. Its travel history is preserved."}));
-      return false;
-    }
     if(!row.goal){release(ticket);return false;}
     const existing=runtime.current.get(row.assetId);
-    runtime.current.set(row.assetId,{spaceId:row.spaceId,target:{...row.goal},position:existing?.spaceId===row.spaceId?existing.position:null,blocked:false,paused:row.phase==="blocked"});
+    runtime.current.set(row.assetId,{proofDigest:row.proofDigest,spaceId:row.spaceId,target:{...row.goal},position:existing?.spaceId===row.spaceId?existing.position??{...(row.actualPosition??row.origin)}:{...(row.actualPosition??row.origin)},
+      ...(existing?.spaceId===row.spaceId&&existing.proofDigest===row.proofDigest?{visualStep:existing.visualStep}:{}),blocked:false,paused:row.phase==="blocked",halted:row.phase==="blocked"});
+    if(row.spaceId!==latest.current.state.siteSpace.spaceId){
+      runtime.current.get(row.assetId)!.paused=true;release(ticket);
+      setReports(old=>({...old,[row.assetId]:"Exploration is paused in another space. Return there to resume."}));
+      return false;
+    }
     if(restored||row.phase==="returning")latest.current.onResumed?.(row.assetId);
     return true;
   };
-  const rosterKey=scopeKey(input);
+  const rosterKey=useMemo(()=>scopeKey({owner:input.owner,cards:input.cards}),[input.owner,input.cards]);
   useEffect(()=>{
     const current=latest.current,g=guard.current!;
-    const restoredTrips=activeTrips.current;
-    g.clear();activeTrips.current.clear();setActiveTripRevision(v=>v+1);rows.current.clear();runtime.current.clear();blockedSince.current.clear();pausedSince.current.clear();setReports({});
-    for(const card of current.cards.slice(0,3)){
-      const ticket=g.begin(card.id);if(!ticket)continue;protect(ticket);
-      void getStore().read(ticket.owner,card.id).then(row=>{
+    const before=restoredScope.current,proofs=new Map(current.cards.map(card=>[card.id,card.proof.digest]));
+    if(before.owner!==current.owner){
+      g.clear();activeTrips.current.clear();rows.current.clear();runtime.current.clear();blockedSince.current.clear();pausedSince.current.clear();setReports({});
+    }else{
+      for(const [assetId,proof] of before.proofs){
+        if(proofs.get(assetId)===proof)continue;
+        g.invalidate(assetId);activeTrips.current.delete(assetId);rows.current.delete(assetId);runtime.current.delete(assetId);blockedSince.current.delete(assetId);pausedSince.current.delete(assetId);
+        setReports(old=>{if(!(assetId in old))return old;const next={...old};delete next[assetId];return next;});
+      }
+    }
+    restoredScope.current={owner:current.owner,proofs};setActiveTripRevision(v=>v+1);
+    const tickets=current.cards.flatMap(card=>{
+      if(before.owner===current.owner&&before.proofs.get(card.id)===card.proof.digest)return [];
+      const ticket=g.begin(card.id);if(!ticket)return [];protect(ticket);return [ticket];
+    });
+    // Restore the roster in bounded batches; stored trips survive active/support selection.
+    void (async()=>{for(let offset=0;offset<tickets.length;offset+=3){
+      await Promise.all(tickets.slice(offset,offset+3).map(ticket=>getStore().read(ticket.owner,ticket.assetId).then(row=>{
         if(!g.valid(ticket)||!row){release(ticket);return;}
         if(row.proofDigest!==ticket.proofDigest){
           release(ticket);
-          setReports(old=>({...old,[card.id]:row.phase==="completed"?"Earlier trip has ended. Its history is preserved.":"Earlier trip belongs to another card proof. Choose Roam to start a new trip, or Recall to end it."}));
-          if(row.phase==="completed")latest.current.onFinished(card.id);
+          setReports(old=>({...old,[ticket.assetId]:row.phase==="completed"?"Earlier trip has ended. Its history is preserved.":"Earlier trip belongs to another card proof. Choose Roam to start a new trip, or Recall to end it."}));
+          if(row.phase==="completed")latest.current.onFinished(ticket.assetId);
           return;
         }
         publish(row,ticket,true);
-      }).catch(()=>{release(ticket);if(g.valid(ticket))latest.current.feedback("Creature travel history could not be restored.");});
-    }
-    return()=>{g.clear();restoredTrips.clear();};
-    // Exact owner/roster changes invalidate all outstanding restore/control tickets.
+      }).catch(()=>{release(ticket);if(g.valid(ticket))latest.current.feedback("Creature travel history could not be restored.");})));
+      if(offset+3<tickets.length)await new Promise<void>(resolve=>setTimeout(resolve,0));
+      if(latest.current.owner!==current.owner)return;
+    }})();
+    // Only changed creatures are invalidated; another card's care or selection cannot restart a trip.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[input.owner,rosterKey]);
+  useEffect(()=>{
+    const g=guard.current!,trips=activeTrips.current;
+    return()=>{g.clear();trips.clear();restoredScope.current={owner:"",proofs:new Map()};};
+  },[]);
+  useEffect(()=>{
+    // A visit to another space pauses independent trips; returning does not relocate them.
+    for(const [assetId,row] of rows.current){
+      const ticket=guard.current!.current(assetId);
+      if(!ticket||!matches(row,ticket)||row.phase==="completed")continue;
+      if(row.spaceId===input.state.siteSpace.spaceId){
+        if(row.phase!=="blocked")protect(ticket);
+        publish(row,ticket,true);
+      }else{
+        const entry=runtime.current.get(assetId);if(entry)entry.paused=true;
+        release(ticket);
+      }
+    }
+    // Space transitions are infrequent and do not append fabricated travel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[input.state.siteSpace.spaceId]);
   const travelRevision=useRef(input.state.partyTravelRevision??0);
   useEffect(()=>{
     if(travelRevision.current===(input.state.partyTravelRevision??0))return;
     travelRevision.current=input.state.partyTravelRevision??0;
     const current=latest.current,g=guard.current!,destination=origin(current),spaceId=current.state.siteSpace.spaceId;
-    runtime.current.clear();blockedSince.current.clear();pausedSince.current.clear();
     // Read every accompanying member, including a restore/start still in flight.
-    for(const card of current.cards.slice(0,3)){
+    const accompanying=new Set(current.accompanyingAssetIds??current.cards.slice(0,3).map(card=>card.id));
+    for(const card of current.cards.filter(card=>accompanying.has(card.id))){
+      runtime.current.delete(card.id);blockedSince.current.delete(card.id);pausedSince.current.delete(card.id);
       const ticket=g.begin(card.id);if(!ticket)continue;protect(ticket);
       void g.run(card.id,async()=>{
         if(!g.valid(ticket))return;
@@ -144,15 +187,19 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[input.state.partyTravelRevision]);
   useEffect(()=>{
-    let busy=false,cancelled=false;
+    let busy=false,cancelled=false,iterator=runtime.current.keys();
     const tick=async()=>{
       if(busy||cancelled||!rows.current.size)return;busy=true;
       try {
-        for(const assetId of [...rows.current.keys()].slice(0,3)){
+        // Fixed work budget with fair rotation: a large crew cannot monopolize a tick.
+        const count=Math.min(3,runtime.current.size);
+        for(let index=0;index<count;index++){
+          let next=iterator.next();if(next.done){iterator=runtime.current.keys();next=iterator.next();}if(next.done)break;
+          const assetId=next.value;
           const g=guard.current!,ticket=g.current(assetId);if(!ticket)continue;
           await g.run(assetId,async()=>{
             const current=latest.current,row=rows.current.get(assetId),entry=runtime.current.get(assetId);
-            if(cancelled||!row||!matches(row,ticket)||!entry?.position||row.phase==="completed"||row.phase==="blocked")return;
+            if(cancelled||!row||!matches(row,ticket)||!entry?.position||row.spaceId!==current.state.siteSpace.spaceId||row.phase==="completed"||row.phase==="blocked")return;
             const change={ownerReceizId:ticket.owner,assetId,expectedHead:row.head,kaiUPulse:observeWildsKaiUPulse()};
             try {
               const pause=observeWildsCrewTravelPause(pausedSince.current.get(assetId),entry.paused,true,performance.now());

@@ -940,7 +940,8 @@ export function PlayCampaign({
   const accompanyingCrew = useMemo(() => state.inventory.filter(card => card.id === state.selectedAssetId || state.supportAssetIds.includes(card.id)).slice(0, 3), [state.inventory, state.selectedAssetId, state.supportAssetIds]);
   const crewControlScope = useRef({ owner: ownerReceizId, inventory: state.inventory });
   crewControlScope.current = { owner: ownerReceizId, inventory: state.inventory };
-  const crewExpeditions = useWildsCrewExpeditions({ owner: ownerReceizId, state, cards: accompanyingCrew, siteRuntime, obstacles: livingPhysicalObstacles,
+  const crewExpeditions = useWildsCrewExpeditions({ owner: ownerReceizId, state, cards: crewCards,
+    accompanyingAssetIds: accompanyingCrew.map(card=>card.id), siteRuntime, obstacles: livingPhysicalObstacles,
     feedback: showWorldFeedback,
     onResumed: assetId => setState(current => current.crewPreferences?.ownerReceizId === ownerReceizId && current.crewPreferences.byAssetId[assetId] === "roam" ? current
       : ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, "roam") })),
@@ -2283,7 +2284,7 @@ export function PlayCampaign({
           const card = state.inventory.find(asset => asset.id === assetId && sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, ownerReceizId));
           if (!card) return;
           try {
-            if (mode === "roam" && accompanyingCrew.some(value => value.id === assetId) && !await crewExpeditions.roam(card)) return;
+            if (mode === "roam" && !await crewExpeditions.roam(card)) return;
             if (mode === "follow" && await crewExpeditions.recall(assetId)) return;
           } catch (error) { showWorldFeedback(error instanceof Error ? error.message : "This creature cannot start exploring here."); return; }
           const latestCrew = crewControlScope.current;

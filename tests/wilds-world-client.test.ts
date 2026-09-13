@@ -37,7 +37,7 @@ describe("Wilds world client contract", () => {
 
   it("updates the local source projection before attempting global synchronization", () => {
     const source = readFileSync("src/features/play/use-wilds-world.ts", "utf8");
-    const admit = source.indexOf("const locallyAdmittedProjection = await edgeQueue.admit(entry)");
+    const admit = source.indexOf("const locallyAdmittedProjection = await edgeQueue.admit(");
     const send = source.indexOf("await sendEntry(entry)", admit);
     assert.ok(admit >= 0 && send > admit);
     const queue = readFileSync("src/features/play/wilds-world-outbox.ts", "utf8");

@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sha256PortableBasis, type PortableCardAsset } from "./portable-card";
 import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
 import type { WildsWorldCommand } from "./wilds-world-service";
-import { WILDS_WORLD_ID } from "./wilds-world-event";
+import { WILDS_WORLD_ID, type WildsWorldEvent } from "./wilds-world-event";
 import { initialWildsWorldProjection, wildsMaterialCustodian, type WildsWorldProjection } from "./wilds-world-state";
 import type { WildsWorldSnapshot } from "./wilds-world-record";
 import type { WildsRaidIntent } from "./wilds-raid-encounter";
@@ -38,7 +38,7 @@ import {
 } from "./wilds-steward-construction";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
 import { isWildsEdgeImmediateConstructionCommand, worldCommandRequiresCard } from "./wilds-world-authority";
-import { withWildsWorldCommandKai } from "./wilds-world-authority";
+import { withWildsWorldCommandKai, verifyWildsWorldCommandKai } from "./wilds-world-authority";
 import { deriveKaiKlokMomentFromUPulse } from "./kai-klok-moment";
 import { createKaiTemporalRoot } from "./kai-temporal-root";
 import { publishActiveWildsWorldWithIdentityProof } from "@/lib/receiz/wilds-world-identity-publication";
@@ -408,11 +408,12 @@ export function useWildsWorld(input: {
 
   const post = useCallback(async (
     command: WildsWorldCommand,
-    authority?: Readonly<{ card: PortableCardAsset; cardAdmission?: WildzVaultCardMembershipProof | null }> | null
+    authority?: Readonly<{ card: PortableCardAsset; cardAdmission?: WildzVaultCardMembershipProof | null }> | null,
+    crewAdmission?:Readonly<{beforeAdmit(entry:WildsWorldOutboxEntry):Promise<void>;onAdmitted(projection:WildsWorldProjection,events:readonly WildsWorldEvent[]):void}>
   ) => {
     if (!input.enabled) throw new Error("wilds_world_session_required");
     const kaiAuthority = mode === "receiz_live" || mode === "kai_live" ? "world" : "local";
-    const rootedCommand = withWildsWorldCommandKai(command, createKaiTemporalRoot(
+    const rootedCommand = crewAdmission ? withWildsWorldCommandKai(command,verifyWildsWorldCommandKai(command)) : withWildsWorldCommandKai(command, createKaiTemporalRoot(
       deriveKaiKlokMomentFromUPulse({ uPulse: input.kaiUPulse, authority: kaiAuthority })
     ));
     const authorityCard = authority === null ? null : authority?.card ?? input.activeCard;
@@ -442,7 +443,7 @@ export function useWildsWorld(input: {
         throw cause;
       }
     }
-    const locallyAdmittedProjection = await edgeQueue.admit(entry);
+    const locallyAdmittedProjection = await edgeQueue.admit(entry,crewAdmission);
     const queueForGlobalCommit = async () => {
       setSnapshot((current) => acceptWildsWorldSnapshot(current, locallyAdmittedProjection, ownedWorldAdditions.current));
       setMode("receiz_recovery_pending");
@@ -632,6 +633,17 @@ export function useWildsWorld(input: {
     actInGrove: (operation: WildsLivingOperationPlanV1, grove: WildsRegenerativeGroveV1, emission: WildsWorldEmissionProofV1, amountPhiMicro: string, resourceLot?: WildsResourceLotV1 | null) => post({
       type: "grove.act", operation, grove, emission, amountPhiMicro, resourceLot: resourceLot ?? null, commandId: commandId("command:grove:act")
     }),
+    /** Exact crew command; preparation and mandate verification happen before this port.
+     * The queued source transition retains its Kai root and idempotency identity. */
+    admitCrewHarvest: async (
+      command:Extract<WildsWorldCommand,{type:"resource.material.harvest"}>,
+      authority:Readonly<{card:PortableCardAsset;cardAdmission?:WildzVaultCardMembershipProof|null}>,
+      beforeAdmit:(entry:WildsWorldOutboxEntry)=>Promise<void>
+    )=>{
+      const events:WildsWorldEvent[]=[];
+      const projection=await post(command,authority,{beforeAdmit,onAdmitted:(_projection,admitted)=>{events.push(...admitted);}});
+      return {projection,events};
+    },
     harvestMaterial: (source: WildsResourceSource, sourceHead: string, actorPosition: { x: number; z: number }, mandate?: WildsCreatureMandateV1, authority?: Readonly<{ card: PortableCardAsset; cardAdmission?: WildzVaultCardMembershipProof | null }> | null) => {
       const authorityCard = authority === null ? null : authority?.card ?? input.activeCard;
       if (!snapshot) throw new Error("wilds_world_session_required");

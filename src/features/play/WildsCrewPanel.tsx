@@ -17,7 +17,7 @@ export function WildsCrewPanel({ cards, modes, accompanyingAssetIds, reports = {
   const currentPage = Math.min(page, Math.max(0, Math.ceil(cards.length / pageSize) - 1));
   const visibleCards = cards.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   return <div className="wilds-command-content">
-    <p>Send active and support companions to explore up to three nearby trail locations and return with a travel journal. They pause when they need care. Other creatures join when they accompany you.</p>
+    <p>Send creatures to explore nearby trails and return with a travel journal. They keep exploring when you choose another companion, and pause when they need care or leave the loaded area.</p>
     {cards.length === 0 ? <p>No living creatures in your crew yet.</p> : <div style={{ display: "grid", gap: 12 }}>
       {visibleCards.map(card => <fieldset key={card.id} style={{ border: "1px solid rgba(255,255,255,.18)", borderRadius: 12, padding: 12 }}>
         <legend>{card.manifest.name}</legend>
@@ -27,7 +27,7 @@ export function WildsCrewPanel({ cards, modes, accompanyingAssetIds, reports = {
             {mode === "follow" ? "Follow / recall" : "Roam & explore"}
           </button>)}
         </div>
-        <small>{reports[card.id] ?? (!accompanyingAssetIds.includes(card.id) ? "Preference saved for when this creature accompanies you." : modes[card.id] === "follow" ? "Follow selected. This companion returns when the path is clear." : modes[card.id] === "roam" ? "Roam selected. Nearby wandering resumes when ready." : "Using this creature’s usual companion behavior.")}</small>
+        <small>{reports[card.id] ?? (modes[card.id] === "roam" ? "Preparing this creature’s exploration journey." : !accompanyingAssetIds.includes(card.id) ? "Ready to set out from your location." : modes[card.id] === "follow" ? "Follow selected. This companion returns when the path is clear." : "Using this creature’s usual companion behavior.")}</small>
         {readHistory ? <WildsCrewTravelJournal key={`${card.manifest.ownerReceizId}:${card.id}:${card.proof.digest}`} assetId={card.id} name={card.manifest.name} readHistory={readHistory} /> : null}
       </fieldset>)}
     </div>}

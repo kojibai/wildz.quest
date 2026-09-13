@@ -1,4 +1,5 @@
 "use client";
+import { createWildsCrewPhysicalScheduler, writeWildsCrewVisualPosition, WILDS_CREW_PHYSICAL_TICK_MS } from "./wilds-crew-physical-scheduler";
 import type { WildsCrewTravelRuntime } from "./wilds-crew-travel-runtime";
 
 import { writeWildsInteriorCameraPosition } from "./wilds-site-runtime";
@@ -9,7 +10,7 @@ import type { WildsBurrowPreview } from "./wilds-burrow";
 import { WildsBurrowGhost } from "./WildsBurrowGhost";
 import { WildsContinuousConstruction } from "./WildsContinuousConstruction";
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, type ComponentRef, type MutableRefObject, type ReactNode } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type MutableRefObject, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
@@ -505,6 +506,7 @@ function WildsScene({
       <group name="grounded-support-companions" visible={!swimming}>
         <SupportCompanions crewTravelRuntime={crewTravelRuntime} crewRelocationKey={state.partyTravelRevision ?? 0} kaiUPulse={kaiMoment.uPulse} cards={supportCards} conditions={state.adventureConditions} crewModes={crewModes} obstacles={crewObstacles} player={state.player} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />
       </group>
+      {crewTravelRuntime && <IndependentCrewTravel runtime={crewTravelRuntime} state={state} obstacles={crewObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} qualityProfile={qualityProfile} />}
       {homeResidentsNearby && homeResidents && <WildsHomeResidents shelterPosition={homeResidents.shelterPosition} cards={homeResidentCards} player={state.player} terrainElevation={activeFloorY} reducedMotion={qualityProfile.reducedMotion} />}
       <Sparkles key={`wilds-world-sparkles-${worldSparkleCount}`} count={worldSparkleCount} scale={[8, 2.4, 8]} size={2.1} speed={qualityProfile.reducedMotion ? 0 : kaiExpression.particleSpeed} color={kaiExpression.accent} />
     </WildsReadabilityProvider>
@@ -763,12 +765,14 @@ function isBattleTelemetryPhase(phase: PlayState["encounter"]["phase"]) {
 function useCrewFollower(input: {
   player: PlayState["player"]; terrainElevation: number; siteRuntime: WildsSiteRuntimeProjection;
   siteSpace: WildsSiteSpaceState; obstacles: readonly WildsTerrainObstacle[];
-  assetId: string; crewTravelRuntime?: MutableRefObject<WildsCrewTravelRuntime>; crewRelocationKey?: string | number; kaiUPulse: number; locomotion?: "ground" | "swim" | "air"; enabled: boolean; mode: "follow" | "roam"; cadenceMs: number; seed: number; offsetX: number; offsetZ: number;
+  assetId: string; proofDigest: string; crewTravelRuntime?: MutableRefObject<WildsCrewTravelRuntime>; crewRelocationKey?: string | number; kaiUPulse: number; locomotion?: "ground" | "swim" | "air"; enabled: boolean; mode: "follow" | "roam"; cadenceMs: number; seed: number; offsetX: number; offsetZ: number;
   workSource?: WildsActiveWorkSource | null;
 }) {
   const group = useRef<THREE.Group>(null);
   const gait = useRef({ distance: 0, speed: 0 });
-  const position = useRef({ x: input.player.x, y: input.terrainElevation, z: input.player.z });
+  const retainedTravel = input.crewTravelRuntime?.current.get(input.assetId);
+  const retainedPosition = retainedTravel?.proofDigest === input.proofDigest && retainedTravel.spaceId === input.siteSpace.spaceId ? retainedTravel.position : null;
+  const position = useRef(retainedPosition ? { ...retainedPosition } : { x: input.player.x, y: input.terrainElevation, z: input.player.z });
   const stepState = useRef(createWildsCrewPathStepState());
   const directState = useRef(createWildsCrewPathStepState());
   const target = useRef({ x: input.player.x, y: input.terrainElevation, z: input.player.z });
@@ -837,7 +841,7 @@ function useCrewFollower(input: {
       const current = latest.current;
       const travel = current.crewTravelRuntime?.current.get(current.assetId);
       if (travel?.spaceId === current.siteSpace.spaceId && travel.position === null) travel.position = { ...position.current };
-      if (!current.enabled || (current.locomotion && current.locomotion !== "ground")) return;
+      if (!current.enabled || travel?.halted || (current.locomotion && current.locomotion !== "ground")) return;
       if (!wildsCrewRouteNeedsReplan(path.current, stepState.current, directState.current)) return;
       const requestedX = target.current.x, requestedZ = target.current.z;
       const planned = planWildsCrewPathNearTarget({ ...latestAuthority.current, start: position.current, target: target.current, cellSize: .6, maxNodes: 192, maxDistance: 24 });
@@ -852,6 +856,7 @@ function useCrewFollower(input: {
   useFrame((_, delta) => {
     if (!group.current) return;
     const current = latest.current, p = position.current;
+    const activeTrip = current.crewTravelRuntime?.current.get(current.assetId);
     const oldX = p.x, oldZ = p.z;
     writeTarget(current, delta);
     frameInput.deltaSeconds = delta;
@@ -862,7 +867,7 @@ function useCrewFollower(input: {
       const step = Math.min(distance, Math.max(0, Math.min(delta, .1)) * frameInput.speed);
       if (distance > .000001) { p.x += dx / distance * step; p.z += dz / distance * step; }
       p.y = current.terrainElevation;
-    } else if (current.enabled) {
+    } else if (current.enabled && !activeTrip?.halted) {
       if (priorLocomotion.current !== "ground") {
         const floor = current.siteSpace.spaceId === "wildz.space.outer.v1" ? wildsTerrainElevation(p.x, p.z) : current.terrainElevation;
         p.y = wildsSiteRuntimeGroundY(current.siteRuntime, current.siteSpace.spaceId, p.x, p.z, floor);
@@ -875,7 +880,7 @@ function useCrewFollower(input: {
     const travel = current.crewTravelRuntime?.current.get(current.assetId);
     if (travel?.spaceId === current.siteSpace.spaceId) {
       if (travel.position) { travel.position.x = p.x; travel.position.y = p.y; travel.position.z = p.z; }
-      travel.paused = !current.enabled || current.mode !== "roam" || Boolean(current.locomotion && current.locomotion !== "ground");
+      travel.paused = Boolean(travel.halted) || !current.enabled || current.mode !== "roam" || Boolean(current.locomotion && current.locomotion !== "ground");
       travel.blocked = (directState.current.reason === "blocked" && !(stepState.current.reason === "moving" && stepState.current.waypointIndex < path.current.length))
         || (fallbackTarget.current !== null && directState.current.reason === "arrived" && Math.hypot(p.x - travel.target.x, p.z - travel.target.z) > .35);
     }
@@ -907,7 +912,7 @@ function ActiveCompanion({ crewTravelRuntime, crewRelocationKey, kaiUPulse, loco
     try { return isLivingCardAsset(asset) ? currentCreatureHistoryProjection(asset).condition : undefined; } catch { return undefined; }
   }, [asset, state.adventureConditions]);
   const enabled = useMemo(() => canWildsCrewTravel(condition), [condition]);
-  const { group, gait } = useCrewFollower({ assetId: asset?.id ?? state.selectedAssetId, crewTravelRuntime, crewRelocationKey, kaiUPulse, locomotion, enabled, player: state.player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance?.cadenceMs ?? 3200, seed, offsetX: -1.08, offsetZ: .42, workSource: activeWorkSource });
+  const { group, gait } = useCrewFollower({ assetId: asset?.id ?? state.selectedAssetId, proofDigest: asset?.proof.digest ?? "", crewTravelRuntime, crewRelocationKey, kaiUPulse, locomotion, enabled, player: state.player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance?.cadenceMs ?? 3200, seed, offsetX: -1.08, offsetZ: .42, workSource: activeWorkSource });
   const working = Boolean(activeWorkSource);
   const capabilityPresentation = useMemo(() => activeCapabilityFamily
     ? projectWildsCapabilityPresentation({ family: activeCapabilityFamily, targetId: activeWorkSource?.sourceId ?? null })
@@ -948,13 +953,90 @@ function SupportCompanion({ crewTravelRuntime, crewRelocationKey, kaiUPulse, car
   const enabled = useMemo(() => {
     try { return canWildsCrewTravel(condition ?? (isLivingCardAsset(card) ? currentCreatureHistoryProjection(card).condition : undefined)); } catch { return false; }
   }, [card, condition]);
-  const { group, gait } = useCrewFollower({ assetId: card.id, crewTravelRuntime, crewRelocationKey, kaiUPulse, enabled, player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance.cadenceMs, seed, offsetX: index === 0 ? 1.05 : 1.62, offsetZ: index === 0 ? .72 : 1.34 });
+  const { group, gait } = useCrewFollower({ assetId: card.id, proofDigest: card.proof.digest, crewTravelRuntime, crewRelocationKey, kaiUPulse, enabled, player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance.cadenceMs, seed, offsetX: index === 0 ? 1.05 : 1.62, offsetZ: index === 0 ? .72 : 1.34 });
   return <group ref={group} name={`trail-support-${index + 1}`} scale={index === 0 ? .62 : .54}>
     <WildsCreatureActor grounded gait={gait} locomotion="ground" accent={appearance.palette.accent} anatomy={appearance.anatomy} cadenceMs={appearance.cadenceMs} familyId={card.manifest.familyId} formId={card.manifest.formId} glow={appearance.palette.glow} identityToken={appearance.fingerprint} morphology={appearance.morphology} pose={index === 0 ? "curious" : "idle"} primary={appearance.palette.primary} secondary={appearance.palette.secondary} />
     <mesh position={[0, .025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
       <torusGeometry args={[.4, .025, 8, 28]} />
       <meshStandardMaterial color="#dffcf0" emissive="#58c99d" emissiveIntensity={.36} transparent opacity={.72} />
     </mesh>
+  </group>;
+}
+
+/** Independent movement is serviced by a bounded timer; visibility never advances a trip. */
+function IndependentCrewTravel({ runtime, state, obstacles, siteRuntime, siteSpace, terrainElevation, qualityProfile }: {
+  runtime: MutableRefObject<WildsCrewTravelRuntime>; state: PlayState; obstacles: readonly WildsTerrainObstacle[];
+  siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; terrainElevation: number; qualityProfile: WildsQualityProfile;
+}) {
+  const cards = useMemo(() => new Map(state.inventory.map(card => [card.id, card])), [state.inventory]);
+  const readiness = useMemo(() => new Map(state.inventory.map(card => {
+    try { return [card.id, canWildsCrewTravel(state.adventureConditions[card.id] ?? (isLivingCardAsset(card) ? currentCreatureHistoryProjection(card).condition : undefined))] as const; }
+    catch { return [card.id, false] as const; }
+  })), [state.inventory, state.adventureConditions]);
+  const originX = Math.floor(state.player.x / 16) * 16, originZ = Math.floor(state.player.z / 16) * 16;
+  const authority = useMemo<WildsCrewNavigationAuthority>(() => ({ mode: "walk", permittedModes: ["walk"], sampleSegment: createWildsCrewPhysicalSampler({runtime:siteRuntime,spaceId:siteSpace.spaceId,obstacles,originX,originZ}) }), [siteRuntime, siteSpace.spaceId, obstacles, originX, originZ]);
+  const latest = useRef({ state, cards, readiness, authority, spaceId:siteSpace.spaceId, terrainElevation, qualityProfile });
+  latest.current = { state, cards, readiness, authority, spaceId:siteSpace.spaceId, terrainElevation, qualityProfile };
+  const candidates = useRef(new Map<string, PortableCardAsset>());
+  const [visibleIds, setVisibleIds] = useState<readonly string[]>([]);
+  useEffect(() => {
+    const visibleCandidates=candidates.current;
+    const scheduler = createWildsCrewPhysicalScheduler({runtime:()=>runtime.current,admit:(assetId,entry)=>{
+      const current=latest.current, card=current.cards.get(assetId);
+      if(!card||card.proof.digest!==entry.proofDigest){candidates.current.delete(assetId);return null;}
+      if(assetId===current.state.selectedAssetId||current.state.supportAssetIds.includes(assetId)){candidates.current.delete(assetId);return "party";}
+      if(entry.spaceId!==current.spaceId||!entry.position){candidates.current.delete(assetId);return null;}
+      // The supplied obstacle neighborhood is loaded around the player. Do not infer
+      // an empty remote world when a dispatched creature leaves that coverage.
+      if(Math.max(Math.abs(entry.position.x-current.state.player.x),Math.abs(entry.position.z-current.state.player.z))>24){candidates.current.delete(assetId);return null;}
+      if(!candidates.current.has(assetId)&&candidates.current.size>=12){
+        let farthestId:string|null=null,farthest=-1;
+        for(const id of candidates.current.keys()){
+          const point=runtime.current.get(id)?.position;
+          const distance=point?Math.hypot(point.x-current.state.player.x,point.z-current.state.player.z):Infinity;
+          if(distance>farthest){farthest=distance;farthestId=id;}
+        }
+        if(farthestId&&Math.hypot(entry.position.x-current.state.player.x,entry.position.z-current.state.player.z)<farthest)candidates.current.delete(farthestId);
+      }
+      if(candidates.current.has(assetId)||candidates.current.size<12)candidates.current.set(assetId,card);
+      return current.readiness.get(assetId)?current.authority:null;
+    }});
+    const timer=window.setInterval(()=>scheduler.tick(),WILDS_CREW_PHYSICAL_TICK_MS);
+    const visibilityTimer=window.setInterval(()=>{
+      const current=latest.current;
+      const selected=[...candidates.current.keys()].filter(id=>{
+        const entry=runtime.current.get(id),card=current.cards.get(id);
+        return entry?.position&&card?.proof.digest===entry.proofDigest&&entry.spaceId===current.spaceId&&id!==current.state.selectedAssetId&&!current.state.supportAssetIds.includes(id);
+      }).sort((a,b)=>{
+        const pa=runtime.current.get(a)!.position!,pb=runtime.current.get(b)!.position!;
+        return Math.hypot(pa.x-current.state.player.x,pa.z-current.state.player.z)-Math.hypot(pb.x-current.state.player.x,pb.z-current.state.player.z)||a.localeCompare(b);
+      }).slice(0,current.qualityProfile.tier==="low"?2:current.qualityProfile.tier==="medium"?3:4);
+      setVisibleIds(previous=>previous.length===selected.length&&previous.every((id,i)=>id===selected[i])?previous:selected);
+    },500);
+    return()=>{window.clearInterval(timer);window.clearInterval(visibilityTimer);scheduler.clear();visibleCandidates.clear();};
+  },[runtime]);
+  return <group name="independent-creature-travel">{visibleIds.map(id=>{
+    const card=cards.get(id);
+    return card&&id!==state.selectedAssetId&&!state.supportAssetIds.includes(id)?<IndependentCrewActor key={id} card={card} runtime={runtime} player={state.player} terrainElevation={terrainElevation} spaceId={siteSpace.spaceId}/>:null;
+  })}</group>;
+}
+function IndependentCrewActor({card,runtime,player,terrainElevation,spaceId}:{card:PortableCardAsset;runtime:MutableRefObject<WildsCrewTravelRuntime>;player:PlayState["player"];terrainElevation:number;spaceId:string}) {
+  const appearance=useMemo(()=>projectCardKaiAppearance(card),[card]);
+  const group=useRef<THREE.Group>(null),gait=useRef({distance:0,speed:0}),prior=useRef({x:NaN,z:NaN}),visualPosition=useRef({x:0,y:0,z:0});
+  useFrame(()=>{
+    const actor=group.current,entry=runtime.current.get(card.id);if(!actor)return;
+    actor.visible=Boolean(entry?.position&&entry.spaceId===spaceId&&entry.proofDigest===card.proof.digest);
+    if(!actor.visible||!entry?.position)return;
+    const speed=writeWildsCrewVisualPosition(visualPosition.current,entry,performance.now());
+    const p=visualPosition.current,distance=Number.isFinite(prior.current.x)?Math.hypot(p.x-prior.current.x,p.z-prior.current.z):0;
+    if(distance>.000001)actor.rotation.y=Math.atan2(p.x-prior.current.x,p.z-prior.current.z);
+    gait.current.distance+=distance;gait.current.speed=speed;
+    prior.current.x=p.x;prior.current.z=p.z;
+    actor.position.set(p.x-player.x,p.y-terrainElevation,p.z-player.z);
+  },-.5);
+  return <group name={`independent-crew-${card.id}`} ref={group} scale={.62}>
+    <WildsCreatureActor grounded gait={gait} locomotion="ground" accent={appearance.palette.accent} anatomy={appearance.anatomy} cadenceMs={appearance.cadenceMs} familyId={card.manifest.familyId} formId={card.manifest.formId} glow={appearance.palette.glow} identityToken={appearance.fingerprint} morphology={appearance.morphology} pose="curious" primary={appearance.palette.primary} secondary={appearance.palette.secondary}/>
+    <Html center className="wilds-world-label" occlude={false} position={[0,.96,0]} zIndexRange={[10,0]}><span>{card.manifest.name}</span></Html>
   </group>;
 }
 

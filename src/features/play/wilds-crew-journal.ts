@@ -4,12 +4,20 @@ import { createWildsCrewCausalEvent, verifyWildsCrewCausalEvent, type WildsCrewC
 
 import { wildsCrewJobStorageKey, type WildsCrewJob } from "./wilds-crew-jobs";
 
+import type { WildsWorldCommand } from "./wilds-world-service";
+export type WildsCrewStoredSourceCommand = Readonly<{
+  command:Extract<WildsWorldCommand,{type:"resource.material.harvest"}>;
+  ownerReceizId:string;ownerSubjectId:string;workerSubjectId:string;ownerHead:string;workerHead:string;
+  ownerProofDigest:string;workerProofDigest:string;mandateDigest:string;worldId:string;assetId:string;cardProofDigest:string;expectedLotId?:string;
+  arrival?:Readonly<{position:Readonly<{x:number;y:number;z:number}>;spaceId:string;kaiUPulse:number}>;
+}>;
 export type WildsCrewStoredCommand = Readonly<{
   workerId: string; jobId: string; commandDigest: string; head: string;
   lotIds: readonly string[]; phase: WildsCrewCausalEvent["phase"];
   transaction: ReceizWorldTransactionV122 | null;
   /** Exact working job head whose final CAS committed this dispatch intent. */
   expectedJobHead?: string;
+  sourceCommand?:WildsCrewStoredSourceCommand;
 }>;
 type Reservation = Readonly<{ workerId: string; commandDigest: string }>;
 const validId = (value: string) => typeof value === "string" && value.length > 0 && value.length <= 512;
@@ -37,6 +45,7 @@ export function createWildsCrewJournal(ownerSubjectId: string, database: WildzCo
     admittedWorldEventIds?: readonly string[];
     transaction?: ReceizWorldTransactionV122;
     expectedJobHead?: string;
+    sourceCommand?:WildsCrewStoredSourceCommand;
   }>) => {
     const request = structuredClone(input);
     const lotIds = [...(request.lotIds ?? [])];
@@ -46,6 +55,7 @@ export function createWildsCrewJournal(ownerSubjectId: string, database: WildzCo
       || dependencyIds.length > 64 || dependencyIds.some(id => !validId(id)) || new Set(dependencyIds).size !== dependencyIds.length)
       throw new Error("crew_journal_input_invalid");
     if (request.transaction && (request.phase !== "proposed" || request.transaction.transactionDigest !== request.commandDigest)) throw new Error("crew_journal_transaction_invalid");
+    if(request.sourceCommand && (request.phase!=="proposed"||request.transaction||await digestReceizCanonicalV122(request.sourceCommand)!==request.commandDigest))throw new Error("crew_journal_source_command_invalid");
     const storedBefore = await command(request.commandDigest);
     const expectedJobHead = request.expectedJobHead ?? storedBefore?.expectedJobHead;
     if(request.expectedJobHead!==undefined&&!validId(request.expectedJobHead))throw new Error("crew_journal_job_fence_invalid");
@@ -59,9 +69,18 @@ export function createWildsCrewJournal(ownerSubjectId: string, database: WildzCo
       const {head,...body}=jobSnapshot;
       if(await digestReceizCanonicalV122(body)!==head)throw new Error("crew_journal_job_fence_corrupt");
       const transaction=request.transaction??storedBefore?.transaction;
-      if(!transaction||transaction.worldId!==jobSnapshot.worldId
+      if(transaction && (transaction.worldId!==jobSnapshot.worldId
         ||transaction.participantHeads[ownerSubjectId]!==jobSnapshot.expectedOwnerSubjectHead||transaction.participantHeads[request.workerId]!==jobSnapshot.expectedWorkerSubjectHead
-        ||transaction.commands.some(command=>command.actorSubjectId!==request.workerId||command.mandateDigest!==jobSnapshot!.mandateDigest))throw new Error("crew_journal_job_transaction_mismatch");
+        ||transaction.commands.some(command=>command.actorSubjectId!==request.workerId||command.mandateDigest!==jobSnapshot!.mandateDigest)))throw new Error("crew_journal_job_transaction_mismatch");
+      if(!transaction){
+        const source=request.sourceCommand??storedBefore?.sourceCommand;
+        if(!source||source.ownerSubjectId!==ownerSubjectId||source.workerSubjectId!==request.workerId
+          ||source.ownerHead!==jobSnapshot.expectedOwnerSubjectHead||source.workerHead!==jobSnapshot.expectedWorkerSubjectHead
+          ||source.ownerProofDigest!==jobSnapshot.ownerProofDigest||source.workerProofDigest!==jobSnapshot.workerProofDigest
+          ||source.mandateDigest!==jobSnapshot.mandateDigest||source.worldId!==jobSnapshot.worldId||source.assetId!==jobSnapshot.assetId
+          ||source.command.type!=="resource.material.harvest"||source.cardProofDigest!==source.command.cardProofDigest
+          ||await digestReceizCanonicalV122(source)!==request.commandDigest)throw new Error("crew_journal_job_source_mismatch");
+      }
     }
     const previous = request.expectedWorkerHead === null ? null : await readEvent(request.expectedWorkerHead);
     if (request.expectedWorkerHead && !previous) throw new Error("crew_journal_parent_missing");
@@ -78,7 +97,8 @@ export function createWildsCrewJournal(ownerSubjectId: string, database: WildzCo
         if (canonicalizeReceizV122(existing) !== canonicalizeReceizV122(event)) throw new Error("crew_journal_event_conflict");
         const storedCommand = await tx.get<WildsCrewStoredCommand>("meta", key("command", request.commandDigest));
         if (!storedCommand || canonicalizeReceizV122(storedCommand.lotIds) !== canonicalizeReceizV122(lotIds)
-          || (request.transaction && canonicalizeReceizV122(storedCommand.transaction) !== canonicalizeReceizV122(request.transaction)))
+          || (request.transaction && canonicalizeReceizV122(storedCommand.transaction) !== canonicalizeReceizV122(request.transaction))
+          ||(request.sourceCommand&&canonicalizeReceizV122(storedCommand.sourceCommand)!==canonicalizeReceizV122(request.sourceCommand)))
           throw new Error("crew_journal_replay_conflict");
         return { event, replay: true };
       }
@@ -106,7 +126,7 @@ export function createWildsCrewJournal(ownerSubjectId: string, database: WildzCo
       }
       await tx.put("meta", event, key("event", event.eventId));
       await tx.put("meta", event.eventId, key("worker", event.workerId));
-      await tx.put<WildsCrewStoredCommand>("meta", {workerId:event.workerId,jobId:event.jobId,commandDigest:event.commandDigest,head:event.eventId,lotIds,phase:event.phase,transaction:priorCommand?.transaction ?? request.transaction ?? null,...(expectedJobHead?{expectedJobHead}:{})}, key("command", event.commandDigest));
+      await tx.put<WildsCrewStoredCommand>("meta", {workerId:event.workerId,jobId:event.jobId,commandDigest:event.commandDigest,head:event.eventId,lotIds,phase:event.phase,transaction:priorCommand?.transaction ?? request.transaction ?? null,...(expectedJobHead?{expectedJobHead}:{}),...((priorCommand?.sourceCommand??request.sourceCommand)?{sourceCommand:priorCommand?.sourceCommand??request.sourceCommand}:{})}, key("command", event.commandDigest));
       for (const lotId of lotIds) {
         if (terminal) await tx.delete("meta", key("lot", lotId));
         else await tx.put<Reservation>("meta", {workerId:event.workerId,commandDigest:event.commandDigest}, key("lot", lotId));

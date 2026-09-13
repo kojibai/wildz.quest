@@ -228,7 +228,10 @@ export function createWildsWorldEdgeAdmissionQueue(input: {
       }
       return projection;
     },
-    admit(entry: WildsWorldOutboxEntry): Promise<WildsWorldProjection> {
+    admit(entry: WildsWorldOutboxEntry, admission?: Readonly<{
+      beforeAdmit(entry:WildsWorldOutboxEntry):Promise<void>;
+      onAdmitted?(projection:WildsWorldProjection,events:readonly WildsWorldEvent[]):void;
+    }>): Promise<WildsWorldProjection> {
       // Clone intent now: callers cannot mutate an admission while storage is pending.
       const exact = structuredClone(entry);
       activeAdmissions += 1;
@@ -237,11 +240,18 @@ export function createWildsWorldEdgeAdmissionQueue(input: {
         if (prepared.projection === projection || prepared.projection.revision === projection.revision) return projection;
         let durable = prepared.entry;
         if (durable.admittedSource && anchorId) durable = { ...durable, admittedSource: { anchorId, events: durable.admittedSource.events } };
+        if(admission){
+          // A crew intent remains cancellable throughout asynchronous source planning.
+          // The callback commits its pending CAS; persistence follows with no other await.
+          if(canonicalPortableCardJson(durable.command)!==canonicalPortableCardJson(exact.command))throw new Error("wilds_crew_source_command_changed");
+          await admission.beforeAdmit(structuredClone(exact));
+        }
         await input.persist(durable);
         if (durable.admittedSource) anchorId = durable.admittedSource.anchorId;
         else anchorId = null;
         projection = prepared.projection;
         input.onAdmitted?.(projection, durable, prepared.events, prepared.constitution);
+        admission?.onAdmitted?.(projection,prepared.events);
         return projection;
       });
       tail = next;

@@ -55,3 +55,7 @@ Durable job state and source-family/mandate adapters are implemented and tested 
 ## Recovery and source retention checkpoint
 
 The crew execution boundary now fences the current working job atomically at dispatch after asynchronous checks. Recall cancels undispatched proposals or preserves pending recovery. Artifact proof digests and current subject execution heads have distinct fields. Production exports retain exact sealed sources with append-only paginated location indexes; restored source history is reused. The travel panel reads actual trip records on demand, while lifecycle guards prevent stale owner/proof callbacks from restarting obsolete trips. See crew-live-integration-checkpoint.md for scope and validation.
+
+## Full roster and source-command integration
+
+Owned creatures can now explore independently of active/support selection within loaded physical geometry. Simulation and visible models have separate bounded budgets, and changing one card no longer restarts other trips. A source-command gathering coordinator is connected to the existing admission queue with exact job fencing and lookup-only recovery, but it is not enabled without verified worker mandate authority. Separate material delivery custody, autonomous construction, and independent simulation beyond loaded geometry remain unfinished. See crew-roster-integration.md for current behavior and verification; the pending real sealing test is recorded in crew-proof-source-integration.md.

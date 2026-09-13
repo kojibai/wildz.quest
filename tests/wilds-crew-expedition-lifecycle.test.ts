@@ -72,6 +72,19 @@ test("read-only snapshots do not invalidate travel controls and reject later pro
   scope.cards=[card("c".repeat(64))];assert.equal(guard.contextValid(read),false);
 });
 
+test("changing another creature preserves an independent trip and its pending controls",()=>{
+  const first=card(),second={...card(),id:"other-asset"};
+  const scope={owner:"owner",cards:[first,second]},guard=createWildsCrewExpeditionGuard(()=>scope);
+  const exploring=guard.begin(first.id)!,other=guard.begin(second.id)!;
+  scope.cards=[first,{...second,proof:{...second.proof,digest:"b".repeat(64)}} as PortableCardAsset];
+  guard.invalidate(second.id);
+  assert.equal(guard.valid(exploring),true);
+  assert.equal(guard.valid(other),false);
+  assert.equal(guard.current(first.id),exploring);
+  scope.cards=[first];
+  assert.equal(guard.valid(exploring),true);
+});
+
 test("proof replacement can end and restart a trip while an old restore remains invalid",async()=>{
   const scope={owner:"owner",cards:[card()]},guard=createWildsCrewExpeditionGuard(()=>scope);
   const store=createWildsCrewExpeditions(createMemoryWildzContinuityDatabase()),old=await store.start(start);
