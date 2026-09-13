@@ -86,7 +86,7 @@ test("balanced persistent homes keep live status by the map and Kai audio on the
   assert.match(multiplayer, /id="wilds-live-controls"[^>]*className="wilds-live-cluster"/);
 
   const targetFloor = finalCss.slice(finalCss.indexOf(".wilds-map-status-home :is("));
-  for (const selector of ["wilds-live-badge", "wilds-live-share", "wilds-audio-settings > button", "wilds-kai-command-pill", "wilds-live-pill"]) {
+  for (const selector of ["wilds-live-badge", "wilds-live-share", "wilds-audio-settings > :is(button, summary)", "wilds-kai-command-pill", "wilds-live-pill"]) {
     assert.match(targetFloor, new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
   assert.match(targetFloor, /\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/);

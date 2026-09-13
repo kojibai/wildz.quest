@@ -815,8 +815,8 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wilds-audio-sheet-head button,
 .wilds-live-sheet > .wilds-popover-chrome header > button,
 .wilds-living-world-sheet > .wilds-popover-chrome header > button { position: static; display: grid; width: 44px; height: 44px; min-height: 44px; place-items: center; padding: 0; border: 1px solid rgb(132 238 208 / 20%); border-radius: 15px; color: #effff9; background: rgb(255 255 255 / 6%); font: inherit; font-size: 24px; }
-.wilds-audio-settings > button { display: grid; width: 44px; min-height: 44px; place-items: center; padding: 0; border: 1px solid var(--game-line); border-radius: 12px; color: #fff; background: rgba(23, 19, 17, .76); box-shadow: 0 10px 24px rgba(0, 0, 0, .2); backdrop-filter: blur(16px); }
-.wilds-audio-settings > button svg { width: 32px; height: 32px; padding: 7px; fill: currentColor; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+.wilds-audio-settings > :is(button, summary) { display: grid; width: 44px; min-height: 44px; place-items: center; padding: 0; border: 1px solid var(--game-line); border-radius: 12px; color: #fff; background: rgba(23, 19, 17, .76); box-shadow: 0 10px 24px rgba(0, 0, 0, .2); backdrop-filter: blur(16px); }
+.wilds-audio-settings > :is(button, summary) svg { width: 32px; height: 32px; padding: 7px; fill: currentColor; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 
 @media (max-width: 560px) {
   .wilds-popover-layer { align-items: end; padding: max(10px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
@@ -16345,7 +16345,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 }
 
 .wilds-map-status-home :is(.wilds-live-badge, .wilds-live-share, .wilds-live-pill),
-.wilds-left-instrument-home :is(.wilds-kai-command-pill, .wilds-audio-settings > button, .wilds-message-instrument) {
+.wilds-left-instrument-home :is(.wilds-kai-command-pill, .wilds-audio-settings > :is(button, summary), .wilds-message-instrument) {
   min-width: 44px;
   min-height: 44px;
 }
@@ -16360,7 +16360,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   width: 44px;
 }
 
-.wildz-app .wilds-audio-settings > button {
+.wildz-app .wilds-audio-settings > :is(button, summary) {
   width: 44px;
 }
 
@@ -16951,7 +16951,7 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
    WebGL scene through multiple backdrop blurs. Geometry/touch targets stay owned
    by the responsive control layout above. */
 .wildz-app :is(.wildz-explorer-capsule, .wildz-mission-chip, .wilds-kai-command-pill,
-  .wilds-wallet-pill, .wilds-live-pill, .wilds-live-share, .wilds-audio-settings > button,
+  .wilds-wallet-pill, .wilds-live-pill, .wilds-live-share, .wilds-audio-settings > :is(button, summary),
   .wildz-quick-utilities > button, .wildz-direction-compass):not(.is-active):not([aria-pressed="true"]) {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -17004,15 +17004,15 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
   }
   .wilds-left-instrument-home > .wilds-kai-command-pill,
   .wilds-left-instrument-home > .wilds-wallet-instrument { width: min(25vw, 84px); min-width: 0; }
-  .wilds-left-instrument-home :is(.wilds-kai-command-pill, .wilds-wallet-instrument, .wilds-audio-settings > button, .wilds-message-instrument) {
+  .wilds-left-instrument-home :is(.wilds-kai-command-pill, .wilds-wallet-instrument, .wilds-audio-settings > :is(button, summary), .wilds-message-instrument) {
     min-width: 0;
     min-height: 36px;
     height: 36px;
     padding-block: 0;
   }
-  .wildz-app .wilds-left-instrument-home :is(.wilds-audio-settings > button, .wilds-message-instrument) { width: 36px; border-radius: 12px; }
+  .wildz-app .wilds-left-instrument-home :is(.wilds-audio-settings > :is(button, summary), .wilds-message-instrument) { width: 36px; border-radius: 12px; }
   .wildz-app .wilds-left-instrument-home > .wilds-audio-settings { align-self: center; justify-self: center; }
-  .wildz-app .wilds-left-instrument-home .wilds-audio-settings > button {
+  .wildz-app .wilds-left-instrument-home .wilds-audio-settings > :is(button, summary) {
     box-sizing: border-box;
     width: 30.6px;
     height: 30.6px;
@@ -17021,8 +17021,8 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
     padding: 0;
     border-radius: 10px;
   }
-  .wildz-app .wilds-left-instrument-home .wilds-audio-settings > button svg { width: 13.6px; height: 13.6px; }
-  .wilds-left-instrument-home :is(.wilds-audio-settings > button, .wilds-message-instrument, .wilds-wallet-instrument) svg { width: 16px; height: 16px; }
+  .wildz-app .wilds-left-instrument-home .wilds-audio-settings > :is(button, summary) svg { width: 13.6px; height: 13.6px; padding: 0; }
+  .wilds-left-instrument-home :is(.wilds-audio-settings > :is(button, summary), .wilds-message-instrument, .wilds-wallet-instrument) svg { width: 16px; height: 16px; }
   .wilds-map-status-home { top: calc(100px + env(safe-area-inset-top)); grid-template-columns: minmax(0, 1fr) repeat(3, 36px); gap: 4px; }
   .wildz-app .wilds-map-status-home :is(.wilds-live-badge, .wilds-live-share, .wilds-live-pill[class*="mode-"]) { width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0; justify-content: center; gap: 3px; }
   .wilds-map-status-home .wilds-live-share svg { width: 15px; height: 15px; }
@@ -17033,4 +17033,73 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 }
 @media (max-width: 350px) and (orientation: portrait) {
   .wildz-app .wilds-search-reticle { top: calc(74px + var(--wildz-stage-safe-top)); left: calc(50% + 8px); }
+}
+
+/* Phone instruments share one rhythm and column geometry. */
+@media (max-width: 640px) and (orientation: portrait) {
+  .wildz-app {
+    --wildz-phone-identity: clamp(118px, 38vw, 168px);
+    --wildz-phone-edge: max(8px, env(safe-area-inset-left));
+    --wildz-phone-row: 36px;
+    --wildz-phone-gap: 6px;
+  }
+  .wildz-reference-hud {
+    width: 100%;
+    transform: none;
+    grid-template-columns: minmax(0, var(--wildz-phone-identity)) minmax(0, 1fr) 68px;
+    gap: var(--wildz-phone-gap);
+  }
+  .wildz-mission-home { padding-top: 4px; width: 100%; max-width: 112px; }
+  .wildz-app .wildz-mission-home > .wildz-mission-chip { width: 100%; border-radius: 13px; }
+  .wildz-mission-home > .wildz-mission-chip strong { display: flex; align-items: baseline; justify-content: center; gap: 3px; }
+  .wildz-mission-home > .wildz-mission-chip small { display: inline; margin: 0; letter-spacing: .1em; }
+  .wilds-left-instrument-home {
+    top: calc(74px + env(safe-area-inset-top));
+    width: var(--wildz-phone-identity);
+    grid-template-columns: minmax(0, 1fr) var(--wildz-phone-row);
+    grid-template-rows: repeat(2, var(--wildz-phone-row));
+    gap: var(--wildz-phone-gap);
+  }
+  .wildz-app .wilds-left-instrument-home > :is(.wilds-kai-command-pill, .wilds-wallet-instrument) {
+    width: 100%; min-width: 0; border-radius: 15px;
+  }
+  .wilds-map-status-home {
+    top: calc(116px + env(safe-area-inset-top));
+    grid-template-columns: minmax(0, 1fr) repeat(3, var(--wildz-phone-row));
+    gap: var(--wildz-phone-gap);
+  }
+  .wildz-app .wilds-search-reticle {
+    top: calc(78px + var(--wildz-stage-safe-top));
+    left: calc((100% + var(--wildz-phone-identity) - 68px) / 2);
+    width: max-content;
+    max-width: calc(100% - var(--wildz-phone-identity) - 96px);
+    min-height: 28px;
+    padding: 6px 10px;
+    font-size: 8px;
+    line-height: 1.25;
+    letter-spacing: .025em;
+    box-shadow: 0 3px 10px rgb(22 41 31 / 16%), inset 0 1px rgb(255 255 255 / 65%);
+  }
+  .wilds-map-status-home .wilds-live-pill.event {
+    width: calc((100vw - 22px) / 2);
+    max-width: none;
+    height: 28px;
+    min-height: 28px;
+    padding: 0 10px;
+    gap: 4px;
+    font-size: 8px;
+    letter-spacing: .01em;
+  }
+  .wilds-map-status-home .wilds-live-pill.event:not(.ecology),
+  .wilds-map-status-home .wilds-live-pill.event.ecology {
+    top: calc(158px + var(--wildz-stage-safe-top));
+    right: max(8px, env(safe-area-inset-right));
+  }
+  .wilds-map-status-home .wilds-live-pill.event.ecology {
+    right: auto;
+    left: max(8px, env(safe-area-inset-left));
+  }
+  .wilds-map-status-home .wilds-live-pill.event span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .wilds-map-status-home .wilds-live-pill.event b { flex: 0 0 auto; }
+  .wilds-map-status-home .wilds-live-pill.event::before { inset-block: 0; box-shadow: 0 3px 10px rgb(0 0 0 / 16%); }
 }

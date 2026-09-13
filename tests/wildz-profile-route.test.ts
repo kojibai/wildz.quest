@@ -2,6 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+test("public profile responses cannot retain the previous Vault revision in shared caches", () => {
+  const route = readFileSync("app/api/profiles/[handle]/route.ts", "utf8");
+  assert.match(route, /"cache-control": "no-store"/);
+  assert.doesNotMatch(route, /max-age|stale-while-revalidate/);
+});
+
 test("canonical shareable player route opens the profile and the legacy path redirects", () => {
   const canonical = readFileSync("app/u/[handle]/page.tsx", "utf8");
   const alias = readFileSync("app/[username]/page.tsx", "utf8");

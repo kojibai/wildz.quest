@@ -14,8 +14,10 @@ export function hasExactWildsWalletReadAuthorityScopes(value: readonly string[])
 }
 
 export type WildsIdentityAuthorityPurpose = "wallet-read" | "artifact-claim";
+// The SDK canonicalizes proof-authority scopes in lexical order before signing
+// and validating the response. Keep our exact scope comparison in that order.
 export const WILDS_ARTIFACT_CLAIM_AUTHORITY_SCOPES = Object.freeze([
-  ...WILDS_WALLET_READ_AUTHORITY_SCOPES, "receiz:record", "receiz:seal"
+  "openid", "profile", "receiz:record", "receiz:seal", "receiz:wallet.read"
 ] as const);
 export function wildsIdentityAuthorityScopes(purpose: WildsIdentityAuthorityPurpose) {
   return purpose === "artifact-claim" ? WILDS_ARTIFACT_CLAIM_AUTHORITY_SCOPES : WILDS_WALLET_READ_AUTHORITY_SCOPES;

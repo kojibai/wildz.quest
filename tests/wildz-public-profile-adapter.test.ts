@@ -21,6 +21,20 @@ const fernProfile = {
   record: { wins: 2, losses: 0, raids: 1 }
 };
 
+test("public profile reads bypass browser and intermediary caches for the current Vault revision", async () => {
+  const profile = sanitizePublicWildzProfile(fernProfile);
+  let reads = 0;
+  const fetcher = (async (_url: string, init?: RequestInit) => {
+    reads++;
+    assert.equal(init?.cache, "no-store");
+    assert.equal(init?.credentials, "omit");
+    assert.equal(new Headers(init?.headers).get("cache-control"), "no-cache");
+    return Response.json({ ok: true, profile });
+  }) as typeof fetch;
+  assert.deepEqual(await fetchPublicWildzProfile("fern", fetcher), profile);
+  assert.equal(reads, 1);
+});
+
 describe("Receiz-backed public Wildz profiles", () => {
   test("a fully authenticated owner is publication-ready before opening Profile", () => {
     const readiness = (profileAdapter as Record<string, unknown>).wildzProfilePublicationReadiness;
@@ -116,7 +130,7 @@ describe("Receiz-backed public Wildz profiles", () => {
     await publishCurrentWildzProfile(sanitizePublicWildzProfile(fernProfile), fetcher);
     assert.equal(calls[0]?.url, "/api/profiles/fern");
     assert.equal(calls[0]?.init?.credentials, "omit");
-    assert.equal(calls[0]?.init?.cache, "no-cache");
+    assert.equal(calls[0]?.init?.cache, "no-store");
     assert.equal(calls[1]?.url, "/api/profiles/fern");
     assert.equal(calls[1]?.init?.method, "POST");
     assert.equal(calls[1]?.init?.credentials, "same-origin");

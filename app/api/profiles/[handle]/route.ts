@@ -25,7 +25,9 @@ function json(body: unknown, status = 200, publicProjection = false) {
   return NextResponse.json(body, {
     status,
     headers: {
-      "cache-control": status === 200 ? "public, max-age=60, stale-while-revalidate=300" : "no-store",
+      // This same endpoint confirms newly published Vault revisions. A stale
+      // shared response must not keep an older gallery visible after a capture.
+      "cache-control": "no-store",
       ...(publicProjection ? { "x-wildz-public-projection": "sanitized" } : {})
     }
   });

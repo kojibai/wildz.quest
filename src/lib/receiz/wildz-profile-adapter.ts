@@ -208,9 +208,9 @@ export async function fetchPublicWildzProfile(username: string, fetcher: typeof 
   const handle = canonicalWildzHandle(username);
   const response = await fetcher(publicProfileEndpoint(handle), {
     signal: options.signal,
-    cache: "no-cache",
+    cache: "no-store",
     credentials: "omit",
-    headers: { accept: "application/json" }
+    headers: { accept: "application/json", "cache-control": "no-cache" }
   });
   const value = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (response.status === 404) return null;

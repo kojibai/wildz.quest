@@ -109,3 +109,51 @@ test("fresh Save stays local and never requests another seal", async () => {
   assert.deepEqual((await reopened(session, asset, player)).bytes, saved.bytes);
   assert.deepEqual({ renders, signs, seals, verifies }, { renders: 1, signs: 1, seals: 0, verifies: 0 });
 });
+
+test("a freshly caught V1 card saves after deterministic living-card admission", async () => {
+  const { applyWildsInput } = await import("../src/features/play/game-state");
+  const identity = await createReceizIdentityKeyFile({ owner: { uid: "fresh-capture-save", username: "keeper" } });
+  const state = applyWildsInput({ ...initialPlayState, player: { x: 1.6, z: -2.1 } }, {
+    type: "capture", encounterId: "fresh-capture-save", capturedAt: "2026-09-13T18:00:00.000Z", ownerReceizId: "keeper"
+  });
+  const asset = state.inventory.at(-1)!;
+  assert.equal(asset.manifest.schema, "receiz.wilds_card_manifest.v1");
+  const player = createWildsPlayerVault({ playerId: "keeper", exportedAt: "2026-09-13T18:01:00.000Z",
+    playState: { ...state, inventory: [asset] }, settings: { avatarStyle: null, movementMode: "walk", audio: {} },
+    personalEvents: [], canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null }, receipts: [] });
+  const bytes = await createWildzIdentityBoundPlayerVault({ keyFile: identity.keyFile, vaultBytes: embedPortableVaultInPng(png, [asset], player) });
+  assert.equal(await matchesWildzOwnedCardExport(bytes, { asset, keyId: identity.keyFile.keyId, ownerReceizId: "keeper" }), true);
+  const { createWildzIdentityOwnedCardPreparer } = await import("../src/lib/receiz/wildz-identity-adapter");
+  const { createMemoryWildzContinuityDatabase } = await import("./support/memory-wildz-continuity-database");
+  const prepare = createWildzIdentityOwnedCardPreparer({
+    database: createMemoryWildzContinuityDatabase(),
+    sources: { read: async () => null, locateAsset: async () => { throw new Error("no remote discovery"); }, retain: async () => { throw new Error("no reseal"); } },
+    renderCard: async () => new Blob([png], { type: "image/png" }),
+    sign: async (_key, action) => action(identity.keyFile),
+    seal: async () => { throw new Error("Save must not reseal"); },
+    verifySeal: async () => { throw new Error("Save must not fetch"); }
+  });
+  const session = { keyId: identity.keyFile.keyId, username: "keeper", actorId: "keeper", localAuthority: "verified" } as Parameters<typeof prepare>[0];
+  const saved = await prepare(session, asset, player);
+  assert.equal(await prepare(session, asset, player), saved);
+  const { createWildzArtifactCodec } = await import("../src/lib/receiz/wildz-artifact-codec");
+  const { createWildzIdentityRepository } = await import("../src/lib/receiz/wildz-identity-repository");
+  const { inspectReceizCommerceVault } = await import("../src/lib/receiz/receiz-commerce-vault");
+  const { wildzVaultUploadDisposition } = await import("../src/features/identity/wildz-restore");
+  const database = createMemoryWildzContinuityDatabase();
+  const repository = createWildzIdentityRepository({ database });
+  const codec = createWildzArtifactCodec({ identityRepository: repository,
+    commerceVaultReader: { inspect: inspectReceizCommerceVault } });
+  const opened = await codec.inspect({ bytes: saved.bytes, mimeType: saved.mimeType, name: saved.filename });
+  assert.equal(opened.kind, "card-vault");
+  assert.equal(wildzVaultUploadDisposition(opened, "keeper"), "merge-owned");
+  if (opened.kind === "card-vault") assert.ok(opened.assets.some(card => card.id === asset.id));
+  const { restoreWildzArtifactForSurface } = await import("../src/features/identity/wildz-restore");
+  const { serializeReceizIdentityArtifact } = await import("@receiz/sdk");
+  await repository.bootstrap();
+  await restoreWildzArtifactForSurface({ surface: "genesis", bytes: new TextEncoder().encode(serializeReceizIdentityArtifact(identity.keyFile)),
+    mimeType: "application/json", name: "keeper.receiz-key.json", codec, repository, database, confirmCardOnly: true });
+  const restored = await restoreWildzArtifactForSurface({ surface: "card-vault", preserveActiveIdentity: true, bytes: saved.bytes,
+    mimeType: saved.mimeType, name: saved.filename, codec, repository, database, confirmCardOnly: true });
+  assert.ok(restored.playState.inventory.some(card => card.id === asset.id), "upload adds the caught creature to the active Vault");
+});
