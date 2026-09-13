@@ -15639,7 +15639,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   inset-inline-start: 0;
   display: grid;
   grid-template-columns: repeat(2, 44px);
-  grid-template-rows: 44px;
+  grid-template-rows: auto;
   gap: 6px;
   pointer-events: auto;
   transform-origin: bottom left;
@@ -15872,42 +15872,38 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 }
 
 .wildz-passive-capabilities {
-  display: grid;
+  display: flex;
   grid-column: 1 / -1;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px;
-  pointer-events: none;
+  align-items: center;
+  gap: 5px;
+  padding-inline: 3px;
 }
 
 .wildz-passive-capabilities > span {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 1px;
-  min-width: 0;
-  min-height: 22px;
-  padding: 3px 2px;
-  border-inline-start: 2px solid #79dec9;
-  border-radius: 4px;
-  color: #d4f5ec;
-  background: rgba(7, 29, 29, .92);
-  font-size: 9px;
-  line-height: 1.2;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 16px;
+  border-radius: 6px;
+  color: #b9e3d7;
+  background: rgba(7, 29, 29, .65);
+}
+
+.wildz-passive-capabilities > span::after {
+  content: "";
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #79dec9;
 }
 
 .wildz-passive-capabilities svg {
-  width: 10px;
-  height: 10px;
-  flex: 0 0 10px;
-}
-
-.wildz-passive-capabilities small {
-  width: 100%;
-  text-align: center;
-  color: #a1c5bb;
-  font-size: 8px;
-  font-weight: 500;
+  width: 11px;
+  height: 11px;
 }
 
 .wildz-flight-status.is-low {

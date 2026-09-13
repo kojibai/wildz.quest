@@ -23,9 +23,10 @@ export function passiveControlsMarkup(capabilities: ComponentProps<typeof WildzW
 test("passive traversal badges follow the active capability set without adding action buttons", () => {
   const swimmer = passiveControlsMarkup(["swim", "climb"]);
   const land = passiveControlsMarkup([]);
-  assert.match(swimmer, /<b>Swim<\/b><small>passive<\/small>/);
-  assert.match(swimmer, /<b>Climb<\/b><small>passive<\/small>/);
+  assert.match(swimmer, /role="img" aria-label="Automatic swimming"/);
+  assert.match(swimmer, /role="img" aria-label="Automatic climbing"/);
+  assert.doesNotMatch(swimmer, /<b>Swim|<b>Climb|<small>passive/);
   assert.doesNotMatch(land, /wildz-passive-capabilities/);
   assert.equal((swimmer.match(/<button/g) ?? []).length, (land.match(/<button/g) ?? []).length);
-  assert.ok(swimmer.indexOf('aria-label="Open creature crew"') < swimmer.indexOf('class="wildz-passive-capabilities"'), "passive strip follows the packed action controls");
+  assert.ok(swimmer.indexOf('class="wildz-passive-capabilities"') < swimmer.indexOf('aria-label="Make camp and recover"'), "passive strip precedes all action controls");
 });
