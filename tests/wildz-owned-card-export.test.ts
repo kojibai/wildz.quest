@@ -52,6 +52,9 @@ test("Vault reopening and repeated Save use retained signed bytes without render
     seal: async () => { networkSeals++; throw new Error("must not post seal request"); },
     verifySeal: async () => { throw new Error("retained source already verified"); }
   };
+  const { cardArtifactFingerprint } = await import("../src/features/play/prepared-card-artifact");
+  const cacheKey = JSON.stringify(["wildz.prepared-owned-card.v1", session.keyId, "keeper", asset.id, cardArtifactFingerprint(asset)]);
+  await dependencies.database.transaction(["meta"], "readwrite", tx => tx.put("meta", sha, cacheKey));
   const prepare = createWildzIdentityOwnedCardPreparer(dependencies);
   const opening = prepare(session, asset, player, { allowPrompt: false });
   const clickingSave = prepare(session, asset, player);
@@ -67,7 +70,7 @@ test("Vault reopening and repeated Save use retained signed bytes without render
   assert.deepEqual({ renders, signs, networkSeals }, { renders: 0, signs: 0, networkSeals: 0 });
 });
 
-test("local retention failure cannot turn a verified fresh export into a failed Save", async () => {
+test("fresh Save stays local and never requests another seal", async () => {
   const { createWildzIdentityOwnedCardPreparer } = await import("../src/lib/receiz/wildz-identity-adapter");
   const { createMemoryWildzContinuityDatabase } = await import("./support/memory-wildz-continuity-database");
   const identity = await createReceizIdentityKeyFile({ owner: { uid: "retention-failure-test", username: "keeper" } });
@@ -76,20 +79,33 @@ test("local retention failure cannot turn a verified fresh export into a failed 
     playState: { ...initialPlayState, inventory: [asset] }, settings: { avatarStyle: null, movementMode: "walk", audio: {} },
     personalEvents: [], canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null }, receipts: [] });
   const session = { keyId: identity.keyFile.keyId, username: "keeper", actorId: "keeper", localAuthority: "verified" } as Parameters<ReturnType<typeof createWildzIdentityOwnedCardPreparer>>[0];
-  let seals = 0, verifies = 0, retentions = 0;
-  const prepare = createWildzIdentityOwnedCardPreparer({
+  let seals = 0, verifies = 0, retentions = 0, renders = 0, signs = 0;
+  const dependencies: Parameters<typeof createWildzIdentityOwnedCardPreparer>[0] = {
     database: createMemoryWildzContinuityDatabase(),
-    sources: { locateAsset: async () => ({ artifactSha256s: [], nextCursor: null }), read: async () => null,
+    sources: { locateAsset: async () => { throw new Error("Save must not scan source history"); }, read: async () => null,
       retain: async () => { retentions++; throw new Error("storage quota exceeded"); } },
-    renderCard: async () => new Blob([png], { type: "image/png" }),
-    sign: async (_key, action) => action(identity.keyFile),
+    renderCard: async () => { renders++; return new Blob([png], { type: "image/png" }); },
+    sign: async (_key, action) => { signs++; return action(identity.keyFile); },
     seal: async payload => { seals++; return { bytes: new Uint8Array(await payload.arrayBuffer()), filename: "test.receizbundle", mimeType: "application/vnd.receiz.bundle+json" }; },
-    // The verified-seal port is isolated here so the test exercises persistence
-    // failure after admission; cryptographic matching is tested above.
+    // Neither remote operation is part of local card saving.
     verifySeal: async () => { verifies++; }
-  });
+  };
+  const prepare = createWildzIdentityOwnedCardPreparer(dependencies);
   const saved = await prepare(session, asset, player);
   assert.ok(saved.bytes.length > png.length);
   assert.equal(await prepare(session, asset, player), saved);
-  assert.deepEqual({ seals, verifies, retentions }, { seals: 1, verifies: 1, retentions: 1 });
+  assert.deepEqual({ seals, verifies, retentions }, { seals: 0, verifies: 0, retentions: 0 });
+  assert.equal(saved.mimeType, "image/png");
+  assert.equal(await matchesWildzOwnedCardExport(saved.bytes, { asset, keyId: session.keyId, ownerReceizId: "keeper" }), true);
+  const { createWildzArtifactCodec } = await import("../src/lib/receiz/wildz-artifact-codec");
+  const { createWildzIdentityRepository } = await import("../src/lib/receiz/wildz-identity-repository");
+  const { inspectReceizCommerceVault } = await import("../src/lib/receiz/receiz-commerce-vault");
+  const codec = createWildzArtifactCodec({ identityRepository: createWildzIdentityRepository({ database: createMemoryWildzContinuityDatabase() }),
+    commerceVaultReader: { inspect: inspectReceizCommerceVault } });
+  const opened = await codec.inspect({ bytes: saved.bytes, mimeType: saved.mimeType, name: saved.filename });
+  assert.equal(opened.kind, "card-vault");
+  if (opened.kind === "card-vault") assert.deepEqual(opened.assets, [asset]);
+  const reopened = createWildzIdentityOwnedCardPreparer(dependencies);
+  assert.deepEqual((await reopened(session, asset, player)).bytes, saved.bytes);
+  assert.deepEqual({ renders, signs, seals, verifies }, { renders: 1, signs: 1, seals: 0, verifies: 0 });
 });

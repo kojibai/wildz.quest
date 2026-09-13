@@ -306,7 +306,7 @@ export function PlayCampaign({
   initialWorld?: { projection: WildsWorldProjection; mode: "receiz_live" | "kai_live" } | null;
   onPlayStateChange: (state: PlayState, playerContinuity: WildzPlayerContinuity) => void;
   onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
-  onExportCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
+  onExportCard: (asset: PortableCardAsset, player: () => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: (assets: PortableCardAsset[], player: WildsPlayerVaultPayload) => Promise<unknown>;
   vaultAdmission: WildzVaultCardAdmission | null;
   onRestoreRoamingCapture: (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState) => Promise<WildzCommittedArtifactRestore>;
@@ -2617,9 +2617,6 @@ export function PlayCampaign({
           <WildzCommandInsight label="Collection consequence" value={activeAsset?.manifest.name ?? "Choose a leader"} detail="Vault selection becomes the active explorer companion in the drawer, Trail Pack, and battle." />
           <div className="wilds-vault-sheet-heading"><span><small>Portable card vault</small><strong>{state.inventory.length} sealed {state.inventory.length === 1 ? "card" : "cards"}</strong></span><button className="wilds-open-market" onClick={openMarketFromVault} type="button"><Icons.store size={18} /> Open Market</button></div>
           <WildsInventory
-            crewModes={crewPreferences?.byAssetId ?? {}}
-            crewReports={crewExpeditions.reports}
-            onCrewModeChange={handleCrewModeChange}
             readCrewHistory={crewExpeditions.history}
             state={state}
             ownerReceizId={ownerReceizId}

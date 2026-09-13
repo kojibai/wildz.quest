@@ -29,9 +29,7 @@ import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsGrowthPanel } from "./WildsGrowthPanel";
 import { CreatureConsciousnessPanel } from "./CreatureConsciousnessPanel";
 import { CreatureContinuityPanel } from "./CreatureContinuityPanel";
-import { WildsCrewCreatureControls } from "./WildsCrewCreatureControls";
 import type { WildsCrewTravelHistory } from "./WildsCrewTravelJournal";
-import type { WildsCrewMode } from "./wilds-crew-preferences";
 import {
   clampInventoryPage,
   inventoryPageForAsset,
@@ -72,14 +70,8 @@ export function WildsInventory({
   onInput,
   onListAsset,
   onRestoreArtifact,
-  crewModes = {},
-  crewReports = {},
-  onCrewModeChange,
   readCrewHistory
 }: {
-  crewModes?: Readonly<Record<string, WildsCrewMode>>;
-  crewReports?: Readonly<Record<string, string>>;
-  onCrewModeChange?: (assetId: string, mode: WildsCrewMode) => void;
   readCrewHistory?: WildsCrewTravelHistory;
   state: PlayState;
   ownerReceizId: string;
@@ -90,7 +82,7 @@ export function WildsInventory({
   playerVault: () => WildsPlayerVaultPayload;
   vaultAdmission: WildzVaultCardAdmission;
   onPrepareCard: (asset: PlayState["inventory"][number], player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
-  onExportCard: (asset: PlayState["inventory"][number], player: WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
+  onExportCard: (asset: PlayState["inventory"][number], player: () => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: (assets: PlayState["inventory"], player: WildsPlayerVaultPayload) => Promise<unknown>;
   onInput: (input: WildsInput) => void;
   onListAsset?: (asset: PlayState["inventory"][number], priceCents: number) => Promise<PlayState["inventory"][number] | null>;
@@ -153,6 +145,7 @@ export function WildsInventory({
   const safePage = clampInventoryPage(page, matches.length, pageSize);
   const visible = matches.slice(safePage * pageSize, safePage * pageSize + pageSize);
   const selected = state.inventory.find((asset) => asset.id === selectedId) ?? visible[0] ?? state.inventory[0];
+  const selectedArtifactFingerprint = useMemo(() => selected ? cardArtifactFingerprint(selected) : "", [selected]);
   playerVaultRef.current = playerVault;
   selectedCardRef.current = selected;
   const selectedForm = selected ? creatureForm(selected.manifest.formId) : null;
@@ -291,7 +284,7 @@ export function WildsInventory({
         // original click-time export rail.
       });
     return () => { active = false; };
-  }, [ownerReceizId, selected?.id, selected?.proof.digest, selectedRetired]);
+  }, [ownerReceizId, selected?.id, selectedArtifactFingerprint, selectedRetired]);
 
   useEffect(() => () => {
     if (saveResetTimer.current !== null) window.clearTimeout(saveResetTimer.current);
@@ -376,7 +369,7 @@ export function WildsInventory({
         && preparedIdentityCard.current.cardFingerprint === cardArtifactFingerprint(asset)
         ? preparedIdentityCard.current
         : undefined;
-      await onExportCard(asset, playerVault(), prepared);
+      await onExportCard(asset, playerVault, prepared);
       emitWildsPlaytestEvent("card-save", "success");
       setCardSaveState("success");
       setDownloadMessage(cardSavePresentation("success").message);
@@ -573,16 +566,7 @@ export function WildsInventory({
               onObserved={(turn) => onInput({ type: "record-creature-observation", turn })}
               onSpeakingChange={setSelectedCreatureSpeaking}
             />
-            {onCrewModeChange ? <WildsCrewCreatureControls
-              card={selected}
-              mode={crewModes[selected.id]}
-              accompanying={state.selectedAssetId === selected.id || state.supportAssetIds.includes(selected.id)}
-              report={crewReports[selected.id]}
-              disabled={selectedRetired}
-              onModeChange={onCrewModeChange}
-              readHistory={readCrewHistory}
-            /> : null}
-            <CreatureContinuityPanel asset={selected} beans={state.beans} disabled={selectedRetired} onInput={onInput} />
+            <CreatureContinuityPanel asset={selected} beans={state.beans} disabled={selectedRetired} onInput={onInput} readCrewHistory={readCrewHistory} />
             <div className="wilds-inventory-actions">
               <button className="button button-primary" disabled={selectedRetired || state.selectedAssetId === selected.id} onClick={() => onInput({ type: "select-asset", assetId: selected.id })} type="button">{selectedRetired ? "Retired · cannot enter game" : state.selectedAssetId === selected.id ? "Active deck leader" : "Set as active deck leader"}</button>
               <Link className="button button-outline" href={`/cards/${encodeURIComponent(selected.id)}`} onClick={() => { rememberStandaloneWildzCard(selected); }}>Open standalone card page</Link>

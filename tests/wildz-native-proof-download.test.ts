@@ -36,6 +36,7 @@ function installDownloadBrowser() {
   }
 
   const documentStub = {
+    body: { appendChild(link: { attached: boolean }) { link.attached = true; } },
     createElement(tagName: string) {
       if (tagName === "canvas") {
         return {
@@ -51,7 +52,11 @@ function installDownloadBrowser() {
         return {
           href: "",
           download: "",
+          style: { display: "" },
+          attached: false,
+          remove() { this.attached = false; },
           click() {
+            assert.equal(this.attached, true);
             downloadedFilename = this.download;
           }
         };
@@ -65,7 +70,8 @@ function installDownloadBrowser() {
     configurable: true,
     value: {
       location: { origin: "https://wildz.test" },
-      setTimeout(callback: () => void) {
+      setTimeout(callback: () => void, delay: number) {
+        assert.ok(delay >= 60_000, "download URL must survive Safari's delayed consumption");
         callback();
         return 0;
       }

@@ -1278,7 +1278,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           onPrepareCard={(asset, player) => prepareWildzIdentityOwnedCard(identity, asset, player, { allowPrompt: false })}
           onExportCard={(asset, player, prepared) => prepared && matchesPreparedWildzIdentityOwnedCard(prepared, identity, asset)
             ? savePreparedWildzIdentityOwnedCard(prepared)
-            : downloadWildzIdentityOwnedCard(identity, asset, player)}
+            : downloadWildzIdentityOwnedCard(identity, asset, player())}
           onExportVault={(assets, player) => downloadWildzIdentityPlayerVault(identity, assets, player)}
           vaultAdmission={vaultAdmission}
           onRestoreArtifact={claimAndRestoreVaultArtifact}

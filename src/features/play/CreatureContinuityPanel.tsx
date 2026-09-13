@@ -1,5 +1,6 @@
 "use client";
 
+import { WildsCrewTravelJournal, type WildsCrewTravelHistory } from "./WildsCrewTravelJournal";
 import { useEffect, useMemo, useState } from "react";
 import { Icons } from "@/components/icons";
 import { creatureContinuityProjection } from "./creature-continuity";
@@ -21,12 +22,14 @@ export function CreatureContinuityPanel({
   asset,
   beans,
   disabled = false,
-  onInput
+  onInput,
+  readCrewHistory
 }: {
   asset: PortableCardAsset;
   beans: number;
   disabled?: boolean;
   onInput: (input: WildsInput) => void;
+  readCrewHistory?: WildsCrewTravelHistory;
 }) {
   const [now, setNow] = useState(() => new Date().toISOString());
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -121,14 +124,15 @@ export function CreatureContinuityPanel({
       </div>
 
       <div className="wilds-continuity-memory">
-        <p>These card continuity memories are separate from observed trail journeys in the travel journal.</p>
+        <p>Read this creature’s continuity memories and the same recorded roaming journeys shown in the HUD.</p>
         <div><strong>Continuity memory</strong><small>{livedExperiences.length} continuity {livedExperiences.length === 1 ? "experience" : "experiences"} · proof-chained</small></div>
         {recent.length ? recent.map((event) => (
           <article key={event.digest}>
             <span aria-hidden="true">{event.kind === "discover" ? "✦" : event.kind === "barter-keepsake" ? "⇄" : event.kind === "explore" ? "⌁" : "●"}</span>
             <p><strong>{event.kind.replaceAll("-", " ")}</strong>{event.summary}<small>{relativeMoment(event.occurredAt)} · proof {event.digest.slice(7, 17)}</small></p>
           </article>
-        )) : <p className="wilds-continuity-empty">No continuity memory yet. Actual trail visits appear in the travel journal above.</p>}
+        )) : <p className="wilds-continuity-empty">No continuity memory yet.</p>}
+        {readCrewHistory ? <WildsCrewTravelJournal key={asset.id} assetId={asset.id} name={asset.manifest.name} readHistory={readCrewHistory} /> : null}
       </div>
 
       {continuity?.relationships.length ? <div className="wilds-continuity-bonds">

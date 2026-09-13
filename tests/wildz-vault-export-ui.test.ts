@@ -76,7 +76,7 @@ test("Save verified card prewarms its exact proof and resolves with premium acce
 
 
   assert.match(inventory, /preparedIdentityCard\.current/);
-  assert.match(inventory, /onExportCard\(asset, playerVault\(\), prepared\)/);
+  assert.match(inventory, /onExportCard\(asset, playerVault, prepared\)/);
 
   assert.match(campaign, /onExportCard=\{onExportCard\}/);
   assert.match(campaign, /onPrepareCard=\{onPrepareCard\}/);

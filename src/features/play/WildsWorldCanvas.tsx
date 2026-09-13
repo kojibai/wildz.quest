@@ -110,9 +110,8 @@ import type { WildsStewardPlacement } from "@/features/play/wilds-steward-craft"
 import type { WildsWorldCapabilityFamily } from "@/features/play/wilds-world-capability-registry";
 import { projectWildsCapabilityPresentation } from "@/features/play/wilds-capability-presentation";
 import { projectWildsDiscoveryHint } from "@/features/play/wilds-discovery-hint";
-import { currentCreatureHistoryProjection } from "./living-card-proof";
-import { isLivingCardAsset } from "./living-card-types";
 import { creatureContinuityProjection } from "@/features/play/creature-continuity";
+import { readWildsCrewCondition } from "./wilds-crew-policy";
 import { canWildsCrewTravel, createWildsCrewPhysicalSampler } from "./wilds-crew-physical-navigation";
 import { createWildsCrewPathStepState, planWildsCrewPathNearTarget, wildsCrewRouteNeedsReplan, writeWildsCrewAlongsideTarget, writeWildsCrewTransportPosition, writeWildsCrewFollowingStep, type WildsCrewNavigationPoint, type WildsCrewNavigationAuthority } from "./wilds-crew-navigation";
 import { WILDS_RENDERED_PHYSICAL_OBSTACLES } from "./wilds-terrain-obstacles";
@@ -981,9 +980,7 @@ function ActiveCompanion({ suspended = false, world, partyCanClimb, crewTravelRu
   const mode = (asset ? crewModes?.[asset.id] : undefined) ?? (legacyRoaming ? "roam" : "follow");
   const seed = useMemo(() => Number.parseInt(asset?.proof.digest.slice(-6) ?? "0", 16) || 0, [asset?.proof.digest]);
   const condition = useMemo(() => {
-    if (!asset) return undefined;
-    if (state.adventureConditions[asset.id]) return state.adventureConditions[asset.id];
-    try { return isLivingCardAsset(asset) ? currentCreatureHistoryProjection(asset).condition : undefined; } catch { return undefined; }
+    try { return asset ? readWildsCrewCondition(asset, state.adventureConditions) : undefined; } catch { return undefined; }
   }, [asset, state.adventureConditions]);
   const enabled = useMemo(() => canWildsCrewTravel(condition), [condition]);
   const travelerCanClimb = useMemo(() => {
@@ -1027,15 +1024,13 @@ function SupportCompanions({ suspended = false, world, partyCanClimb, crewTravel
 function SupportCompanion({ suspended = false, world, partyCanClimb, crewTravelRuntime, crewRelocationKey, kaiUPulse, card, condition, index, mode, obstacles, player, siteRuntime, siteSpace, terrainElevation }: { suspended?: boolean; world?: WildsWorldProjection | null; partyCanClimb?: boolean; crewTravelRuntime?: MutableRefObject<WildsCrewTravelRuntime>; crewRelocationKey?: string | number; kaiUPulse: number; card: PortableCardAsset; condition: PlayState["adventureConditions"][string] | undefined; index: number; mode: "follow" | "roam"; obstacles: readonly WildsTerrainObstacle[]; player: PlayState["player"]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; terrainElevation: number }) {
   const appearance = useMemo(() => projectCardKaiAppearance(card), [card]);
   const seed = useMemo(() => Number.parseInt(card.proof.digest.slice(-6), 16) || 0, [card.proof.digest]);
-  const enabled = useMemo(() => {
-    try { return canWildsCrewTravel(condition ?? (isLivingCardAsset(card) ? currentCreatureHistoryProjection(card).condition : undefined)); } catch { return false; }
+  const currentCondition = useMemo(() => {
+    try { return readWildsCrewCondition(card, condition ? { [card.id]: condition } : {}); } catch { return undefined; }
   }, [card, condition]);
+  const enabled = useMemo(() => canWildsCrewTravel(currentCondition), [currentCondition]);
   const travelerCanClimb = useMemo(() => {
-    try {
-      const current=condition ?? (isLivingCardAsset(card) ? currentCreatureHistoryProjection(card).condition : undefined);
-      return Boolean(current && projectWildsTraversalCapabilities(card,current).capabilities.includes("climb"));
-    } catch { return false; }
-  }, [card,condition]);
+    try { return Boolean(currentCondition && projectWildsTraversalCapabilities(card, currentCondition).capabilities.includes("climb")); } catch { return false; }
+  }, [card, currentCondition]);
   const { group, gait } = useCrewFollower({ suspended, world, travelerCanClimb, partyCanClimb, assetId: card.id, proofDigest: card.proof.digest, crewTravelRuntime, crewRelocationKey, kaiUPulse, enabled, player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance.cadenceMs, seed, offsetX: index === 0 ? 1.05 : 1.62, offsetZ: index === 0 ? .72 : 1.34 });
   return <group ref={group} name={`trail-support-${index + 1}`} scale={index === 0 ? .62 : .54}>
     <WildsCreatureActor grounded gait={gait} locomotion="ground" accent={appearance.palette.accent} anatomy={appearance.anatomy} cadenceMs={appearance.cadenceMs} familyId={card.manifest.familyId} formId={card.manifest.formId} glow={appearance.palette.glow} identityToken={appearance.fingerprint} morphology={appearance.morphology} pose={index === 0 ? "curious" : "idle"} primary={appearance.palette.primary} secondary={appearance.palette.secondary} />
@@ -1055,7 +1050,7 @@ function IndependentCrewTravel({ suspended = false, world, runtime, state, obsta
   const cards = useMemo(() => new Map(state.inventory.map(card => [card.id, card])), [state.inventory]);
   const readiness = useMemo(() => new Map(state.inventory.map(card => {
     try {
-      const condition=state.adventureConditions[card.id] ?? (isLivingCardAsset(card) ? currentCreatureHistoryProjection(card).condition : undefined);
+      const condition=readWildsCrewCondition(card, state.adventureConditions);
       return [card.id,{ready:canWildsCrewTravel(condition),canClimb:condition?projectWildsTraversalCapabilities(card,condition).capabilities.includes("climb"):false}] as const;
     } catch { return [card.id,{ready:false,canClimb:false}] as const; }
   })), [state.inventory, state.adventureConditions]);
