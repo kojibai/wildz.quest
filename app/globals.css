@@ -17145,3 +17145,13 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
   .wilds-map-status-home .wilds-live-pill.event b { flex: 0 0 auto; }
   .wilds-map-status-home .wilds-live-pill.event::before { inset-block: 0; box-shadow: 0 3px 10px rgb(0 0 0 / 16%); }
 }
+
+/* Atlas controls remain reachable while leaving the terrain open to gestures. */
+.wilds-atlas-controls { position: absolute; top: max(76px, calc(env(safe-area-inset-top) + 76px)); left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); z-index: 4; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; pointer-events: none; }
+.wilds-atlas-controls .wilds-atlas-zoom, .wilds-atlas-controls .wilds-atlas-navigation { position: static; pointer-events: auto; }
+.wilds-atlas-controls .wilds-atlas-navigation { margin-left: auto; }
+.wilds-atlas-controls button { min-height: 44px; min-width: 44px; }
+.wilds-atlas-intelligence > summary { min-height: 28px; display: flex; align-items: center; gap: 8px; cursor: pointer; color: #bff8dc; font-size: 11px; font-weight: 850; }
+.wilds-atlas-intelligence > summary::before { content: "+"; font-size: 18px; }
+.wilds-atlas-intelligence[open] > summary::before { content: "−"; }
+.wilds-atlas-intelligence[open] { max-height: min(50dvh, 380px); overflow-y: auto; }

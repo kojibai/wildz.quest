@@ -790,9 +790,9 @@ function useCrewFollower(input: {
   world?: WildsWorldProjection | null;
 }) {
   const group = useRef<THREE.Group>(null);
-  const gait = useRef({ x: 0, z: 0, distance: 0, speed: 0, travelled: 0 });
+  const gait = useRef({ x: 0, y: 0, z: 0, distance: 0, speed: 0, travelled: 0 });
   const resetPresentation = useRef(true);
-  const localPresentation = useRef({ x: 0, z: 0 });
+  const localPresentation = useRef({ x: 0, y: 0, z: 0 });
   const followMotion = useRef({ x: input.player.x, z: input.player.z, changedAt: performance.now() / 1000, speed: 0 });
   const retainedTravel = input.crewTravelRuntime?.current.get(input.assetId);
   const lastTravel = useRef(retainedTravel);
@@ -959,10 +959,11 @@ function useCrewFollower(input: {
     }
     const dx = regrouped ? 0 : p.x - oldX, dz = regrouped ? 0 : p.z - oldZ, distance = Math.hypot(dx, dz);
     localPresentation.current.x = p.x - current.player.x;
+    localPresentation.current.y = p.y - current.terrainElevation;
     localPresentation.current.z = p.z - current.player.z;
     writeWildsCrewFollowPresentation(gait.current, localPresentation.current, distance, delta, regrouped || resetPresentation.current);
     resetPresentation.current = false;
-    group.current.position.set(gait.current.x, p.y - current.terrainElevation, gait.current.z);
+    group.current.position.set(gait.current.x, gait.current.y, gait.current.z);
     if (distance > .0001) {
       const heading = Math.atan2(dx, dz), blend = 1 - Math.exp(-Math.min(delta, .05) * 8);
       group.current.rotation.y += Math.atan2(Math.sin(heading - group.current.rotation.y), Math.cos(heading - group.current.rotation.y)) * blend;
@@ -1102,21 +1103,24 @@ function IndependentCrewTravel({ suspended = false, world, runtime, state, obsta
     },500);
     return()=>{window.clearInterval(timer);window.clearInterval(visibilityTimer);scheduler.clear();visibleCandidates.clear();};
   },[runtime]);
-  return <group name="independent-creature-travel">{visibleIds.map(id=>{
+  return <SmoothWorldFrame player={state.player} terrainElevation={terrainElevation}><group name="independent-creature-travel">{visibleIds.map(id=>{
     const card=cards.get(id);
     return card&&id!==state.selectedAssetId&&!state.supportAssetIds.includes(id)?<IndependentCrewActor key={id} card={card} runtime={runtime} player={state.player} terrainElevation={terrainElevation} spaceId={siteSpace.spaceId}/>:null;
-  })}</group>;
+  })}</group></SmoothWorldFrame>;
 }
 function IndependentCrewActor({card,runtime,player,terrainElevation,spaceId}:{card:PortableCardAsset;runtime:MutableRefObject<WildsCrewTravelRuntime>;player:PlayState["player"];terrainElevation:number;spaceId:string}) {
   const appearance=useMemo(()=>projectCardKaiAppearance(card),[card]);
   const group=useRef<THREE.Group>(null),gait=useRef({distance:0,speed:0}),prior=useRef({x:NaN,z:NaN}),visualPosition=useRef({x:0,y:0,z:0});
-  useFrame(()=>{
+  useFrame((_,delta)=>{
     const actor=group.current,entry=runtime.current.get(card.id);if(!actor)return;
     actor.visible=Boolean(entry?.position&&entry.spaceId===spaceId&&entry.proofDigest===card.proof.digest);
     if(!actor.visible||!entry?.position)return;
     const speed=writeWildsCrewVisualPosition(visualPosition.current,entry,performance.now());
     const p=visualPosition.current,distance=Number.isFinite(prior.current.x)?Math.hypot(p.x-prior.current.x,p.z-prior.current.z):0;
-    if(distance>.000001)actor.rotation.y=Math.atan2(p.x-prior.current.x,p.z-prior.current.z);
+    if(distance>.000001){
+      const target=Math.atan2(p.x-prior.current.x,p.z-prior.current.z);
+      actor.rotation.y+=Math.atan2(Math.sin(target-actor.rotation.y),Math.cos(target-actor.rotation.y))*(1-Math.exp(-12*Math.min(.1,delta)));
+    }
     gait.current.distance+=distance;gait.current.speed=speed;
     prior.current.x=p.x;prior.current.z=p.z;
     actor.position.set(p.x-player.x,p.y-terrainElevation,p.z-player.z);
@@ -1181,12 +1185,16 @@ function RemoteExplorer({
       { actorElevation: Number.isFinite(actorElevation) ? actorElevation : undefined, anchorElevation: terrainElevation }
     );
   }, [localPlayer.x, localPlayer.z, player.x, player.z, siteRuntime, siteSpace.spaceId, terrainElevation]);
-  const target = useRef(new THREE.Vector3(...actorPosition));
-  useEffect(() => {
-    target.current.set(...actorPosition);
-  }, [actorPosition]);
-  useFrame(() => {
-    group.current?.position.lerp(target.current, 0.18);
+  const initialPosition = useRef(actorPosition);
+  const displayedWorld = useRef(new THREE.Vector3(player.x, actorPosition[1] + terrainElevation, player.z));
+  const target = useRef(new THREE.Vector3());
+  target.current.set(player.x, actorPosition[1] + terrainElevation, player.z);
+  useFrame((_, delta) => {
+    if (!group.current) return;
+    displayedWorld.current.lerp(target.current, 1 - Math.exp(-12 * Math.min(.1, delta)));
+    // Rebase once; React must not overwrite the interpolated pose on each packet.
+    group.current.position.set(displayedWorld.current.x - localPlayer.x,
+      displayedWorld.current.y - terrainElevation, displayedWorld.current.z - localPlayer.z);
   });
   return (
     <group
@@ -1194,7 +1202,7 @@ function RemoteExplorer({
         event.stopPropagation();
         onSelect(player);
       }}
-      position={actorPosition}
+      position={initialPosition.current}
       ref={group}
     >
       <WildsExplorer identityKey={player.handle||player.playerId} remote style={player.style} worldPosition={{ x: player.x, z: player.z }} />

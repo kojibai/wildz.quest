@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
 import { regionForPosition, type WildsPresence } from "./multiplayer-core";
@@ -29,7 +29,7 @@ import type { WildsCrewMapSource } from "./wilds-crew-map";
 
 const zoomLevels: readonly WildsAtlasZoom[] = ["world", "region", "landmark"];
 
-export function WildsWorldMap({
+function WildsWorldMapView({
   open,
   crewMapSource,
   guestId,
@@ -71,6 +71,7 @@ export function WildsWorldMap({
   const remoteCrewMarkers = useMemo(() => projectWildsRemoteRoamingMarkers(remotePlayers, "self"), [remotePlayers]);
   const crewMarkers = [...ownCrewMarkers, ...remoteCrewMarkers];
   const [zoom, setZoom] = useState<WildsAtlasZoom>("world");
+  const [northRequest, setNorthRequest] = useState(0);
   const [recenterRequest, setRecenterRequest] = useState(0);
   const [fitRequest, setFitRequest] = useState(0);
   const [atlasReady, setAtlasReady] = useState(false);
@@ -190,7 +191,7 @@ export function WildsWorldMap({
       <header className="wilds-world-map-header">
         <div>
           <span className="eyebrow">Living world atlas</span>
-          <h2 id="wilds-world-map-title" ref={headingRef} tabIndex={-1}>The Wilds are bigger than the horizon</h2>
+          <h2 id="wilds-world-map-title" ref={headingRef} tabIndex={-1}>World map</h2>
         </div>
         <button aria-label="Close world map" className="wilds-world-map-close" onClick={onClose} type="button">
           <Icons.close aria-hidden="true" size={20} />
@@ -211,12 +212,14 @@ export function WildsWorldMap({
             projection={projection}
             qualityProfile={qualityProfile}
             recenterRequest={recenterRequest}
+            northRequest={northRequest}
             fitRequest={fitRequest}
             reducedMotion={reducedMotion}
             onReady={() => setAtlasReady(true)}
             selectedDrop={null}
             selectedId={null}
           />
+          <div className="wilds-atlas-controls">
           <div aria-label="Atlas zoom level" className="wilds-atlas-zoom" role="group">
             {zoomLevels.map((level) => (
               <button aria-pressed={zoom === level} key={level} onClick={() => setZoom(level)} type="button">
@@ -225,6 +228,7 @@ export function WildsWorldMap({
             ))}
           </div>
           <div aria-label="Atlas navigation" className="wilds-atlas-navigation" role="group">
+            <button aria-label="Orient map north up" title="North up" onClick={() => setNorthRequest(value => value + 1)} type="button">↑ N</button>
             <button
               aria-label="Center map on your current location"
               onClick={() => setRecenterRequest((value) => value + 1)}
@@ -245,13 +249,15 @@ export function WildsWorldMap({
               Fit
             </button>
           </div>
+          </div>
           <div className="wilds-atlas-current" aria-label={`Current position X ${Math.round(currentPosition.x)}, Z ${Math.round(currentPosition.z)}`}>
             <Icons.home aria-hidden="true" size={15} />
             <span>You · X {Math.round(currentPosition.x)} · Z {Math.round(currentPosition.z)}</span>
             <i aria-hidden="true" />
             <span>{projection.exactPlayers.length + projection.playerClusters.reduce((sum, cluster) => sum + cluster.count, 0)} live</span>
           </div>
-          <aside className="wilds-atlas-intelligence" aria-label="Current expedition">
+          <details className="wilds-atlas-intelligence" aria-label="Live world">
+            <summary>Live world · {crewMarkers.length} roaming</summary>
             <span>Creature expeditions · {crewMarkers.length}</span>
             {crewMarkers.length > 0 ? <ul aria-label="Roaming creatures" style={{ maxHeight: 150, overflowY: "auto", paddingLeft: 16, fontSize: 12 }}>
               {crewMarkers.map(marker => <li key={`${marker.ownerId ?? "self"}:${marker.assetId}`} style={{ color: marker.returning ? "#ffdc87" : marker.remote ? "#65e4ff" : "#d0bfff", marginBottom: 5 }}>
@@ -259,7 +265,7 @@ export function WildsWorldMap({
                 X {Math.round(marker.position.x)} · Z {Math.round(marker.position.z)}
               </li>)}
             </ul> : null}
-            <strong>The world reacts</strong>
+            <strong>{projection.worldAdditions.length} builds · {projection.dynamicSites.length} discoveries</strong>
             <p>Explore real paths. Discover living events. Let every choice become remembered experience.</p>
             <div className="wilds-atlas-mission-meter" role="progressbar" aria-label="Mission progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={missionProgress}>
               <i style={{ width: `${Math.max(0, Math.min(100, missionProgress))}%` }} />
@@ -269,10 +275,14 @@ export function WildsWorldMap({
               <div><dt>Mastery</dt><dd>{worldMastery}%</dd></div>
               <div><dt>Known</dt><dd>{discoveredLandmarkIds.length}</dd></div>
             </dl>
-          </aside>
+          </details>
         </div>
 
       </div>
     </div>
   ), document.body);
 }
+
+// Keep the prepared atlas for quick reopening, but do no projection/scene work
+// for gameplay snapshots while hidden. Opening always receives the latest props.
+export const WildsWorldMap = memo(WildsWorldMapView, (previous, next) => !previous.open && !next.open);

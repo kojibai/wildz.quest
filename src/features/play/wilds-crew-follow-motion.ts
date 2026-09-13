@@ -1,17 +1,18 @@
 /** Sample player displacement between changed snapshots, never against one render delta. */
 export type WildsCrewFollowMotion = { x: number; z: number; changedAt: number; speed: number };
-export type WildsCrewFollowPresentation = { x: number; z: number; distance: number; speed: number; travelled: number };
+export type WildsCrewFollowPresentation = { x: number; y: number; z: number; distance: number; speed: number; travelled: number };
 /** Smooth only the player-relative display pose. Collision and travel retain their
  * admitted positions; filtering cumulative distance also keeps every gait stride. */
-export function writeWildsCrewFollowPresentation(state: WildsCrewFollowPresentation, local: { x: number; z: number }, moved: number, delta: number, reset = false): void {
+export function writeWildsCrewFollowPresentation(state: WildsCrewFollowPresentation, local: { x: number; y: number; z: number }, moved: number, delta: number, reset = false): void {
   if (reset) {
-    state.x = local.x; state.z = local.z; state.distance = 0; state.speed = 0; state.travelled = 0;
+    state.x = local.x; state.y = local.y; state.z = local.z; state.distance = 0; state.speed = 0; state.travelled = 0;
     return;
   }
   const dt = Math.max(0, Math.min(.1, delta));
   if (dt === 0) return;
   const blend = 1 - Math.exp(-18 * dt);
   state.x += (local.x - state.x) * blend;
+  state.y += (local.y - state.y) * blend;
   state.z += (local.z - state.z) * blend;
   state.travelled += moved;
   const previousDistance = state.distance;

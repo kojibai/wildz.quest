@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { atlasCameraFrame, atlasCameraOpeningFrame, atlasCameraOpeningLimits, preserveWildsAtlasCameraLimits, rebaseWildsAtlasCameraPose, resolveWildsAtlasCameraPose, translateWildsAtlasCamera } from "../src/features/play/wilds-atlas-camera";
+import { wildsAtlasRotateSpeed, atlasCameraFrame, atlasCameraOpeningFrame, atlasCameraOpeningLimits, preserveWildsAtlasCameraLimits, rebaseWildsAtlasCameraPose, resolveWildsAtlasCameraPose, translateWildsAtlasCamera } from "../src/features/play/wilds-atlas-camera";
 
 test("fit-all framing includes the complete discovered extent on portrait and landscape screens", () => {
   const input = {
@@ -144,5 +144,12 @@ test("camera framing stays finite for degenerate and released world bounds", () 
   ]) {
     const frame = atlasCameraFrame({ bounds, centerRegion: { x: .5, z: .5 }, regionUnit: 0.000001 }, { width: 1, height: 1 });
     assert.ok([...frame.position, ...frame.target, frame.minDistance, frame.maxDistance, frame.far, frame.fov].every(Number.isFinite));
+  }
+});
+
+ test("a width-long drag rotates the atlas equally on phones and landscape screens", () => {
+  for (const viewport of [{ width: 320, height: 740 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
+    const turns = viewport.width / viewport.height * wildsAtlasRotateSpeed(viewport);
+    assert.ok(Math.abs(turns - .75) < 1e-10);
   }
 });

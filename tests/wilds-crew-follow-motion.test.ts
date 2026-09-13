@@ -2,24 +2,24 @@ import assert from "node:assert/strict";
 import { it } from "node:test";
 import { writeWildsCrewFollowSpeed, writeWildsCrewFollowPresentation } from "../src/features/play/wilds-crew-follow-motion";
 it("smooths snapshot jumps and gait pulses while settling exactly after walking", () => {
-  const state = { x: 0, z: 0, distance: 0, speed: 0, travelled: 0 };
+  const state = { x: 0, y: 0, z: 0, distance: 0, speed: 0, travelled: 0 };
   let previous = 0;
   for (let frame = 1; frame <= 240; frame++) {
     // A caught-up companion alternates between a snapshot correction and catch-up.
     const x = frame % 2 ? -.5 : 0;
-    writeWildsCrewFollowPresentation(state, { x, z: 0 }, frame % 2 ? .5 : 0, 1 / 60);
+    writeWildsCrewFollowPresentation(state, { x, y: 0, z: 0 }, frame % 2 ? .5 : 0, 1 / 60);
     if (frame > 60) {
       assert.ok(Math.abs(state.x - previous) < .1, "no half-unit frame jumps beside the player");
       assert.ok(state.speed > 10 && state.speed < 20, "no walking/idle gait oscillation");
     }
     previous = state.x;
   }
-  for (let frame = 0; frame < 120; frame++) writeWildsCrewFollowPresentation(state, { x: 0, z: 0 }, 0, 1 / 60);
+  for (let frame = 0; frame < 120; frame++) writeWildsCrewFollowPresentation(state, { x: 0, y: 0, z: 0 }, 0, 1 / 60);
   assert.ok(Math.abs(state.x) < .000001);
   assert.ok(state.speed < .025);
   assert.ok(Math.abs(state.distance - 60) < .000001, "smoothing preserves total stride distance");
-  writeWildsCrewFollowPresentation(state, { x: 10, z: 20 }, 100, 1 / 60, true);
-  assert.deepEqual(state, { x: 10, z: 20, distance: 0, speed: 0, travelled: 0 });
+  writeWildsCrewFollowPresentation(state, { x: 10, y: 0, z: 20 }, 100, 1 / 60, true);
+  assert.deepEqual(state, { x: 10, y: 0, z: 20, distance: 0, speed: 0, travelled: 0 });
 });
 it("measures repeated player snapshots at actual cadence and holds speed between renders",()=>{
  const state={x:0,z:0,changedAt:0,speed:0};
@@ -33,7 +33,7 @@ it("keeps snapshot-driven walking visually continuous at 30, 60 and 120 fps", as
   for (const hz of [30, 60, 120]) {
     const position = { x: 0, y: 0, z: 0 }, player = { ...position };
     const motion = { x: 0, z: 0, changedAt: 0, speed: 0 };
-    const presentation = { x: 0, z: 0, distance: 0, speed: 0, travelled: 0 };
+    const presentation = { x: 0, y: 0, z: 0, distance: 0, speed: 0, travelled: 0 };
     const step = createWildsCrewPathStepState();
     for (let frame = 1; frame <= hz * 8; frame++) {
       const now = frame / hz;
@@ -45,7 +45,7 @@ it("keeps snapshot-driven walking visually continuous at 30, 60 and 120 fps", as
         speed: writeWildsCrewFollowSpeed(motion, player, now, player.x - position.x),
         sampleSegment: (_from, _to, _mode, out) => { out.allowed = true; out.y = 0; }
       });
-      writeWildsCrewFollowPresentation(presentation, { x: position.x - player.x, z: 0 }, position.x - before, 1 / hz);
+      writeWildsCrewFollowPresentation(presentation, { x: position.x - player.x, y: 0, z: 0 }, position.x - before, 1 / hz);
       if (frame <= hz * 2) continue;
       assert.ok(Math.abs(presentation.x - displayed) < .1, `${hz} fps: no snapshot kick`);
       assert.ok(presentation.speed > 25 && presentation.speed < 48, `${hz} fps: steady walking gait`);
@@ -97,4 +97,18 @@ it("rejects forbidden player landings and uses only the admitted anchor when its
  const authority={mode:"walk" as const,permittedModes:["walk" as const],sampleSegment:(_from:unknown,to:{x:number},_mode:unknown,out:{allowed:boolean;y:number})=>{out.allowed=to.x===10;out.y=3;}};
  assert.equal(writeWildsCrewFollowRegroup(position,player,formation,scratch,{...authority,sampleSegment:(_from,_to,_mode,out)=>{out.allowed=false;out.y=0;}},true),false);assert.equal(position.x,0);
  assert.equal(writeWildsCrewFollowRegroup(position,player,formation,scratch,authority,true),true);assert.deepEqual(position,{x:10,y:3,z:0});
+});
+
+it("terrain snapshot changes ease vertically with the same bounded response as horizontal changes",()=>{
+ for(const hz of [30,60,120]) {
+  const state={x:0,y:0,z:0,distance:0,speed:0,travelled:0};
+  const target={x:.6,y:.6,z:.6};
+  writeWildsCrewFollowPresentation(state,target,0,1/hz);
+  assert.ok(state.y>0&&state.y<.6);
+  assert.equal(state.x,state.y);
+  for(let frame=1;frame<hz;frame++)writeWildsCrewFollowPresentation(state,target,0,1/hz);
+  assert.ok(Math.abs(state.y-.6)<1e-6);
+  writeWildsCrewFollowPresentation(state,{x:20,y:5,z:30},0,1/hz,true);
+  assert.equal(state.y,5,'explicit relocation lands immediately');
+ }
 });

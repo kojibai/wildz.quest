@@ -20,7 +20,7 @@ import {
   wildsAtlasProjectedSpan,
   type WildsAtlasRenderTile
 } from "./wilds-atlas-render-tiles";
-import { atlasCameraFrame, atlasCameraOpeningFrame, atlasCameraOpeningLimits, preserveWildsAtlasCameraLimits, rebaseWildsAtlasCameraPose, resolveWildsAtlasCameraPose, translateWildsAtlasCamera } from "./wilds-atlas-camera";
+import { atlasCameraFrame, atlasCameraOpeningFrame, atlasCameraOpeningLimits, preserveWildsAtlasCameraLimits, rebaseWildsAtlasCameraPose, resolveWildsAtlasCameraPose, translateWildsAtlasCamera, wildsAtlasRotateSpeed } from "./wilds-atlas-camera";
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 const GOLDEN_ANGLE = Math.PI * 2 / (PHI * PHI);
@@ -57,6 +57,7 @@ export function WildsAtlasCanvas({
   selectedId,
   selectedDrop,
   recenterRequest,
+  northRequest,
   fitRequest,
   reducedMotion,
   active = true,
@@ -71,6 +72,7 @@ export function WildsAtlasCanvas({
   selectedId: string | null;
   selectedDrop: { x: number; z: number } | null;
   recenterRequest: number;
+  northRequest: number;
   fitRequest: number;
   reducedMotion: boolean;
   active?: boolean;
@@ -83,6 +85,9 @@ export function WildsAtlasCanvas({
     z: Math.floor(currentPosition.z / WILDS_REGION_SIZE) + .5
   }));
   const projection = useMemo(() => ({ ...sourceProjection, centerRegion: renderCenterRegion }), [sourceProjection, renderCenterRegion]);
+  // A pinch or drag must never also trigger a terrain jump on release.
+  const gesture = useRef({ pointers: new Map<number, { x: number; y: number }>(), moved: false });
+  const acceptTap = () => !gesture.current.moved;
   const atlasSparkleCount = reducedMotion ? 12 : Math.round(38 * qualityProfile.particles);
   const atlasSpan = wildsAtlasProjectedSpan(projection.nodes, projection.regionUnit);
   const viewBounds = useMemo(
@@ -94,7 +99,20 @@ export function WildsAtlasCanvas({
   );
   const fogFar = Math.max(29, Math.min(72, atlasSpan * 1.8 + 18));
   return (
-    <div aria-hidden="true" className="wilds-atlas-canvas">
+    <div aria-hidden="true" className="wilds-atlas-canvas"
+      onPointerDownCapture={event => {
+        const state = gesture.current;
+        if (state.pointers.size === 0) state.moved = false;
+        state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (state.pointers.size > 1) state.moved = true;
+      }}
+      onPointerMoveCapture={event => {
+        const start = gesture.current.pointers.get(event.pointerId);
+        if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > ATLAS_CLICK_DRAG_THRESHOLD) gesture.current.moved = true;
+      }}
+      onPointerUpCapture={event => gesture.current.pointers.delete(event.pointerId)}
+      onPointerCancelCapture={event => { gesture.current.moved = true; gesture.current.pointers.delete(event.pointerId); }}
+    >
       <Canvas
         camera={{ fov: 40, near: 0.1, far: Math.max(80, fogFar * 1.6), position: [0, 9.6, 11.5] }}
         dpr={qualityProfile.dpr}
@@ -114,13 +132,13 @@ export function WildsAtlasCanvas({
         <directionalLight color="#fff2a8" intensity={2.35} position={[4, 10, 3]} />
         <pointLight color="#71e8c3" intensity={24} position={[-5, 3, 2]} distance={16} />
         <pointLight color="#ff72bf" intensity={13} position={[6, 2, -5]} distance={13} />
-        <ContinuousWorldSurface onDrop={onDrop} projection={projection} />
+        <ContinuousWorldSurface onDrop={position => { if (acceptTap()) onDrop(position); }} projection={projection} />
         <AtlasTerrainDetails projection={projection} qualityProfile={qualityProfile} />
         <MapRoutes projection={projection} />
         <RegionNames projection={projection} />
-        <LandmarkBeacons projection={projection} selectedId={selectedId} onSelect={onSelect} />
+        <LandmarkBeacons projection={projection} selectedId={selectedId} onSelect={id => { if (acceptTap()) onSelect(id); }} />
         <DropPin position={selectedDrop} projection={projection} />
-        <CrewLights projection={projection} markers={crewMarkers} />
+        <CrewLights projection={projection} markers={crewMarkers} reducedMotion={reducedMotion} />
         <ExactPlayerLights projection={projection} />
         <PresenceLights projection={projection} />
         <TrainerLights projection={projection} />
@@ -143,6 +161,7 @@ export function WildsAtlasCanvas({
           far={fogFar}
           fitRequest={fitRequest}
           recenterRequest={recenterRequest}
+          northRequest={northRequest}
           reducedMotion={reducedMotion}
           regionUnit={projection.regionUnit}
           onRenderCenterRegionChange={setRenderCenterRegion}
@@ -169,6 +188,7 @@ function AtlasCameraRig({
   far,
   fitRequest,
   recenterRequest,
+  northRequest,
   reducedMotion,
   regionUnit,
   onRenderCenterRegionChange
@@ -179,6 +199,7 @@ function AtlasCameraRig({
   far: number;
   fitRequest: number;
   recenterRequest: number;
+  northRequest: number;
   reducedMotion: boolean;
   regionUnit: number;
   onRenderCenterRegionChange: (center: { x: number; z: number }) => void;
@@ -186,6 +207,7 @@ function AtlasCameraRig({
   const controls = useRef<ComponentRef<typeof MapControls>>(null);
   const rebasing = useRef(false);
   const lastRecenterRequest = useRef(recenterRequest);
+  const lastNorthRequest = useRef(northRequest);
   const lastFitRequest = useRef<number | null>(null);
   const { camera, invalidate, size } = useThree();
   const frame = useMemo(
@@ -235,7 +257,7 @@ function AtlasCameraRig({
     lastRecenterRequest.current = recenterRequest;
     const nextTarget = Object.freeze([
       atlasLocalCoordinate(currentPosition.x, centerRegion.x, regionUnit),
-      0,
+      atlasTerrainHeight(currentPosition.x, currentPosition.z, regionUnit),
       atlasLocalCoordinate(currentPosition.z, centerRegion.z, regionUnit)
     ]) as readonly [number, number, number];
     const translated = translateWildsAtlasCamera({
@@ -250,6 +272,24 @@ function AtlasCameraRig({
     controls.current.update();
     invalidate();
   }, [camera, centerRegion, currentPosition.x, currentPosition.z, invalidate, onRenderCenterRegionChange, recenterRequest, regionUnit]);
+  useLayoutEffect(() => {
+    const orbit = controls.current;
+    if (!orbit || lastNorthRequest.current === northRequest) return;
+    lastNorthRequest.current = northRequest;
+    // Consume residual gesture inertia before applying the explicit heading.
+    const damping = orbit.enableDamping;
+    orbit.enableDamping = false;
+    orbit.update();
+    orbit.enableDamping = damping;
+    const radius = Math.hypot(camera.position.x - orbit.target.x, camera.position.z - orbit.target.z);
+    camera.position.x = orbit.target.x;
+    camera.position.z = orbit.target.z + radius;
+    orbit.update();
+    invalidate();
+  }, [camera, invalidate, northRequest]);
+  useFrame((_, delta) => {
+    if (controls.current) controls.current.dampingFactor = 1 - Math.exp(-14 * Math.min(.1, delta));
+  }, -2);
   useFrame(() => {
     if (rebasing.current || !(camera instanceof THREE.PerspectiveCamera) || !controls.current) return;
     if (Math.abs(controls.current.target.x) <= 96 && Math.abs(controls.current.target.z) <= 96) return;
@@ -278,16 +318,16 @@ function AtlasCameraRig({
     enableRotate
     makeDefault
     maxDistance={activeLimits.maxDistance}
-    maxPolarAngle={Math.PI / 2.25}
+    maxPolarAngle={Math.PI / 2 - .06}
     minDistance={activeLimits.minDistance}
-    minPolarAngle={0.35}
+    minPolarAngle={.05}
     mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
-    panSpeed={0.72}
+    panSpeed={1}
     ref={controls}
-    rotateSpeed={0.5}
+    rotateSpeed={wildsAtlasRotateSpeed(size)}
     screenSpacePanning={false}
     touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
-    zoomSpeed={0.82}
+    zoomSpeed={1}
     zoomToCursor
   />;
 }
@@ -727,13 +767,13 @@ function CurrentPositionBeam({ position, projection }: { position: { x: number; 
   const x = atlasLocalCoordinate(position.x, projection.centerRegion.x, projection.regionUnit);
   const z = atlasLocalCoordinate(position.z, projection.centerRegion.z, projection.regionUnit);
   return (
-    <group name="atlas-current-position" position={[x, 0, z]}>
+    <group name="atlas-current-position" position={[x, atlasTerrainHeight(position.x, position.z, projection.regionUnit) + .12, z]}>
       <Html center position={[0, 1.9, 0]} wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[3, 2]}>
         <span className="wilds-atlas-you-are-here">You are here</span>
       </Html>
       <mesh position={[0, 0.48, 0]}>
         <capsuleGeometry args={[0.1, 0.22, 4, 10]} />
-        <meshStandardMaterial color="#ffffff" emissive="#71e8c3" emissiveIntensity={2} />
+        <meshStandardMaterial color="#ffffff" emissive="#71e8c3" emissiveIntensity={2} depthTest={false} />
       </mesh>
       <mesh position={[0, 1.25, 0]}>
         <cylinderGeometry args={[0.012, 0.05, 1.5, 8]} />
@@ -743,16 +783,37 @@ function CurrentPositionBeam({ position, projection }: { position: { x: number; 
   );
 }
 
-function CrewLights({ projection, markers }: { projection: WildsAtlasProjection; markers: readonly WildsCrewMapMarker[] }) {
-  return <group name="atlas-owned-roaming-creatures">{markers.map(marker => {
-    const x = atlasLocalCoordinate(marker.position.x, projection.centerRegion.x, projection.regionUnit);
-    const z = atlasLocalCoordinate(marker.position.z, projection.centerRegion.z, projection.regionUnit);
-    const color = marker.returning ? "#ffdc87" : marker.remote ? "#65e4ff" : "#ad8bff";
-    return <group key={`${marker.ownerId ?? "self"}:${marker.assetId}`} name={`atlas-crew-${marker.assetId}`} position={[x, atlasTerrainHeight(marker.position.x, marker.position.z, projection.regionUnit) + .25, z]}>
-      <mesh raycast={() => {}}><octahedronGeometry args={[.14, 0]} /><meshBasicMaterial color={color} depthTest={false} /></mesh>
-      <Html center position={[0, .3, 0]} wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[2, 1]}>
-        <span className="wilds-atlas-trainer-label" style={{ color, pointerEvents: "none" }}>{marker.name}{marker.ownerHandle ? ` · ${marker.ownerHandle}` : ""} · {marker.status}</span>
-      </Html>
-    </group>;
-  })}</group>;
+function CrewLights({ projection, markers, reducedMotion }: { projection: WildsAtlasProjection; markers: readonly WildsCrewMapMarker[]; reducedMotion: boolean }) {
+  return <group name="atlas-owned-roaming-creatures">{markers.map(marker =>
+    <CrewLight key={`${marker.ownerId ?? "self"}:${marker.assetId}`} projection={projection} marker={marker} reducedMotion={reducedMotion} />
+  )}</group>;
+}
+
+function CrewLight({ projection, marker, reducedMotion }: { projection: WildsAtlasProjection; marker: WildsCrewMapMarker; reducedMotion: boolean }) {
+  const group = useRef<THREE.Group>(null);
+  const targetY = atlasTerrainHeight(marker.position.x, marker.position.z, projection.regionUnit) + .25;
+  const displayed = useRef({ ...marker.position, y: targetY });
+  const x = atlasLocalCoordinate(marker.position.x, projection.centerRegion.x, projection.regionUnit);
+  const z = atlasLocalCoordinate(marker.position.z, projection.centerRegion.z, projection.regionUnit);
+  const initialPosition = useRef<[number, number, number]>([x, atlasTerrainHeight(marker.position.x, marker.position.z, projection.regionUnit) + .25, z]);
+  useFrame((_, delta) => {
+    if (!group.current) return;
+    const position = displayed.current;
+    const blend = reducedMotion ? 1 : 1 - Math.exp(-14 * Math.min(.1, delta));
+    position.x += (marker.position.x - position.x) * blend;
+    position.z += (marker.position.z - position.z) * blend;
+    position.y += (targetY - position.y) * blend;
+    group.current.position.set(
+      atlasLocalCoordinate(position.x, projection.centerRegion.x, projection.regionUnit),
+      position.y,
+      atlasLocalCoordinate(position.z, projection.centerRegion.z, projection.regionUnit)
+    );
+  });
+  const color = marker.returning ? "#ffdc87" : marker.remote ? "#65e4ff" : "#ad8bff";
+  return <group ref={group} name={`atlas-crew-${marker.assetId}`} position={initialPosition.current}>
+    <mesh raycast={() => {}}><octahedronGeometry args={[.14, 0]} /><meshBasicMaterial color={color} depthTest={false} /></mesh>
+    <Html center position={[0, .3, 0]} wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[2, 1]}>
+      <span className="wilds-atlas-trainer-label" style={{ color, pointerEvents: "none" }}>{marker.name}{marker.ownerHandle ? ` · ${marker.ownerHandle}` : ""} · {marker.status}</span>
+    </Html>
+  </group>;
 }

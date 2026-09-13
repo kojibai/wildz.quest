@@ -175,3 +175,9 @@ export function translateWildsAtlasCamera(input: {
     ]) as CameraVector
   });
 }
+
+/** OrbitControls measures rotation against viewport height. Normalize a horizontal
+ * swipe so portrait phones and wide screens cover the same fraction of a turn. */
+export function wildsAtlasRotateSpeed(viewport: {width:number;height:number}) {
+  return .75 * finitePositive(viewport.height, 1) / finitePositive(viewport.width, 1);
+}

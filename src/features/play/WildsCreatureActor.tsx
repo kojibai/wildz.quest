@@ -3,7 +3,7 @@
 import { useWildsCharacterTexture } from "./wilds-character-material";
 import { useWildsNaturalTexture } from "./wilds-natural-material";
 import { useMemo, useRef, type RefObject } from "react";
-import { companionFootRows, companionFootStep, type WildsCompanionGait } from "./wilds-companion-gait";
+import { companionFootRows, companionFootStep, writeWildsCompanionAnimation, type WildsCompanionGait } from "./wilds-companion-gait";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { creatureForm } from "./creature-catalog";
@@ -160,8 +160,11 @@ export function WildsCreatureActor({
   }, [formId, identityToken, morphology?.head, morphology?.limb, morphology?.symmetry, morphology?.torso]);
   const locomotionFrame = useRef<MutableWildsCreatureLocomotionFrame>({ rootY: 0, rootPitch: 0, rootRoll: 0, limbPitch: 0, wingAngle: 0 });
 
-  useFrame(() => {
+  const poseInitialized = useRef(false);
+  const walking = useRef({ distance: 0, sourceDistance: 0, weight: 0 });
+  useFrame((_, delta) => {
     if (!root.current) return;
+    writeWildsCompanionAnimation(walking.current, gait?.current ?? null, delta);
     const time = performance.now() / 1_000;
     const cadence = cadenceMs ? Math.max(0.7, Math.min(3.4, 3_000 / cadenceMs)) : 2.1;
     const motion = readability.motionScale;
@@ -170,13 +173,16 @@ export function WildsCreatureActor({
     const work = pose === "work";
     const motionMode = locomotion === "ground" && anatomy?.locomotion === "flying" && wingPlan.pairCount > 0 && (gait?.current.speed ?? 0) > .025 ? "air" : locomotion;
     const frame = writeWildsCreatureLocomotionFrame(locomotionFrame.current, motionMode, time, motion, identity.marking, pose);
-    root.current.position.y = grounded && motionMode === "ground" ? (legged ? .48 * identity.height : body === "serpentine" ? .56 : .4 * identity.height * .9) : frame.rootY;
-    root.current.rotation.x = frame.rootPitch;
-    root.current.rotation.z = frame.rootRoll;
+    const rootY = grounded && motionMode === "ground" ? (legged ? .48 * identity.height : body === "serpentine" ? .56 : .4 * identity.height * .9) : frame.rootY;
+    const blend = poseInitialized.current ? 1 - Math.exp(-18 * Math.min(.1, delta)) : 1;
+    root.current.position.y += (rootY - root.current.position.y) * blend;
+    root.current.rotation.x += (frame.rootPitch - root.current.rotation.x) * blend;
+    root.current.rotation.z += (frame.rootRoll - root.current.rotation.z) * blend;
+    poseInitialized.current = true;
     root.current.scale.setScalar(pose === "capture" ? 0.9 + Math.sin(time * 5) * 0.035 * motion : 1);
     if (bodyMotion.current) {
-      const slithering = grounded && motionMode === "ground" && !legged && gait && gait.current.speed > .01;
-      const wave = slithering ? Math.sin(gait.current.distance * 7) * .10 * motion : 0;
+      const slithering = grounded && motionMode === "ground" && !legged && gait;
+      const wave = slithering ? Math.sin(walking.current.distance * 7) * .10 * motion * walking.current.weight : 0;
       bodyMotion.current.position.x = 0;
       bodyMotion.current.rotation.y = wave * 1.8;
     }
@@ -190,9 +196,9 @@ export function WildsCreatureActor({
       if (grounded && motionMode === "ground") for (const limb of limbs.current.children) {
         if (!limb.userData.walkFoot) continue;
         const {side, front, pad} = limb.userData;
-        const step = companionFootStep(gait?.current.distance ?? 0, side, front, (gait?.current.speed ?? 0) > .025 && motion > 0);
-        limb.position.z = front * .2 + step.z;
-        limb.position.y = (pad ? -.43 : -.3) * identity.height + step.lift;
+        const step = companionFootStep(walking.current.distance, side, front, motion > 0);
+        limb.position.z = front * .2 + step.z * walking.current.weight;
+        limb.position.y = (pad ? -.43 : -.3) * identity.height + step.lift * walking.current.weight;
       }
     }
     if (wings.current) wings.current.rotation.x = frame.wingAngle;
