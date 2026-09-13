@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { receizBase64UrlEncode, type ReceizOpenedArtifact, type ReceizSealedArtifact } from "@receiz/sdk";
-import { embedPortableCardInPng, embedPortableVaultInPng } from "../src/features/play/card-export";
+import { embedPortableCardInPng, embedPortableVaultInPng, embedRoamingCardInPng } from "../src/features/play/card-export";
 import { admitLegacyCard } from "../src/features/play/living-card-proof";
 import { sealCollectedCard } from "../src/features/play/portable-card";
 import { createWildsRoamingCardSourcePreparer, verifyWildsRoamingCardPayload } from "../src/lib/receiz/wilds-roaming-card-source";
@@ -11,6 +11,34 @@ const asset = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "keeper", 
 const cardPng = embedPortableCardInPng(png, asset);
 const actor = { actorId: "keeper", profileHandle: "keeper.receiz.id", receizUserId: "keeper-user" };
 const sha = async (bytes: Uint8Array) => Buffer.from(await crypto.subtle.digest("SHA-256", bytes.slice().buffer)).toString("hex");
+
+function withExif(image: Uint8Array) {
+  const data = Buffer.from("49492a0008000000000000000000", "hex");
+  const body = Buffer.concat([Buffer.from("eXIf"), data]);
+  let crc = 0xffffffff;
+  for (const byte of body) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+  }
+  const length = Buffer.alloc(4), checksum = Buffer.alloc(4);
+  length.writeUInt32BE(data.length); checksum.writeUInt32BE((crc ^ 0xffffffff) >>> 0);
+  return new Uint8Array(Buffer.concat([image.slice(0, 33), length, body, checksum, image.slice(33)]));
+}
+
+test("fresh roaming rendering removes device metadata before single-card native preparation", async () => {
+  const rendered = withExif(png);
+  const oldPayload = embedPortableCardInPng(rendered, asset);
+  assert.throws(() => verifyWildsRoamingCardPayload(oldPayload, asset), /not_single_card/);
+  const clean = embedRoamingCardInPng(rendered, asset);
+  assert.doesNotThrow(() => verifyWildsRoamingCardPayload(clean, asset));
+  assert.ok(Buffer.from(rendered).includes(Buffer.from("eXIf")), "rendered input remains unchanged");
+  assert.equal(Buffer.from(clean).includes(Buffer.from("eXIf")), false);
+  const f = await fixture();
+  const result = await createWildsRoamingCardSourcePreparer(f)({ actor, asset, initialCardPng: { bytes: clean, filename: "roaming.png" } });
+  assert.equal(result.reused, false);
+  assert.equal(f.creates(), 1);
+  assert.deepEqual(result.admitted.payloadBytes, clean);
+});
 
 async function fixture() {
   const rows = new Map<string, { artifact: { schema: "receiz.sealed-artifact-bytes.v124"; exactBytesB64u: string; filename: string; mimeType: string; artifactSha256: string; payloadSha256: string }; predecessors: string[] }>();
@@ -112,10 +140,31 @@ test("missing retained bytes never trigger replacement creation", async () => {
   assert.equal(f.creates(), 0);
 });
 
-test("a retained native Vault is never exposed or converted to a fresh single-card identity", async () => {
+test("a verified native Vault backup does not block a card's first separate roaming source", async () => {
   const f = await fixture();
   await f.retain(await f.seal(embedPortableVaultInPng(cardPng, [asset])));
-  await assert.rejects(createWildsRoamingCardSourcePreparer(f)({ actor, asset, initialCardPng: { bytes: cardPng, filename: "card.png" } }), /not_single_card/);
+  const result = await createWildsRoamingCardSourcePreparer(f)({ actor, asset, initialCardPng: { bytes: cardPng, filename: "card.png" } });
+  assert.equal(result.reused, false);
+  assert.deepEqual(result.admitted.payloadBytes, cardPng);
+  assert.equal(f.creates(), 1);
+});
+
+test("a verified Vault backup cannot authorize a new single-card source for a different owner", async () => {
+  const f = await fixture();
+  await f.retain(await f.seal(embedPortableVaultInPng(cardPng, [asset]), "next.receiz.id"));
+  await assert.rejects(createWildsRoamingCardSourcePreparer(f)({ actor: { ...actor, profileHandle: "next.receiz.id" }, asset,
+    initialCardPng: { bytes: cardPng, filename: "card.png" } }), /owner_mismatch/);
+  assert.equal(f.creates(), 0);
+});
+
+test("whole-Vault history does not compete with the existing single-card ownership chain", async () => {
+  const f = await fixture();
+  const source = await f.seal(cardPng);
+  await f.retain(source);
+  await f.retain(await f.seal(embedPortableVaultInPng(cardPng, [asset])));
+  const result = await createWildsRoamingCardSourcePreparer(f)({ actor, asset });
+  assert.equal(result.reused, true);
+  assert.equal(result.admitted.artifactSha256, source.artifactSha256);
   assert.equal(f.creates(), 0);
 });
 

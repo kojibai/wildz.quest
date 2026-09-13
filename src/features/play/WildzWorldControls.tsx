@@ -308,6 +308,12 @@ export function WildzWorldControls({
             onRequest={onRequestCapability}
           />
           <button aria-label="Open creature crew" title="Creature crew" disabled={!worldHomesEnabled} onClick={onOpenCrew} type="button"><Icons.roam aria-hidden="true" size={21} /></button>
+          {traversalCapabilities.includes("swim") || traversalCapabilities.includes("climb") ? (
+            <div className="wildz-passive-capabilities" aria-label="Active companion passive abilities">
+              {traversalCapabilities.includes("swim") ? <span title="Your active companion can swim in deep water automatically."><Icons.swim aria-hidden="true" size={13} /><b>Swim</b><small>passive</small></span> : null}
+              {traversalCapabilities.includes("climb") ? <span title="Your active companion can climb suitable terrain automatically."><Icons.climb aria-hidden="true" size={13} /><b>Climb</b><small>passive</small></span> : null}
+            </div>
+          ) : null}
           <button
             aria-label={`Open Living Construction. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
             className="wildz-construction-control"

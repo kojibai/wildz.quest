@@ -1,5 +1,5 @@
 import { receizBase64UrlDecode, verifyReceizArtifact } from "@receiz/sdk";
-import { portableCardPngBlobForIdentityOwnership } from "../../features/play/card-export";
+import { portableRoamingCardPngBlob } from "../../features/play/card-export";
 import { type PortableCardAsset, verifyAnyWildsCard } from "../../features/play/portable-card";
 import { cardArtifactFingerprint } from "../../features/play/prepared-card-artifact";
 import { type WildzAdmittedArtifact, sha256WildzArtifactBytes } from "./wildz-artifact-custody";
@@ -8,6 +8,7 @@ import { openWildzArtifactSameOrigin, type WildzVerifierFetch } from "./wildz-sa
 import { openWildzSealedDocument } from "./wildz-sealed-document";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import { validateWildsRoamingHandoffCard } from "./wilds-roaming-handoff";
+import { isWildsRoamingVaultBackup } from "./wilds-roaming-card-source";
 
 type Sources = Pick<ReturnType<typeof createWildzProofSourceRepository>, "read" | "locateAsset" | "retain">;
 
@@ -16,7 +17,7 @@ type Sources = Pick<ReturnType<typeof createWildzProofSourceRepository>, "read" 
 export function createWildsRoamingOwnerFilePreparer(dependencies: Readonly<{
   sources: Sources;
   fetch?: WildzVerifierFetch;
-  renderCard?: typeof portableCardPngBlobForIdentityOwnership;
+  renderCard?: typeof portableRoamingCardPngBlob;
 }>) {
   const active = new Map<string, { fingerprint: string; promise: Promise<WildzAdmittedArtifact> }>();
   const fetchImpl = dependencies.fetch ?? fetch;
@@ -53,6 +54,7 @@ export function createWildsRoamingOwnerFilePreparer(dependencies: Readonly<{
           }
           if (source.compatibility !== "current-native") continue;
           if (source.artifactSha256 !== sha) throw new Error("wilds_roaming_source_digest_mismatch");
+          if (isWildsRoamingVaultBackup(source.payloadBytes, asset.id)) continue;
           const checked = await verifyReceizArtifact(new File([bytes.slice().buffer], row.artifact.filename, { type: row.artifact.mimeType }));
           if (checked.status !== "verified-artifact") throw new Error("wilds_roaming_source_verification_failed");
           const continuity = checked.verification.assetContinuity as { history?: Array<{ sourceArtifactSha256?: string }> } | undefined;
@@ -76,7 +78,7 @@ export function createWildsRoamingOwnerFilePreparer(dependencies: Readonly<{
         return source;
       }
       if (!sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, ownerHandle)) throw new Error("wilds_roaming_source_owner_mismatch");
-      const png = await (dependencies.renderCard ?? portableCardPngBlobForIdentityOwnership)(asset);
+      const png = await (dependencies.renderCard ?? portableRoamingCardPngBlob)(asset);
       const bytes = new Uint8Array(await png.arrayBuffer());
       validateWildsRoamingHandoffCard(bytes, asset);
       const response = await fetchImpl("/api/wilds/roaming/capture?action=prepare", { method: "POST", credentials: "same-origin", cache: "no-store",

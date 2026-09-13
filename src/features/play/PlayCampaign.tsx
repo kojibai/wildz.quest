@@ -328,15 +328,16 @@ export function PlayCampaign({
   const playStatePublisherRef = useRef<WildzGameplayPublisher<{
     state: PlayState;
     continuity: WildzPlayerContinuity;
+    onChange: typeof onPlayStateChange;
   }> | null>(null);
   const scheduledSourceStateRef = useRef(initialState);
   onPlayStateChangeRef.current = onPlayStateChange;
   if (!playStatePublisherRef.current) {
     playStatePublisherRef.current = createWildzGameplayPublisher({
       cadenceMs: 140,
-      publish: ({ state: nextState, continuity }) => {
+      publish: ({ state: nextState, continuity, onChange }) => {
         sourceAdmission.published(nextState);
-        onPlayStateChangeRef.current(nextState, continuity);
+        onChange(nextState, continuity);
       }
     });
   }
@@ -1284,7 +1285,7 @@ export function PlayCampaign({
     scheduledSourceStateRef.current = state;
     const sourceTruthChanged = previous.inventory !== state.inventory
       || previous.ownedWorldAdditions !== state.ownedWorldAdditions;
-    playStatePublisherRef.current?.schedule({ state, continuity }, sourceTruthChanged);
+    playStatePublisherRef.current?.schedule({ state, continuity, onChange: onPlayStateChangeRef.current }, sourceTruthChanged);
   }, [
     cardOrder,
     explorerStyle,

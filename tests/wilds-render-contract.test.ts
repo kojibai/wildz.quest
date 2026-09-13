@@ -579,7 +579,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(campaign, /WildsInventory/);
     assert.match(campaign, /useState\(\(\) => initialState\)/);
     assert.match(campaign, /createWildzGameplayPublisher/);
-    assert.match(campaign, /playStatePublisherRef\.current\?\.schedule\(\{ state, continuity \}, sourceTruthChanged\)/);
+    assert.match(campaign, /playStatePublisherRef\.current\?\.schedule\(\{ state, continuity, onChange: onPlayStateChangeRef\.current \}, sourceTruthChanged\)/);
     assert.doesNotMatch(campaign, /WILDS_SAVE_KEY|localStorage\.setItem\([^,]*wilds:save/);
     assert.match(reward, /role="dialog"/);
     assert.match(reward, /aria-live="assertive"/);

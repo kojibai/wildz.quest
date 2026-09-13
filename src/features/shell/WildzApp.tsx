@@ -1,4 +1,5 @@
 "use client";
+import { isCurrentWildzGameplaySource } from "../identity/wildz-gameplay-source";
 import { validateWildsRoamingHandoffCard } from "../../lib/receiz/wilds-roaming-handoff";
 import { pruneWildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
 
@@ -155,6 +156,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const shellOverlayOriginRef = useRef<HTMLElement | null>(null);
   const shellFocusFrameRef = useRef<number | null>(null);
   const priorShellOverlayOpenRef = useRef(Boolean(initialOverlay));
+  const [identityActivationRevision, setIdentityActivationRevision] = useState(0);
   const [continuity, setContinuity] = useState<WildzContinuitySnapshot | null>(null);
   const continuityRef = useRef<WildzContinuitySnapshot | null>(null);
   const playerStateSyncTimerRef = useRef<number | null>(null);
@@ -847,6 +849,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (current.session.keyId !== outcome.session.keyId || current.session.actorId !== outcome.session.actorId) {
       publishedProfileRef.current = "";
     }
+    if (intent === "activate-identity") setIdentityActivationRevision(revision => revision + 1);
     acceptSnapshot(next);
     if (intent === "merge-vault" && typeof BroadcastChannel !== "undefined") {
       const channel = new BroadcastChannel("receiz:wildz:ownership:v119");
@@ -1136,9 +1139,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (playerStateSyncTimerRef.current !== null) window.clearTimeout(playerStateSyncTimerRef.current);
   }, []);
 
-  const persistPlayState = useCallback((playState: PlayState, playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>) => {
+  const persistPlayState = useCallback((playState: PlayState, playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>, source: WildzContinuitySnapshot) => {
     const current = continuityRef.current;
-    if (!current) return;
+    if (!current || !isCurrentWildzGameplaySource(current, source)) return;
     if (adoptingRemotePlayStateRef.current === playState) {
       adoptingRemotePlayStateRef.current = null;
       continuityRef.current = { ...current, playerContinuity };
@@ -1298,7 +1301,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     <main className="wildz-app-shell" data-wildz-active-username={ownerUsername}>
       <div aria-hidden={overlay ? true : undefined} className="wildz-app" data-overlay={overlay?.kind ?? "world"} inert={overlay ? true : undefined}>
         {continuity && identity && campaignCharacter ? <PlayCampaign
-          key={`${identity.keyId}:${identity.actorId}`}
+          key={`${identity.keyId}:${identity.actorId}:${identityActivationRevision}`}
           campaignName="Wildz"
           character={campaignCharacter}
           enabled={true}
@@ -1315,7 +1318,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           ownerReceizId={ownerUsername}
           playerDisplayName={identity.displayName ?? `@${ownerUsername}`}
           shellOverlayOwner={shellOverlayOwner}
-          onPlayStateChange={persistPlayState}
+          onPlayStateChange={(playState, playerContinuity) => persistPlayState(playState, playerContinuity, continuity)}
           onPrepareCard={(asset, player) => prepareWildzIdentityOwnedCard(identity, asset, player, { allowPrompt: false })}
           onExportCard={(asset, player, prepared) => prepared && matchesPreparedWildzIdentityOwnedCard(prepared, identity, asset)
             ? savePreparedWildzIdentityOwnedCard(prepared)

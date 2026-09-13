@@ -416,6 +416,16 @@ export function embedPortableCardInPng(source: Uint8Array, asset: PortableCardAs
   return concatBytes(output);
 }
 
+/** Build a new public roaming image, without device metadata or private Vault
+ * append data. This is only for freshly rendered pixels, never retained seals. */
+export function embedRoamingCardInPng(rendered: Uint8Array, asset: PortableCardAsset) {
+  const publicImageChunks = new Set(["IHDR", "PLTE", "IDAT", "IEND", "tRNS", "sRGB", "gAMA", "cHRM", "pHYs"]);
+  const pixels = concatBytes([PNG_SIGNATURE, ...parsePng(rendered)
+    .filter(chunk => publicImageChunks.has(chunk.type))
+    .map(chunk => makeChunk(chunk.type, chunk.data))]);
+  return embedPortableCardInPng(pixels, asset);
+}
+
 export function readPortableCardFromPng(source: Uint8Array): PortableCardPngProof {
   const chunks = parsePng(source);
   const proofs = chunks.filter((chunk) => chunk.type === PROOF_CHUNK_TYPE);
@@ -746,6 +756,14 @@ export async function portableCardPngBlob(asset: PortableCardAsset) {
 export async function portableCardPngBlobForIdentityOwnership(asset: PortableCardAsset) {
   if (typeof document === "undefined") throw new Error("wilds_card_png_browser_required");
   return renderPortableCardPngBlob(asset);
+}
+
+export async function portableRoamingCardPngBlob(asset: PortableCardAsset) {
+  if (typeof document === "undefined") throw new Error("wilds_card_png_browser_required");
+  const rendered = await svgPngBlob(renderWildsCardSvg(asset, { origin: WILDZ_PRODUCT.origin }))
+    .catch(() => serverArtifactPng("card", [asset]));
+  const bytes = embedRoamingCardInPng(new Uint8Array(await rendered.arrayBuffer()), asset);
+  return new Blob([bytes.slice().buffer], { type: "image/png" });
 }
 
 async function renderPortableCardPngBlob(asset: PortableCardAsset) {

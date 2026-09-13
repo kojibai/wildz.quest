@@ -15728,6 +15728,11 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   max-width: min(112px, 28vw);
 }
 
+/* Share the utility grid so an odd skill count pairs with the crew button. */
+.wildz-quick-utilities > .wilds-capability-controls {
+  display: contents;
+}
+
 .wilds-capability-control {
   --wilds-capability-capacity: 100%;
   position: relative;
@@ -15864,6 +15869,39 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   background: rgba(17, 31, 27, .92);
   box-shadow: 0 8px 20px rgba(0, 0, 0, .32);
   pointer-events: none;
+}
+
+.wildz-passive-capabilities {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  pointer-events: none;
+}
+
+.wildz-passive-capabilities > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-width: 0;
+  min-height: 22px;
+  padding: 3px 2px;
+  border-inline-start: 2px solid #79dec9;
+  border-radius: 4px;
+  color: #d4f5ec;
+  background: rgba(7, 29, 29, .92);
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.wildz-passive-capabilities small {
+  width: 100%;
+  text-align: center;
+  color: #a1c5bb;
+  font-size: 8px;
+  font-weight: 500;
 }
 
 .wildz-flight-status.is-low {

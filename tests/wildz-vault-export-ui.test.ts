@@ -12,7 +12,8 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
 
   assert.match(campaign, /createWildsPlayerVault/);
-  assert.match(campaign, /playerVault=\{\(\) => createWildsPlayerVault/);
+  assert.match(campaign, /const createCurrentPlayerVault = useCallback\(\(\) => createWildsPlayerVault/);
+  assert.match(campaign, /playerVault=\{createCurrentPlayerVault\}/);
   assert.match(campaign, /playState:\s*state/);
   assert.match(campaign, /avatarStyle/);
   assert.match(campaign, /movementMode/);

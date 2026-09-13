@@ -1,5 +1,5 @@
 import { receizBase64UrlDecode, type ReceizClient } from "@receiz/sdk";
-import { readWildzProofAppendsFromPng, verifyPortableCardPng } from "../../features/play/card-export";
+import { readWildzProofAppendsFromPng, verifyPortableCardPng, verifyPortableVaultPng, readPortableVaultFromPng } from "../../features/play/card-export";
 import { cardArtifactFingerprint } from "../../features/play/prepared-card-artifact";
 import { verifyAnyWildsCard, type PortableCardAsset } from "../../features/play/portable-card";
 import { openWildzArtifactEvidence, type WildzAdmittedArtifact } from "./wildz-artifact-custody";
@@ -15,6 +15,15 @@ export type WildsRoamingCardSource = Readonly<{
   admitted: WildzAdmittedArtifact;
   reused: boolean;
 }>;
+
+/** The source index includes whole-Vault backups under each carried card ID.
+ * A verified backup is history, not a candidate for releasing one creature. */
+export function isWildsRoamingVaultBackup(bytes: Uint8Array, assetId: string) {
+  try {
+    return verifyPortableVaultPng(bytes).ok
+      && readPortableVaultFromPng(bytes).assets.some(card => card.id === assetId);
+  } catch { return false; }
+}
 
 /** A capturable source carries one exact card, never a Vault, identity trailer,
  * embedded proof object, or unrelated private PNG metadata. Does not change bytes. */
@@ -87,6 +96,7 @@ export function createWildsRoamingCardSourcePreparer(dependencies: Readonly<{
           if (opened.admitted.artifactSha256 !== sha) throw new Error("wilds_roaming_source_digest_mismatch");
           // Document-seal exports are read compatibility, never native custody.
           if (opened.admitted.compatibility !== "current-native" || opened.sealedArtifact.continuity.carrier !== "native-record-seal") continue;
+          if (isWildsRoamingVaultBackup(opened.admitted.payloadBytes, asset.id)) continue;
           const continuity = opened.sealedArtifact.verification.assetContinuity as { history?: Array<{ sourceArtifactSha256?: string }> } | undefined;
           candidates.push({ admitted: opened.admitted, ancestors: new Set([
             ...source.predecessors, ...(continuity?.history ?? []).flatMap(event => event.sourceArtifactSha256 ? [event.sourceArtifactSha256] : [])
