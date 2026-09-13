@@ -25,7 +25,9 @@ export type WildsCrewExpedition = Readonly<{
   spaceId:string;origin:WildsCrewExpeditionPoint;home:WildsCrewExpeditionPoint;
   stops:readonly WildsCrewExpeditionCandidate[];stopIndex:number;
   currentStop:WildsCrewExpeditionCandidate|null;goal:WildsCrewExpeditionPoint|null;
-  phase:WildsCrewExpeditionPhase;kind:"started"|"visited"|"continued"|"recalled"|"blocked"|"returned"|"transported"|"return-retargeted";
+  phase:WildsCrewExpeditionPhase;kind:"started"|"visited"|"continued"|"recalled"|"blocked"|"returned"|"transported"|"return-retargeted"|"superseded";
+  /** Descriptive reference only: the ended row retains its original proof binding. */
+  replacementProofDigest?:string;
   visitedPointIds:readonly string[];recallRequested:boolean;blocker:string|null;
   observedKaiUPulse:number;causalKaiUPulse:number;observingSinceKaiUPulse:number|null;
   /** Actual position supplied by physical arrival. Null for control observations. */
@@ -105,7 +107,7 @@ export function createWildsCrewExpeditions(database:WildzContinuityDatabase=crea
     await tx.put("meta",row,key(row.ownerReceizId,row.assetId,"request",requestDigest));
     if(startRequestId)await tx.put("meta",requestDigest,key(row.ownerReceizId,row.assetId,"start-id",startRequestId));return row;
   });
-  type Action={type:"continue"}|{type:"recall";returnPosition?:WildsCrewExpeditionPoint;spaceId?:string}|{type:"retarget-return";returnPosition:WildsCrewExpeditionPoint;spaceId:string}
+  type Action={type:"supersede";replacementProofDigest:string}|{type:"continue"}|{type:"recall";returnPosition?:WildsCrewExpeditionPoint;spaceId?:string}|{type:"retarget-return";returnPosition:WildsCrewExpeditionPoint;spaceId:string}
     |{type:"block";reason:string}|{type:"arrive";actualPosition:WildsCrewExpeditionPoint;spaceId:string}|{type:"transport";actualPosition:WildsCrewExpeditionPoint;spaceId:string};
   const change=async(input:WildsCrewExpeditionChange,action:Action)=>{
     const request=structuredClone({input,action});input=request.input;action=request.action;
@@ -120,7 +122,11 @@ export function createWildsCrewExpeditions(database:WildzContinuityDatabase=crea
     const next={...body,previousHead:head,revision:previous.revision+1,actualPosition:null as WildsCrewExpeditionPoint|null,actualSpaceId:null as string|null,
       observedKaiUPulse:input.kaiUPulse,causalKaiUPulse:Math.max(input.kaiUPulse,previous.causalKaiUPulse)};
     if(!Number.isSafeInteger(next.revision))return fail("revision_overflow");
-    if(action.type==="arrive"){
+    if(action.type==="supersede"){
+      if(!id(action.replacementProofDigest)||action.replacementProofDigest===previous.proofDigest)return fail("replacement_proof_invalid");
+      next.phase="completed";next.kind="superseded";next.replacementProofDigest=action.replacementProofDigest;
+      next.goal=null;next.currentStop=null;next.blocker=null;next.observingSinceKaiUPulse=null;
+    }else if(action.type==="arrive"){
       if(previous.phase!=="outbound"&&previous.phase!=="returning")return fail("phase_not_travelling");
       if(!point(action.actualPosition)||action.spaceId!==previous.spaceId||!previous.goal)return fail("position_invalid");
       if(distance(action.actualPosition,previous.goal)>WILDS_CREW_EXPEDITION_ARRIVAL_RADIUS)return fail("not_arrived");
@@ -175,6 +181,9 @@ export function createWildsCrewExpeditions(database:WildzContinuityDatabase=crea
         observedKaiUPulse:request.kaiUPulse,causalKaiUPulse:Math.max(request.kaiUPulse,previous?.causalKaiUPulse??0),observingSinceKaiUPulse:null,actualPosition:null,actualSpaceId:null});
       return commit(row,previous,requestDigest,request.requestId);
     },
+    /** Explicit same-owner control ends stale local intent, preserving the old proof and
+     * observations. It is not arrival, transport, proof migration or world admission. */
+    supersede:(input:WildsCrewExpeditionChange&{replacementProofDigest:string})=>change(input,{type:"supersede",replacementProofDigest:input.replacementProofDigest}),
     arrive:(input:WildsCrewExpeditionArrival)=>change(input,{type:"arrive",actualPosition:input.actualPosition,spaceId:input.spaceId}),
     continue:(input:WildsCrewExpeditionChange)=>change(input,{type:"continue"}),
     recall:(input:WildsCrewExpeditionRecall)=>change(input,{type:"recall",...(input.returnPosition?{returnPosition:input.returnPosition}:{}),...(input.spaceId?{spaceId:input.spaceId}:{})}),

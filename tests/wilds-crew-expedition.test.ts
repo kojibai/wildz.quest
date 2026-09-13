@@ -84,3 +84,30 @@ it("explicit party transport retains visits and records the actual new space wit
  const history=await store.history("owner","asset");assert.equal(history.observations.filter(row=>row.kind==="returned").length,0);
  await store.start({...start,requestId:"after-transport",spaceId:"cave",origin:{x:100,y:-5,z:50},candidates:[]});
 });
+it("explicit supersession ends stale intent under its original proof and allows a new trip",async()=>{
+ const db=createMemoryWildzContinuityDatabase(),store=createWildsCrewExpeditions(db);
+ let old=await store.start(start);
+ old=await store.arrive({ownerReceizId:"owner",assetId:"asset",expectedHead:old.head,kaiUPulse:101,actualPosition:old.goal!,spaceId:"outer"});
+ const replacement="b".repeat(64);
+ const request={ownerReceizId:"owner",assetId:"asset",expectedHead:old.head,kaiUPulse:102,replacementProofDigest:replacement};
+ const ended=await store.supersede(request);
+ assert.equal(ended.kind,"superseded");assert.equal(ended.phase,"completed");
+ assert.equal(ended.proofDigest,start.proofDigest);assert.equal(ended.replacementProofDigest,replacement);
+ assert.deepEqual(ended.visitedPointIds,old.visitedPointIds);assert.equal(ended.actualPosition,null);assert.equal(ended.actualSpaceId,null);
+ assert.equal(ended.goal,null);assert.equal(ended.currentStop,null);assert.equal(ended.observingSinceKaiUPulse,null);
+ assert.deepEqual(await store.supersede(request),ended);
+ const next=await store.start({...start,requestId:"new-proof-trip",proofDigest:replacement,disposition:{...disposition,proofDigest:replacement},kaiUPulse:103});
+ assert.equal(next.proofDigest,replacement);assert.equal(next.previousHead,ended.head);assert.deepEqual(next.visitedPointIds,[]);
+ const history=await store.history("owner","asset");
+ assert.deepEqual(history.observations.map(row=>row.kind),["started","superseded","visited","started"]);
+ assert.equal(history.observations.filter(row=>row.kind==="returned"||row.kind==="transported").length,0);
+});
+it("supersession cannot relabel the same proof, cross owners, or silently replace a newer head",async()=>{
+ const store=createWildsCrewExpeditions(createMemoryWildzContinuityDatabase()),old=await store.start(start);
+ const change={ownerReceizId:"owner",assetId:"asset",expectedHead:old.head,kaiUPulse:101,replacementProofDigest:"b".repeat(64)};
+ await assert.rejects(store.supersede({...change,replacementProofDigest:start.proofDigest}),/replacement_proof_invalid/);
+ await assert.rejects(store.supersede({...change,ownerReceizId:"other-owner"}),/head_conflict/);
+ const recalled=await store.recall({...change,returnPosition:origin,spaceId:"outer"});
+ await assert.rejects(store.supersede(change),/head_conflict/);
+ assert.equal((await store.read("owner","asset"))?.head,recalled.head);
+});

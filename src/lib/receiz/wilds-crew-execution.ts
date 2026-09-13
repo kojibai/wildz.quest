@@ -23,10 +23,12 @@ export function createWildsCrewExecution(input: Readonly<{
   return Object.freeze({
     async execute(request: Readonly<{
       workerId:string; jobId:string; transaction:ReceizWorldTransactionV122;
-      expectedWorkerHead:string|null; dependencyEventIds:readonly string[]; lotIds:readonly string[];
+      expectedJobHead:string; expectedWorkerHead:string|null; dependencyEventIds:readonly string[]; lotIds:readonly string[];
     }>) {
       const candidate = structuredClone(request);
       const transaction = candidate.transaction;
+      if(typeof candidate.expectedJobHead!=="string"||!candidate.expectedJobHead||candidate.expectedJobHead.length>512)
+        return {ok:false as const,code:"crew_transaction_job_fence_required",writes:0 as const};
       // One worker per atomic crew task; all involved subjects remain SDK participants.
       if (transaction.commands.length === 0 || transaction.commands.length > 64 || candidate.dependencyEventIds.length > 64 || transaction.commands.some(command => command.actorSubjectId !== candidate.workerId || !command.mandateDigest)
         || !Object.hasOwn(transaction.participantHeads, candidate.workerId)
@@ -46,32 +48,75 @@ export function createWildsCrewExecution(input: Readonly<{
       const authority = await input.authorize(structuredClone(transaction));
       if (!authority || canonicalizeReceizV122(transaction) !== basis) return {ok:false as const,code:"crew_transaction_authority_unavailable",writes:0 as const};
       const capturedAuthority = structuredClone(authority);
-      const proposed = await input.journal.append({workerId:candidate.workerId,jobId:candidate.jobId,
-        commandDigest:transaction.transactionDigest,expectedWorkerHead:candidate.expectedWorkerHead,
-        dependencyEventIds:candidate.dependencyEventIds,lotIds:candidate.lotIds,phase:"proposed",observedKaiUPulse:now(),transaction});
+      let proposed:Awaited<ReturnType<Journal["append"]>>;
+      try {
+        proposed = await input.journal.append({workerId:candidate.workerId,jobId:candidate.jobId,
+          commandDigest:transaction.transactionDigest,expectedWorkerHead:candidate.expectedWorkerHead,expectedJobHead:candidate.expectedJobHead,
+          dependencyEventIds:candidate.dependencyEventIds,lotIds:candidate.lotIds,phase:"proposed",observedKaiUPulse:now(),transaction});
+      } catch {
+        const existing=await input.journal.command(transaction.transactionDigest);
+        if(existing&&existing.phase!=="rejected")return pendingWildsV122Outcome("crew_exact_transaction_recovery_required");
+        return {ok:false as const,code:"crew_transaction_job_fence_rejected",writes:0 as const};
+      }
       if (proposed.replay) return pendingWildsV122Outcome("crew_exact_transaction_recovery_required");
-      const pending = await input.journal.append({workerId:candidate.workerId,jobId:candidate.jobId,
-        commandDigest:transaction.transactionDigest,expectedWorkerHead:proposed.event.eventId,
-        lotIds:candidate.lotIds,phase:"pending",observedKaiUPulse:now()});
-      if (pending.replay) return pendingWildsV122Outcome("crew_exact_transaction_recovery_required");
+      // Validation and local runtime staging may await. Commit the pending intent only
+      // in the final rail callback, so recall can atomically cancel a proposal meanwhile.
+      let pending:Awaited<ReturnType<Journal["append"]>>|null=null;
+      let dispatchDeclined=false, stageEntered=false;
+      const cancelUndispatched=async()=>{
+        await input.journal.cancelProposed(transaction.transactionDigest,now());
+        const stored=await input.journal.command(transaction.transactionDigest);
+        if(stored?.phase!=="rejected")return false;
+        if(stageEntered)await input.transactionJournal.clear(transaction.worldId,transaction.transactionId);
+        return true;
+      };
       let admittedIds: readonly string[] | null = null;
       let clearRequested = false;
       let result: Awaited<ReturnType<typeof executeWildsV122Transaction>>;
       try {
-        result = await executeWildsV122Transaction({transaction,authority:capturedAuthority,rail:input.rail,
+        result = await executeWildsV122Transaction({transaction,authority:capturedAuthority,rail:{...input.rail,
+          worldExecutionV122:request=>dispatchDeclined?Promise.resolve({status:"unknown"}):input.rail.worldExecutionV122(request),
+          worldExecutionByIdempotencyKeyV122:request=>dispatchDeclined?Promise.resolve({status:"unknown"}):input.rail.worldExecutionByIdempotencyKeyV122(request),
+          executeWorldTransactionV122:async exact=>{
+            try {
+              pending=await input.journal.append({workerId:candidate.workerId,jobId:candidate.jobId,
+                commandDigest:transaction.transactionDigest,expectedWorkerHead:proposed.event.eventId,expectedJobHead:candidate.expectedJobHead,
+                lotIds:candidate.lotIds,phase:"pending",observedKaiUPulse:now()});
+              if(pending.replay)return {status:"unknown"};
+            }catch{
+              dispatchDeclined=true;
+              const stored=await input.journal.command(transaction.transactionDigest);
+              if(!stored||stored.phase==="pending"||stored.phase==="admitted")return {status:"unknown"};
+              // Decline locally without inventing an SDK receipt, world head or outcome.
+              throw new Error("crew_transaction_job_fence_rejected");
+            }
+            // No user callback or additional await between the successful fence and rail.
+            return input.rail.executeWorldTransactionV122(exact);
+          }},
           // Keep the exact transaction until BOTH runtime admission and local causal append persist.
-          journal:{stage:value=>input.transactionJournal.stage(value),clear:async()=>{clearRequested=true;}},
+          journal:{stage:async value=>{stageEntered=true;await input.transactionJournal.stage(value);},clear:async()=>{clearRequested=true;}},
           authenticateReceipt:input.authenticateReceipt,
           admitCommittedOutcome:async outcome=>{
             if (canonicalizeReceizV122(outcome.transaction) !== basis) return false;
             admittedIds = structuredClone(await input.admitOutcome(outcome));
             return Array.isArray(admittedIds) && admittedIds.length > 0;
           }});
-      } catch { return pendingWildsV122Outcome("crew_transaction_execution_unavailable"); }
+      } catch {
+        if(!pending){
+          try {if(await cancelUndispatched())return {ok:false as const,code:"crew_transaction_pre_dispatch_failed",writes:0 as const};}catch{/* Keep recovery rows when local cancellation fails. */}
+        }
+        return pendingWildsV122Outcome("crew_transaction_execution_unavailable");
+      }
+      if(!pending||dispatchDeclined){
+        try {
+          if(await cancelUndispatched())return !result.ok&&result.writes===0?result:{ok:false as const,code:"crew_transaction_job_fence_rejected",writes:0 as const};
+        }catch{/* Preserve local rows for recovery. */}
+        return pendingWildsV122Outcome("crew_causal_cancellation_recovery_required");
+      }
       if (!result.ok && result.writes !== 0) return result;
       try {
         await input.journal.append({workerId:candidate.workerId,jobId:candidate.jobId,commandDigest:transaction.transactionDigest,
-          expectedWorkerHead:pending.event.eventId,lotIds:candidate.lotIds,phase:result.ok?"admitted":"rejected",observedKaiUPulse:now(),
+          expectedWorkerHead:(pending as Awaited<ReturnType<Journal["append"]>>).event.eventId,lotIds:candidate.lotIds,phase:result.ok?"admitted":"rejected",observedKaiUPulse:now(),
           ...(result.ok ? {admittedWorldEventIds:admittedIds!} : {})});
         if (clearRequested) await input.transactionJournal.clear(transaction.worldId,transaction.transactionId);
       } catch { return pendingWildsV122Outcome("crew_causal_completion_recovery_required"); }
@@ -84,6 +129,15 @@ export function createWildsCrewExecution(input: Readonly<{
         if (!stored?.transaction) return pendingWildsV122Outcome("crew_recovery_transaction_missing");
         const transaction = stored.transaction;
         if (transaction.transactionDigest !== commandDigest) return pendingWildsV122Outcome("crew_recovery_transaction_changed");
+        if(stored.phase==="rejected"){
+          const rejection=await input.journal.readEvent(stored.head);
+          const parent=rejection?.previousWorkerEventId?await input.journal.readEvent(rejection.previousWorkerEventId):null;
+          if(rejection?.phase==="rejected"&&parent?.phase==="proposed"&&parent.commandDigest===commandDigest
+            &&parent.workerId===stored.workerId&&parent.jobId===stored.jobId){
+            await input.transactionJournal.clear(transaction.worldId,transaction.transactionId);
+            return {ok:false as const,code:"crew_transaction_cancelled_before_dispatch",writes:0 as const};
+          }
+        }
         let outcome = await input.rail.worldExecutionV122({worldId:transaction.worldId,transactionId:transaction.transactionId});
         if (outcome.status === "unknown") outcome = await input.rail.worldExecutionByIdempotencyKeyV122({worldId:transaction.worldId,idempotencyKey:transaction.idempotencyKey});
         let effects: readonly string[] = [];

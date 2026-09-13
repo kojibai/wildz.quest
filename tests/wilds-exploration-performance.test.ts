@@ -32,7 +32,7 @@ test("ten thousand post-upload movement steps reuse exploration and perform no b
   assert.deepEqual(wildsTraversalProjectionDiagnostics(), traversal);
 });
 
-test("an uploaded card is cryptographically verified once and every gameplay consumer reuses that admission", () => {
+test("a legacy upload and its canonical living admission are verified once each, then reused in gameplay", () => {
   const diagnostics = (portableCardModule as unknown as {
     wildsCardVerificationDiagnostics?: () => { executions: number; admittedCacheHits: number };
   }).wildsCardVerificationDiagnostics;
@@ -46,7 +46,7 @@ test("an uploaded card is cryptographically verified once and every gameplay con
   const before = diagnostics!();
   const admitted = applyWildsInput(initialPlayState, { type: "import-card", asset: uploaded });
   const afterAdmission = diagnostics!();
-  assert.equal(afterAdmission.executions, before.executions + 1);
+  assert.equal(afterAdmission.executions, before.executions + 2);
 
   const exactUploadedCard = admitted.inventory.find((asset) => asset.id === uploaded.id);
   assert.ok(exactUploadedCard);

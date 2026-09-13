@@ -1,5 +1,3 @@
-import { admitLegacyCard } from "../src/features/play/living-card-proof";
-import type { LegacyPortableCardAsset } from "../src/features/play/portable-card";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createOwnerBoundInitialPlayState } from "../src/features/play/game-state";
@@ -7,7 +5,7 @@ import { prepareWildsCrewDisposition, chooseWildsCrewWork, readWildsCrewConditio
 import { projectWildsResourceRegion } from "../src/features/play/wilds-resource-authority";
 
 const state = createOwnerBoundInitialPlayState("crew_policy", "2026-09-12T12:00:00.000Z");
-const card = admitLegacyCard(state.inventory[0] as LegacyPortableCardAsset, "2026-09-12T12:00:00.000Z");
+const card = state.inventory[0]!;
 const disposition = prepareWildsCrewDisposition(card)!;
 const condition = readWildsCrewCondition(card, state.adventureConditions)!;
 const sources = projectWildsResourceRegion(0, 0);

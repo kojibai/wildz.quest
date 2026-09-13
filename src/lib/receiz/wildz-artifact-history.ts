@@ -68,7 +68,7 @@ export function createWildzArtifactHistory(database: WildzContinuityDatabase) {
     list() {
       return database.transaction(["artifacts"], "readonly", async (tx) => {
         const entries = await tx.getAll<WildzArtifactHistoryEntry>("artifacts");
-        return entries.sort((left, right) => left.artifactSha256.localeCompare(right.artifactSha256));
+        return entries.filter(entry => entry && typeof entry.schema === "string" && entry.schema.startsWith("receiz.wildz.artifact_history.")).sort((left, right) => left.artifactSha256.localeCompare(right.artifactSha256));
       });
     }
   };

@@ -72,6 +72,7 @@ import {
 } from "../storage/wildz-indexed-db";
 import { openWildzArtifactSameOrigin, verifyWildzArtifactSameOrigin } from "./wildz-same-origin-verifier";
 import { createWildzArtifactHistory } from "./wildz-artifact-history";
+import { createWildzProofSourceRepository } from "./wildz-proof-source-repository";
 import { createWildzIdentityVaultAdmissionProof } from "./wildz-identity-vault-admission";
 import type { WildzVaultCardAdmission } from "./wildz-vault-card-admission";
 
@@ -88,6 +89,7 @@ export async function createAutomaticWildzIdentity() {
 const LEGACY_PLAY_STATE_STORAGE_KEY = "receiz:wilds:save:v2";
 export { defaultIdentityRepository } from "./wildz-active-identity";
 const defaultArtifactHistory = createWildzArtifactHistory(defaultContinuityDatabase);
+export const defaultWildzProofSourceRepository = createWildzProofSourceRepository(defaultContinuityDatabase);
 const defaultArtifactCodec = createWildzArtifactCodec({
   identityRepository: defaultIdentityRepository,
   commerceVaultReader: { inspect: inspectReceizCommerceVault },
@@ -616,7 +618,11 @@ export async function downloadWildzIdentityPlayerVault(
     new Blob([combined.slice().buffer], { type: "image/png" }),
     `wilds-vault-${digest}.png`,
     "vault",
-    { outputFilename: `wilds-vault-${digest}.receized.png` }
+    { outputFilename: `wilds-vault-${digest}.receized.png`,
+      verifyProofObject: async (bytes, mimeType, filename) => {
+        await defaultWildzProofSourceRepository.retain({ bytes, filename, mimeType });
+      }
+    }
   );
   return { identityBound: true } as const;
 }
@@ -692,6 +698,7 @@ export async function prepareWildzIdentityOwnedCard(
     `${portableCreatureFilename(asset.manifest.name)}.png`,
     "vault"
   );
+  await defaultWildzProofSourceRepository.retain({ bytes: artifact.bytes, filename: artifact.filename, mimeType: artifact.mimeType, assetId: asset.id });
   return {
     assetId: asset.id,
     bytes: artifact.bytes,

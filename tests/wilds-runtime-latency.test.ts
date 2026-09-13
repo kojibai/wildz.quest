@@ -4,7 +4,7 @@ import {
   admittedInventoryDiagnostics
 } from "../src/features/play/admitted-inventory";
 import { emptyAdventureCondition } from "../src/features/play/adventure/card-condition";
-import { applyWildsInput, createOwnerBoundInitialPlayState } from "../src/features/play/game-state";
+import { applyWildsInput, createOwnerBoundInitialPlayState, normalizeWildsRuntimePlayState, restorePlayState, serializePlayState } from "../src/features/play/game-state";
 import { wildsHotspotProjectionDiagnostics } from "../src/features/play/hidden-hotspots";
 import { sealCollectedCard } from "../src/features/play/portable-card";
 import {
@@ -25,6 +25,31 @@ class MemoryStorage implements Pick<Storage, "getItem" | "setItem" | "removeItem
   entries() { return [...this.values.entries()]; }
 }
 
+test("valid save restoration never constructs a fresh fallback starter", () => {
+  const owner = "restore_defaults_keeper", state = createOwnerBoundInitialPlayState(owner, "2026-09-12T23:00:00.000Z");
+  const save = serializePlayState(state), NativeDate = globalThis.Date;
+  let freshTimeRequests = 0;
+  globalThis.Date = new Proxy(NativeDate, {
+    construct(target, args) {
+      if (args.length === 0) freshTimeRequests += 1;
+      return Reflect.construct(target, args);
+    }
+  });
+  try {
+    const restored = restorePlayState(save, owner);
+    const normalized = normalizeWildsRuntimePlayState(state, owner);
+    assert.equal(restored.inventory[0]!.proof.digest, state.inventory[0]!.proof.digest);
+    assert.equal(normalized.inventory, state.inventory);
+    assert.equal(freshTimeRequests, 0);
+    for (const invalid of [null, "invalid json", JSON.stringify({ schema: "wrong", state: {} })]) {
+      const recovered = restorePlayState(invalid, owner);
+      assert.equal(recovered.inventory[0]!.manifest.ownerReceizId, owner);
+      assert.ok(recovered.selectedAssetId);
+    }
+    assert.equal(freshTimeRequests, 3);
+  } finally { globalThis.Date = NativeDate; }
+});
+
 test("admitted checkpoint restore and ten thousand movement/submersion ticks stay off every slow path", () => {
   const owner = "runtime_latency_keeper";
   const uploaded = sealCollectedCard({
@@ -35,16 +60,19 @@ test("admitted checkpoint restore and ten thousand movement/submersion ticks sta
   });
   const beforeUpload = admittedInventoryDiagnostics();
   let state = applyWildsInput(createOwnerBoundInitialPlayState(owner), { type: "import-card", asset: uploaded });
-  assert.equal(admittedInventoryDiagnostics().verifierCalls, beforeUpload.verifierCalls + 1);
+  assert.equal(admittedInventoryDiagnostics().verifierCalls, beforeUpload.verifierCalls + 2);
 
-  const condition = { ...emptyAdventureCondition(uploaded.id), xp: { swim: 100 } };
+  let condition = { ...emptyAdventureCondition(uploaded.id), xp: { swim: 100 } };
   state = {
     ...state,
     adventureConditions: { ...state.adventureConditions, [uploaded.id]: condition },
     supportAssetIds: [state.inventory.find((asset) => asset.id !== uploaded.id)?.id ?? null, null],
     player: { x: -94.42, z: -240 }
   };
-  projectWildsTraversalCapabilities(uploaded, condition);
+  // Seal the fixture condition into living history before testing checkpoint reuse.
+  state = applyWildsInput(state, { type: "train", at: "2026-08-21T15:15:00.000Z" });
+  condition = state.adventureConditions[uploaded.id]! as typeof condition;
+  projectWildsTraversalCapabilities(state.inventory.find(asset => asset.id === uploaded.id)!, condition);
 
   const storage = new MemoryStorage();
   writeWildzRuntimeCheckpoint(storage, { keyId: "runtime-key", actorId: owner, playState: state });
@@ -186,7 +214,7 @@ test("a pending capture journals only the changed card instead of serializing th
     playState: baseline
   });
   assert.equal(restored.inventory.length, current.inventory.length);
-  assert.equal(restored.inventory.at(-1)?.proof.digest, caught.proof.digest);
+  assert.equal(restored.inventory.at(-1)?.proof.digest, current.inventory.at(-1)?.proof.digest);
 });
 
 test("a missing pending card backup never discards unrelated world progress", () => {

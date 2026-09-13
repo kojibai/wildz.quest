@@ -453,7 +453,9 @@ export const initialPlayState: PlayState = {
 export function createOwnerBoundInitialPlayState(ownerReceizId: string, createdAt = new Date().toISOString()): PlayState {
   const owner = ownerReceizId.trim();
   if (!owner) throw new Error("wilds_player_owner_required");
-  const starter = kaiBornStarterCardForOwner(owner, createdAt);
+  const legacyStarter = kaiBornStarterCardForOwner(owner, createdAt);
+  // Apply the existing save-restore admission before any exact-proof activity starts.
+  const starter = admitLegacyCard(legacyStarter, legacyStarter.manifest.capturedAt);
   return {
     ...structuredClone(initialPlayState),
     discoveredCardIds: [starter.manifest.familyId],
@@ -608,13 +610,18 @@ export function restorePlayState(
   ownerReceizId?: string,
   admittedInventory?: AdmittedWildsInventory
 ): PlayState {
-  const fallback = fallbackPlayState(ownerReceizId);
-  if (!value) return fallback;
+  let recovery: PlayState | undefined;
+  const recover = () => recovery ?? (recovery = fallbackPlayState(ownerReceizId));
+  if (!value) return recover();
   try {
     const parsed = JSON.parse(value) as { schema?: unknown; state?: unknown };
-    if ((parsed.schema !== PLAY_SAVE_SCHEMA && !LEGACY_PLAY_SAVE_SCHEMAS.has(String(parsed.schema))) || !parsed.state || typeof parsed.state !== "object") return fallback;
+    if ((parsed.schema !== PLAY_SAVE_SCHEMA && !LEGACY_PLAY_SAVE_SCHEMAS.has(String(parsed.schema))) || !parsed.state || typeof parsed.state !== "object") return recover();
     const saved = parsed.state as Partial<PlayState>;
-    if (!saved.player || typeof saved.player.x !== "number" || typeof saved.player.z !== "number") return fallback;
+    if (!saved.player || typeof saved.player.x !== "number" || typeof saved.player.z !== "number") return recover();
+    // Complete saves overwrite every owner-specific default. Only incomplete legacy
+    // envelopes need a newly issued fallback starter for their missing defaults.
+    const fallback = Array.isArray(saved.discoveredCardIds) && typeof saved.lastEvent === "string"
+      ? initialPlayState : recover();
     const discoveredCardIds = Array.isArray(saved.discoveredCardIds)
       ? saved.discoveredCardIds.filter((id): id is string => typeof id === "string" && creatureCards.some((card) => card.id === id))
       : fallback.discoveredCardIds;
@@ -823,7 +830,7 @@ export function restorePlayState(
       hearttreeSquadAssetIds: hearttreeSquadAssetIds.length ? hearttreeSquadAssetIds : livingInventory[0] ? [livingInventory[0].id] : []
     });
   } catch {
-    return fallback;
+    return recover();
   }
 }
 
@@ -1626,12 +1633,12 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
   }
 
   if (input.type === "import-card") {
-    const asset = input.asset;
-    if (!verifyAndAdmitWildsCard(asset)) return { ...state, lastEvent: "That PNG did not pass the offline card verifier." };
+    const source = input.asset;
+    if (!verifyAndAdmitWildsCard(source)) return { ...state, lastEvent: "That PNG did not pass the offline card verifier." };
+    const asset = isLivingCardAsset(source) ? source : admitLegacyCard(source, source.manifest.capturedAt);
+    if (asset !== source && !verifyAndAdmitWildsCard(asset)) return { ...state, lastEvent: "That PNG did not pass the offline card verifier." };
     const importedCondition = state.adventureConditions[asset.id]
-      ?? (isLivingCardAsset(asset)
-        ? currentCreatureHistoryProjection(asset).condition
-        : emptyAdventureCondition(asset.id));
+      ?? currentCreatureHistoryProjection(asset).condition;
     const importedConditions = {
       adventureConditions: { ...state.adventureConditions, [asset.id]: importedCondition },
       hearttreeConditions: {

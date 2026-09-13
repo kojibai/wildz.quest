@@ -1,4 +1,5 @@
 "use client";
+import { isWildsCrewPhysicallyActive, settleWildsCrewPendingGrowth, type WildsCrewActiveTrips } from "./wilds-crew-passive-settlement";
 import { nextWildsPartyTravelRevision } from "./wilds-party-transport";
 import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
 import { composeWildsBurrowPhysical } from "./wilds-burrow";
@@ -370,15 +371,17 @@ export function PlayCampaign({
       }
     }, current));
   }, []);
+  const physicalCrewTrips = useRef<WildsCrewActiveTrips>(new Map());
   const settleLivingCreatures = useCallback(() => setState((current) => {
       const at = new Date().toISOString();
-      const travelSettled = applyWildsInput(current, { type: "settle-pending-travel-growth" });
-      return travelSettled.inventory.reduce((next, asset) => applyWildsInput(next, {
+      const travelSettled = settleWildsCrewPendingGrowth(current, ownerReceizId, physicalCrewTrips.current);
+      const passiveCards = travelSettled.inventory.filter(asset => !isWildsCrewPhysicallyActive(asset, ownerReceizId, physicalCrewTrips.current));
+      return passiveCards.reduce((next, asset) => applyWildsInput(next, {
         type: "settle-creature-continuity",
         assetId: asset.id,
         ownerReceizId,
         at
-      }), travelSettled.inventory.reduce((next, asset) => applyWildsInput(next, {
+      }), passiveCards.reduce((next, asset) => applyWildsInput(next, {
         type: "settle-creature-care",
         assetId: asset.id,
         ownerReceizId,
@@ -396,16 +399,6 @@ export function PlayCampaign({
       document.removeEventListener("visibilitychange", settleWhenHidden);
     };
   }, [settleLivingCreatures]);
-  useEffect(() => {
-    const nextDueAt = state.inventory.reduce<number | null>((earliest, asset) => {
-      const dueAt = nextCreatureContinuityDueAt(asset);
-      return dueAt === null || (earliest !== null && earliest <= dueAt) ? earliest : dueAt;
-    }, null);
-    if (nextDueAt === null) return;
-    const delay = Math.max(0, Math.min(2_147_000_000, nextDueAt - Date.now()));
-    const timer = window.setTimeout(settleLivingCreatures, delay);
-    return () => window.clearTimeout(timer);
-  }, [settleLivingCreatures, state.inventory]);
   useEffect(() => {
     if (!("serviceWorker" in navigator) || !("Notification" in window)) return;
     let cancelled = false;
@@ -739,14 +732,6 @@ export function PlayCampaign({
     setStewardPlacementMode(null);
     setStewardPlacementPreview(null);
   }, [activeAsset?.id]);
-  useEffect(() => {
-    if (shellOverlayOwner === "none" || !state.pendingTravelGrowthEvents.length) return;
-    let cancelled = false;
-    void wildzGameplayBackground.run(() => {
-      if (!cancelled) setState((current) => applyWildsInput(current, { type: "settle-pending-travel-growth", limit: 1 }));
-    });
-    return () => { cancelled = true; };
-  }, [shellOverlayOwner, state.pendingTravelGrowthEvents]);
   const modalAdmissionRef = useRef(createModalAdmissionState(exclusiveOwner));
   if (modalAdmissionRef.current.owner !== exclusiveOwner) {
     modalAdmissionRef.current = claimModalAdmissionOwner(modalAdmissionRef.current, exclusiveOwner);
@@ -953,8 +938,34 @@ export function PlayCampaign({
   );
   const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
   const accompanyingCrew = useMemo(() => state.inventory.filter(card => card.id === state.selectedAssetId || state.supportAssetIds.includes(card.id)).slice(0, 3), [state.inventory, state.selectedAssetId, state.supportAssetIds]);
+  const crewControlScope = useRef({ owner: ownerReceizId, inventory: state.inventory });
+  crewControlScope.current = { owner: ownerReceizId, inventory: state.inventory };
   const crewExpeditions = useWildsCrewExpeditions({ owner: ownerReceizId, state, cards: accompanyingCrew, siteRuntime, obstacles: livingPhysicalObstacles,
-    feedback: showWorldFeedback, onFinished: assetId => setState(current => ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, "follow") })) });
+    feedback: showWorldFeedback,
+    onResumed: assetId => setState(current => current.crewPreferences?.ownerReceizId === ownerReceizId && current.crewPreferences.byAssetId[assetId] === "roam" ? current
+      : ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, "roam") })),
+    onFinished: assetId => setState(current => current.crewPreferences?.ownerReceizId === ownerReceizId && current.crewPreferences.byAssetId[assetId] === "follow" ? current
+      : ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, "follow") })) });
+  physicalCrewTrips.current = crewExpeditions.activeTrips.current;
+  useEffect(() => {
+    const nextDueAt = state.inventory.reduce<number | null>((earliest, asset) => {
+      if (isWildsCrewPhysicallyActive(asset, ownerReceizId, physicalCrewTrips.current)) return earliest;
+      const dueAt = nextCreatureContinuityDueAt(asset);
+      return dueAt === null || (earliest !== null && earliest <= dueAt) ? earliest : dueAt;
+    }, null);
+    if (nextDueAt === null) return;
+    const delay = Math.max(0, Math.min(2_147_000_000, nextDueAt - Date.now()));
+    const timer = window.setTimeout(settleLivingCreatures, delay);
+    return () => window.clearTimeout(timer);
+  }, [settleLivingCreatures, state.inventory, ownerReceizId, crewExpeditions.activeTripRevision]);
+  useEffect(() => {
+    if (shellOverlayOwner === "none" || !state.pendingTravelGrowthEvents.length) return;
+    let cancelled = false;
+    void wildzGameplayBackground.run(() => {
+      if (!cancelled) setState((current) => settleWildsCrewPendingGrowth(current, ownerReceizId, physicalCrewTrips.current, 1));
+    });
+    return () => { cancelled = true; };
+  }, [shellOverlayOwner, state.pendingTravelGrowthEvents, ownerReceizId, crewExpeditions.activeTripRevision]);
   const earnedWorldPhi = useMemo(() => projectWildsEarnedPhi({ awards: Object.values(livingWorld.snapshot?.stewardPhiAwards ?? {}), ownerReceizId }), [livingWorld.snapshot?.stewardPhiAwards, ownerReceizId]);
   const witnessedSites = useRef<{ owner: string; keys: readonly string[] }>({ owner: ownerReceizId, keys: state.explorationAtlas.siteKeys });
   useEffect(() => {
@@ -2266,6 +2277,7 @@ export function PlayCampaign({
         accompanyingAssetIds={[state.selectedAssetId, ...state.supportAssetIds.filter((id): id is string => Boolean(id))]}
         cards={crewCards}
         reports={crewExpeditions.reports}
+        readHistory={crewExpeditions.history}
         modes={crewPreferences?.byAssetId ?? {}}
         onModeChange={async (assetId, mode) => {
           const card = state.inventory.find(asset => asset.id === assetId && sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, ownerReceizId));
@@ -2274,6 +2286,9 @@ export function PlayCampaign({
             if (mode === "roam" && accompanyingCrew.some(value => value.id === assetId) && !await crewExpeditions.roam(card)) return;
             if (mode === "follow" && await crewExpeditions.recall(assetId)) return;
           } catch (error) { showWorldFeedback(error instanceof Error ? error.message : "This creature cannot start exploring here."); return; }
+          const latestCrew = crewControlScope.current;
+          if (latestCrew.owner !== ownerReceizId || !latestCrew.inventory.some(asset => asset.id === assetId
+            && asset.proof.digest === card.proof.digest && sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, latestCrew.owner))) return;
           setState(current => ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, mode) }));
           void recordWildsCrewModeObservation({ ownerReceizId, assetId, mode, genomeProofDigest: card.proof.digest })
             .catch(() => showWorldFeedback("Movement preference saved; activity history could not be saved."));

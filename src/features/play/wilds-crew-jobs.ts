@@ -1,6 +1,6 @@
 import { canonicalizeReceizV122, digestReceizCanonicalV122 } from "@receiz/sdk";
 import { createWildzContinuityDatabase, type WildzContinuityDatabase } from "../../lib/storage/wildz-indexed-db";
-import { verifyWildsCrewCausalEvent, type WildsCrewCausalEvent } from "./wilds-crew-causality";
+import { createWildsCrewCausalEvent, verifyWildsCrewCausalEvent, type WildsCrewCausalEvent } from "./wilds-crew-causality";
 import type { WildsCrewStoredCommand } from "./wilds-crew-journal";
 
 export type WildsCrewJobKind = "gather" | "deliver" | "build" | "explore" | "recall";
@@ -8,6 +8,7 @@ export type WildsCrewJobPhase = "assigned" | "travelling" | "working" | "pending
 export type WildsCrewJobPosition = Readonly<{x:number;y:number;z:number}>;
 export type WildsCrewJobAssignment = Readonly<{
   jobId:string;workerId:string;assetId:string;ownerProofDigest:string;workerProofDigest:string;
+  expectedOwnerSubjectHead:string;expectedWorkerSubjectHead:string;
   genomeProofDigest:string;mandateDigest:string;worldId:string;regionId:string;kind:WildsCrewJobKind;
   target:WildsCrewJobPosition;home:WildsCrewJobPosition;observedKaiUPulse:number;
   dependencyJobIds?:readonly string[];
@@ -85,9 +86,11 @@ export function reduceWildsCrewJob(job:WildsCrewJob,action:WildsCrewJobAction,ev
  * revision and worker pointer are committed atomically in the existing IndexedDB.
  * No hashing, clocks or network awaits run inside an IndexedDB transaction. A production
  * scheduler must freshly authorize exact proofs/mandate before executing any command. */
+/** Shared local storage boundary for atomic execution fencing. */
+export const wildsCrewJobStorageKey=(ownerSubjectId:string,kind:string,value:string)=>JSON.stringify(["wildz.crew.jobs.v1",ownerSubjectId,kind,value]);
 export function createWildsCrewJobStore(ownerSubjectId:string,database:WildzContinuityDatabase=createWildzContinuityDatabase()){
   if(!id(ownerSubjectId))fail("owner_required");
-  const key=(kind:string,value:string)=>JSON.stringify(["wildz.crew.jobs.v1",ownerSubjectId,kind,value]);
+  const key=(kind:string,value:string)=>wildsCrewJobStorageKey(ownerSubjectId,kind,value);
   const journalKey=(kind:string,value:string)=>JSON.stringify(["wildz.crew.v1",ownerSubjectId,kind,value]);
   const verify=async(job:WildsCrewJob)=>{
     const {head,...body}=job;
@@ -104,9 +107,17 @@ export function createWildsCrewJobStore(ownerSubjectId:string,database:WildzCont
   const seal=async(body:Omit<WildsCrewJob,"head">):Promise<WildsCrewJob>=>({...body,head:await digestReceizCanonicalV122(body)});
   return Object.freeze({ownerSubjectId,read,current,
     async assign(input:WildsCrewJobAssignment):Promise<WildsCrewJob>{
-      const request={...structuredClone(input),dependencyJobIds:[...(input.dependencyJobIds??[])]};
+      // Whitelist assignment fields: a caller may pass an earlier full job snapshot,
+      // but its old digest/revision must never enter a new record's digest basis.
+      const copied=structuredClone(input);
+      const request:WildsCrewJobAssignment & {dependencyJobIds:readonly string[]}={
+        jobId:copied.jobId,workerId:copied.workerId,assetId:copied.assetId,ownerProofDigest:copied.ownerProofDigest,
+        workerProofDigest:copied.workerProofDigest,expectedOwnerSubjectHead:copied.expectedOwnerSubjectHead,
+        expectedWorkerSubjectHead:copied.expectedWorkerSubjectHead,genomeProofDigest:copied.genomeProofDigest,
+        mandateDigest:copied.mandateDigest,worldId:copied.worldId,regionId:copied.regionId,kind:copied.kind,
+        target:copied.target,home:copied.home,observedKaiUPulse:copied.observedKaiUPulse,dependencyJobIds:[...(copied.dependencyJobIds??[])]};
       if(request.dependencyJobIds.length>64 || request.dependencyJobIds.some(dependency=>!id(dependency)||dependency===request.jobId) || new Set(request.dependencyJobIds).size!==request.dependencyJobIds.length)fail("dependencies_invalid");
-      if(![request.jobId,request.workerId,request.assetId,request.ownerProofDigest,request.workerProofDigest,request.genomeProofDigest,request.mandateDigest,request.worldId,request.regionId].every(id)
+      if(![request.jobId,request.workerId,request.assetId,request.ownerProofDigest,request.workerProofDigest,request.expectedOwnerSubjectHead,request.expectedWorkerSubjectHead,request.genomeProofDigest,request.mandateDigest,request.worldId,request.regionId].every(id)
         ||!pulse(request.observedKaiUPulse)||!position(request.target)||!position(request.home)||!["gather","deliver","build","explore","recall"].includes(request.kind))fail("assignment_invalid");
       const dependencies=await Promise.all(request.dependencyJobIds.map(read));
       if(dependencies.some(dependency=>!dependency || dependency.phase!=="completed"))fail("dependency_incomplete");
@@ -143,9 +154,17 @@ export function createWildsCrewJobStore(ownerSubjectId:string,database:WildzCont
       const journalHead=await database.read<string>("meta",journalKey("worker",previous.workerId));
       const journalEvent=journalHead?await database.read<WildsCrewCausalEvent>("meta",journalKey("event",journalHead)):null;
       let base=previous;
+      let cancelledProposal:Evidence|undefined;
       if(journalEvent && ["proposed","pending"].includes(journalEvent.phase)){
         if(journalEvent.jobId!==previous.jobId || journalEvent.workerId!==previous.workerId || !await verifyWildsCrewCausalEvent(journalEvent))return fail("command_evidence_conflict");
-        if(journalEvent.phase==="proposed" && !previous.pending)return fail("proposal_requires_cancellation_or_dispatch");
+        if(journalEvent.phase==="proposed" && !previous.pending){
+          if(!["recall","cancel"].includes(request.action.type))return fail("proposal_requires_cancellation_or_dispatch");
+          const stored=await database.read<WildsCrewStoredCommand>("meta",journalKey("command",journalEvent.commandDigest));
+          if(!stored||stored.head!==journalEvent.eventId||stored.phase!=="proposed"||stored.workerId!==previous.workerId||stored.jobId!==previous.jobId)return fail("command_evidence_missing");
+          const rejected=await createWildsCrewCausalEvent({workerId:previous.workerId,jobId:previous.jobId,commandDigest:stored.commandDigest,
+            previous:journalEvent,dependencies:[],phase:"rejected",observedKaiUPulse:request.observedKaiUPulse});
+          cancelledProposal={event:rejected,command:stored};base={...previous,lastCommandEventId:rejected.eventId};
+        }
         if(journalEvent.phase==="pending" && !previous.pending && request.action.type!=="command-pending"){
           const stored=await database.read<WildsCrewStoredCommand>("meta",journalKey("command",journalEvent.commandDigest));
           if(!stored)return fail("command_evidence_missing");
@@ -182,6 +201,18 @@ export function createWildsCrewJobStore(ownerSubjectId:string,database:WildzCont
         if(evidence){
           if(!same(await tx.get("meta",journalKey("event",evidence.event.eventId)),evidence.event)
             ||!same(await tx.get("meta",journalKey("command",evidence.command.commandDigest)),evidence.command))fail("command_evidence_conflict");
+        }
+        if(cancelledProposal){
+          const {event,command}=cancelledProposal;
+          if(!same(await tx.get("meta",journalKey("command",command.commandDigest)),command))fail("command_evidence_conflict");
+          for(const lotId of command.lotIds){
+            const held=await tx.get<{workerId:string;commandDigest:string}>("meta",journalKey("lot",lotId));
+            if(held?.workerId!==job.workerId||held.commandDigest!==command.commandDigest)fail("command_evidence_conflict");
+          }
+          await tx.put("meta",event,journalKey("event",event.eventId));
+          await tx.put("meta",event.eventId,journalKey("worker",job.workerId));
+          await tx.put("meta",{...command,head:event.eventId,phase:"rejected"},journalKey("command",command.commandDigest));
+          for(const lotId of command.lotIds)await tx.delete("meta",journalKey("lot",lotId));
         }
         await tx.put("meta",job,key("job",job.jobId));await tx.put("meta",job,key("revision",job.head));
         await tx.put("meta",{digest:requestDigest,job},replayKey);

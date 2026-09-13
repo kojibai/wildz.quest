@@ -823,11 +823,9 @@ describe("Receiz Wilds game state", () => {
       generatorVersion: 2
     });
     const imported = applyWildsInput(initialPlayState, { type: "import-card", asset: creature });
-    const ready = {
-      ...imported,
-      companionProgress: { ...imported.companionProgress, [creature.manifest.familyId]: { level: 1, xp: 80, bond: 0 } }
-    };
-    const leveled = applyWildsInput(ready, { type: "train", at: "2026-07-17T12:15:00.000Z" });
+    const trained = applyWildsInput(imported, { type: "train", at: "2026-07-17T12:15:00.000Z" });
+    const ready = applyWildsInput(trained, { type: "train", at: "2026-07-17T12:30:00.000Z" });
+    const leveled = applyWildsInput(ready, { type: "train", at: "2026-07-17T12:45:00.000Z" });
 
     assert.match(leveled.lastEvent, new RegExp(`^${creature.manifest.name} reached Level 2`));
     assert.equal(leveled.worldMastery, ready.worldMastery + 1);
@@ -999,6 +997,37 @@ describe("Receiz Wilds game state", () => {
     assert.deepEqual(restorePlayState(JSON.stringify(duplicateEnvelope), owner).supportAssetIds, [support.id, null]);
     duplicateEnvelope.state.supportAssetIds = [leader.id, "missing"];
     assert.deepEqual(restorePlayState(JSON.stringify(duplicateEnvelope), owner).supportAssetIds, [null, null]);
+  });
+
+  it("admits verified legacy imports before play without mutating their original source", () => {
+    const owner = "crew_import_owner", capturedAt = "2026-09-12T23:00:00.000Z";
+    const source = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: owner, encounterId: "crew-import-reload", capturedAt });
+    const exactSource = structuredClone(source);
+    const state = applyWildsInput(createOwnerBoundInitialPlayState(owner, capturedAt), { type: "import-card", asset: source });
+    const card = state.inventory.find(card => card.id === source.id)!;
+    assert.ok(isLivingCardAsset(card));
+    assert.equal(card.manifest.birth.legacyDigest, source.proof.digest);
+    assert.equal(card.manifest.history?.rootProofDigest, source.proof.digest);
+    assert.deepEqual(source, exactSource);
+    assert.deepEqual(card.manifest.variant, source.manifest.variant);
+    const restored = restorePlayState(serializePlayState(state), owner).inventory.find(card => card.id === source.id)!;
+    assert.equal(restored.proof.digest, card.proof.digest);
+    assert.deepEqual(restored.manifest, card.manifest);
+  });
+
+  it("keeps a fresh starter's admitted proof and identity exact across its first reload", () => {
+    const owner = "crew_reload_owner", bornAt = "2026-09-12T23:00:00.000Z";
+    const state = createOwnerBoundInitialPlayState(owner, bornAt), card = state.inventory[0]!;
+    assert.ok(isLivingCardAsset(card));
+    assert.equal(card.manifest.birth.kind, "legacy_admission");
+    assert.ok(card.manifest.birth.legacyDigest);
+    assert.equal(card.manifest.history?.rootProofDigest, card.manifest.birth.legacyDigest);
+    const restored = restorePlayState(serializePlayState(state), owner), reloaded = restored.inventory[0]!;
+    assert.ok(isLivingCardAsset(reloaded));
+    assert.equal(reloaded.id, card.id);
+    assert.equal(reloaded.proof.digest, card.proof.digest);
+    assert.deepEqual(currentLivingGenome(reloaded), currentLivingGenome(card));
+    assert.deepEqual(reloaded.manifest, card.manifest);
   });
 
   it("issues starter and legacy-discovery cards to the exact active owner", () => {

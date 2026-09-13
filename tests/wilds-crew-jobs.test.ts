@@ -3,7 +3,7 @@ import { it } from "node:test";
 import { createWildsCrewJobStore } from "../src/features/play/wilds-crew-jobs";
 import { createWildsCrewJournal } from "../src/features/play/wilds-crew-journal";
 import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
-const assignment = { jobId:"job",workerId:"worker",assetId:"asset",ownerProofDigest:"owner-proof",workerProofDigest:"worker-proof",genomeProofDigest:"genome-proof",mandateDigest:"mandate",worldId:"world",regionId:"region",kind:"gather" as const,target:{x:1,y:0,z:2},home:{x:0,y:0,z:0},observedKaiUPulse:100 };
+const assignment = { jobId:"job",workerId:"worker",assetId:"asset",ownerProofDigest:"owner-proof",workerProofDigest:"worker-proof",expectedOwnerSubjectHead:"owner-head",expectedWorkerSubjectHead:"worker-head",genomeProofDigest:"genome-proof",mandateDigest:"mandate",worldId:"world",regionId:"region",kind:"gather" as const,target:{x:1,y:0,z:2},home:{x:0,y:0,z:0},observedKaiUPulse:100 };
 const navigation = {observationId:"position-observation",position:assignment.target};
 it("atomically allows one current job per exact owner/worker and persists across reload",async()=>{
  const db=createMemoryWildzContinuityDatabase(), a=createWildsCrewJobStore("owner",db), b=createWildsCrewJobStore("owner",db);
