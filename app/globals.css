@@ -17011,6 +17011,17 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
     padding-block: 0;
   }
   .wildz-app .wilds-left-instrument-home :is(.wilds-audio-settings > button, .wilds-message-instrument) { width: 36px; border-radius: 12px; }
+  .wildz-app .wilds-left-instrument-home > .wilds-audio-settings { align-self: center; justify-self: center; }
+  .wildz-app .wilds-left-instrument-home .wilds-audio-settings > button {
+    box-sizing: border-box;
+    width: 30.6px;
+    height: 30.6px;
+    min-width: 30.6px;
+    min-height: 30.6px;
+    padding: 0;
+    border-radius: 10px;
+  }
+  .wildz-app .wilds-left-instrument-home .wilds-audio-settings > button svg { width: 13.6px; height: 13.6px; }
   .wilds-left-instrument-home :is(.wilds-audio-settings > button, .wilds-message-instrument, .wilds-wallet-instrument) svg { width: 16px; height: 16px; }
   .wilds-map-status-home { top: calc(100px + env(safe-area-inset-top)); grid-template-columns: minmax(0, 1fr) repeat(3, 36px); gap: 4px; }
   .wildz-app .wilds-map-status-home :is(.wilds-live-badge, .wilds-live-share, .wilds-live-pill[class*="mode-"]) { width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0; justify-content: center; gap: 3px; }
@@ -17018,8 +17029,8 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
   .wilds-map-status-home .wilds-live-pill.event { min-height: 32px; font-size: clamp(5.5px, 1.75vw, 8px); }
   .wilds-map-status-home .wilds-live-pill.event:not(.ecology),
   .wilds-map-status-home .wilds-live-pill.event.ecology { top: calc(138px + var(--wildz-stage-safe-top)); }
-  .wildz-app .wilds-search-reticle { top: calc(80px + var(--wildz-stage-safe-top)); width: clamp(68px, 18vw, 78px); min-height: 24px; padding-block: 3px; }
+  .wildz-app .wilds-search-reticle { top: calc(80px + var(--wildz-stage-safe-top)); width: max-content; max-width: 28vw; min-height: 24px; height: auto; padding: 5px 9px; white-space: normal; overflow-wrap: anywhere; text-align: center; box-sizing: border-box; }
 }
 @media (max-width: 350px) and (orientation: portrait) {
-  .wildz-app .wilds-search-reticle { top: calc(74px + var(--wildz-stage-safe-top)); left: calc(50% + 8px); width: 64px; }
+  .wildz-app .wilds-search-reticle { top: calc(74px + var(--wildz-stage-safe-top)); left: calc(50% + 8px); }
 }

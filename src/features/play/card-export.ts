@@ -553,7 +553,8 @@ export function downloadBlob(blob: Blob, filename: string) {
  * iPhone/iPad), with the classic download rail as the desktop fallback. */
 export async function saveBlobToDevice(blob: Blob, filename: string) {
   if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-    const file = new File([await blob.arrayBuffer()], filename, { type: blob.type || "application/octet-stream" });
+    // Construct synchronously so iOS still sees the Save tap's user activation.
+    const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
     const data: ShareData = { files: [file] };
     if (typeof navigator.canShare !== "function" || navigator.canShare(data)) {
       try {

@@ -63,3 +63,23 @@ test("account teardown before queued startup prevents the old refresh", async ()
   const stop = startWildzLiveOwnershipRefresh({ ...env, refresh: async () => { calls++; } });
   stop(); await flush(); assert.equal(calls, 0);
 });
+
+test("browser timer methods retain their global receiver on start and teardown", async () => {
+  const env = environment();
+  let cleared = false;
+  const stop = startWildzLiveOwnershipRefresh({
+    ...env,
+    refresh: async () => {},
+    setInterval: function (this: unknown) {
+      assert.equal(this, globalThis, "Window timers reject a dependency-object receiver");
+      return 1;
+    } as unknown as typeof globalThis.setInterval,
+    clearInterval: function (this: unknown) {
+      assert.equal(this, globalThis);
+      cleared = true;
+    } as typeof globalThis.clearInterval
+  });
+  stop();
+  await flush();
+  assert.equal(cleared, true);
+});

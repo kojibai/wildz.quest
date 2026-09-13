@@ -19,11 +19,12 @@ export function startWildzLiveOwnershipRefresh(input: Readonly<{
   };
   input.visibility.addEventListener("visibilitychange", refresh);
   input.notifications.addEventListener(WILDZ_OWNERSHIP_REFRESH_EVENT, refresh);
-  const timer = input.setInterval(refresh, WILDZ_OWNERSHIP_REFRESH_INTERVAL_MS);
+  // Browser timers require the Window receiver, not the dependency object.
+  const timer = input.setInterval.call(globalThis, refresh, WILDZ_OWNERSHIP_REFRESH_INTERVAL_MS);
   refresh();
   return () => {
     disposed = true;
-    input.clearInterval(timer);
+    input.clearInterval.call(globalThis, timer);
     input.visibility.removeEventListener("visibilitychange", refresh);
     input.notifications.removeEventListener(WILDZ_OWNERSHIP_REFRESH_EVENT, refresh);
   };

@@ -22,6 +22,7 @@ import type { WildzCharacterGenesis } from "../../features/identity/wildz-genesi
 import {
   createReceizProofObjectArtifact,
   downloadBlob,
+  saveBlobToDevice,
   downloadReceizProofObject,
   embedPortableVaultInPng,
   portableCardPngBlobForIdentityOwnership,
@@ -805,7 +806,7 @@ export function matchesPreparedWildzIdentityOwnedCard(artifact: WildzPreparedIde
 }
 
 export async function savePreparedWildzIdentityOwnedCard(artifact: WildzPreparedIdentityOwnedCard) {
-  downloadBlob(
+  await saveBlobToDevice(
     new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType }),
     artifact.filename
   );
