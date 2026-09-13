@@ -142,7 +142,7 @@ function identityFromInspection(inspection: WildzArtifactInspection) {
   return inspection.kind === "card-vault" ? inspection.identity ?? null : null;
 }
 
-export type WildzVaultUploadDisposition = "merge-owned" | "claim-bearer";
+export type WildzVaultUploadDisposition = "merge-owned" | "restore-portable" | "claim-bearer";
 
 function sameVaultOwner(left: string, right: string) {
   return sameWildzPlayerCoordinate(left, right)
@@ -167,6 +167,16 @@ export function wildzVaultUploadDisposition(
     : null;
   if (witnessedOwner) {
     return sameVaultOwner(witnessedOwner, activeActorId) ? "merge-owned" : "claim-bearer";
+  }
+  // Older portable cards are already admitted by the local codec. They do not
+  // carry a native bearer envelope, so sending them to claimBearerAsset cannot
+  // succeed. Restore their verified bytes and history through the existing
+  // active-Vault merge; do not manufacture a native ownership claim.
+  if (inspection.kind === "card-vault" && !inspection.proofObject) {
+    const savedOwner = inspection.player?.playerId;
+    const sameOwner = savedOwner ? sameVaultOwner(savedOwner, activeActorId)
+      : inspection.assets.every(asset => sameVaultOwner(asset.manifest.ownerReceizId, activeActorId));
+    return sameOwner ? "merge-owned" : "restore-portable";
   }
   if (inspection.player?.playerId) {
     return sameVaultOwner(inspection.player.playerId, activeActorId) ? "merge-owned" : "claim-bearer";

@@ -926,7 +926,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (!current) throw new Error("wildz_restore_identity_missing");
     const disposition = wildzVaultUploadDisposition(inspection, current.session.actorId);
     const artifactAssetIds = inspection.assets.map((asset) => asset.id);
-    if (disposition === "merge-owned") {
+    if (disposition === "merge-owned" || disposition === "restore-portable") {
       return restoreArtifact(file, "card-vault", true, currentPlayState, "merge-vault", prepared);
     }
     // Foreign custody changes only after native Record -> Seal succeeds. Awaiting

@@ -169,6 +169,7 @@ test("Vault upload disposition treats bearer claiming as transfer-only", () => {
     identity: null
   };
   assert.equal(wildzVaultUploadDisposition({ ...base, proofObject: null }, asset.manifest.ownerReceizId), "merge-owned");
+  assert.equal(wildzVaultUploadDisposition({ ...base, proofObject: null }, "new-explorer"), "restore-portable");
   assert.equal(wildzVaultUploadDisposition({
     ...base,
     proofObject: {
