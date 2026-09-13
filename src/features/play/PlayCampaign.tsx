@@ -9,6 +9,8 @@ import { requestWildsDive } from "./wilds-vertical-traversal";
 import { resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
+import { createWildsPlayStateSourceAdmission } from "./wilds-play-state-source";
+import type { WildsCrewMapSource } from "./wilds-crew-map";
 import { useWildsCrewExpeditions } from "./use-wilds-crew-expeditions";
 import { WildsCrewPanel } from "./WildsCrewPanel";
 import { recordWildsCrewModeObservation } from "./wilds-crew-observations";
@@ -304,6 +306,7 @@ export function PlayCampaign({
   const [state, setState] = useState(() => initialState);
   const crewPreferences = useMemo(() => sanitizeWildsCrewPreferences(state.crewPreferences, state.inventory, ownerReceizId), [state.crewPreferences, state.inventory, ownerReceizId]);
   const admittedSourceStateRef = useRef(initialState);
+  const [sourceAdmission] = useState(createWildsPlayStateSourceAdmission);
   const [saveRestored, setSaveRestored] = useState(false);
   const onPlayStateChangeRef = useRef(onPlayStateChange);
   const playStatePublisherRef = useRef<WildzGameplayPublisher<{
@@ -315,18 +318,23 @@ export function PlayCampaign({
   if (!playStatePublisherRef.current) {
     playStatePublisherRef.current = createWildzGameplayPublisher({
       cadenceMs: 140,
-      publish: ({ state: nextState, continuity }) => onPlayStateChangeRef.current(nextState, continuity)
+      publish: ({ state: nextState, continuity }) => {
+        sourceAdmission.published(nextState);
+        onPlayStateChangeRef.current(nextState, continuity);
+      }
     });
   }
 
   useEffect(() => {
     if (admittedSourceStateRef.current === initialState) return;
     admittedSourceStateRef.current = initialState;
+    // A delayed acknowledgment of our publication must not rewind newer input.
+    if (!sourceAdmission.shouldAdopt(initialState)) return;
     // The shell has already reconciled this state against the active Receiz ID.
     // Adopt that source directly so another authenticated browser can advance
     // live gameplay without remounting Canvas or replaying local input.
     setState(initialState);
-  }, [initialState]);
+  }, [initialState, sourceAdmission]);
   const [memorialAssetId, setMemorialAssetId] = useState<string | null>(null);
   const gameplaySurfaceRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -947,6 +955,9 @@ export function PlayCampaign({
       : ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, "roam") })),
     onFinished: assetId => setState(current => current.crewPreferences?.ownerReceizId === ownerReceizId && current.crewPreferences.byAssetId[assetId] === "follow" ? current
       : ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, "follow") })) });
+  const crewMapSource = useMemo<WildsCrewMapSource>(() => ({
+    owner: ownerReceizId, cards: crewCards, expeditions: crewExpeditions.expeditions, runtime: crewExpeditions.runtime.current
+  }), [ownerReceizId, crewCards, crewExpeditions.expeditions, crewExpeditions.runtime]);
   physicalCrewTrips.current = crewExpeditions.activeTrips.current;
   useEffect(() => {
     const nextDueAt = state.inventory.reduce<number | null>((earliest, asset) => {
@@ -1749,6 +1760,9 @@ export function PlayCampaign({
     verticalIntentRef.current = 0;
     horizontalAllowedRef.current = true;
     setAerialMode("ground");
+    const landedInDeepWater = outer && projectWildsAquaticPresentationAtPosition({
+      x: siteLanding.x, z: siteLanding.z, canSwim: activeTraversalCapabilities.includes("swim"), airborne: false
+    }).mode === "blocked";
     setState((current) => {
       const siteKey = writeWildsSiteRuntimeDiscovery(siteDiscoveryOutputRef.current, siteRuntime, current.siteSpace.spaceId, siteLanding.x, siteSurface.floorY, siteLanding.z).siteKey;
       return {
@@ -1762,7 +1776,9 @@ export function PlayCampaign({
           flooded: siteSurface.flooded
         },
         explorationAtlas: siteKey ? discoverWildsExplorationSite(current.explorationAtlas, siteKey) : current.explorationAtlas,
-        lastEvent: reason === "protected-airspace" ? "Returned to the nearest safe landing outside protected airspace." : "Landed on the nearest clear surface."
+        lastEvent: landedInDeepWater
+          ? "Dropped into deep water. You are sinking. Take flight again or lead with a swimming creature to move."
+          : reason === "protected-airspace" ? "Returned to the nearest safe landing outside protected airspace." : "Landed on the nearest clear surface."
       };
     });
   };
@@ -2268,6 +2284,21 @@ export function PlayCampaign({
       showWorldFeedback(error instanceof Error ? error.message : "wilds_rift_failed");
     }
   };
+  const handleCrewModeChange = async (assetId: string, mode: "follow" | "roam") => {
+    const card = state.inventory.find(asset => asset.id === assetId && sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, ownerReceizId));
+    if (!card) return;
+    try {
+      if (mode === "roam" && !await crewExpeditions.roam(card)) return;
+      if (mode === "follow" && await crewExpeditions.recall(assetId)) return;
+    } catch (error) { showWorldFeedback(error instanceof Error ? error.message : "This creature cannot start exploring here."); return; }
+    const latestCrew = crewControlScope.current;
+    if (latestCrew.owner !== ownerReceizId || !latestCrew.inventory.some(asset => asset.id === assetId
+      && asset.proof.digest === card.proof.digest && sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, latestCrew.owner))) return;
+    setState(current => ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, mode) }));
+    void recordWildsCrewModeObservation({ ownerReceizId, assetId, mode, genomeProofDigest: card.proof.digest })
+      .catch(() => showWorldFeedback("Movement preference saved; activity history could not be saved."));
+  };
+
   const commandItems: readonly WildsCommandItem[] = [
     {
       key: "crew",
@@ -2280,20 +2311,7 @@ export function PlayCampaign({
         reports={crewExpeditions.reports}
         readHistory={crewExpeditions.history}
         modes={crewPreferences?.byAssetId ?? {}}
-        onModeChange={async (assetId, mode) => {
-          const card = state.inventory.find(asset => asset.id === assetId && sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, ownerReceizId));
-          if (!card) return;
-          try {
-            if (mode === "roam" && !await crewExpeditions.roam(card)) return;
-            if (mode === "follow" && await crewExpeditions.recall(assetId)) return;
-          } catch (error) { showWorldFeedback(error instanceof Error ? error.message : "This creature cannot start exploring here."); return; }
-          const latestCrew = crewControlScope.current;
-          if (latestCrew.owner !== ownerReceizId || !latestCrew.inventory.some(asset => asset.id === assetId
-            && asset.proof.digest === card.proof.digest && sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, latestCrew.owner))) return;
-          setState(current => ({ ...current, crewPreferences: setWildsCrewPreference(current.crewPreferences, current.inventory, ownerReceizId, assetId, mode) }));
-          void recordWildsCrewModeObservation({ ownerReceizId, assetId, mode, genomeProofDigest: card.proof.digest })
-            .catch(() => showWorldFeedback("Movement preference saved; activity history could not be saved."));
-        }}
+        onModeChange={handleCrewModeChange}
       />
     },
     {
@@ -2534,6 +2552,10 @@ export function PlayCampaign({
           <WildzCommandInsight label="Collection consequence" value={activeAsset?.manifest.name ?? "Choose a leader"} detail="Vault selection becomes the active explorer companion in the drawer, Trail Pack, and battle." />
           <div className="wilds-vault-sheet-heading"><span><small>Portable card vault</small><strong>{state.inventory.length} sealed {state.inventory.length === 1 ? "card" : "cards"}</strong></span><button className="wilds-open-market" onClick={openMarketFromVault} type="button"><Icons.store size={18} /> Open Market</button></div>
           <WildsInventory
+            crewModes={crewPreferences?.byAssetId ?? {}}
+            crewReports={crewExpeditions.reports}
+            onCrewModeChange={handleCrewModeChange}
+            readCrewHistory={crewExpeditions.history}
             state={state}
             ownerReceizId={ownerReceizId}
             kaiMoment={kaiMoment}
@@ -2727,6 +2749,7 @@ export function PlayCampaign({
 
             <div aria-hidden={referenceHomeBlocked} className="wildz-reference-home" inert={referenceHomeBlocked ? true : undefined}>
               <WildzReferenceHud
+              crewMapSource={crewMapSource}
                 character={character}
                 interactionEnabled={worldInteractionEnabled}
                 modalOwned={exclusiveOwner !== "none"}
@@ -2927,6 +2950,7 @@ export function PlayCampaign({
         </div>
       </div>
       <WildsWorldMap
+        crewMapSource={crewMapSource}
         currentPosition={state.player}
         discoveredLandmarkIds={discoveredLandmarkIds}
         explorationAtlas={state.explorationAtlas}

@@ -1,5 +1,6 @@
 "use client";
 
+import type { WildsCrewMapSource } from "./wilds-crew-map";
 import type { CSSProperties } from "react";
 import type { WildzCharacterGenesis } from "../identity/wildz-genesis";
 import { projectWildsExplorerAppearance } from "./wilds-explorer-appearance";
@@ -7,8 +8,9 @@ import type { WildzHudModel } from "./wildz-gameplay-hud";
 import { WildzDirectionCompass } from "./WildzDirectionCompass";
 import { WildzMinimap } from "./WildzMinimap";
 
-export function WildzReferenceHud({ model, heading, character, interactionEnabled, modalOwned, onOpenMap, onOpenMission, onOpenProfile }: {
+export function WildzReferenceHud({ model, crewMapSource, heading, character, interactionEnabled, modalOwned, onOpenMap, onOpenMission, onOpenProfile }: {
   model: WildzHudModel;
+  crewMapSource?: WildsCrewMapSource;
   heading: number;
   character: WildzCharacterGenesis;
   interactionEnabled: boolean;
@@ -52,7 +54,7 @@ export function WildzReferenceHud({ model, heading, character, interactionEnable
       <button className="wildz-mission-chip" aria-label={`Open mission details · ${model.mission.progress}% progress`} disabled={!interactionEnabled} onClick={onOpenMission} type="button"><span>★</span><strong>{model.mission.progress}%<small>Mission</small></strong></button>
     </div>
     <div className="wildz-map-home">
-      <WildzMinimap disabled={!interactionEnabled} x={model.location.x} z={model.location.z} heading={heading} onOpen={onOpenMap} />
+      <WildzMinimap crewMapSource={crewMapSource} disabled={!interactionEnabled} x={model.location.x} z={model.location.z} heading={heading} onOpen={onOpenMap} />
     </div>
   </div>;
 }

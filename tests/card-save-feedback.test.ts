@@ -19,8 +19,8 @@ describe("premium card save feedback", () => {
     });
     assert.deepEqual(cardSavePresentation("saving"), {
       busy: true,
-      button: "Sealing verified card…",
-      message: "Sealing your verified collectible…"
+      button: "Saving verified card…",
+      message: "Opening your verified card in the device save panel…"
     });
     assert.deepEqual(cardSavePresentation("success"), {
       busy: false,

@@ -14,6 +14,8 @@ export type WildsCrewNavigationAuthority = {
   mode: WildsCrewNavigationMode;
   permittedModes: readonly WildsCrewNavigationMode[];
   sampleSegment: WildsCrewSegmentSampler;
+  /** Optional canonical local planning destination; final journey targets stay intact. */
+  routeTarget?: (start:Readonly<WildsCrewNavigationPoint>,target:Readonly<WildsCrewNavigationPoint>)=>Readonly<WildsCrewNavigationPoint>;
 };
 export type WildsCrewPathReason = "path" | "arrived" | "unreachable" | "budget-exhausted" | "blocked-start" | "blocked-target" | "mode-not-permitted" | "invalid-input";
 export type WildsCrewPath = { reason: WildsCrewPathReason; waypoints: readonly Readonly<WildsCrewNavigationPoint>[]; visitedNodes: number };
@@ -149,6 +151,7 @@ export function wildsCrewRouteNeedsReplan(waypoints: readonly Readonly<WildsCrew
  * targets and return only an actually traversable path. Never relocates the actor.
  */
 export function planWildsCrewPathNearTarget(input: Parameters<typeof planWildsCrewPath>[0]): WildsCrewPath {
+  if(input.routeTarget)input={...input,target:input.routeTarget(input.start,input.target)};
   const maximum = input.maxNodes ?? 192;
   if (!Number.isInteger(maximum) || maximum < 1 || maximum > 4096) return { reason: "invalid-input", visitedNodes: 0, waypoints: [] };
   const exact = planWildsCrewPath({ ...input, maxNodes: Math.min(maximum, 96) });

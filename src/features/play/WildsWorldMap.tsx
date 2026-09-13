@@ -23,10 +23,14 @@ import type { WildsBossKnowledge } from "./wilds-raid-history";
 import type { WildsTrainerProjection } from "./wilds-saga-trainers";
 import { canRestoreFocus } from "./focus-recovery";
 
+import { useWildsCrewMap } from "./use-wilds-crew-map";
+import type { WildsCrewMapSource } from "./wilds-crew-map";
+
 const zoomLevels: readonly WildsAtlasZoom[] = ["world", "region", "landmark"];
 
 export function WildsWorldMap({
   open,
+  crewMapSource,
   guestId,
   currentPosition,
   explorationAtlas,
@@ -44,6 +48,7 @@ export function WildsWorldMap({
   onRift
 }: {
   open: boolean;
+  crewMapSource?: WildsCrewMapSource;
   guestId: string;
   currentPosition: { x: number; z: number };
   explorationAtlas: WildsExplorationAtlas;
@@ -61,6 +66,7 @@ export function WildsWorldMap({
   onClose: () => void;
   onRift: (destination: { x: number; z: number }) => void | Promise<void>;
 }) {
+  const crewMarkers = useWildsCrewMap(crewMapSource, open);
   const [zoom, setZoom] = useState<WildsAtlasZoom>("world");
   const [recenterRequest, setRecenterRequest] = useState(0);
   const [fitRequest, setFitRequest] = useState(0);
@@ -192,6 +198,7 @@ export function WildsWorldMap({
         <div className="wilds-atlas-stage">
           <WildsAtlasCanvas
             active={open}
+            crewMarkers={crewMarkers}
             currentPosition={currentPosition}
             onDrop={(position) => void onRift(position)}
             onSelect={(landmarkId) => {
@@ -242,7 +249,13 @@ export function WildsWorldMap({
             <span>{projection.exactPlayers.length + projection.playerClusters.reduce((sum, cluster) => sum + cluster.count, 0)} live</span>
           </div>
           <aside className="wilds-atlas-intelligence" aria-label="Current expedition">
-            <span>Active expedition</span>
+            <span>Creature expeditions · {crewMarkers.length}</span>
+            {crewMarkers.length > 0 ? <ul aria-label="Roaming creatures" style={{ maxHeight: 150, overflowY: "auto", paddingLeft: 16, fontSize: 12 }}>
+              {crewMarkers.map(marker => <li key={marker.assetId} style={{ color: marker.returning ? "#ffdc87" : "#d0bfff", marginBottom: 5 }}>
+                <strong>{marker.name}</strong> · {marker.status}<br />
+                X {Math.round(marker.position.x)} · Z {Math.round(marker.position.z)}
+              </li>)}
+            </ul> : null}
             <strong>The world reacts</strong>
             <p>Explore real paths. Discover living events. Let every choice become remembered experience.</p>
             <div className="wilds-atlas-mission-meter" role="progressbar" aria-label="Mission progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={missionProgress}>

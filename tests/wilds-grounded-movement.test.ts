@@ -184,14 +184,14 @@ test("an admitted bridge is exact walkable support without granting swim outside
   assert.equal(resolveWildsGroundMovement({ x: -94.4, z: -237 }, { x: -94, z: -237 }, { obstacles: [], structureSupports: supports }).traversalBlockedBy, "swim");
 });
 
-test("required landing never accepts an obstructed, stale, or inaccessible anchor", () => {
+test("required landing permits a water drop but rejects obstructed or stale fallback anchors", () => {
   const deepWater = { x: -94, z: -240 };
   const trunk = obstacle("tree:required-landing", 18, -24, 8);
   trunk.position.y = sampleWildsTerrain(18, -24).elevation;
 
-  assert.equal(resolveWildsRequiredLandingPosition(deepWater, deepWater, {
+  assert.deepEqual(resolveWildsRequiredLandingPosition(deepWater, deepWater, {
     capabilities: [], obstacles: [], searchRadius: 0
-  }), null);
+  }), deepWater);
   assert.equal(resolveWildsRequiredLandingPosition({ x: 18, z: -24 }, { x: Number.NaN, z: 0 }, {
     capabilities: [], obstacles: [trunk], searchRadius: 0
   }), null);

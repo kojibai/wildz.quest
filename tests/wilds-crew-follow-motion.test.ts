@@ -1,12 +1,56 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { writeWildsCrewFollowSpeed } from "../src/features/play/wilds-crew-follow-motion";
+import { writeWildsCrewFollowSpeed, writeWildsCrewFollowPresentation } from "../src/features/play/wilds-crew-follow-motion";
+it("smooths snapshot jumps and gait pulses while settling exactly after walking", () => {
+  const state = { x: 0, z: 0, distance: 0, speed: 0, travelled: 0 };
+  let previous = 0;
+  for (let frame = 1; frame <= 240; frame++) {
+    // A caught-up companion alternates between a snapshot correction and catch-up.
+    const x = frame % 2 ? -.5 : 0;
+    writeWildsCrewFollowPresentation(state, { x, z: 0 }, frame % 2 ? .5 : 0, 1 / 60);
+    if (frame > 60) {
+      assert.ok(Math.abs(state.x - previous) < .1, "no half-unit frame jumps beside the player");
+      assert.ok(state.speed > 10 && state.speed < 20, "no walking/idle gait oscillation");
+    }
+    previous = state.x;
+  }
+  for (let frame = 0; frame < 120; frame++) writeWildsCrewFollowPresentation(state, { x: 0, z: 0 }, 0, 1 / 60);
+  assert.ok(Math.abs(state.x) < .000001);
+  assert.ok(state.speed < .025);
+  assert.ok(Math.abs(state.distance - 60) < .000001, "smoothing preserves total stride distance");
+  writeWildsCrewFollowPresentation(state, { x: 10, z: 20 }, 100, 1 / 60, true);
+  assert.deepEqual(state, { x: 10, z: 20, distance: 0, speed: 0, travelled: 0 });
+});
 it("measures repeated player snapshots at actual cadence and holds speed between renders",()=>{
  const state={x:0,z:0,changedAt:0,speed:0};
  assert.equal(writeWildsCrewFollowSpeed(state,{x:1.05,z:0},.03,0),35);
  assert.equal(writeWildsCrewFollowSpeed(state,{x:1.05,z:0},.04,0),35);
  assert.equal(writeWildsCrewFollowSpeed(state,{x:1.05,z:0},1,0),5.5);
  assert.equal(writeWildsCrewFollowSpeed(state,{x:999,z:0},1.03,999),72);
+});
+it("keeps snapshot-driven walking visually continuous at 30, 60 and 120 fps", async () => {
+  const { writeWildsCrewPathStep, createWildsCrewPathStepState } = await import("../src/features/play/wilds-crew-navigation");
+  for (const hz of [30, 60, 120]) {
+    const position = { x: 0, y: 0, z: 0 }, player = { ...position };
+    const motion = { x: 0, z: 0, changedAt: 0, speed: 0 };
+    const presentation = { x: 0, z: 0, distance: 0, speed: 0, travelled: 0 };
+    const step = createWildsCrewPathStepState();
+    for (let frame = 1; frame <= hz * 8; frame++) {
+      const now = frame / hz;
+      player.x = Math.floor(now / .03) * 1.05;
+      const before = position.x, displayed = presentation.x;
+      step.waypointIndex = 0;
+      writeWildsCrewPathStep(position, [player], step, {
+        mode: "walk", permittedModes: ["walk"], accompanyingSpeedLimit: 72, deltaSeconds: 1 / hz,
+        speed: writeWildsCrewFollowSpeed(motion, player, now, player.x - position.x),
+        sampleSegment: (_from, _to, _mode, out) => { out.allowed = true; out.y = 0; }
+      });
+      writeWildsCrewFollowPresentation(presentation, { x: position.x - player.x, z: 0 }, position.x - before, 1 / hz);
+      if (frame <= hz * 2) continue;
+      assert.ok(Math.abs(presentation.x - displayed) < .1, `${hz} fps: no snapshot kick`);
+      assert.ok(presentation.speed > 25 && presentation.speed < 48, `${hz} fps: steady walking gait`);
+    }
+  }
 });
 it("keeps up with legitimate thirty millisecond keyboard steps through bounded swept substeps",async()=>{
  const {writeWildsCrewPathStep,createWildsCrewPathStepState}=await import("../src/features/play/wilds-crew-navigation");

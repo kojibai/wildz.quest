@@ -577,6 +577,8 @@ export function resolveWildsSafeLandingPosition(
     capabilities?: readonly TraversalCapability[];
     obstacles?: readonly WildsTerrainObstacle[];
     searchRadius?: number;
+    /** A dropped flyer may enter water without acquiring swimming locomotion. */
+    allowWaterEntry?: boolean;
   } = {}
 ) {
   if (!finitePoint(requested)) throw new Error("wilds_landing_position_invalid");
@@ -594,7 +596,8 @@ export function resolveWildsSafeLandingPosition(
         z: quantize(requested.z + Math.sin(angle) * radius)
       };
       const terrain = sampleWildsTerrain(candidate.x, candidate.z);
-      if (terrain.traversal.some((requirement) => !capabilities.has(requirement.kind))) continue;
+      if (terrain.traversal.some((requirement) => !capabilities.has(requirement.kind)
+        && !(options.allowWaterEntry && terrain.surface === "deep-water" && requirement.kind === "swim"))) continue;
       const terrainObstacles = movementObstacles(candidate, candidate, capsuleRadius);
       const obstacles = options.obstacles?.length
         ? [...terrainObstacles, ...options.obstacles]
@@ -619,8 +622,11 @@ export function resolveWildsRequiredLandingPosition(
     searchRadius?: number;
   } = {}
 ) {
-  const currentLanding = finitePoint(current) ? resolveWildsSafeLandingPosition(current, options) : null;
+  // Ending flight drops into water at the traveled coordinate. This admits a
+  // landing only; grounded movement still requires an actual swimming creature.
+  const landingOptions = { ...options, allowWaterEntry: true };
+  const currentLanding = finitePoint(current) ? resolveWildsSafeLandingPosition(current, landingOptions) : null;
   if (currentLanding) return currentLanding;
   if (!finitePoint(safeAnchor)) return null;
-  return resolveWildsSafeLandingPosition(safeAnchor, options);
+  return resolveWildsSafeLandingPosition(safeAnchor, landingOptions);
 }

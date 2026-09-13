@@ -2,6 +2,12 @@ import { classifyProfilePublicationFailure, type ProfilePublicationFailure } fro
 
 export type ProfilePublicationStatus = "publishing" | "ready" | "unpublished";
 
+export function wildzProfilePublicationDisposition(key: string, confirmedKey: string, canPublish: boolean): "confirmed" | "waiting" | "publish" {
+  // Losing a session changes permission to publish, not an already confirmed revision.
+  if (key && key === confirmedKey) return "confirmed";
+  return canPublish ? "publish" : "waiting";
+}
+
 type Timer = ReturnType<typeof setTimeout>;
 
 /** One background publication per profile revision; retries never require UI interaction. */

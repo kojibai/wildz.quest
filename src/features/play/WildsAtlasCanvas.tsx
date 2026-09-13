@@ -5,6 +5,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { Html, MapControls, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
 import { WILDS_REGION_SIZE } from "./multiplayer-core";
+import type { WildsCrewMapMarker } from "./wilds-crew-map";
 import type { WildsAtlasProjection } from "./wilds-world-atlas";
 import type { WildsQualityProfile } from "./wilds-quality-profile";
 import { sampleWildsTerrain, type WildsTerrainSurface } from "./wilds-terrain-authority";
@@ -50,6 +51,7 @@ const SURFACE_COLORS: Record<WildsTerrainSurface, string> = {
 
 export function WildsAtlasCanvas({
   projection: sourceProjection,
+  crewMarkers = [],
   currentPosition,
   qualityProfile,
   selectedId,
@@ -63,6 +65,7 @@ export function WildsAtlasCanvas({
   onDrop
 }: {
   projection: WildsAtlasProjection;
+  crewMarkers?: readonly WildsCrewMapMarker[];
   currentPosition: { x: number; z: number };
   qualityProfile: WildsQualityProfile;
   selectedId: string | null;
@@ -117,6 +120,7 @@ export function WildsAtlasCanvas({
         <RegionNames projection={projection} />
         <LandmarkBeacons projection={projection} selectedId={selectedId} onSelect={onSelect} />
         <DropPin position={selectedDrop} projection={projection} />
+        <CrewLights projection={projection} markers={crewMarkers} />
         <ExactPlayerLights projection={projection} />
         <PresenceLights projection={projection} />
         <TrainerLights projection={projection} />
@@ -737,4 +741,18 @@ function CurrentPositionBeam({ position, projection }: { position: { x: number; 
       </mesh>
     </group>
   );
+}
+
+function CrewLights({ projection, markers }: { projection: WildsAtlasProjection; markers: readonly WildsCrewMapMarker[] }) {
+  return <group name="atlas-owned-roaming-creatures">{markers.map(marker => {
+    const x = atlasLocalCoordinate(marker.position.x, projection.centerRegion.x, projection.regionUnit);
+    const z = atlasLocalCoordinate(marker.position.z, projection.centerRegion.z, projection.regionUnit);
+    const color = marker.returning ? "#ffdc87" : "#ad8bff";
+    return <group key={marker.assetId} name={`atlas-crew-${marker.assetId}`} position={[x, atlasTerrainHeight(marker.position.x, marker.position.z, projection.regionUnit) + .25, z]}>
+      <mesh raycast={() => {}}><octahedronGeometry args={[.14, 0]} /><meshBasicMaterial color={color} depthTest={false} /></mesh>
+      <Html center position={[0, .3, 0]} wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[2, 1]}>
+        <span className="wilds-atlas-trainer-label" style={{ color, pointerEvents: "none" }}>{marker.name} · {marker.status}</span>
+      </Html>
+    </group>;
+  })}</group>;
 }

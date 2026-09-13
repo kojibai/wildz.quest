@@ -37,6 +37,7 @@ import {
   resumePendingWildzVault,
   prepareWildzIdentityOwnedCard,
   savePreparedWildzIdentityOwnedCard,
+  matchesPreparedWildzIdentityOwnedCard,
   saveWildzContinuityPlayState,
   type WildzContinuitySnapshot,
   type WildzRestoreIntent,
@@ -70,7 +71,7 @@ import {
 } from "@/lib/receiz/wildz-profile-adapter";
 import type { WildzOverlay } from "@/features/shell/wildz-overlay";
 import { usePublicCardPublisher } from "@/features/play/use-public-card-publisher";
-import { startWildzProfilePublication, type ProfilePublicationStatus } from "@/features/profile/background-publication";
+import { startWildzProfilePublication, wildzProfilePublicationDisposition, type ProfilePublicationStatus } from "@/features/profile/background-publication";
 import type { ProfilePublicationFailure } from "@/features/profile/publication-failure";
 import { downloadBlob } from "@/features/play/card-export";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
@@ -506,13 +507,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   useEffect(() => {
     setOwnerPublicationFailure(null);
     retryProfilePublicationRef.current = null;
-    if (profilePublicationReadiness !== "ready") {
-      setOwnerPublicationStatus("unpublished");
-      return;
-    }
     const publicationKey = profilePublicationKey;
-    if (publishedProfileRef.current === publicationKey) {
-      setOwnerPublicationStatus("ready");
+    const disposition = wildzProfilePublicationDisposition(publicationKey, publishedProfileRef.current, profilePublicationReadiness === "ready");
+    if (disposition !== "publish") {
+      setOwnerPublicationStatus(disposition === "confirmed" ? "ready" : "unpublished");
       return;
     }
     const publication = startWildzProfilePublication({
@@ -1216,7 +1214,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           shellOverlayOwner={shellOverlayOwner}
           onPlayStateChange={persistPlayState}
           onPrepareCard={(asset, player) => prepareWildzIdentityOwnedCard(identity, asset, player, { allowPrompt: false })}
-          onExportCard={(asset, player, prepared) => prepared
+          onExportCard={(asset, player, prepared) => prepared && matchesPreparedWildzIdentityOwnedCard(prepared, identity, asset)
             ? savePreparedWildzIdentityOwnedCard(prepared)
             : downloadWildzIdentityOwnedCard(identity, asset, player)}
           onExportVault={(assets, player) => downloadWildzIdentityPlayerVault(identity, assets, player)}

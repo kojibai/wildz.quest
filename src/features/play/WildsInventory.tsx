@@ -19,7 +19,7 @@ import {
   downloadPreparedCardArtifact,
   preparePortableCardArtifact
 } from "./card-export";
-import { createPreparedCardArtifactCache } from "./prepared-card-artifact";
+import { cardArtifactFingerprint, createPreparedCardArtifactCache } from "./prepared-card-artifact";
 import type { PlayState, WildsInput } from "./game-state";
 import type { KaiKlokMoment } from "./kai-klok-moment";
 import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
@@ -29,6 +29,9 @@ import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
 import { WildsGrowthPanel } from "./WildsGrowthPanel";
 import { CreatureConsciousnessPanel } from "./CreatureConsciousnessPanel";
 import { CreatureContinuityPanel } from "./CreatureContinuityPanel";
+import { WildsCrewCreatureControls } from "./WildsCrewCreatureControls";
+import type { WildsCrewTravelHistory } from "./WildsCrewTravelJournal";
+import type { WildsCrewMode } from "./wilds-crew-preferences";
 import {
   clampInventoryPage,
   inventoryPageForAsset,
@@ -68,8 +71,16 @@ export function WildsInventory({
   onExportVault,
   onInput,
   onListAsset,
-  onRestoreArtifact
+  onRestoreArtifact,
+  crewModes = {},
+  crewReports = {},
+  onCrewModeChange,
+  readCrewHistory
 }: {
+  crewModes?: Readonly<Record<string, WildsCrewMode>>;
+  crewReports?: Readonly<Record<string, string>>;
+  onCrewModeChange?: (assetId: string, mode: WildsCrewMode) => void;
+  readCrewHistory?: WildsCrewTravelHistory;
   state: PlayState;
   ownerReceizId: string;
   kaiMoment: KaiKlokMoment;
@@ -124,7 +135,8 @@ export function WildsInventory({
   const previousFocusedAssetId = useRef(focusedAssetId);
   const playerVaultRef = useRef(playerVault);
   const selectedCardRef = useRef<PlayState["inventory"][number] | undefined>(undefined);
-  const [identityCardPreparing, setIdentityCardPreparing] = useState(false);
+  const prepareCardRef = useRef(onPrepareCard);
+  prepareCardRef.current = onPrepareCard;
   const preparedCardArtifacts = useMemo(
     () => createPreparedCardArtifactCache(preparePortableCardArtifact),
     []
@@ -266,12 +278,10 @@ export function WildsInventory({
     preparedIdentityCard.current = null;
     const selectedCard = selectedCardRef.current;
     if (!selectedCard || selectedRetired) {
-      setIdentityCardPreparing(false);
       return;
     }
     let active = true;
-    setIdentityCardPreparing(true);
-    void onPrepareCard(selectedCard, playerVaultRef.current())
+    void prepareCardRef.current(selectedCard, playerVaultRef.current())
       .then((artifact) => {
         if (!active || artifact.assetId !== selectedCard.id) return;
         preparedIdentityCard.current = artifact;
@@ -279,10 +289,9 @@ export function WildsInventory({
       .catch(() => {
         // Encrypted identities and transient preparation failures retain the
         // original click-time export rail.
-      })
-      .finally(() => { if (active) setIdentityCardPreparing(false); });
+      });
     return () => { active = false; };
-  }, [onPrepareCard, selected?.id, selected?.proof.digest, selectedRetired]);
+  }, [ownerReceizId, selected?.id, selected?.proof.digest, selectedRetired]);
 
   useEffect(() => () => {
     if (saveResetTimer.current !== null) window.clearTimeout(saveResetTimer.current);
@@ -360,12 +369,11 @@ export function WildsInventory({
     emitWildsPlaytestEvent("card-save", "start");
     if (saveResetTimer.current !== null) window.clearTimeout(saveResetTimer.current);
     triggerCardHaptic("press");
-    setCardSaveState("preparing");
-    setDownloadMessage(cardSavePresentation("preparing").message);
     try {
       setCardSaveState("saving");
       setDownloadMessage(cardSavePresentation("saving").message);
       const prepared = preparedIdentityCard.current?.assetId === asset.id
+        && preparedIdentityCard.current.cardFingerprint === cardArtifactFingerprint(asset)
         ? preparedIdentityCard.current
         : undefined;
       await onExportCard(asset, playerVault(), prepared);
@@ -565,21 +573,30 @@ export function WildsInventory({
               onObserved={(turn) => onInput({ type: "record-creature-observation", turn })}
               onSpeakingChange={setSelectedCreatureSpeaking}
             />
+            {onCrewModeChange ? <WildsCrewCreatureControls
+              card={selected}
+              mode={crewModes[selected.id]}
+              accompanying={state.selectedAssetId === selected.id || state.supportAssetIds.includes(selected.id)}
+              report={crewReports[selected.id]}
+              disabled={selectedRetired}
+              onModeChange={onCrewModeChange}
+              readHistory={readCrewHistory}
+            /> : null}
             <CreatureContinuityPanel asset={selected} beans={state.beans} disabled={selectedRetired} onInput={onInput} />
             <div className="wilds-inventory-actions">
               <button className="button button-primary" disabled={selectedRetired || state.selectedAssetId === selected.id} onClick={() => onInput({ type: "select-asset", assetId: selected.id })} type="button">{selectedRetired ? "Retired · cannot enter game" : state.selectedAssetId === selected.id ? "Active deck leader" : "Set as active deck leader"}</button>
               <Link className="button button-outline" href={`/cards/${encodeURIComponent(selected.id)}`} onClick={() => { rememberStandaloneWildzCard(selected); }}>Open standalone card page</Link>
               <button
                 aria-busy={cardSaving}
-                aria-label={selectedRetired ? "Memorial card cannot be saved" : identityCardPreparing ? "Preparing verified card" : cardSave.button}
-                className={`button button-outline wilds-action-feedback wilds-save-card-button${cardSaving || identityCardPreparing ? " wilds-action-busy" : ""}`}
+                aria-label={selectedRetired ? "Memorial card cannot be saved" : cardSave.button}
+                className={`button button-outline wilds-action-feedback wilds-save-card-button${cardSaving ? " wilds-action-busy" : ""}`}
                 data-state={cardSaveState}
-                disabled={cardSaving || identityCardPreparing || selectedRetired}
+                disabled={cardSaving || selectedRetired}
                 onClick={() => { void saveVerifiedCard(selected); }}
                 type="button"
               >
                 {cardSaveState === "success" ? <Icons.check aria-hidden="true" size={17} /> : <Icons.seal aria-hidden="true" size={17} />}
-                <span>{selectedRetired ? "Memorial card cannot be saved" : identityCardPreparing ? "Preparing verified card…" : cardSave.button}</span>
+                <span>{selectedRetired ? "Memorial card cannot be saved" : cardSave.button}</span>
               </button>
               <div className="wilds-card-send-control">
                 <label>

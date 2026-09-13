@@ -16966,3 +16966,60 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 }
 .wildz-app .wildz-explorer-capsule strong { color: #f1f2df; }
 .wildz-app .wildz-explorer-capsule small { color: #bdcfbe; }
+
+/* Compact phone HUD; the minimap keeps its existing dimensions. */
+@media (max-width: 640px) and (orientation: portrait) {
+  .wildz-reference-hud {
+    padding-top: calc(28px + env(safe-area-inset-top));
+    grid-template-columns: minmax(0, clamp(118px, 38vw, 168px)) minmax(44px, 1fr) 68px;
+  }
+  .wildz-direction-compass { height: 20px; width: min(216px, calc(100vw - 144px)); }
+  .wildz-direction-compass-tick { top: 6px; }
+  .wildz-direction-compass-caret { top: 0; }
+  .wildz-identity-home > .wildz-explorer-capsule {
+    grid-template-columns: 32px minmax(0, 1fr);
+    min-height: 40px;
+    gap: 3px;
+    padding: 3px 5px 3px 3px;
+    border-radius: 15px;
+  }
+  .wildz-identity-home > .wildz-explorer-capsule > .wildz-explorer-portrait { width: 32px; height: 32px; border-radius: 11px; }
+  .wildz-identity-home > .wildz-explorer-capsule strong { font-size: 9px; }
+  .wildz-identity-home > .wildz-explorer-capsule small { font-size: 7px; }
+  .wildz-app .wildz-mission-home > .wildz-mission-chip {
+    display: flex;
+    height: 32px;
+    min-height: 32px;
+    padding: 3px 6px;
+    gap: 3px;
+    border-radius: 12px;
+  }
+  .wildz-mission-home > .wildz-mission-chip strong { font-size: 11px; }
+  .wildz-mission-home > .wildz-mission-chip small { font-size: 6px; margin-left: 3px; }
+  .wilds-left-instrument-home {
+    top: calc(74px + env(safe-area-inset-top));
+    grid-template-columns: min(25vw, 84px) 36px;
+    grid-template-rows: 36px 36px;
+    gap: 4px;
+  }
+  .wilds-left-instrument-home > .wilds-kai-command-pill,
+  .wilds-left-instrument-home > .wilds-wallet-instrument { width: min(25vw, 84px); min-width: 0; }
+  .wilds-left-instrument-home :is(.wilds-kai-command-pill, .wilds-wallet-instrument, .wilds-audio-settings > button, .wilds-message-instrument) {
+    min-width: 0;
+    min-height: 36px;
+    height: 36px;
+    padding-block: 0;
+  }
+  .wildz-app .wilds-left-instrument-home :is(.wilds-audio-settings > button, .wilds-message-instrument) { width: 36px; border-radius: 12px; }
+  .wilds-left-instrument-home :is(.wilds-audio-settings > button, .wilds-message-instrument, .wilds-wallet-instrument) svg { width: 16px; height: 16px; }
+  .wilds-map-status-home { top: calc(100px + env(safe-area-inset-top)); grid-template-columns: minmax(0, 1fr) repeat(3, 36px); gap: 4px; }
+  .wildz-app .wilds-map-status-home :is(.wilds-live-badge, .wilds-live-share, .wilds-live-pill[class*="mode-"]) { width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0; justify-content: center; gap: 3px; }
+  .wilds-map-status-home .wilds-live-share svg { width: 15px; height: 15px; }
+  .wilds-map-status-home .wilds-live-pill.event { min-height: 32px; font-size: clamp(5.5px, 1.75vw, 8px); }
+  .wilds-map-status-home .wilds-live-pill.event:not(.ecology),
+  .wilds-map-status-home .wilds-live-pill.event.ecology { top: calc(138px + var(--wildz-stage-safe-top)); }
+  .wildz-app .wilds-search-reticle { top: calc(80px + var(--wildz-stage-safe-top)); width: clamp(68px, 18vw, 78px); min-height: 24px; padding-block: 3px; }
+}
+@media (max-width: 350px) and (orientation: portrait) {
+  .wildz-app .wilds-search-reticle { top: calc(74px + var(--wildz-stage-safe-top)); left: calc(50% + 8px); width: 64px; }
+}

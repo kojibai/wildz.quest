@@ -1,14 +1,15 @@
 import { WILDS_PLAYER_BODY_RADIUS } from "./wilds-player-body";
 import { validateAdventureCondition, type AdventureCardCondition } from "./adventure/card-condition";
 import { wildsTerrainElevation, wildsTerrainWaterSurface } from "./wilds-terrain-authority";
-import { writeWildsSiteRuntimeMovement, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
+import { wildsSiteRuntimeGroundY, writeWildsSiteRuntimeMovement, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import type { WildsTerrainObstacle } from "./wilds-terrain-obstacles";
 import type { WildsCrewSegmentSampler } from "./wilds-crew-navigation";
 
 /** Conservative walk-only adapter. Shapes are canonical projections supplied by the
  * scene, never visual meshes. By default this refuses water; accompanying Follow may
  * explicitly share shallow-water wading. It still refuses deep water, steep drops and stairs
- * that need unsupported stepping. It grants no flight, swimming or climbing capability.
+ * that need unsupported stepping. Mountain climbing requires an admitted party capability;
+ * it grants no flight or swimming capability.
  * Rebuild on physical projection/space changes; the prepared neighborhood is bounded.
  */
 export function createWildsCrewPhysicalSampler(input: {
@@ -17,8 +18,11 @@ export function createWildsCrewPhysicalSampler(input: {
   originX: number; originZ: number;
   /** Only accompanying Follow shares the player’s shallow-water wading policy. */
   allowAccompaniedWading?: boolean;
+  /** Admitted party climbing capability; independent walkers default to false. */
+  canClimb?: boolean;
 }): WildsCrewSegmentSampler {
   const reach = 32, radius = WILDS_PLAYER_BODY_RADIUS, height = 1.55;
+  const climbSurfaces = new Set(input.canClimb ? input.runtime.physical.mountainFields.map(field => field.id) : []);
   const near = (x: number, z: number, extent: number) => Math.abs(x - input.originX) <= reach + extent && Math.abs(z - input.originZ) <= reach + extent;
   const solids = input.runtime.physical.solids.filter(s => s.spaceId === input.spaceId && s.kind !== "mountain-envelope" && near(s.center.x, s.center.z, Math.max(s.halfExtents.x, s.halfExtents.z)));
   const obstacles = input.spaceId === "wildz.space.outer.v1"
@@ -74,13 +78,15 @@ export function createWildsCrewPhysicalSampler(input: {
     for (let i = 1; i <= count; i++) {
       const tx = from.x + (to.x - from.x) * i / count, tz = from.z + (to.z - from.z) * i / count;
       const fallback = input.spaceId === "wildz.space.outer.v1" ? wildsTerrainElevation(tx, tz) : y;
-      writeWildsSiteRuntimeMovement(site, input.runtime, input.spaceId, x, y, z, tx, tz, radius, fallback, false);
+      writeWildsSiteRuntimeMovement(site, input.runtime, input.spaceId, x, y, z, tx, tz, radius, fallback, input.canClimb === true);
       const water = input.spaceId === "wildz.space.outer.v1" ? wildsTerrainWaterSurface(site.floorY) : null;
       const wading = input.allowAccompaniedWading === true && water === "shallow-water";
       if (site.blocked || Math.abs(site.x - tx) > 1e-5 || Math.abs(site.z - tz) > 1e-5 || !Number.isFinite(site.floorY) || (site.flooded && !wading) || site.ceilingY - site.floorY < height) return;
       if (water && !wading) return;
       // Refuse unsupported vertical discontinuities rather than snapping to a deck.
-      if (Math.abs(site.floorY - y) > .03 + distance / count * .7) return;
+      const climbingMountain = site.surfaceId !== null && climbSurfaces.has(site.surfaceId)
+        && Math.abs(y - wildsSiteRuntimeGroundY(input.runtime, input.spaceId, x, z, y)) < .03;
+      if (!climbingMountain && Math.abs(site.floorY - y) > .03 + distance / count * .7) return;
       const bottom = Math.min(y, site.floorY), top = Math.max(y, site.floorY) + height;
       const bucket = bins.get(Math.floor((x + tx) / 8))?.get(Math.floor((z + tz) / 8));
       if (bucket === null) return; // Saturated cell fails closed; no unbounded frame scan.

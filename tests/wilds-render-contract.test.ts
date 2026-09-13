@@ -721,7 +721,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(cardRoute, /publishPublicStore\(\{\s*\.\.\.base,\s*state:/);
     assert.match(cardRoute, /status:\s*503/);
     assert.doesNotMatch(cardRoute, /createReceizWildzPublicRepository|hasPublicationAuthority|published:\s*false/);
-    assert.match(inventory, /cardSavePresentation\("preparing"\)/);
+    assert.match(inventory, /cardSavePresentation\("saving"\)/);
     assert.match(inventory, /downloadPreparedCardArtifact/);
     assert.match(inventory, /cardSavePresentation\("success"\)/);
     assert.match(cardExport, /premiumQrSvg\(cardPath/);

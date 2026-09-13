@@ -55,7 +55,8 @@ export function projectWildsAquaticPresentation(input: WildsAquaticPresentationI
     waterDepth,
     actorLocalY: mode === "swim" ? quantize(actorWorldY - input.terrain.elevation) : 0,
     actorWorldY,
-    cameraSubmersionAllowed: mode === "swim",
+    // A non-swimmer dropped into deep water still physically sinks below its surface.
+    cameraSubmersionAllowed: mode === "swim" || mode === "blocked",
     scubaVisible: mode === "swim"
   });
 }

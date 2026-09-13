@@ -4,6 +4,9 @@ import { useEffect, useRef } from "react";
 import { WILDS_MAJOR_ROUTES } from "./wilds-world-geography";
 import { WILDS_FLAGSHIP_LANDMARKS } from "./wilds-landmarks";
 
+import { projectWildsCrewMinimapPoint, type WildsCrewMapSource } from "./wilds-crew-map";
+import { useWildsCrewMap } from "./use-wilds-crew-map";
+
 const VIEW_RADIUS = 22;
 
 function mapPoint(worldX: number, worldZ: number, playerX: number, playerZ: number, size: number) {
@@ -13,7 +16,8 @@ function mapPoint(worldX: number, worldZ: number, playerX: number, playerZ: numb
   };
 }
 
-export function WildzMinimap({ disabled = false, x, z, heading = 0, onOpen }: { disabled?: boolean; x: number; z: number; heading?: number; onOpen: () => void }) {
+export function WildzMinimap({ disabled = false, x, z, heading = 0, onOpen, crewMapSource }: { crewMapSource?: WildsCrewMapSource; disabled?: boolean; x: number; z: number; heading?: number; onOpen: () => void }) {
+  const crewMarkers = useWildsCrewMap(crewMapSource, !disabled);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -65,9 +69,23 @@ export function WildzMinimap({ disabled = false, x, z, heading = 0, onOpen }: { 
       context.beginPath(); context.arc(projected.x, projected.y, 4, 0, Math.PI * 2); context.fill();
       context.strokeStyle = "rgba(255,255,255,.84)"; context.lineWidth = 1.5; context.stroke();
     }
+    for (const marker of crewMarkers) {
+      const point = projectWildsCrewMinimapPoint(marker.position, { x, z }, size, VIEW_RADIUS);
+      context.fillStyle = marker.returning ? "#ffdc87" : "#ad8bff";
+      context.strokeStyle = "#251c39";
+      context.lineWidth = 2;
+      context.beginPath();
+      context.moveTo(point.x, point.y - 5);
+      context.lineTo(point.x + 5, point.y);
+      context.lineTo(point.x, point.y + 5);
+      context.lineTo(point.x - 5, point.y);
+      context.closePath();
+      context.fill(); context.stroke();
+      if (point.distant) { context.fillStyle = "#251c39"; context.fillRect(point.x - 1, point.y - 1, 2, 2); }
+    }
     context.restore();
-  }, [x, z]);
-  return <button className="wildz-minimap" aria-label={`Open world map. Current position X ${Math.round(x)}, Z ${Math.round(z)}`} disabled={disabled} onClick={onOpen} type="button">
+  }, [x, z, crewMarkers]);
+  return <button className="wildz-minimap" aria-label={`Open world map. Current position X ${Math.round(x)}, Z ${Math.round(z)}. ${crewMarkers.length} roaming creatures${crewMarkers.length ? ": " + crewMarkers.map(marker => `${marker.name}, ${marker.status}`).join("; ") : ""}` } disabled={disabled} onClick={onOpen} type="button">
     <canvas ref={canvasRef} />
     <span aria-hidden="true" className="wildz-minimap-heading" style={{ transform: `translate(-50%, -50%) rotate(${heading}rad)` }}>▲</span>
     <b>X {Math.round(x)} · Z {Math.round(z)}</b>

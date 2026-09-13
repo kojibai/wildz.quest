@@ -237,6 +237,13 @@ export async function publishCurrentWildzProfile(
       throw new Error("wildz_public_profile_card_unverified");
     }
   }
+  // Confirm this exact public revision before waiting on unrelated standalone-card
+  // uploads. The independent card publisher continues servicing the full Vault.
+  if (options.confirmExisting) {
+    const existing = await fetchPublicWildzProfile(profile.username, fetcher, { signal: options.signal });
+    options.signal?.throwIfAborted();
+    if (existing && canonicalPortableCardJson(existing) === canonicalPortableCardJson(sanitizePublicWildzProfile(profile))) return existing;
+  }
   // The supplied publishable Vault is complete; profile.vault is a bounded gallery.
   // Never use that display limit as the standalone-card publication queue.
   for (const asset of assetsById.values()) {
@@ -245,11 +252,6 @@ export async function publishCurrentWildzProfile(
     options.onProgress?.();
   }
   options.signal?.throwIfAborted();
-  if (options.confirmExisting) {
-    const existing = await fetchPublicWildzProfile(profile.username, fetcher, { signal: options.signal });
-    options.signal?.throwIfAborted();
-    if (existing && canonicalPortableCardJson(existing) === canonicalPortableCardJson(sanitizePublicWildzProfile(profile))) return existing;
-  }
   const response = await fetcher(publicProfileEndpoint(profile.username), {
     method: "POST",
     credentials: "same-origin",

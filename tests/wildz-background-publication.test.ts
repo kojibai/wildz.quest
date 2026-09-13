@@ -1,7 +1,14 @@
 import type { ProfilePublicationFailure } from "../src/features/profile/publication-failure";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { startWildzProfilePublication, type ProfilePublicationStatus } from "../src/features/profile/background-publication";
+import { startWildzProfilePublication, wildzProfilePublicationDisposition, type ProfilePublicationStatus } from "../src/features/profile/background-publication";
+
+test("an exact confirmed profile stays synced through a temporary disconnected session",()=>{
+  assert.equal(wildzProfilePublicationDisposition("owner:revision1","owner:revision1",false),"confirmed");
+  assert.equal(wildzProfilePublicationDisposition("owner:revision2","owner:revision1",false),"waiting");
+  assert.equal(wildzProfilePublicationDisposition("other:revision1","owner:revision1",false),"waiting");
+  assert.equal(wildzProfilePublicationDisposition("owner:revision2","owner:revision1",true),"publish");
+});
 
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 function harness(publish: (signal: AbortSignal, progress: () => void) => Promise<unknown>, online = true) {

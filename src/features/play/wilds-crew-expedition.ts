@@ -39,6 +39,10 @@ export type WildsCrewExpeditionChange = Readonly<{
 }>;
 export type WildsCrewExpeditionRecall = WildsCrewExpeditionChange & Readonly<{returnPosition?:WildsCrewExpeditionPoint;spaceId?:string}>;
 export type WildsCrewExpeditionReturnTarget = WildsCrewExpeditionChange & Readonly<{returnPosition:WildsCrewExpeditionPoint;spaceId:string}>;
+export function wildsCrewReturnNeedsRetarget(row:Pick<WildsCrewExpedition,"phase"|"spaceId"|"home">,position:WildsCrewExpeditionPoint,spaceId:string):boolean {
+  return row.phase==="returning"&&row.spaceId===spaceId&&(Math.hypot(row.home.x-position.x,row.home.z-position.z)>2
+    ||Math.abs(row.home.y-position.y)>WILDS_CREW_EXPEDITION_ARRIVAL_RADIUS);
+}
 export type WildsCrewExpeditionArrival = WildsCrewExpeditionChange & Readonly<{
   actualPosition:WildsCrewExpeditionPoint;spaceId:string;
 }>;

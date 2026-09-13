@@ -138,7 +138,7 @@ function ExplorerBackpack({
       </mesh>
       <mesh castShadow position={[0, 0.035, 0.151]}>
         <boxGeometry args={[0.34, 0.34, 0.022]} />
-        <meshStandardMaterial color="#ffffff" emissive={accent} emissiveIntensity={0.025} map={badge} metalness={0.04} roughness={0.58} />
+        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveMap={badge} emissiveIntensity={0.35} map={badge} metalness={0.04} roughness={0.58} />
       </mesh>
       <mesh position={[0, -0.245, 0.147]}>
         <boxGeometry args={[0.31, 0.025, 0.018]} />

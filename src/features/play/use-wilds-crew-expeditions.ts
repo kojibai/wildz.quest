@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { observeWildsCrewTravelPause } from "./wilds-crew-travel-pause";
-import { createWildsCrewExpeditions, WILDS_CREW_EXPEDITION_OBSERVE_UPULSES, type WildsCrewExpedition } from "./wilds-crew-expedition";
+import { createWildsCrewExpeditions, wildsCrewReturnNeedsRetarget, WILDS_CREW_EXPEDITION_ARRIVAL_RADIUS, WILDS_CREW_EXPEDITION_OBSERVE_UPULSES, type WildsCrewExpedition } from "./wilds-crew-expedition";
 import { prepareWildsCrewDisposition, readWildsCrewCondition } from "./wilds-crew-policy";
 import { prepareWildsCrewExpeditionStops } from "./wilds-crew-expedition-stops";
 import { canWildsCrewTravel } from "./wilds-crew-physical-navigation";
@@ -221,7 +221,8 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
                   const card=current.cards.find(card=>card.id===assetId);
                   const ready=card&&canWildsCrewTravel(readWildsCrewCondition(card,current.state.adventureConditions));
                   release(ticket);
-                  const message=ready?"Exploration paused until ground travel resumes.":"Exploration paused for rest or care.";
+                  const activity=row.phase==="returning"?"Return":"Exploration";
+                  const message=ready?`${activity} paused until ground travel resumes.`:`${activity} paused for rest or care.`;
                   setReports(old=>old[assetId]===message?old:({...old,[assetId]:message}));
                 }
                 return;
@@ -231,7 +232,12 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
                 const began=blockedSince.current.get(assetId)??performance.now();blockedSince.current.set(assetId,began);
                 if(performance.now()-began>8000){publish(await getStore().block({...change,reason:"The route is blocked. Waiting to try the route again."}),ticket);return;}
               }else blockedSince.current.delete(assetId);
-              if(row.phase==="returning"&&Math.hypot(row.home.x-current.state.player.x,row.home.z-current.state.player.z)>2&&row.spaceId===current.state.siteSpace.spaceId)
+              if(row.phase==="returning"){
+                const distance=Math.ceil(Math.hypot(entry.position.x-current.state.player.x,entry.position.z-current.state.player.z));
+                const message=entry.blocked?"Return route blocked · trying a clear route":`Returning to you · ${distance} m away`;
+                setReports(old=>old[assetId]===message?old:({...old,[assetId]:message}));
+              }
+              if(wildsCrewReturnNeedsRetarget(row,origin(current),current.state.siteSpace.spaceId))
                 publish(await getStore().retargetReturn({...change,returnPosition:origin(current),spaceId:row.spaceId}),ticket);
               else if(row.phase==="observing"&&row.observingSinceKaiUPulse!==null&&change.kaiUPulse-row.observingSinceKaiUPulse>=WILDS_CREW_EXPEDITION_OBSERVE_UPULSES)
                 {
@@ -252,7 +258,7 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
                     })).catch(()=>undefined).finally(()=>preparing.current.delete(assetId));
                 }
               }
-              else if(row.goal&&["outbound","returning"].includes(row.phase)&&Math.hypot(entry.position.x-row.goal.x,entry.position.y-row.goal.y,entry.position.z-row.goal.z)<=.8)
+              else if(row.goal&&["outbound","returning"].includes(row.phase)&&Math.hypot(entry.position.x-row.goal.x,entry.position.y-row.goal.y,entry.position.z-row.goal.z)<=WILDS_CREW_EXPEDITION_ARRIVAL_RADIUS)
                 publish(await getStore().arrive({...change,actualPosition:{...entry.position},spaceId:entry.spaceId}),ticket);
             }catch{
               // A different tab may have committed first. Reload only this exact scope.
@@ -271,7 +277,7 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     const row=rows.current.get(ticket.assetId);
     if(!row||!matches(row,ticket)||row.phase==="completed"||row.phase==="blocked"||row.spaceId!==latest.current.state.siteSpace.spaceId)release(ticket);
   };
-  return {runtime,reports,activeTrips,activeTripRevision,runtimeMembershipRevision,
+  return {runtime,reports,expeditions:rows.current as ReadonlyMap<string,WildsCrewExpedition>,activeTrips,activeTripRevision,runtimeMembershipRevision,
     async history(assetId:string,beforeHead?:string,limit=24){
       const current=latest.current,card=current.state.inventory.find(c=>c.id===assetId&&sameWildzPlayerCoordinate(c.manifest.ownerReceizId,current.owner));
       if(!card)throw new Error("This creature is no longer in your owned inventory.");

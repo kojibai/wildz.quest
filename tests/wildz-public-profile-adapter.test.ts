@@ -283,3 +283,28 @@ test("restoring an unchanged public profile confirms it without requiring a new 
   assert.deepEqual(await publishCurrentWildzProfile(profile, [], fetcher, { confirmExisting: true }), profile);
   assert.deepEqual(calls, ["GET"]);
 });
+
+test("an exact live profile is synced even while an independent Vault card upload is unavailable",async()=>{
+  const asset=createOwnerBoundInitialPlayState("fern").inventory[0]!;
+  const profile=sanitizePublicWildzProfile({...fernProfile,vault:[{id:asset.id,name:asset.manifest.name,proofDigest:asset.proof.digest,visibility:"public"}]});
+  const calls:string[]=[];
+  const fetcher=(async(url:string,init?:RequestInit)=>{
+    calls.push(`${init?.method??"GET"} ${url}`);
+    if(url.startsWith("/api/cards/"))return Response.json({ok:false,error:"unauthorized"},{status:401});
+    return Response.json({ok:true,profile});
+  }) as typeof fetch;
+  assert.deepEqual(await publishCurrentWildzProfile(profile,[asset],fetcher,{confirmExisting:true}),profile);
+  assert.deepEqual(calls,["GET /api/profiles/fern"]);
+});
+
+test("a live older profile cannot mark changed local content synced",async()=>{
+  const profile=sanitizePublicWildzProfile({...fernProfile,displayName:"New Fern"});
+  const calls:string[]=[];
+  const fetcher=(async(_url:string,init?:RequestInit)=>{
+    calls.push(init?.method??"GET");
+    return init?.method==="POST"?Response.json({ok:false,error:"publication_unavailable"},{status:503})
+      :Response.json({ok:true,profile:sanitizePublicWildzProfile(fernProfile)});
+  }) as typeof fetch;
+  await assert.rejects(publishCurrentWildzProfile(profile,[],fetcher,{confirmExisting:true}),/publication_unavailable/);
+  assert.deepEqual(calls,["GET","POST"]);
+});

@@ -77,10 +77,10 @@ export function CreatureContinuityPanel({
           <small>Living creature continuity</small>
           <strong>Life while away</strong>
           <p>{active
-            ? `${asset.manifest.name} can explore, meet, bond, discover, and barter non-value keepsakes under your mandate.`
+            ? `${asset.manifest.name} has an active life-while-away mandate for continuity and care.`
             : `${asset.manifest.name} is present and remembering, but will not act autonomously without your permission.`}</p>
         </div>
-        <span className="wilds-continuity-status"><i />{active ? "Roaming" : "Resting"}</span>
+        <span className="wilds-continuity-status"><i />{active ? "Active" : "Paused"}</span>
       </header>
 
       <div className="wilds-continuity-command">
@@ -89,17 +89,17 @@ export function CreatureContinuityPanel({
           disabled={disabled}
           onClick={() => command(active ? "pause-creature-continuity" : "activate-creature-continuity")}
           type="button"
-        >{active ? "Call home & pause" : mandate ? "Resume roaming" : "Awaken life while away"}</button>
+        >{active ? "Pause life while away" : mandate ? "Resume life while away" : "Awaken life while away"}</button>
         {active ? <button className="button button-outline" onClick={() => command("settle-creature-continuity")} type="button">Settle journey now</button> : null}
       </div>
 
-      {!active && !disabled ? <p className="wilds-continuity-warning">Awakening roaming also begins real care: hunger and attention decline while away, untreated sickness can permanently end this exact creature&apos;s living journey, and calling it home pauses all decline.</p> : null}
+      {!active && !disabled ? <p className="wilds-continuity-warning">Activating life while away also begins real care: hunger and attention decline while away, untreated sickness can permanently end this exact creature&apos;s living journey, and pausing this mandate pauses all decline.</p> : null}
 
       {!ownerMatches ? <p className="wilds-continuity-warning">This card changed owners. Its memories transferred, but the previous owner&apos;s mandate cannot transfer; activate a new one.</p> : null}
-      {disabled ? <p className="wilds-continuity-warning">Retired creatures keep their complete lived history but cannot receive new roaming authority.</p> : null}
+      {disabled ? <p className="wilds-continuity-warning">Retired creatures keep their complete lived history but cannot receive new life-while-away authority.</p> : null}
 
       <div className="wilds-continuity-vitals">
-        <span><Icons.map aria-hidden="true" size={16} /><small>Now</small><strong>{(continuity?.locationId ?? "wayfinder-hollow").replaceAll("-", " ")}</strong></span>
+        <span><Icons.map aria-hidden="true" size={16} /><small>Continuity place</small><strong>{(continuity?.locationId ?? "wayfinder-hollow").replaceAll("-", " ")}</strong></span>
         <span><Icons.users aria-hidden="true" size={16} /><small>Bonds</small><strong>{continuity?.relationships.length ?? 0}</strong></span>
         <span><Icons.package aria-hidden="true" size={16} /><small>Keepsakes</small><strong>{continuity?.keepsakes.length ?? 0}</strong></span>
         <span><Icons.sparkle aria-hidden="true" size={16} /><small>Discoveries</small><strong>{continuity?.discoveries.length ?? 0}</strong></span>
@@ -121,13 +121,14 @@ export function CreatureContinuityPanel({
       </div>
 
       <div className="wilds-continuity-memory">
-        <div><strong>Lived memory</strong><small>{livedExperiences.length} real roaming {livedExperiences.length === 1 ? "experience" : "experiences"} · proof-chained</small></div>
+        <p>These card continuity memories are separate from observed trail journeys in the travel journal.</p>
+        <div><strong>Continuity memory</strong><small>{livedExperiences.length} continuity {livedExperiences.length === 1 ? "experience" : "experiences"} · proof-chained</small></div>
         {recent.length ? recent.map((event) => (
           <article key={event.digest}>
             <span aria-hidden="true">{event.kind === "discover" ? "✦" : event.kind === "barter-keepsake" ? "⇄" : event.kind === "explore" ? "⌁" : "●"}</span>
             <p><strong>{event.kind.replaceAll("-", " ")}</strong>{event.summary}<small>{relativeMoment(event.occurredAt)} · proof {event.digest.slice(7, 17)}</small></p>
           </article>
-        )) : <p className="wilds-continuity-empty">No roaming experience yet. Awakening roaming seals the first real meeting immediately.</p>}
+        )) : <p className="wilds-continuity-empty">No continuity memory yet. Actual trail visits appear in the travel journal above.</p>}
       </div>
 
       {continuity?.relationships.length ? <div className="wilds-continuity-bonds">
@@ -135,7 +136,7 @@ export function CreatureContinuityPanel({
         {continuity.relationships.slice(-4).map((relationship) => <span key={relationship.subjectId}><i>{relationship.name.slice(0, 1)}</i><b>{relationship.name}</b><small>{relationship.meetings} meeting{relationship.meetings === 1 ? "" : "s"} · bond {relationship.affinity}</small></span>)}
       </div> : null}
 
-      <footer><span>You control roaming and care · up to {mandate?.maxActionsPerDay ?? 24} acts/day · 72h catch-up</span><span>{continuity?.headDigest ? `Head ${continuity.headDigest.slice(7, 18)}` : "Awaiting first event"}</span></footer>
+      <footer><span>Life-while-away mandate and care · up to {mandate?.maxActionsPerDay ?? 24} acts/day · 72h catch-up</span><span>{continuity?.headDigest ? `Head ${continuity.headDigest.slice(7, 18)}` : "Awaiting first event"}</span></footer>
     </section>
   );
 }

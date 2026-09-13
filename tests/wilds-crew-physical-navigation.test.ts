@@ -15,6 +15,22 @@ const to = { x: 1.6, y: wildsTerrainElevation(1.6, 0), z: 0 };
 const wall: WildsTerrainObstacle = { id: "canonical-thin-wall", kind: "structure", material: "solid", position: { x: .8, y: from.y + .75, z: 0 }, radius: 1.1, shape: { kind: "box", halfX: .005, halfY: .75, halfZ: 1 }, visualScale: 1 };
 const output = () => ({ allowed: false, y: NaN });
 
+test("accompanying climbers follow the admitted mountain skin while walls still block", () => {
+  const mountain = { id: "test-mountain", siteKey: "mountain", spaceId: "wildz.space.outer.v1" as const,
+    center: { x: 0, y: 7, z: 0 }, halfExtents: { x: 2, y: 7, z: 2 }, columns: 2, rows: 2,
+    nodes: [-2, 2].flatMap(z => [-2, 2].map(x => ({ x, z, baseY: 0, topY: 7 + x * 2 }))) };
+  const mountainRuntime = prepareWildsSiteRuntime({ ...runtime.physical, mountainFields: [mountain] });
+  const start = { x: 0, y: 7, z: 0 }, end = { x: .6, y: 8.2, z: 0 }, out = output();
+  const input = { runtime: mountainRuntime, spaceId: mountain.spaceId, obstacles: [], originX: 0, originZ: 0, canClimb: true };
+  createWildsCrewPhysicalSampler({ ...input, canClimb: false })(start, end, "walk", out);
+  assert.equal(out.allowed, false);
+  createWildsCrewPhysicalSampler(input)(start, end, "walk", out);
+  assert.equal(out.allowed, true);
+  assert.ok(Math.abs(out.y - 8.2) < .00001);
+  createWildsCrewPhysicalSampler({ ...input, obstacles: [{ ...wall, position: { x: .3, y: 8, z: 0 } }] })(start, end, "walk", out);
+  assert.equal(out.allowed, false);
+});
+
 test("canonical swept obstacle test rejects a thin wall between clear endpoints", () => {
   const sample = createWildsCrewPhysicalSampler({ runtime, spaceId: "wildz.space.outer.v1", obstacles: [], originX: 0, originZ: 0 });
   const out = output(); sample(from, to, "walk", out); assert.equal(out.allowed, true);

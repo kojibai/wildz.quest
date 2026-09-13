@@ -10,8 +10,8 @@ const presentations: Record<CardSaveState, { busy: boolean; button: string; mess
   },
   saving: {
     busy: true,
-    button: "Sealing verified card…",
-    message: "Sealing your verified collectible…"
+    button: "Saving verified card…",
+    message: "Opening your verified card in the device save panel…"
   },
   success: {
     busy: false,
