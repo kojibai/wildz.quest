@@ -191,7 +191,7 @@ function WildsWorldMapView({
       <header className="wilds-world-map-header">
         <div>
           <span className="eyebrow">Living world atlas</span>
-          <h2 id="wilds-world-map-title" ref={headingRef} tabIndex={-1}>World map</h2>
+          <h2 id="wilds-world-map-title" ref={headingRef} tabIndex={-1}>The Wilds are bigger than the horizon</h2>
         </div>
         <button aria-label="Close world map" className="wilds-world-map-close" onClick={onClose} type="button">
           <Icons.close aria-hidden="true" size={20} />
