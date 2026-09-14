@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { wildzJsonSerializer } from "../../lib/performance/wildz-json-serializer";
 import { wildzGameplayBackground } from "../../lib/performance/wildz-gameplay-background";
-import { attemptPublicWildsCardRegistration } from "./public-card-registry";
+import { requireGloballyAvailablePublicWildsCard } from "./public-card-registry";
 import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 import {
   wildzVaultAdmissionCarriesProofObject,
@@ -81,25 +81,34 @@ export function usePublicCardPublisher(
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+    let publishing = false;
+    let controller: AbortController | undefined;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     const publish = async () => {
-      if (cancelled) return;
+      if (cancelled || publishing) return;
+      publishing = true;
+      try {
       const now = Date.now();
       const waiting = await publicCardPublicationQueueCooperatively(assets, publishedPins.current, { proofObjects });
       const queue = waiting.filter((asset) => (retryAt.current.get(`${asset.id}:${asset.proof.digest}`) ?? 0) <= now);
       for (const asset of queue) {
         if (cancelled) break;
         const pin = `${asset.id}:${asset.proof.digest}`;
-        const controller = new AbortController();
-        const deadline = setTimeout(() => controller.abort(), 30_000);
-        const result = await attemptPublicWildsCardRegistration(asset, {
+        controller = new AbortController();
+        const requestController = controller;
+        const deadline = setTimeout(() => requestController.abort(), 30_000);
+        // A restored card already readable at its exact revision needs no
+        // upload. Only missing or changed revisions enter the publication rail.
+        const published = await requireGloballyAvailablePublicWildsCard(asset, globalThis.fetch, {
           proofObjects,
-          signal: controller.signal,
+          signal: requestController.signal,
           prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
             ?? wildzGameplayBackground.run(() => JSON.stringify(value))
-        }).finally(() => clearTimeout(deadline));
-        if (result.published) {
+        }).then(() => true, () => false).finally(() => clearTimeout(deadline));
+        controller = undefined;
+        if (cancelled) return;
+        if (published) {
           publishedPins.current.add(pin);
           retryAt.current.delete(pin);
         } else {
@@ -113,6 +122,7 @@ export function usePublicCardPublisher(
         .filter((value): value is number => typeof value === "number")
         .sort((left, right) => left - right)[0];
       if (nextRetryAt) retryTimer = setTimeout(() => void publish(), Math.max(0, nextRetryAt - Date.now()));
+      } finally { publishing = false; }
     };
 
     // Deferring one microtask lets React Strict Mode retire its probe effect
@@ -127,6 +137,7 @@ export function usePublicCardPublisher(
     return () => {
       window.removeEventListener("online", reconnect);
       cancelled = true;
+      controller?.abort();
       if (retryTimer) clearTimeout(retryTimer);
     };
   }, [assets, enabled, proofObjects]);

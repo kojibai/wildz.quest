@@ -1,16 +1,13 @@
 /// <reference lib="webworker" />
 
-import { createWildsPlayerVault } from "../../features/play/wilds-player-vault";
-import type { WildzPlayerStateProjectionInput } from "./wildz-player-state-serializer";
-
-type WorkerRequest = { id: string; input: WildzPlayerStateProjectionInput };
+import { createWildzPlayerProjectionEncoder, type WildzPlayerProjectionMessage } from "./wildz-player-state-projection";
 
 const workerScope = self as unknown as DedicatedWorkerGlobalScope;
+const encode = createWildzPlayerProjectionEncoder();
 
-workerScope.addEventListener("message", (event: MessageEvent<WorkerRequest>) => {
+workerScope.addEventListener("message", (event: MessageEvent<WildzPlayerProjectionMessage>) => {
   try {
-    const player = createWildsPlayerVault(event.data.input);
-    workerScope.postMessage({ id: event.data.id, ok: true, body: JSON.stringify({ player }) });
+    workerScope.postMessage({ id: event.data.id, ok: true, body: encode(event.data) });
   } catch (cause) {
     workerScope.postMessage({
       id: event.data.id,

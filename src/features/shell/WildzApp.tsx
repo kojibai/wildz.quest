@@ -86,6 +86,7 @@ import type { ProfilePublicationFailure } from "@/features/profile/publication-f
 import { downloadBlob } from "@/features/play/card-export";
 import { downloadRestoredWildzCard } from "@/lib/receiz/wildz-upload-card-download";
 import { publishWildzProfileWithIdentityProof } from "@/lib/receiz/wildz-profile-identity-publication";
+import { startWildzSessionReconnect } from "@/lib/receiz/wildz-session-reconnect";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
 import { canRestoreFocus } from "@/features/play/focus-recovery";
 import type { WildzPlayerStateRecord } from "@/lib/receiz/wildz-player-state-sync";
@@ -484,14 +485,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   useEffect(() => {
     if (!identity || !vaultAdmission) return;
     let active = true;
-    let connecting = false;
-    const connect = () => {
-      if (connecting) return;
-      connecting = true;
-      void connectWildzProofSession(identity, { vaultAdmission }).then(async (session) => {
+    const reconnect = startWildzSessionReconnect({ connect: () =>
+      connectWildzProofSession(identity, { vaultAdmission }).then(async (session) => {
         if (!active || !wildzRemoteSessionMatchesIdentity(identity, session)) {
           if (active) { setProofSessionConnected(false); setProofSessionGeneration(""); }
-          return;
+          return false;
         }
         setProofSessionConnected(true);
         setProofSessionGeneration(wildzProofSessionGeneration(session));
@@ -506,32 +504,31 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         const current = continuityRef.current;
         if (!current
           || current.session.keyId !== identity.keyId
-          || current.session.actorId !== identity.actorId) return;
+          || current.session.actorId !== identity.actorId) return false;
         const aligned = await alignWildzContinuityWithProofSession(current, session);
-        if (!active) return;
+        if (!active) return false;
         const stillCurrent = continuityRef.current;
         if (!stillCurrent
           || stillCurrent.session.keyId !== identity.keyId
-          || stillCurrent.session.actorId !== identity.actorId) return;
+          || stillCurrent.session.actorId !== identity.actorId) return false;
         if (aligned !== current && stillCurrent.restoreEpoch === current.restoreEpoch) {
           acceptSnapshot({ ...stillCurrent, session: aligned.session });
         }
         setProofSessionConnected(true);
         setProofSessionGeneration(wildzProofSessionGeneration(session));
+        return true;
       }).catch(() => {
         if (active) { setProofSessionConnected(false); setProofSessionGeneration(""); }
-      }).finally(() => {
-        connecting = false;
-      });
-    };
-    connect();
-    const reconnectOnline = () => connect();
-    window.addEventListener("online", reconnectOnline);
+        return false;
+      })
+    });
+    window.addEventListener("online", reconnect.wake);
     return () => {
       active = false;
-      window.removeEventListener("online", reconnectOnline);
+      reconnect.stop();
+      window.removeEventListener("online", reconnect.wake);
     };
-  }, [acceptSnapshot, identity, vaultAdmission]);
+  }, [acceptSnapshot, identity, vaultAdmission, identityActivationRevision]);
 
   useEffect(() => {
     setOwnerPublicationFailure(null);
@@ -559,11 +556,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           onProgress: progress,
           confirmExisting: true,
           proofObjects: profilePublicationRequest.proofObjects,
-          // Use the exact delegated Receiz session that made the shared world
-          // live. Local Identity-Seal signing is only a fallback when that
-          // live session is not connected, so the world and profile cannot
-          // disagree about which authority is currently active.
-          publishSourceProfile: !proofSessionConnected && identity?.localAuthority === "verified"
+          // A connected proof session is not necessarily a delegated registry
+          // write token. Publish the complete collection with the active seal,
+          // just as world bootstrap signs an identity-proof publication draft.
+          // Standalone card indexing must never gate this source projection.
+          publishSourceProfile: identity?.localAuthority === "verified"
             ? (profile, assets, signal) => publishWildzProfileWithIdentityProof(profile, { assets, signal })
             : undefined,
           prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
@@ -787,6 +784,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   useEffect(() => {
     // Gameplay movement updates this ref without forcing a shell render. Opening
     // Vault must prepare that latest state, not the last card-change snapshot.
+    // Profile transitions and resumed gameplay must never build a full backup.
+    if (overlay?.kind !== "vault") {
+      setCombinedVaultPreparing(false);
+      return;
+    }
     const current = continuityRef.current;
     if (!current) return;
     const held = preparedCombinedVault.current;
@@ -801,7 +803,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         if (!cancelled) preparedCombinedVault.current = { snapshot: current, artifact };
       }).catch(() => { /* An explicit Save can request a locked identity's passphrase. */ })
         .finally(() => { if (!cancelled) setCombinedVaultPreparing(false); });
-    }, overlay?.kind === "vault" ? 0 : 300);
+    }, 0);
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [overlay?.kind, continuity?.session.keyId, continuity?.playState, continuity?.character, continuity?.playerContinuity, buildCombinedVault]);
 

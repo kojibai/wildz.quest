@@ -1,4 +1,5 @@
 import { isVerifiedWildzCardDescendant, sameLivingOrigin } from "./wildz-card-descendant";
+import { admitLocallySealedWildsInventory } from "../../features/play/admitted-inventory";
 import {
   readPortableCardFromPng,
   readWildzProofAppendsFromPng,
@@ -157,6 +158,7 @@ export function extractVerifiedWildzCards(input: {
     }
     if (!verified.ok) throw new Error("wildz_restore_card_proof_invalid");
     assertRetirementAuthority(asset);
+    admitLocallySealedWildsInventory([asset]);
     const canonical = canonicalPortableCardJson(asset);
     const prior = canonicalById.get(asset.id);
     if (prior !== undefined && prior !== canonical) {
@@ -185,6 +187,7 @@ export function extractVerifiedWildzCards(input: {
     }
     assertRetirementAuthority(asset);
     if (basesById.get(base.id) !== base.proof.digest) throw new Error("wildz_restore_card_proof_invalid");
+    admitLocallySealedWildsInventory([asset]);
     const canonical = canonicalPortableCardJson(asset);
     const prior = canonicalById.get(asset.id);
     if (prior !== undefined && prior !== canonical) {
@@ -270,6 +273,7 @@ export function extractVerifiedWildzCards(input: {
     if (cardProofPresent) {
       const verified = verifyPortableCardPng(bytes);
       if (!verified.ok || !verified.asset) throw new Error("wildz_restore_card_proof_invalid");
+      admitLocallySealedWildsInventory([verified.asset]);
       admit(verified.asset);
       basesById.set(verified.asset.id, verified.asset.proof.digest);
       if (primary) primaryPngAssetIds.add(verified.asset.id);
@@ -296,6 +300,7 @@ export function extractVerifiedWildzCards(input: {
         }
         throw new Error("wildz_restore_card_proof_invalid");
       }
+      admitLocallySealedWildsInventory(verified.assets);
       verified.assets.forEach((asset) => {
         admit(asset);
         basesById.set(asset.id, asset.proof.digest);

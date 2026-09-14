@@ -1,4 +1,6 @@
 import type { createWildsPlayerVault } from "../../features/play/wilds-player-vault";
+import type { WildzPlayerProjectionMessage } from "./wildz-player-state-projection";
+import { isAdmittedWildsCard } from "../../features/play/admitted-inventory";
 
 export type WildzPlayerStateProjectionInput = Parameters<typeof createWildsPlayerVault>[0];
 
@@ -9,7 +11,7 @@ type WorkerReply =
 type ProjectionWorker = {
   onmessage: ((event: MessageEvent<WorkerReply>) => void) | null;
   onerror: ((event: ErrorEvent) => void) | null;
-  postMessage(message: { id: string; input: WildzPlayerStateProjectionInput }): void;
+  postMessage(message: WildzPlayerProjectionMessage): void;
   terminate(): void;
 };
 
@@ -24,11 +26,13 @@ export function createWildzPlayerStateSerializer(options: {
 } = {}): WildzPlayerStateSerializer {
   let worker: ProjectionWorker | null = null;
   let unavailable = false;
+  let lastInventory: WildzPlayerStateProjectionInput["playState"]["inventory"] | undefined;
   const pending = new Map<string, { resolve(value: string | null): void; reject(cause: Error): void }>();
 
   const close = () => {
     worker?.terminate();
     worker = null;
+    lastInventory = undefined;
     for (const request of pending.values()) request.resolve(null);
     pending.clear();
   };
@@ -46,7 +50,10 @@ export function createWildzPlayerStateSerializer(options: {
         if (!request) return;
         pending.delete(event.data.id);
         if (event.data.ok) request.resolve(event.data.body);
-        else request.reject(new Error(event.data.error));
+        else {
+          lastInventory = undefined;
+          request.reject(new Error(event.data.error));
+        }
       };
       created.onerror = (event) => {
         event.preventDefault?.();
@@ -68,9 +75,20 @@ export function createWildzPlayerStateSerializer(options: {
       return new Promise<string | null>((resolve, reject) => {
         pending.set(id, { resolve, reject });
         try {
-          activeWorker.postMessage({ id, input });
+          const inventory = input.playState?.inventory;
+          // Structured cloning a restored Vault on every movement sync blocks
+          // the caller even though JSON is generated in a worker. Send those
+          // exact immutable cards only when the inventory actually changes.
+          const reuseInventory = inventory !== undefined && lastInventory !== undefined
+            && inventory.length === lastInventory.length
+            && inventory.every((asset, index) => asset === lastInventory![index] && isAdmittedWildsCard(asset));
+          activeWorker.postMessage({ id, input: reuseInventory
+            ? { ...input, playState: { ...input.playState, inventory: [] } }
+            : input, ...(reuseInventory ? { reuseInventory: true } : {}) });
+          lastInventory = inventory?.slice();
         } catch {
           pending.delete(id);
+          lastInventory = undefined;
           resolve(null);
         }
       });

@@ -52,7 +52,10 @@ function fixture() {
 describe("resource custody in shared-world continuity", () => {
   it("guarantees renewable hay timber and stone without changing legacy region slots", () => {
     const sources = projectWildsResourceRegion(0, 0);
-    assert.equal(sha256PortableBasis(canonicalPortableCardJson(sources.slice(0, 6))), "sha256:a0913e9806228d91f3aef8705a6755b11cb9a53cda225d01d54ade8a722ac59f");
+    // The committed steep-mountain terrain correction changes surface-derived
+    // resource kinds. Pin the complete current projection, including all six
+    // original slots, against that corrected terrain contract.
+    assert.equal(sha256PortableBasis(canonicalPortableCardJson(sources.slice(0, 6))), "sha256:4b786b6ee4581f0c191d2570afe46b7aa294594244516fdc6c7c581cbd8fa57e");
     assert.deepEqual(sources.slice(6, 9).map((source) => source.kind), ["hay", "timber", "stone"]);
     assert.equal(isCanonicalWildsResourceSource(sources[6]!), true);
     assert.ok(sources[6]!.replenishment.capacityPerInterval > 0);

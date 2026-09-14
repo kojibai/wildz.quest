@@ -103,6 +103,14 @@ const admittedVerification = Object.freeze({
 }) satisfies PortableCardVerification;
 let cardVerificationExecutions = 0;
 let admittedCardVerificationCacheHits = 0;
+// Restore parsers can decode the same carried card in the Vault, player state
+// and identity snapshot. Reuse successful verification only for identical full
+// canonical content, never for an id or claimed digest alone. Bound retained
+// text; immutable admitted objects keep the constant-time WeakSet path above.
+const verifiedCardContent = new Map<string, true>();
+const MAX_VERIFIED_CARD_CONTENT_CHARS = 8 * 1024 * 1024;
+let verifiedCardContentChars = 0;
+let verifiedCardContentHits = 0;
 
 /** Records an exact immutable card object after an authoritative admission boundary verified it. */
 export function rememberAdmittedWildsCardVerification(asset: PortableCardAsset) {
@@ -112,7 +120,8 @@ export function rememberAdmittedWildsCardVerification(asset: PortableCardAsset) 
 export function wildsCardVerificationDiagnostics() {
   return Object.freeze({
     executions: cardVerificationExecutions,
-    admittedCacheHits: admittedCardVerificationCacheHits
+    admittedCacheHits: admittedCardVerificationCacheHits,
+    contentCacheHits: verifiedCardContentHits
   });
 }
 
@@ -461,8 +470,23 @@ export function verifyAnyWildsCard(asset: PortableCardAsset): PortableCardVerifi
     admittedCardVerificationCacheHits += 1;
     return admittedVerification;
   }
+  const content = canonicalPortableCardJson(asset);
+  if (verifiedCardContent.has(content)) {
+    verifiedCardContentHits += 1;
+    return admittedVerification;
+  }
   cardVerificationExecutions += 1;
-  return isLivingCardAsset(asset) ? verifyLivingCard(asset) : verifyPortableCard(asset);
+  const result = isLivingCardAsset(asset) ? verifyLivingCard(asset) : verifyPortableCard(asset);
+  if (result.ok && content.length <= MAX_VERIFIED_CARD_CONTENT_CHARS) {
+    while (verifiedCardContentChars + content.length > MAX_VERIFIED_CARD_CONTENT_CHARS) {
+      const oldest = verifiedCardContent.keys().next().value!;
+      verifiedCardContent.delete(oldest);
+      verifiedCardContentChars -= oldest.length;
+    }
+    verifiedCardContent.set(content, true);
+    verifiedCardContentChars += content.length;
+  }
+  return result;
 }
 
 export type VerifiedPortableCardPin = {

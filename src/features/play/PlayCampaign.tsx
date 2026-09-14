@@ -399,14 +399,22 @@ export function PlayCampaign({
   const physicalCrewTrips = useRef<WildsCrewActiveTrips>(new Map());
   const settleLivingCreatures = useCallback(() => setState((current) => {
       const at = new Date().toISOString();
-      const travelSettled = settleWildsCrewPendingGrowth(current, ownerReceizId, physicalCrewTrips.current);
+      const hidden = document.visibilityState === "hidden";
+      const travelSettled = settleWildsCrewPendingGrowth(current, ownerReceizId, physicalCrewTrips.current, hidden ? Infinity : 1);
       const passiveCards = travelSettled.inventory.filter(asset => !isWildsCrewPhysicallyActive(asset, ownerReceizId, physicalCrewTrips.current));
-      return passiveCards.reduce((next, asset) => applyWildsInput(next, {
+      // A timer for one due companion must not replay the entire restored crew
+      // on a movement frame. The next inventory commit schedules the next due
+      // companion; hidden-page settlement can still drain the whole collection.
+      const dueCards = hidden ? passiveCards : passiveCards.filter(asset => {
+        const dueAt = nextCreatureContinuityDueAt(asset);
+        return dueAt !== null && dueAt <= Date.parse(at);
+      }).slice(0, 1);
+      return dueCards.reduce((next, asset) => applyWildsInput(next, {
         type: "settle-creature-continuity",
         assetId: asset.id,
         ownerReceizId,
         at
-      }), passiveCards.reduce((next, asset) => applyWildsInput(next, {
+      }), dueCards.reduce((next, asset) => applyWildsInput(next, {
         type: "settle-creature-care",
         assetId: asset.id,
         ownerReceizId,

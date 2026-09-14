@@ -204,3 +204,12 @@ test("an explicitly active care mandate can settle irreversible neglect at zero 
   assert.equal(creatureContinuityProjection(after)?.events.at(-1)?.kind, "neglect");
   assert.equal(verifyAnyWildsCard(after).ok, true);
 });
+
+test("a visible due timer cannot settle an entire restored crew in one movement frame", () => {
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  const settlement = campaign.slice(campaign.indexOf("const settleLivingCreatures"), campaign.indexOf("const settleWhenHidden"));
+  assert.match(settlement, /hidden \? Infinity : 1/);
+  assert.match(settlement, /dueAt !== null && dueAt <= Date\.parse\(at\)/);
+  assert.match(settlement, /\.slice\(0, 1\)/);
+  assert.doesNotMatch(settlement, /return passiveCards\.reduce/);
+});
