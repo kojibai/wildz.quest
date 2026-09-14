@@ -87,6 +87,11 @@ export function WildsRaidExperience({ open, boss, raid, encounter, cardName, rol
       <footer className="wilds-raid-footer">
         {!connected ? <button className="wilds-raid-reconnect" onClick={() => onLease("connected")} type="button">Reconnect to reserved slot</button> : null}
         {error ? <p role="alert">{error.replaceAll("_", " ")}</p> : null}
+        {encounter?.acceptedIntent ? <p aria-live="polite" className="wilds-raid-confirmation">
+          {encounter.acceptedIntent.type === "strike" || encounter.acceptedIntent.type === "ability" || encounter.acceptedIntent.type === "interrupt"
+            ? `${encounter.acceptedIntent.type} accepted · ${encounter.acceptedImpact.toLocaleString()} impact`
+            : `${encounter.acceptedIntent.type.replaceAll("_", " ")} accepted · raid support recorded`}
+        </p> : null}
         <WildsRaidActionDock busyIntent={busyIntent} disabled={!connected || encounter?.phase === "defeated"} onAction={onAction} placement={placement} role={role} />
         <button className="wilds-raid-retreat" onClick={onRetreat} type="button">Retreat safely</button>
       </footer>

@@ -62,7 +62,7 @@ import {
   type WildsExplorationAtlas
 } from "./wilds-exploration-atlas";
 import { admitWildsDiscoveryPhysicalNeighborhood, isCanonicalWildsDiscoverySiteKey, normalizeWildsSiteSpaceState, type WildsSiteSpaceState } from "./wilds-discovery-sites";
-import { enterWildsSiteRuntime, exitWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeMovement, type WildsSiteDiscoveryOutput, type WildsSiteMovementOutput, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
+import { enterWildsSiteRuntime, exitWildsSiteRuntime, forceExitWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeMovement, type WildsSiteDiscoveryOutput, type WildsSiteMovementOutput, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import {
   projectWildsTraversalCapabilities,
   type WildsTraversalCapability
@@ -2087,7 +2087,8 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
         y: wildsTerrainElevation(state.player.x, state.player.z),
         z: state.player.z
       })
-      : exitWildsSiteRuntime(input.siteRuntime, currentSpace, input.siteKey);
+      : exitWildsSiteRuntime(input.siteRuntime, currentSpace, input.siteKey)
+        ?? forceExitWildsSiteRuntime(input.siteRuntime, currentSpace, input.siteKey);
     if (!nextSpace) return state;
     return {
       ...state,

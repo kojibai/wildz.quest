@@ -16980,6 +16980,8 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
   .wilds-continuous-builder.is-compact .wilds-builder-inspector > strong { font-size: 11px; }
 }
 .wilds-site-portal-control button { min-height: 44px; padding: 8px 12px; border: 1px solid #9be3c680; border-radius: 22px; background: #102d26ef; color: #e6fff0; font: 600 12px/1.2 system-ui; white-space: nowrap; }
+.wilds-cave-exit-escape { position: fixed; right: max(16px, env(safe-area-inset-right)); top: max(72px, calc(env(safe-area-inset-top) + 56px)); z-index: 5; pointer-events: auto; }
+.wilds-cave-exit-escape button { min-height: 46px; padding: 10px 16px; border: 1px solid #9be3c680; border-radius: 24px; background: #102d26ef; color: #e6fff0; font: 800 12px/1.2 system-ui; box-shadow: 0 8px 24px #0008; }
 @media (max-width: 600px) {
   .wildz-world-controls.is-building .wildz-quick-utilities { display: none; }
 }

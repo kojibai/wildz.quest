@@ -1,5 +1,5 @@
 import { createWildsConstructionGeometryProjector } from "./wilds-construction-geometry";
-import type { WildsTrailBridgeV1 } from "./wilds-steward-construction";
+import type { WildsStructureV1, WildsTrailBridgeV1 } from "./wilds-steward-construction";
 import type { WildsWorldProjection } from "./wilds-world-state";
 
 export const WILDS_TRAIL_BRIDGE_HALF_WIDTH = 1.5 as const;
@@ -39,16 +39,36 @@ export function projectWildsStructureSupports(world?: Pick<WildsWorldProjection,
     }));
   });
   return freeze(Object.values(world.structures)
-    .filter((structure): structure is WildsTrailBridgeV1 => spaceId==="wildz.space.outer.v1" && structure.blueprint === "trail-bridge" && structure.stage === "complete")
-    .map((structure): WildsStructureSupport => ({
-      id: `wildz.support.v1:${structure.structureId}`,
-      structureId: structure.structureId,
-      deckY: structure.physical.deckY,
-      center: { x: structure.position.x, z: structure.position.z },
-      halfWidth: structure.physical.halfWidth,
-      halfLength: structure.physical.halfLength,
-      rotationQuarterTurns: structure.rotationQuarterTurns
-    }))
+    .filter((structure): structure is WildsStructureV1 => spaceId === "wildz.space.outer.v1" && structure.stage === "complete")
+    .flatMap((structure): WildsStructureSupport[] => {
+      if (structure.blueprint === "trail-bridge") {
+        const bridge = structure as WildsTrailBridgeV1;
+        return [{
+          id: `wildz.support.v1:${structure.structureId}`,
+          structureId: structure.structureId,
+          deckY: bridge.physical.deckY,
+          center: { x: structure.position.x, z: structure.position.z },
+          halfWidth: bridge.physical.halfWidth,
+          halfLength: bridge.physical.halfLength,
+          rotationQuarterTurns: structure.rotationQuarterTurns
+        }];
+      }
+      // A finished trail shelter has a raised .4m foundation. The old
+      // renderer drew it, but the movement resolver did not know it existed,
+      // so the explorer could sink through the floor.
+      if (structure.blueprint === "trail-shelter") {
+        return [{
+          id: `wildz.support.shelter:${structure.structureId}`,
+          structureId: structure.structureId,
+          deckY: structure.position.y + .4,
+          center: { x: structure.position.x, z: structure.position.z },
+          halfWidth: 2.8,
+          halfLength: 2.4,
+          rotationQuarterTurns: structure.rotationQuarterTurns
+        }];
+      }
+      return [];
+    })
     .concat(components)
     .sort((left, right) => left.id.localeCompare(right.id)));
 }

@@ -287,6 +287,14 @@ export function exitWildsSiteRuntime(runtime: WildsSiteRuntimeProjection, state:
   if (!portal || Math.hypot(portal.position.x - state.position.x, portal.position.z - state.position.z) > WILDS_SITE_PORTAL_INTERACTION_RADIUS || Math.abs((enterWildsSiteRuntime(runtime, portal.siteKey, portal.position)?.position.y ?? portal.position.y) - state.position.y) > 3) return null;
   return Object.freeze({ version: "wildz.site-space-state.v1", spaceId: OUTER, siteKey: null, surfaceId: null, position: point(portal.position.x, portal.position.y, portal.position.z), flooded: false });
 }
+
+/** Emergency exit for the persistent Leave cave control. */
+export function forceExitWildsSiteRuntime(runtime: WildsSiteRuntimeProjection, state: WildsSiteSpaceState, requestedSiteKey: string): WildsSiteSpaceState | null {
+  if (!state.siteKey || state.spaceId === OUTER || state.siteKey !== requestedSiteKey) return null;
+  const portal = runtime.physical.portals.find((value) => value.siteKey === state.siteKey && value.toSpaceId === state.spaceId);
+  if (!portal || !Number.isFinite(portal.position.x + portal.position.y + portal.position.z)) return null;
+  return Object.freeze({ version: "wildz.site-space-state.v1", spaceId: OUTER, siteKey: null, surfaceId: null, position: point(portal.position.x, portal.position.y, portal.position.z), flooded: false });
+}
 export function wildsSiteRuntimeDiagnostics() { const a = wildsDiscoverySiteDiagnostics(); return Object.freeze({ runtimeBuilds, indexBuilds, movementWrites, aerialWrites, cameraWrites, encounterWrites, discoveryWrites, landingWrites, authorityBuilds: a.regionsBuilt + a.neighborhoodsBuilt + a.physicalNeighborhoodsBuilt + a.surfaceIndexesBuilt }); }
 
 /** Bounded, allocation-free sweep through the prepared interior index. The camera

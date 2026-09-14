@@ -4,7 +4,10 @@ import type { WildsRaidIntent } from "./wilds-raid-encounter";
 import type { WildsRaidCardRole } from "./wilds-raid-roles";
 
 const fighterActions: readonly WildsRaidIntent["type"][] = ["strike", "guard", "focus", "interrupt", "ability", "revive"];
-const supportActions: readonly WildsRaidIntent["type"][] = ["stabilize", "scout", "supply", "rescue", "ward", "rotate_request"];
+// Support is a placement/queue, not a damage lock. A shared boss must remain
+// attackable when all fighter squads are occupied; support players can strike
+// while still contributing their support tools.
+const supportActions: readonly WildsRaidIntent["type"][] = ["strike", "stabilize", "scout", "supply", "rescue", "rotate_request"];
 
 const actionGlyph: Record<WildsRaidIntent["type"], string> = {
   strike: "✦", guard: "◇", focus: "◎", interrupt: "⚡", ability: "◆", revive: "+",

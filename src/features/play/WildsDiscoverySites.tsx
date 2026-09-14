@@ -43,7 +43,10 @@ export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
       {interiorGeometry.portal && Math.hypot(interiorGeometry.portal.position.x - space.position.x, interiorGeometry.portal.position.z - space.position.z) <= WILDS_SITE_PORTAL_INTERACTION_RADIUS ? <group position={[interiorGeometry.portal.position.x - player.x, (interiorGeometry.floors.find(floor => Math.abs(floor.center.x - interiorGeometry.portal!.position.x) <= floor.halfExtents.x && Math.abs(floor.center.z - interiorGeometry.portal!.position.z) <= floor.halfExtents.z)?.center.y ?? space.position.y) - space.position.y + 1, interiorGeometry.portal.position.z - player.z]}>
         <CaveEntrance interior />
         <Html center zIndexRange={[20,0]}><span className="wilds-site-portal-control"><button onClick={(event) => { event.stopPropagation(); onPortal(interiorGeometry.portal!.siteKey, "exit"); }} type="button">Return outside</button></span></Html>
-      </group> : null}
+        </group> : null}
+      {interiorGeometry.portal ? <Html fullscreen zIndexRange={[30, 0]}>
+        <div className="wilds-cave-exit-escape"><button aria-label="Leave cave and return outside" onClick={() => onPortal(interiorGeometry.portal!.siteKey, "exit")} type="button">Leave cave</button></div>
+      </Html> : null}
     </group>;
   }
   return <group name="wilds-discovery-sites">

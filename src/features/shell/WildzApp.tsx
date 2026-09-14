@@ -576,7 +576,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       publication.stop();
       if (retryProfilePublicationRef.current === publication.wake) retryProfilePublicationRef.current = null;
     };
-  }, [profilePublicationReadiness, profilePublicationKey, proofSessionGeneration, identity?.localAuthority, identity?.remoteStatus]);
+  }, [profilePublicationReadiness, profilePublicationKey, proofSessionGeneration, identityActivationRevision, identity?.localAuthority, identity?.remoteStatus]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {
@@ -856,7 +856,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       keyId: outcome.session.keyId,
       actorId: outcome.session.actorId
     });
-    if (current.session.keyId !== outcome.session.keyId || current.session.actorId !== outcome.session.actorId) {
+    // Restoring a seal is an explicit authority refresh. Even for the same
+    // actor, do not let an older confirmation suppress global publication.
+    if (intent === "activate-identity" || current.session.keyId !== outcome.session.keyId || current.session.actorId !== outcome.session.actorId) {
       publishedProfileRef.current = "";
     }
     if (intent === "activate-identity") setIdentityActivationRevision(revision => revision + 1);
