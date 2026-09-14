@@ -23,10 +23,9 @@ export async function publishWildzProfileWithIdentityProof(profile: PublicWildzP
   if (!owner || !sameWildzPlayerCoordinate(owner.actorId, session.actorId)) throw new Error("wildz_public_profile_owner_mismatch");
   const record = createPublicWildzProfileRecord(profile as unknown as Record<string, unknown>, `${WILDZ_PRODUCT.origin}${canonicalWildzProfilePath(profile.username)}`, options.occurredAt);
   if (options.assets !== undefined) {
-    // The public profile is a bounded gallery (currently 120 entries), while
-    // the local Vault may be larger. Carry only the exact assets represented
-    // by this signed profile; cards beyond the gallery continue through the
-    // standalone public-card publisher.
+    // Carry only the exact assets represented by this signed profile. The
+    // local Vault and the public profile may evolve independently, so extra
+    // assets must not make an otherwise valid profile signature fail.
     const assetsById = new Map(options.assets.map(asset => [asset.id, asset]));
     const galleryAssets = record.profile.vault.map(entry => assetsById.get(entry.id));
     record.vaultCards = verifiedWildzProfileCards(record.profile, galleryAssets);

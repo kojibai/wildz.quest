@@ -558,7 +558,12 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           onProgress: progress,
           confirmExisting: true,
           proofObjects: profilePublicationRequest.proofObjects,
-          publishSourceProfile: (profile, assets, signal) => publishWildzProfileWithIdentityProof(profile, { assets, signal }),
+          // A remotely connected identity publishes through its delegated
+          // Receiz session. Use the local signed rail only when this browser
+          // actually has verified Identity-Seal authority.
+          publishSourceProfile: identity?.localAuthority === "verified"
+            ? (profile, assets, signal) => publishWildzProfileWithIdentityProof(profile, { assets, signal })
+            : undefined,
           prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
             ?? wildzGameplayBackground.run(() => JSON.stringify(value))
         });
@@ -571,7 +576,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       publication.stop();
       if (retryProfilePublicationRef.current === publication.wake) retryProfilePublicationRef.current = null;
     };
-  }, [profilePublicationReadiness, profilePublicationKey, proofSessionGeneration, identity?.remoteStatus]);
+  }, [profilePublicationReadiness, profilePublicationKey, proofSessionGeneration, identity?.localAuthority, identity?.remoteStatus]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {
