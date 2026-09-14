@@ -559,10 +559,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           onProgress: progress,
           confirmExisting: true,
           proofObjects: profilePublicationRequest.proofObjects,
-          // A remotely connected identity publishes through its delegated
-          // Receiz session. Use the local signed rail only when this browser
-          // actually has verified Identity-Seal authority.
-          publishSourceProfile: identity?.localAuthority === "verified"
+          // Use the exact delegated Receiz session that made the shared world
+          // live. Local Identity-Seal signing is only a fallback when that
+          // live session is not connected, so the world and profile cannot
+          // disagree about which authority is currently active.
+          publishSourceProfile: !proofSessionConnected && identity?.localAuthority === "verified"
             ? (profile, assets, signal) => publishWildzProfileWithIdentityProof(profile, { assets, signal })
             : undefined,
           prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
