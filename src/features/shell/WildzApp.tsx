@@ -245,6 +245,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const publishedProfileRef = useRef("");
   const [ownerPublicationStatus, setOwnerPublicationStatus] = useState<ProfilePublicationStatus>("unpublished");
   const [ownerPublicationFailure, setOwnerPublicationFailure] = useState<ProfilePublicationFailure | null>(null);
+  const [profileRetryRevision, setProfileRetryRevision] = useState(0);
   const retryProfilePublicationRef = useRef<(() => void) | null>(null);
   const identity = continuity?.session ?? null;
   const campaignExplorer = useMemo(() => continuity ? projectWildzContinuityExplorer(continuity) : null, [continuity]);
@@ -576,7 +577,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       publication.stop();
       if (retryProfilePublicationRef.current === publication.wake) retryProfilePublicationRef.current = null;
     };
-  }, [profilePublicationReadiness, profilePublicationKey, proofSessionGeneration, identityActivationRevision, identity?.localAuthority, identity?.remoteStatus]);
+  }, [profilePublicationReadiness, profilePublicationKey, proofSessionGeneration, identityActivationRevision, profileRetryRevision, identity?.localAuthority, identity?.remoteStatus]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {
@@ -1404,7 +1405,13 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             publicationStatus={viewingOwnProfile && ownerPublicationStatus !== "ready" ? "local" : "published"}
             shareEnabled={!viewingOwnProfile || ownerPublicationStatus === "ready"}
             publicationFailure={viewingOwnProfile ? ownerPublicationFailure?.message : undefined}
-            onRetryPublication={viewingOwnProfile && profilePublicationReadiness === "ready" ? () => retryProfilePublicationRef.current?.() : undefined}
+            onRetryPublication={viewingOwnProfile && profilePublicationReadiness === "ready" ? () => {
+              // A retry must be a new publication lifecycle. Waking a worker
+              // that already completed can otherwise be a silent no-op.
+              publishedProfileRef.current = "";
+              setOwnerPublicationFailure(null);
+              setProfileRetryRevision((revision) => revision + 1);
+            } : undefined}
             publicationMessage={viewingOwnProfile ? ownerPublicationStatus === "ready" ? "Profile is live" : ownerPublicationStatus === "publishing" ? "Syncing profile in the background" : !proofSessionConnected && identity?.localAuthority !== "verified" ? "Saved here · publishes automatically when connected with your Identity Seal" : !(character ?? campaignCharacter) ? "Saved here · publishes after your explorer is ready" : "Saved here · syncing will retry automatically" : undefined}
             publishing={ownerPublicationStatus === "publishing"}
             editable={viewingOwnProfile}
