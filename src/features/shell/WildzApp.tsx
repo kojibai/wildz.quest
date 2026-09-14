@@ -578,7 +578,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       publication.stop();
       if (retryProfilePublicationRef.current === publication.wake) retryProfilePublicationRef.current = null;
     };
-  }, [profilePublicationReadiness, profilePublicationKey, proofSessionGeneration, identityActivationRevision, profileRetryRevision, identity?.localAuthority, identity?.remoteStatus]);
+  }, [profilePublicationReadiness, profilePublicationKey, proofSessionConnected, proofSessionGeneration, identityActivationRevision, profileRetryRevision, identity?.localAuthority, identity?.remoteStatus]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {
