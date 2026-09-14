@@ -31,7 +31,7 @@ test("movement messages retain unchanged admitted inventory and replace it after
   const { createOwnerBoundInitialPlayState } = await import("../src/features/play/game-state");
   const { sealCollectedCard, wildsCardVerificationDiagnostics } = await import("../src/features/play/portable-card");
   const { admitLocallySealedWildsInventory } = await import("../src/features/play/admitted-inventory");
-  const messages: Array<{ input: { playState: { inventory: unknown[] } }; reuseInventory?: boolean }> = [];
+  const messages: Array<{ input: { playState: { inventory: unknown[] } }; reuseInventory?: boolean; inventoryDelta?: { length: number; changes: Array<{ index: number; card: unknown }> } }> = [];
   const encode = createWildzPlayerProjectionEncoder();
   const worker = {
     onmessage: null as ((event: MessageEvent) => void) | null,
@@ -59,7 +59,14 @@ test("movement messages retain unchanged admitted inventory and replace it after
   const updated = JSON.parse((await serializer.serialize({ ...input, playState: { ...input.playState, inventory } }))!);
   assert.equal(messages[2]!.reuseInventory, undefined);
   assert.equal(updated.player.playState.inventory.length, 2);
+  assert.deepEqual(messages[2]!.input.playState.inventory, []);
+  assert.equal(messages[2]!.inventoryDelta!.changes.length, 1);
+  assert.equal(messages[2]!.inventoryDelta!.changes[0]!.card, caught);
+  const removed = JSON.parse((await serializer.serialize({ ...input, playState: { ...input.playState, inventory: input.playState.inventory } }))!);
+  assert.equal(removed.player.playState.inventory.length, 1);
+  assert.equal(removed.player.playState.inventory[0].id, input.playState.inventory[0]!.id);
+  assert.deepEqual(messages[3]!.inventoryDelta, { length: 1, changes: [] });
   serializer.close();
   await serializer.serialize(input);
-  assert.equal(messages[3]!.reuseInventory, undefined);
+  assert.equal(messages[4]!.reuseInventory, undefined);
 });

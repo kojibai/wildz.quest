@@ -1,3 +1,4 @@
+import { deeplyImmutable } from "./wilds-construction-geometry";
 import { projectWildsConstructionProgress, verifyWildsConstructionComponent, verifyWildsMaterialContribution, verifyWildsWorkContribution, type WildsConstructionComponentV1, type WildsConstructionMaterialContributionV1, type WildsConstructionWorkContributionV1 } from "./wilds-construction-component";
 import { verifyWildsStructure, type WildsStewardWorkbenchV1, type WildsStructureV1 } from "./wilds-steward-construction";
 import type { WildsWorldProjection } from "./wilds-world-state";
@@ -32,9 +33,9 @@ export function verifyWildsConstructionFunctionSource(value: unknown, kind: "wor
 export function verifyWildsCraftWorkstation(value: unknown): value is WildsCraftWorkstation {
   return (verifyWildsStructure(value) && value.blueprint === "steward-workbench") || verifyWildsConstructionFunctionSource(value, "workshop");
 }
-export function resolveWildsConstructionFunction(world: WildsWorldProjection, id: string, kind: "workshop" | "storage" | "bed"): WildsConstructionFunctionSource | null {
+function resolveWildsConstructionFunctionUncached(world: WildsWorldProjection, id: string, kind: "workshop" | "storage" | "bed"): WildsConstructionFunctionSource | null {
   const component = world.constructionComponents[id];
-  if (!component || (kind !== "storage" && (world.constructionConditions?.[id]?.integrity ?? 100) < 50)) return null;
+  if (!component || component.kind !== kind || (kind !== "storage" && (world.constructionConditions?.[id]?.integrity ?? 100) < 50)) return null;
   const source: WildsConstructionFunctionSource = { schema: "wildz.construction-function-source.v1", component,
     materials: Object.values(world.constructionMaterialContributions).filter((p) => p.componentId === id),
     work: Object.values(world.constructionWorkContributions).filter((p) => p.componentId === id),
@@ -44,6 +45,31 @@ export function resolveWildsConstructionFunction(world: WildsWorldProjection, id
   if (progress.embeddedLotIds.some((lotId) => world.consumedMaterialLots[lotId] !== id
     || !source.materials.some((proof) => proof.lotId === lotId && world.materialLots[lotId]?.head === proof.lotHead))) return null;
   return source;
+}
+// Cache exact immutable source collections, including negative results. Actor
+// movement changes none of these; a new proof or custody map creates a new key.
+type FunctionCacheLevel = WeakMap<object, FunctionCacheLevel | Map<string, WildsConstructionFunctionSource | null>>;
+const functionCache: FunctionCacheLevel = new WeakMap();
+const noConditions = Object.freeze({});
+export function resolveWildsConstructionFunction(world: WildsWorldProjection, id: string, kind: "workshop" | "storage" | "bed"): WildsConstructionFunctionSource | null {
+  const keys = [world.constructionComponents, world.constructionMaterialContributions, world.constructionWorkContributions, world.constructionConditions ?? noConditions, world.consumedMaterialLots, world.materialLots];
+  if (!keys.every(key => key && deeplyImmutable(key))) return resolveWildsConstructionFunctionUncached(world, id, kind);
+  // Fixed-depth trie avoids hashing full collections on every walking update.
+  let level = functionCache;
+  for (const key of keys.slice(0, -1)) {
+    let next = level.get(key!) as FunctionCacheLevel | undefined;
+    if (!next) { next = new WeakMap(); level.set(key!, next); }
+    level = next;
+  }
+  const last = keys[keys.length - 1]!;
+  let values = level.get(last) as Map<string, WildsConstructionFunctionSource | null> | undefined;
+  if (!values) { values = new Map(); level.set(last, values); }
+  const pin = `${kind}:${id}`;
+  if (values.has(pin)) return values.get(pin)!;
+  const result = resolveWildsConstructionFunctionUncached(world, id, kind);
+  if (result) { Object.freeze(result.materials); Object.freeze(result.work); Object.freeze(result); }
+  values.set(pin, result);
+  return result;
 }
 export function resolveWildsCraftWorkstation(world: WildsWorldProjection, id: string): WildsCraftWorkstation | null {
   const legacy = world.structures[id];

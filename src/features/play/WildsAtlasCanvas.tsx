@@ -419,8 +419,8 @@ function AtlasTerrainTile({
     const addVertex = (regionX: number, regionZ: number, biomeRegionX: number, biomeRegionZ: number) => {
       const worldX = regionX * WILDS_REGION_SIZE;
       const worldZ = regionZ * WILDS_REGION_SIZE;
-      const x = atlasLocalCoordinate(worldX, projection.centerRegion.x, projection.regionUnit);
-      const z = atlasLocalCoordinate(worldZ, projection.centerRegion.z, projection.regionUnit);
+      const x = atlasLocalCoordinate(worldX, tile.minRegionX, projection.regionUnit);
+      const z = atlasLocalCoordinate(worldZ, tile.minRegionZ, projection.regionUnit);
       const node = nodesByRegion.get(`${biomeRegionX}:${biomeRegionZ}`);
       if (!node) return false;
       const terrain = sampleWildsTerrain(worldX, worldZ);
@@ -471,9 +471,9 @@ function AtlasTerrainTile({
     next.setIndex(indices);
     next.computeVertexNormals();
     return next;
-  }, [nodesByRegion, projection.centerRegion.x, projection.centerRegion.z, projection.regionUnit, tile]);
+  }, [nodesByRegion, projection.regionUnit, tile]);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  return <mesh geometry={geometry} name="continuous-world-surface" onClick={handleClick} receiveShadow>
+  return <mesh position={[(tile.minRegionX - projection.centerRegion.x) * projection.regionUnit, 0, (tile.minRegionZ - projection.centerRegion.z) * projection.regionUnit]} geometry={geometry} name="continuous-world-surface" onClick={handleClick} receiveShadow>
     <meshStandardMaterial emissive="#09261e" emissiveIntensity={0.08} metalness={0.01} roughness={0.94} vertexColors />
   </mesh>;
 }

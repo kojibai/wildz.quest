@@ -87,3 +87,22 @@ it("resting in a completed nearby bed restores more energy and rejects distant o
   assert.equal(applyWildsInput(distant, { type: "rest", bed }), distant);
   assert.equal(applyWildsInput(state, { type: "rest", bed: { ...bed, work: [] } }), state);
 });
+
+it("walking reuses immutable function authority but a changed custody map invalidates it", () => {
+  const { world, component } = fixture("workshop", 4);
+  const freeze = (value: unknown): void => {
+    if (!value || typeof value !== "object" || Object.isFrozen(value)) return;
+    for (const child of Object.values(value)) freeze(child);
+    Object.freeze(value);
+  };
+  freeze(world);
+  const first = resolveWildsConstructionFunction(world, component.componentId, "workshop");
+  assert.ok(first);
+  for (let i = 0; i < 100; i++) assert.equal(resolveWildsConstructionFunction({ ...world, revision: world.revision + i }, component.componentId, "workshop"), first);
+  assert.equal(resolveWildsConstructionFunction({ ...world, consumedMaterialLots: Object.freeze({}) }, component.componentId, "workshop"), null);
+  assert.equal(resolveWildsConstructionFunction(world, component.componentId, "storage"), null);
+  const mutable = structuredClone(world);
+  assert.ok(resolveWildsConstructionFunction(mutable, component.componentId, "workshop"));
+  mutable.consumedMaterialLots = {};
+  assert.equal(resolveWildsConstructionFunction(mutable, component.componentId, "workshop"), null);
+});

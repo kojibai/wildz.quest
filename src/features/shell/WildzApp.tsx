@@ -1185,7 +1185,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         })();
     const worldTruthChanged = current.playState?.ownedWorldAdditions !== playState.ownedWorldAdditions;
     const identityTruthChanged = cardTruthChanged || worldTruthChanged;
-    const snapshot = { ...current, playState, playerContinuity, crewCustody: pruneWildzCrewCustody(current.crewCustody, current.session.actorId, playState.inventory) };
+    const snapshot = { ...current, playState, playerContinuity, crewCustody: current.playState?.inventory === playState.inventory ? current.crewCustody : pruneWildzCrewCustody(current.crewCustody, current.session.actorId, playState.inventory) };
     continuityRef.current = snapshot;
     if (cardTruthChanged) {
       setContinuity(snapshot);

@@ -82,9 +82,12 @@ export function createWildzPlayerStateSerializer(options: {
           const reuseInventory = inventory !== undefined && lastInventory !== undefined
             && inventory.length === lastInventory.length
             && inventory.every((asset, index) => asset === lastInventory![index] && isAdmittedWildsCard(asset));
-          activeWorker.postMessage({ id, input: reuseInventory
+          const inventoryDelta = !reuseInventory && inventory && lastInventory && inventory.every(isAdmittedWildsCard)
+            ? { length: inventory.length, changes: inventory.flatMap((card, index) => card === lastInventory![index] ? [] : [{ index, card }]) }
+            : undefined;
+          activeWorker.postMessage({ id, input: reuseInventory || inventoryDelta
             ? { ...input, playState: { ...input.playState, inventory: [] } }
-            : input, ...(reuseInventory ? { reuseInventory: true } : {}) });
+            : input, ...(reuseInventory ? { reuseInventory: true } : {}), ...(inventoryDelta ? { inventoryDelta } : {}) });
           lastInventory = inventory?.slice();
         } catch {
           pending.delete(id);
