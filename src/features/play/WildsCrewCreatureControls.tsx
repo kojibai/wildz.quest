@@ -1,4 +1,5 @@
 "use client";
+import { Icons } from "@/components/icons";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsCrewMode } from "./wilds-crew-preferences";
 import { WildsCrewTravelJournal, type WildsCrewTravelHistory } from "./WildsCrewTravelJournal";
@@ -13,15 +14,16 @@ export function WildsCrewCreatureControls({ card, mode, accompanying, report, di
   onModeChange: (assetId: string, mode: WildsCrewMode) => void;
   readHistory?: WildsCrewTravelHistory;
 }) {
-  return <fieldset style={{ border: "1px solid rgba(255,255,255,.18)", borderRadius: 12, padding: 12 }}>
-    <legend>{card.manifest.name} · Trail exploration</legend>
-    <div role="group" aria-label={`${card.manifest.name} movement`} style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+  return <fieldset className="wilds-expedition-card">
+    <legend><span className="wilds-expedition-emblem"><Icons.roam size={22} aria-hidden="true" /></span><span><small>Trail companion</small><strong>{card.manifest.name}</strong></span></legend>
+    <div role="group" aria-label={`${card.manifest.name} movement`} className="wilds-expedition-actions">
       {(["follow", "roam"] as const).map(value => <button key={value} disabled={disabled} type="button" aria-pressed={mode === value}
-        onClick={() => onModeChange(card.id, value)} style={{ padding: "10px 16px", borderRadius: 8, border: "1px solid currentColor", background: mode === value ? "rgba(94,234,212,.2)" : "transparent", color: "inherit" }}>
-        {value === "follow" ? "Follow / recall" : "Roam & explore"}
+        onClick={() => onModeChange(card.id, value)}>
+        {value === "follow" ? <Icons.home size={17} aria-hidden="true" /> : <Icons.map size={17} aria-hidden="true" />}
+        <span>{value === "follow" ? "Follow / recall" : "Roam & explore"}</span>
       </button>)}
     </div>
-    <small role="status">{report ?? (disabled ? "This creature’s living journey has ended." : mode === "roam" ? "Preparing this creature’s exploration journey." : !accompanying ? "Ready to set out from your location." : mode === "follow" ? "Follow selected. This companion returns when the path is clear." : "Using this creature’s usual companion behavior.")}</small>
+    <small className="wilds-expedition-status" role="status"><i aria-hidden="true" />{report ?? (disabled ? "This creature’s living journey has ended." : mode === "roam" ? "Preparing this creature’s exploration journey." : !accompanying ? "Ready to set out from your location." : mode === "follow" ? "Returning to travel beside you." : "Travelling beside you.")}</small>
     {readHistory ? <WildsCrewTravelJournal key={`${card.manifest.ownerReceizId}:${card.id}:${card.proof.digest}`} assetId={card.id} name={card.manifest.name} readHistory={readHistory} /> : null}
   </fieldset>;
 }

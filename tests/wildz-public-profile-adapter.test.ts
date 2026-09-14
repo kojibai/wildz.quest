@@ -404,3 +404,13 @@ test("source profile waits for exact public visibility and does not repeat an ac
   assert.deepEqual(await publishCurrentWildzProfile(next, [], fetcher, options), next);
   assert.equal(submitted, 1);
 });
+
+test("a failed preliminary public read cannot block publishing the current local profile", async () => {
+ const profile = sanitizePublicWildzProfile({ ...fernProfile, displayName: "Local current", vault: [] });
+ let reads = 0, writes = 0;
+ const fetcher = (async () => { if (++reads === 1) throw new Error("temporary read failure"); return Response.json({ ok: true, profile }); }) as typeof fetch;
+ const result = await publishCurrentWildzProfile(profile, [], fetcher, { confirmExisting: true, publishSourceProfile: async () => { writes++; return profile; } });
+ assert.deepEqual(result, profile);
+ assert.equal(writes, 1);
+ assert.equal(reads, 2);
+});

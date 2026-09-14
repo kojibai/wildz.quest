@@ -57,6 +57,7 @@ export function WildsAtlasCanvas({
   selectedId,
   selectedDrop,
   recenterRequest,
+  recenterPosition,
   northRequest,
   fitRequest,
   reducedMotion,
@@ -72,6 +73,7 @@ export function WildsAtlasCanvas({
   selectedId: string | null;
   selectedDrop: { x: number; z: number } | null;
   recenterRequest: number;
+  recenterPosition?: { x: number; z: number };
   northRequest: number;
   fitRequest: number;
   reducedMotion: boolean;
@@ -160,6 +162,7 @@ export function WildsAtlasCanvas({
           currentPosition={currentPosition}
           far={fogFar}
           fitRequest={fitRequest}
+          recenterPosition={recenterPosition}
           recenterRequest={recenterRequest}
           northRequest={northRequest}
           reducedMotion={reducedMotion}
@@ -188,6 +191,7 @@ function AtlasCameraRig({
   far,
   fitRequest,
   recenterRequest,
+  recenterPosition,
   northRequest,
   reducedMotion,
   regionUnit,
@@ -199,6 +203,7 @@ function AtlasCameraRig({
   far: number;
   fitRequest: number;
   recenterRequest: number;
+  recenterPosition?: { x: number; z: number };
   northRequest: number;
   reducedMotion: boolean;
   regionUnit: number;
@@ -255,10 +260,11 @@ function AtlasCameraRig({
     if (!(camera instanceof THREE.PerspectiveCamera) || !controls.current) return;
     if (lastRecenterRequest.current === recenterRequest) return;
     lastRecenterRequest.current = recenterRequest;
+    const focus = recenterPosition ?? { x: currentPosition.x, z: currentPosition.z };
     const nextTarget = Object.freeze([
-      atlasLocalCoordinate(currentPosition.x, centerRegion.x, regionUnit),
-      atlasTerrainHeight(currentPosition.x, currentPosition.z, regionUnit),
-      atlasLocalCoordinate(currentPosition.z, centerRegion.z, regionUnit)
+      atlasLocalCoordinate(focus.x, centerRegion.x, regionUnit),
+      atlasTerrainHeight(focus.x, focus.z, regionUnit),
+      atlasLocalCoordinate(focus.z, centerRegion.z, regionUnit)
     ]) as readonly [number, number, number];
     const translated = translateWildsAtlasCamera({
       position: [camera.position.x, camera.position.y, camera.position.z],
@@ -271,7 +277,7 @@ function AtlasCameraRig({
     if (floating.rebased) onRenderCenterRegionChange({ ...floating.centerRegion });
     controls.current.update();
     invalidate();
-  }, [camera, centerRegion, currentPosition.x, currentPosition.z, invalidate, onRenderCenterRegionChange, recenterRequest, regionUnit]);
+  }, [camera, centerRegion, currentPosition.x, currentPosition.z, invalidate, onRenderCenterRegionChange, recenterRequest, recenterPosition, regionUnit]);
   useLayoutEffect(() => {
     const orbit = controls.current;
     if (!orbit || lastNorthRequest.current === northRequest) return;
@@ -600,11 +606,11 @@ function MapRoutes({ projection }: { projection: WildsAtlasProjection }) {
 }
 
 function DropPin({ position, projection }: { position: { x: number; z: number } | null; projection: WildsAtlasProjection }) {
-  if (!position || !wildsAtlasContainsWorld(projection.nodes, position)) return null;
+  if (!position) return null;
   const x = atlasLocalCoordinate(position.x, projection.centerRegion.x, projection.regionUnit);
   const z = atlasLocalCoordinate(position.z, projection.centerRegion.z, projection.regionUnit);
-  return <group name="atlas-drop-pin" position={[x, .42, z]}>
-    <mesh position={[0, .24, 0]}><sphereGeometry args={[.16, 16, 12]} /><meshStandardMaterial color="#fff3a0" emissive="#f7c948" emissiveIntensity={2.2} /></mesh>
+  return <group name="atlas-drop-pin" position={[x, atlasTerrainHeight(position.x, position.z, projection.regionUnit) + .18, z]}>
+    <mesh position={[0, .24, 0]}><sphereGeometry args={[.16, 16, 12]} /><meshStandardMaterial color="#fff3a0" emissive="#f7c948" emissiveIntensity={2.2} depthTest={false} /></mesh>
     <mesh position={[0, .06, 0]}><cylinderGeometry args={[.035, .055, .32, 10]} /><meshStandardMaterial color="#f7d25b" roughness={.44} /></mesh>
     <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.38, .03, 8, 32]} /><meshBasicMaterial color="#fff3a0" /></mesh>
   </group>;

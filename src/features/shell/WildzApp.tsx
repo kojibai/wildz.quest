@@ -1,4 +1,5 @@
 "use client";
+import { hasLaterWildsPlayerLedger } from "@/features/play/wilds-play-state-source";
 import { isCurrentWildzGameplaySource } from "../identity/wildz-gameplay-source";
 import { validateWildsRoamingHandoffCard } from "../../lib/receiz/wilds-roaming-handoff";
 import { pruneWildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
@@ -198,6 +199,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         });
         const serialized = await wildzJsonSerializer.serialize(prepared.checkpoint);
         await wildzGameplayBackground.run(() => {
+          const latest = continuityRef.current;
+          if (!latest || !isCurrentWildzGameplaySource(latest, snapshot)
+            || (latest.playState && hasLaterWildsPlayerLedger(latest.playState, playState))) return;
           if (serialized) {
             writePreparedWildzRuntimeCheckpoint(window.localStorage, { key: prepared.key, serialized });
           } else {
@@ -243,9 +247,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const [ownerPublicationFailure, setOwnerPublicationFailure] = useState<ProfilePublicationFailure | null>(null);
   const retryProfilePublicationRef = useRef<(() => void) | null>(null);
   const identity = continuity?.session ?? null;
+  const campaignExplorer = useMemo(() => continuity ? projectWildzContinuityExplorer(continuity) : null, [continuity]);
+  const campaignCharacter = campaignExplorer?.character ?? null;
   const profilePublicationReadiness = wildzProfilePublicationReadiness({
     hasIdentity: Boolean(identity),
-    hasCharacter: Boolean(character),
+    hasCharacter: Boolean(character ?? campaignCharacter),
     proofSessionConnected,
     localSigningAvailable: identity?.localAuthority === "verified"
   });
@@ -279,9 +285,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     username: ownerUsername,
     displayName: identity?.displayName ?? undefined,
     avatarImageUrl,
-    explorer: character,
+    explorer: character ?? campaignCharacter,
     assets: ownerPlayState.inventory
-  }), [avatarImageUrl, character, identity?.displayName, ownerPlayState.inventory, ownerUsername]);
+  }), [avatarImageUrl, character, campaignCharacter, identity?.displayName, ownerPlayState.inventory, ownerUsername]);
   useEffect(() => {
     let cancelled = false;
     // Prepare one preview at a time before Profile is opened, yielding between cards.
@@ -310,8 +316,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     assets: ownerPlayState.inventory,
     proofObjects: admittedProofObjects
   };
-  const campaignExplorer = useMemo(() => continuity ? projectWildzContinuityExplorer(continuity) : null, [continuity]);
-  const campaignCharacter = campaignExplorer?.character ?? null;
   const shellOverlayOwner = overlay?.kind === "profile" ? "profile" : overlay?.kind === "market" ? "market" : "none";
 
   const openShellOverlay = useCallback((next: Exclude<WildzOverlay, null>, fallbackOrigin?: HTMLElement | null) => {
@@ -508,7 +512,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         if (!stillCurrent
           || stillCurrent.session.keyId !== identity.keyId
           || stillCurrent.session.actorId !== identity.actorId) return;
-        if (aligned !== current) acceptSnapshot(aligned);
+        if (aligned !== current && stillCurrent.restoreEpoch === current.restoreEpoch) {
+          acceptSnapshot({ ...stillCurrent, session: aligned.session });
+        }
         setProofSessionConnected(true);
         setProofSessionGeneration(wildzProofSessionGeneration(session));
       }).catch(() => {
@@ -1007,6 +1013,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (!record || record.sourceDigest === lastRemotePlayerDigestRef.current) return;
     const current = continuityRef.current;
     if (!current?.playState || !sameWildzPlayerCoordinate(current.session.actorId, record.playerId)) return;
+    if (!hasLaterWildsPlayerLedger(record.player.playState, current.playState)) return;
     const playState = mergeWildsPlayerPlayStates({
       local: current.playState,
       restored: record.player.playState,
@@ -1391,7 +1398,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             shareEnabled={!viewingOwnProfile || ownerPublicationStatus === "ready"}
             publicationFailure={viewingOwnProfile ? ownerPublicationFailure?.message : undefined}
             onRetryPublication={viewingOwnProfile && profilePublicationReadiness === "ready" ? () => retryProfilePublicationRef.current?.() : undefined}
-            publicationMessage={viewingOwnProfile ? ownerPublicationStatus === "ready" ? "Profile is live" : ownerPublicationStatus === "publishing" ? "Syncing profile in the background" : !proofSessionConnected ? "Saved here · publishes automatically when connected with your Identity Seal" : !character ? "Saved here · publishes after your explorer is ready" : "Saved here · syncing will retry automatically" : undefined}
+            publicationMessage={viewingOwnProfile ? ownerPublicationStatus === "ready" ? "Profile is live" : ownerPublicationStatus === "publishing" ? "Syncing profile in the background" : !proofSessionConnected && identity?.localAuthority !== "verified" ? "Saved here · publishes automatically when connected with your Identity Seal" : !(character ?? campaignCharacter) ? "Saved here · publishes after your explorer is ready" : "Saved here · syncing will retry automatically" : undefined}
             publishing={ownerPublicationStatus === "publishing"}
             editable={viewingOwnProfile}
             signingAvailable={identity?.localAuthority === "verified"}

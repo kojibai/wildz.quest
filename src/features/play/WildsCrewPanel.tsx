@@ -17,18 +17,18 @@ export function WildsCrewPanel({ cards, modes, accompanyingAssetIds, reports = {
   const pageSize = 12;
   const currentPage = Math.min(page, Math.max(0, Math.ceil(cards.length / pageSize) - 1));
   const visibleCards = cards.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
-  return <div className="wilds-command-content">
-    <p>Send creatures to explore nearby trails and return with a travel journal. They keep exploring when you choose another companion, and pause when they need care or leave the loaded area.</p>
-    {cards.length === 0 ? <p>No living creatures in your crew yet.</p> : <div style={{ display: "grid", gap: 12 }}>
+  return <div className="wilds-command-content wilds-expedition-panel">
+    <header className="wilds-expedition-intro"><span>Beyond the familiar</span><h3>Little journeys. Living stories.</h3><p>Let your companions wander, discover, and bring their stories home.</p></header>
+    {cards.length === 0 ? <p className="wilds-expedition-empty">Your next companion begins the story. Find a creature to start your crew.</p> : <div className="wilds-expedition-list">
       {visibleCards.map(card => <WildsCrewCreatureControls key={card.id} card={card} mode={modes[card.id]}
         accompanying={accompanyingAssetIds.includes(card.id)} report={reports[card.id]}
         onModeChange={onModeChange} readHistory={readHistory} />)}
     </div>}
-    {cards.length > pageSize ? <nav aria-label="Crew pages" style={{display:"flex",gap:12,alignItems:"center"}}>
+    {cards.length > pageSize ? <nav aria-label="Crew pages" className="wilds-journal-pagination">
       <button type="button" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous</button>
       <span>{currentPage + 1} / {Math.ceil(cards.length / pageSize)}</span>
       <button type="button" disabled={(currentPage + 1) * pageSize >= cards.length} onClick={() => setPage(currentPage + 1)}>Next</button>
     </nav> : null}
-    <p>Gathering, hauling and construction assignments are not available yet. Exploration records actual visits; it does not create materials or rewards.</p>
+    <p className="wilds-expedition-footnote">Exploration brings back memories of real places visited. Companions pause when they need care.</p>
   </div>;
 }

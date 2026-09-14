@@ -12,6 +12,7 @@ import {
 function vault(playerId: string, exportedAt: string, input: { beans: number; achievements: string[] }) {
   const playState = {
     ...createOwnerBoundInitialPlayState(playerId, "2026-08-26T00:00:00.000Z"),
+    actionHistory: [{ id: "local:test", kind: "activity" as const, title: "Travel", detail: "Player action", authority: "local" as const, uPulse: Date.parse(exportedAt) }],
     beans: input.beans,
     achievements: input.achievements
   };
@@ -70,10 +71,10 @@ test("player-state route requires the verified Receiz actor and never accepts a 
   assert.match(source, /publishWildzPlayerState\(request, actor, body\.player\)/);
 });
 
-test("an admitted state from another browser updates live play without remounting the world", async () => {
+test("an admitted collection update preserves local position without remounting the world", async () => {
   const source = await import("node:fs/promises").then((fs) => fs.readFile("src/features/play/PlayCampaign.tsx", "utf8"));
   assert.match(source, /admittedSourceStateRef\.current === initialState/);
-  assert.match(source, /setState\(initialState\)/);
+  assert.match(source, /admitWildsForwardPosition\(initialState, current\)/);
   assert.doesNotMatch(source, /key=\{[^}]*sourceDigest/);
 });
 
@@ -97,4 +98,15 @@ test("replaying an already merged older save does not create another revision", 
   const merged = convergeWildzPlayerState({ actorId: "wildz", current: first, incoming: older, now: "2026-08-26T02:01:00.000Z" });
   const retried = convergeWildzPlayerState({ actorId: "wildz", current: merged, incoming: older, now: "2026-08-26T02:02:00.000Z" });
   assert.equal(retried, merged);
+});
+
+test("later export time cannot overrule an older player Kai ledger", () => {
+  const latest = vault("wildz", "2026-08-26T02:00:00.000Z", { beans: 9, achievements: [] });
+  const current = convergeWildzPlayerState({ actorId: "wildz", current: null, incoming: latest, now: latest.exportedAt });
+  const { schema: _schema, payloadDigest: _digest, ...basis } = latest;
+  void _schema; void _digest;
+  const stale = createWildsPlayerVault({ ...basis, exportedAt: "2026-08-27T02:00:00.000Z", playState: { ...latest.playState, beans: 1, actionHistory: latest.playState.actionHistory.map(entry => ({ ...entry, uPulse: entry.uPulse - 1 })) } });
+  const result = convergeWildzPlayerState({ actorId: "wildz", current, incoming: stale, now: stale.exportedAt });
+  assert.equal(result.player.playState.beans, 9);
+  assert.equal(result.player.exportedAt, latest.exportedAt);
 });

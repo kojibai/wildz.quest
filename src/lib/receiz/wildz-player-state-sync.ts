@@ -1,3 +1,4 @@
+import { hasLaterWildsPlayerLedger } from "@/features/play/wilds-play-state-source";
 import type { NextRequest } from "next/server";
 import type { JsonObject } from "@receiz/sdk";
 import {
@@ -90,7 +91,7 @@ export function convergeWildzPlayerState(input: {
   }
   if (current?.sourceDigest === input.incoming.payloadDigest) return current;
   const incomingIsNewest = !current
-    || Date.parse(input.incoming.exportedAt) >= Date.parse(current.player.exportedAt);
+    || hasLaterWildsPlayerLedger(input.incoming.playState, current.player.playState);
   const preferred = incomingIsNewest ? input.incoming : current!.player;
   const other = incomingIsNewest ? current?.player : input.incoming;
   const playState = other

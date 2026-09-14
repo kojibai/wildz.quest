@@ -1,3 +1,4 @@
+import { hasLaterWildsPlayerLedger } from "../play/wilds-play-state-source";
 import { isVerifiedWildzCardDescendant } from "../../lib/receiz/wildz-card-descendant";
 import { readWildzArtifactCrewCustody, mergeWildzCrewCustody, wildzCrewCustodySources, type WildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
 import { normalizeWildzCrewCustodySources, wildzCrewCustodySourceKey } from "../../lib/receiz/wildz-crew-custody-source";
@@ -391,6 +392,7 @@ export async function saveWildzRestoredPlayState(input: {
   const scope = wildzOwnerScope(input.session.keyId, input.session.actorId);
   return input.database.transaction(["ownerStates", "meta"], "readwrite", async (tx) => {
     const current = storedOwnerState(await tx.get<unknown>("ownerStates", scope), input.session);
+    if (current && hasLaterWildsPlayerLedger(current.playState, input.playState)) return current.playState;
     const stored = createStoredWildzPlayState(
       input.session,
       input.playState,
@@ -540,9 +542,13 @@ export async function restoreWildzArtifactForSurface(input: {
             mergeBase,
             assets
           );
-      const next = merged;
+      const keepLaterLocalLedger = Boolean(playerForSession && sameWildzPlayerCoordinate(playerForSession.playerId, session.actorId)
+        && hasLaterWildsPlayerLedger(current, merged));
+      const next = keepLaterLocalLedger
+        ? (shouldMergeIntoActiveVault ? { ...current, inventory: merged.inventory } : current)
+        : merged;
       const localContinuity = input.currentPlayerContinuity ?? (previous ? continuityFromOwner(previous) : null);
-      const carriedContinuity = shouldCarryCurrentVault
+      const carriedContinuity = keepLaterLocalLedger ? localContinuity : shouldCarryCurrentVault
         ? localContinuity
         : shouldMergeIntoActiveVault
           ? mergePlayerContinuity(localContinuity, playerForSession)

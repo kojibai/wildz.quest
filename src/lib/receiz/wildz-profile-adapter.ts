@@ -259,7 +259,7 @@ export async function publishCurrentWildzProfile(
   // Confirm this exact public revision before waiting on unrelated standalone-card
   // uploads. The independent card publisher continues servicing the full Vault.
   if (options.confirmExisting) {
-    const existing = await fetchPublicWildzProfile(profile.username, fetcher, { signal: options.signal });
+    const existing = await fetchPublicWildzProfile(profile.username, fetcher, { signal: options.signal }).catch(() => null);
     options.signal?.throwIfAborted();
     if (existing && canonicalPortableCardJson(existing) === canonicalPortableCardJson(sanitizePublicWildzProfile(profile))) {
       pendingSourceProfiles.get(fetcher)?.delete(profile.username);

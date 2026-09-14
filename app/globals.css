@@ -17155,3 +17155,60 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wilds-atlas-intelligence > summary::before { content: "+"; font-size: 18px; }
 .wilds-atlas-intelligence[open] > summary::before { content: "−"; }
 .wilds-atlas-intelligence[open] { max-height: min(50dvh, 380px); overflow-y: auto; }
+
+/* Expedition folios share the world's deep green glass and warm metal accents. */
+.wilds-expedition-panel { --expedition-ink: #e8f7ef; --expedition-muted: #9bbcb6; color: var(--expedition-ink); }
+.wilds-expedition-intro { padding: 2px 0 18px; }
+.wilds-expedition-intro > span, .wilds-journal-heading > span { color: #d9ca86; font-size: 10px; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+.wilds-expedition-intro h3 { margin: 8px 0; font-size: clamp(20px, 4vw, 26px); font-weight: 650; line-height: 1.18; text-wrap: balance; }
+.wilds-expedition-intro p, .wilds-expedition-footnote { color: #9bbcb6; font-size: 12px; line-height: 1.6; margin: 0; }
+.wilds-expedition-list { display: grid; gap: 18px; }
+.wilds-expedition-card { min-width: 0; margin: 0; padding: 14px; border: 1px solid #83d8bf30; border-radius: 20px; background: linear-gradient(145deg, #153b3cbd, #081e27e8); box-shadow: inset 0 1px #ffffff08, 0 8px 24px #00000012; color: #e8f7ef; }
+.wilds-expedition-card legend { max-width: 100%; padding: 0 7px; display: flex; gap: 10px; align-items: center; }
+.wilds-expedition-card legend > span:last-child { min-width: 0; }
+.wilds-expedition-card legend small { display: block; color: #9bbcb6; font-size: 9px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+.wilds-expedition-card legend strong { display: block; font-size: 19px; font-weight: 750; overflow-wrap: anywhere; line-height: 1.3; }
+.wilds-expedition-emblem { display: grid; place-items: center; flex: 0 0 42px; height: 42px; color: #dcd399; border: 1px solid #ded29240; border-radius: 15px; background: #1a3e3d; }
+.wilds-expedition-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.wilds-expedition-actions button { min-height: 46px; min-width: 0; padding: 9px 8px; display: flex; gap: 7px; justify-content: center; align-items: center; border: 1px solid #84c8b330; border-radius: 13px; background: #081e2766; color: #c2dbd5; font-size: 11px; font-weight: 800; line-height: 1.25; }
+.wilds-expedition-actions button svg { flex-shrink: 0; }
+.wilds-expedition-actions button[aria-pressed="true"] { color: #dcfff0; border-color: #74dfb98c; background: linear-gradient(145deg, #266958, #16453e); box-shadow: inset 0 1px #ffffff14; }
+.wilds-expedition-card button:disabled { opacity: .4; cursor: not-allowed; }
+.wilds-expedition-card button:focus-visible, .wilds-travel-journal summary:focus-visible { outline: 2px solid #f0df9c; outline-offset: 3px; }
+.wilds-expedition-card button:not(:disabled):hover { border-color: #e4d698; }
+.wilds-expedition-status { display: flex; align-items: baseline; gap: 7px; padding: 13px 2px 2px; color: #b7d5cb; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.wilds-expedition-status i { width: 5px; height: 5px; flex: 0 0 5px; border-radius: 50%; background: #b9ceac; }
+.wilds-travel-journal { color: #daede6; margin-top: 13px; border-top: 1px solid #8bd4bd24; }
+.wilds-travel-journal .wilds-journal-toggle { display: flex; width: 100%; align-items: center; gap: 8px; min-height: 44px; padding: 9px 2px; color: #dace9b; border: 0; background: transparent; text-align: left; font-size: 11px; font-weight: 800; }
+.wilds-journal-toggle > svg:last-child { margin-left: auto; }
+.wilds-journal-toggle[aria-expanded="true"] > svg:last-child { transform: rotate(180deg); }
+.wilds-journal-heading { display: grid; gap: 5px; padding: 9px 0 16px; }
+.wilds-journal-heading small { color: #94b5ae; font-size: 10px; }
+.wilds-journal-timeline { list-style: none; margin: 0 0 14px 5px; padding: 0 0 0 17px; border-left: 1px solid #81bea443; display: grid; gap: 18px; }
+.wilds-journal-timeline > li { position: relative; min-width: 0; font-size: 11px; line-height: 1.5; }
+.wilds-journal-timeline > li::before { content: ""; position: absolute; left: -21px; top: 5px; width: 7px; height: 7px; border-radius: 50%; background: #88c9b1; box-shadow: 0 0 0 3px #102d30; }
+.wilds-journal-timeline > li[data-event="returned"]::before { background: #ebd790; }
+.wilds-journal-timeline strong { font-size: 12px; color: #e7f7ef; }
+.wilds-journal-coordinate { color: #9abcb5; font-variant-numeric: tabular-nums; }
+.wilds-journal-reward { color: #e5d595; }
+.wilds-journal-record { margin-top: 4px; color: #94b5ae; font-size: 10px; overflow-wrap: anywhere; }
+.wilds-journal-record summary { cursor: pointer; padding: 5px 0; }
+.wilds-journal-battle { padding: 10px 0; border-bottom: 1px solid #8bd4bd24; font-size: 11px; line-height: 1.5; }
+.wilds-journal-battle summary { min-height: 34px; cursor: pointer; }
+.wilds-travel-journal section > button, .wilds-travel-journal p button, .wilds-journal-pagination button { min-height: 44px; padding: 8px 12px; border: 1px solid #84c8b330; border-radius: 12px; color: #d4e9df; background: #163a38; font-size: 11px; }
+.wilds-journal-refresh { margin-left: 8px; }
+.wilds-journal-pagination { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-top: 14px; font-size: 11px; }
+.wilds-expedition-empty { padding: 18px 4px; color: #d7dec9; font-size: 13px; line-height: 1.7; }
+.wilds-expedition-empty small { color: #94b5ae; font-size: 11px; }
+.wilds-expedition-panel .wilds-expedition-footnote { margin: 16px 2px 0; font-size: 10px; }
+.wilds-world-map-header h2 { font-size: clamp(16px, 2vw, 19px); font-weight: 650; line-height: 1.18; text-wrap: balance; color: #eef3d9; }
+.wilds-world-map-header .eyebrow { color: #a4c7b8; letter-spacing: .12em; font-size: 9px; }
+.wilds-tracked-destination, .wilds-atlas-destination { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid #dfd29666; border-radius: 16px; color: #eadfa5; background: #0b252af2; box-shadow: 0 5px 20px #0003; }
+.wilds-tracked-destination { position: absolute; z-index: 5; left: 50%; bottom: 190px; transform: translateX(-50%); width: min(310px, calc(100% - 24px)); }
+.wilds-tracked-destination > span, .wilds-atlas-destination > span { min-width: 0; flex: 1; }
+.wilds-tracked-destination strong, .wilds-atlas-destination strong { display: block; font-size: 12px; overflow-wrap: anywhere; }
+.wilds-tracked-destination small, .wilds-atlas-destination small { display: block; font-size: 11px; color: #bad2c7; }
+.wilds-tracked-destination button, .wilds-atlas-destination button { flex: 0 0 44px; min-height: 44px; display: grid; place-items: center; color: #edf5dc; background: transparent; border: 1px solid #b8d1bf30; border-radius: 12px; }
+.wilds-atlas-destination { position: absolute; z-index: 4; left: 10px; top: 220px; width: min(290px, calc(100% - 20px)); }
+.wilds-atlas-destination .wilds-atlas-destination-focus { flex: 1; display: block; text-align: left; border: 0; min-width: 0; }
+.wilds-journal-memory { margin: 5px 0 8px; color: #bad2c9; font-size: 11px; line-height: 1.65; }

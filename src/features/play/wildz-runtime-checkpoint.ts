@@ -1,3 +1,4 @@
+import { hasLaterWildsPlayerLedger } from "./wilds-play-state-source";
 import { restorePlayState, serializePlayState, type PlayState } from "./game-state";
 import {
   createAdmittedWildsInventory,
@@ -278,6 +279,7 @@ export function readWildzRuntimeCheckpoint(storage: RuntimeStorage, input: {
       ...checkpoint.playState,
       inventory
     } as PlayState), input.actorId, admittedInventory);
+    if (hasLaterWildsPlayerLedger(input.playState, restored)) return input.playState;
     const traversalAssetIds = [restored.selectedAssetId, ...restored.supportAssetIds].filter((assetId): assetId is string => Boolean(assetId));
     return {
       ...restored,

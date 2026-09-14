@@ -1,3 +1,4 @@
+import { describeWildsCrewMemory } from "../src/features/play/wilds-crew-memory";
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import { createWildsCrewExpeditions, chooseWildsCrewExpeditionStops, WILDS_CREW_EXPEDITION_OBSERVE_UPULSES } from "../src/features/play/wilds-crew-expedition";
@@ -143,4 +144,14 @@ it("restores the last actual anchor through continue and recall controls instead
  kai+=WILDS_CREW_EXPEDITION_OBSERVE_UPULSES;trip=await store.continue(base());
  const restored=await createWildsCrewExpeditions(db).read("owner","asset");assert.deepEqual(restored!.actualPosition,anchor);assert.notDeepEqual(anchor,origin);
  trip=await store.recall(base());assert.deepEqual((await createWildsCrewExpeditions(db).read("owner","asset"))!.actualPosition,anchor);assert.equal(trip.actualSpaceId,"outer");
+});
+
+it("travel prose distinguishes planned stops from actual observations", async () => {
+ const store=createWildsCrewExpeditions(createMemoryWildzContinuityDatabase());
+ const trip=await store.start(start);
+ assert.match(describeWildsCrewMemory(trip,"Mira"), /planned/);
+ assert.doesNotMatch(describeWildsCrewMemory(trip,"Mira"), /stopped on/);
+ const arrived=await store.arrive({ownerReceizId:"owner",assetId:"asset",expectedHead:trip.head,kaiUPulse:101,spaceId:"outer",actualPosition:trip.currentStop!.position});
+ assert.match(describeWildsCrewMemory(arrived,"Mira"), /Mira stopped on/);
+ assert.match(describeWildsCrewMemory(arrived,"Mira"), /Observation 1/);
 });

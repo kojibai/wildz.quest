@@ -561,3 +561,13 @@ test("Commerce packages require canonical root and Fibonacci backlink fields", a
   });
   assert.equal(invalidBacklink.kind, "invalid");
 });
+
+test("an older queued database save cannot rewind a later committed Kai ledger", async () => {
+ const { database, repository } = createCodec();
+ const session = await repository.bootstrap();
+ const history = (uPulse: number) => [{ id: "local:travel", kind: "activity" as const, title: "Travel", detail: "Moved", uPulse, authority: "local" as const }];
+ const newer = { ...initialPlayState, player: { x: 90, z: 10 }, actionHistory: history(200) };
+ await saveWildzRestoredPlayState({ database, session, playState: newer });
+ const result = await saveWildzRestoredPlayState({ database, session, playState: { ...initialPlayState, player: { x: 1, z: 2 }, actionHistory: history(100) } });
+ assert.deepEqual(result.player, newer.player);
+});

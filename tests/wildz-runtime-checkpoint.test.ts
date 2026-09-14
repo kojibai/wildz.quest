@@ -60,3 +60,12 @@ test("a runtime checkpoint cannot attach to a changed Vault", () => {
     playState: changedVault
   }), changedVault);
 });
+
+test("refresh cannot replace a newer durable player ledger with an older runtime checkpoint", () => {
+  const storage = new MemoryStorage();
+  const base = createOwnerBoundInitialPlayState("runtime_keeper");
+  const history = (uPulse: number) => [{ id: "local:travel", kind: "activity" as const, title: "Travel", detail: "Moved", uPulse, authority: "local" as const }];
+  const newer = { ...base, player: { x: 90, z: 20 }, actionHistory: history(200) };
+  writeWildzRuntimeCheckpoint(storage, { keyId: "runtime-key", actorId: "runtime_keeper", playState: { ...base, player: { x: 1, z: 1 }, actionHistory: history(100) } });
+  assert.equal(readWildzRuntimeCheckpoint(storage, { keyId: "runtime-key", actorId: "runtime_keeper", playState: newer }), newer);
+});

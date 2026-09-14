@@ -1,4 +1,6 @@
 "use client";
+import { describeWildsCrewMemory } from "./wilds-crew-memory";
+import { Icons } from "@/components/icons";
 import { useRef, useState } from "react";
 import type { WildsCrewExpedition } from "./wilds-crew-expedition";
 import type { WildsRoamingHistoryReport } from "./wilds-roaming-report-store";
@@ -34,35 +36,36 @@ export function WildsCrewTravelJournal({ assetId, name, readHistory }: {
     } catch { if (request.current === token) setError(true); }
     finally { if (request.current === token) setBusy(false); }
   };
-  return <div style={{ marginTop: 12 }}>
+  return <div className="wilds-travel-journal">
     <button type="button" aria-expanded={open} onClick={() => {
       setOpen(!open);
       if (!open) void load();
       else { request.current++; setBusy(false); }
-    }} style={{ color: "inherit", background: "transparent", border: "1px solid currentColor", borderRadius: 8, padding: "8px 12px" }}>
-      {open ? "Close travel journal" : "Travel journal"}
+    }} className="wilds-journal-toggle">
+      <Icons.book size={17} aria-hidden="true" /><span>{open ? "Close travel journal" : "Travel journal"}</span><Icons.chevronDown size={16} aria-hidden="true" />
     </button>
     {open ? <section aria-label={`${name} travel journal`} aria-busy={busy}>
-      <p style={{ opacity: .75 }}>Actual trips recorded on this device · newest first</p>
+      <header className="wilds-journal-heading"><span>Travel memories</span><small>Newest first · recorded on this device</small></header>
       {!busy && !error && page?.battles?.length ? <div aria-label="Roaming battle reports">
         <strong>Roaming battles</strong>
-        {page.battles.map(battle => <details key={battle.encounterId} style={{ marginBlock: 8 }}>
+        {page.battles.map(battle => <details key={battle.encounterId} className="wilds-journal-battle">
           <summary>{battle.outcome === "capture-eligible" ? "Challenger won" : battle.outcome === "defended" ? "Creature defended itself" : battle.outcome === "retreated" ? "Challenger retreated" : "Battle ended"} · Kai {battle.kaiUPulse}</summary>
           <ol>{battle.events.map((event, index) => <li key={index}>{event}</li>)}</ol>
         </details>)}
       </div> : null}
       {busy ? <p role="status">Opening travel records…</p> : error ? <p role="status">Travel records could not be opened. <button type="button" onClick={() => void load()}>Retry</button></p>
-        : page?.observations.length ? <ol style={{ paddingLeft: 20, display: "grid", gap: 12 }}>
-          {page.observations.map(row => <li key={row.head}>
+        : page?.observations.length ? <ol className="wilds-journal-timeline">
+          {page.observations.map(row => <li key={row.head} data-event={row.kind}>
             <strong>{labels[row.kind]}</strong>
-            {row.actualPosition ? <div>Trail coordinates {row.actualPosition.x.toFixed(1)}, {row.actualPosition.z.toFixed(1)}</div> : null}
-            {row.kind === "returned" ? <div>{row.totalObserved??row.visitedPointIds.length} locations observed</div> : null}
+            <p className="wilds-journal-memory">{describeWildsCrewMemory(row, name)}</p>
+            {row.actualPosition ? <div className="wilds-journal-coordinate">Trail coordinates {row.actualPosition.x.toFixed(1)}, {row.actualPosition.z.toFixed(1)}</div> : null}
+            {row.kind === "returned" ? <div className="wilds-journal-reward">{row.totalObserved??row.visitedPointIds.length} locations observed</div> : null}
             {row.blocker ? <div>{row.blocker}</div> : null}
-            <small style={{ display: "block", marginTop: 4, opacity: .7, overflowWrap: "anywhere" }}>Kai order {row.causalKaiUPulse} · record {row.revision}</small>
+            <details className="wilds-journal-record"><summary>Record {row.revision}</summary><small>Kai order {row.causalKaiUPulse}</small></details>
           </li>)}
-        </ol> : <p>No exploration trips recorded yet.</p>}
+        </ol> : <p className="wilds-expedition-empty">A story waiting to unfold.<br /><small>Send this companion exploring to begin its journal.</small></p>}
       {!busy && !error && page?.nextCursor ? <button type="button" onClick={() => void load(page.nextCursor!)}>Older records</button> : null}
-      {!busy && page ? <button type="button" onClick={() => void load()} style={{ marginLeft: 12 }}>Latest records</button> : null}
+      {!busy && page ? <button type="button" onClick={() => void load()} className="wilds-journal-refresh">Latest records</button> : null}
     </section> : null}
   </div>;
 }

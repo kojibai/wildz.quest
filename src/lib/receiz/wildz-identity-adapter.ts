@@ -219,7 +219,7 @@ export async function alignWildzContinuityWithProofSession(
       : null;
     await database.transaction(["meta", "ownerStates"], "readwrite", async (tx) => {
       await repository.writeSession(tx, session, true);
-      if (stored) await tx.put("ownerStates", stored, nextScope);
+      if (stored && oldScope !== nextScope) await tx.put("ownerStates", stored, nextScope);
       if (oldScope !== nextScope) await tx.delete("ownerStates", oldScope);
     });
     return { ...snapshot, session };

@@ -19,7 +19,7 @@ import { resolveWildsConstructionFunction } from "./wilds-construction-function"
 
 import dynamic from "next/dynamic";
 import { buildWildsRoamingPresenceUploads, projectWildsRemoteRoamingMarkers, type WildsRoamingPresenceUpload } from "./wilds-roaming-presence";
-import { createWildsPlayStateSourceAdmission } from "./wilds-play-state-source";
+import { createWildsPlayStateSourceAdmission, retainWildsLocalPosition, admitWildsForwardPosition } from "./wilds-play-state-source";
 import type { WildsCrewMapSource } from "./wilds-crew-map";
 import { useWildsCrewExpeditions } from "./use-wilds-crew-expeditions";
 import { WildsCrewPanel } from "./WildsCrewPanel";
@@ -350,7 +350,7 @@ export function PlayCampaign({
     // The shell has already reconciled this state against the active Receiz ID.
     // Adopt that source directly so another authenticated browser can advance
     // live gameplay without remounting Canvas or replaying local input.
-    setState(initialState);
+    setState(current => admitWildsForwardPosition(initialState, current));
   }, [initialState, sourceAdmission]);
   const [memorialAssetId, setMemorialAssetId] = useState<string | null>(null);
   const gameplaySurfaceRef = useRef<HTMLDivElement | null>(null);
@@ -463,6 +463,7 @@ export function PlayCampaign({
   const explorerStyle = character.gender;
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
+  const [trackedDestination, setTrackedDestination] = useState<{ label: string; x: number; z: number } | null>(null);
   const [mapVisited, setMapVisited] = useState(false);
   const [roamingDialogOpen, setRoamingDialogOpen] = useState(false);
   const [roamingAuthorizationPending, setRoamingAuthorizationPending] = useState(false);
@@ -1068,7 +1069,7 @@ export function PlayCampaign({
       if (!response.ok || !result.card || !result.artifact) throw new Error(result.error ?? "Capture could not complete.");
       const file = new File([receizBase64UrlDecode(result.artifact.exactBytesB64u).slice().buffer], result.artifact.filename, { type: result.artifact.mimeType });
       const committed = await onRestoreRoamingCapture(file, result.card, state);
-      setState(committed.playState);
+      setState(current => retainWildsLocalPosition(committed.playState, current));
       showWorldFeedback(`${result.card.manifest.name} joined your collection.`);
     }
   });
@@ -1246,12 +1247,14 @@ export function PlayCampaign({
     if (Math.hypot(deltaX, deltaZ) > 0.0001) setPlayerHeading(Math.atan2(deltaX, -deltaZ));
   }, [aquaticPresentation.terrainElevation, resetTransientTraversal, state.player]);
 
+  const joinedInvite = useRef(false);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const joinRoom = params.get("wildsJoin");
     const joinX = Number(params.get("wildsX"));
     const joinZ = Number(params.get("wildsZ"));
-    if (/^invite:[a-f0-9]{16}$/.test(joinRoom ?? "") && Number.isFinite(joinX) && Number.isFinite(joinZ)) {
+    if (!joinedInvite.current && /^invite:[a-f0-9]{16}$/.test(joinRoom ?? "") && Number.isFinite(joinX) && Number.isFinite(joinZ)) {
+      joinedInvite.current = true;
       setState((current) => ({
         ...current,
         player: { x: joinX + 1.4, z: joinZ + 1.4 },
@@ -1585,7 +1588,9 @@ export function PlayCampaign({
     }
     const source = selectNearestWildsWorkSource(candidates, family, state.player, 5.5);
     if (!source) {
-      showWorldFeedback(`Move toward a glowing ${family === "lumber" ? "tree" : "stone"} ring, then tap this button again.`);
+      const destination = selectNearestWildsWorkSource(candidates, family, state.player, 1000);
+      if (destination) setTrackedDestination({ label: family === "lumber" ? "Gather timber" : "Gather stone", x: destination.position.x, z: destination.position.z });
+      showWorldFeedback(destination ? "Follow the marked resource, then gather inside its ring." : `No available ${family === "lumber" ? "tree" : "stone"} nearby. Explore farther to find one.`);
       return;
     }
     void gatherStewardResource(source, true);
@@ -2250,24 +2255,27 @@ export function PlayCampaign({
   const closeJourney = () => { dispatchStageOverlay({ type: "panel", key: null }); setRequestedCommand(null); setCommandDismissSignal(signal=>signal+1); };
   const followJourneyStep = (action: WildsNextStepAction) => {
     if (!interactionEnabled || modalOwner !== "none" || worldOverlayState.panelKey !== "mission") return;
-    if (action === "shelter" && unfinishedJourneyShelter) { setRequestedCommand("construction"); showWorldFeedback(`Your shelter site is ${wildsTrailDirection(state.player, unfinishedJourneyShelter.position)}. Approach it to add materials or finish.`, true); return; }
+    if (action === "shelter" && unfinishedJourneyShelter) { setTrackedDestination({ label: "Finish your shelter", ...unfinishedJourneyShelter.position }); setRequestedCommand("construction"); showWorldFeedback(`Your shelter site is ${wildsTrailDirection(state.player, unfinishedJourneyShelter.position)}. Approach it to add materials or finish.`, true); return; }
     closeJourney();
     if (action === "scan") { dispatchLayeredSearch(state.player, true); return; }
     if (action === "gather-timber" || action === "gather-stone") { gatherNearestStewardResource(action === "gather-timber" ? "lumber" : "quarry"); return; }
     if (action === "explore") {
       const site = nextReachableWildsSite(siteRuntime.sites, state.explorationAtlas.siteKeys, state.player, activeTraversalCapabilities);
+      if (site) setTrackedDestination({ label: site.family.replaceAll("-", " "), x: site.entrance.x, z: site.entrance.z });
       const guidance = site ? projectWildsDiscoveryStory(site, activeTraversalCapabilities, false) : null;
       showWorldFeedback(site ? `Your next trail: ${site.family.replaceAll("-", " ")}, ${wildsTrailDirection(state.player, site.entrance)}. ${wildsDiscoveryImpression(site)} ${guidance?.approachHint ?? ""} ${guidance?.routeHint ?? ""}` : "You have explored the nearby sites. Travel beyond this region to find a new trail.", true);
       return;
     }
     if (state.siteSpace.spaceId !== "wildz.space.outer.v1") { showWorldFeedback("Return to the open world before placing this structure."); return; }
     if ((action === "workbench" || action === "cache") && journeyHome && homeDistance > 6) {
+      setTrackedDestination({ label: "Your shelter", ...journeyHome.position });
       showWorldFeedback(`Return to your shelter first: ${wildsTrailDirection(state.player, journeyHome.position)}. Place this building within 24 m of your shelter so it becomes part of your home.`, true);
       return;
     }
     continuousBuilder.close();
-    setStewardPlacementMode(action === "shelter" ? "trail-shelter" : action === "workbench" ? "steward-workbench" : "trail-cache");
-    setStewardPlacementPreview(null);
+    const blueprintId = action === "shelter" ? "trail-shelter" : action === "workbench" ? "steward-workbench" : "trail-cache";
+    setStewardPlacementMode(blueprintId);
+    setStewardPlacementPreview(projectWildsStewardPlacement({ actorPosition: state.player, blueprintId, point: { x: state.player.x + 2, z: state.player.z + 2 } }));
     showWorldFeedback("Tap nearby ground to preview your build, then confirm its position.");
   };
   const restAtJourneyHome = () => {
@@ -2414,7 +2422,7 @@ export function PlayCampaign({
       status: `${saga.act.ark} · ${saga.chapter.title}`,
       content: (
         <div className="wilds-command-content wilds-mission-content">
-          <WildsJourneyPanel step={nextJourneyStep} companionName={activeAsset?.manifest.name} memories={journeyMemories} home={journeyHome ? { label: "Your trail shelter", distance: homeDistance } : undefined} onAction={followJourneyStep} onReturnHome={() => { if (!journeyHome) return; closeJourney(); showWorldFeedback(`Your trail shelter is ${wildsTrailDirection(state.player, journeyHome.position)}. Rest beside it to recover for your next journey.`, true); }} onRest={restAtJourneyHome} canRest={homeDistance <= 6 && state.siteSpace.spaceId === "wildz.space.outer.v1" && !state.battle} />
+          <WildsJourneyPanel step={nextJourneyStep} companionName={activeAsset?.manifest.name} memories={journeyMemories} home={journeyHome ? { label: "Your trail shelter", distance: homeDistance } : undefined} onAction={followJourneyStep} onReturnHome={() => { if (!journeyHome) return; setTrackedDestination({ label: "Your shelter", ...journeyHome.position }); closeJourney(); showWorldFeedback(`Your trail shelter is ${wildsTrailDirection(state.player, journeyHome.position)}. Rest beside it to recover for your next journey.`, true); }} onRest={restAtJourneyHome} canRest={homeDistance <= 6 && state.siteSpace.spaceId === "wildz.space.outer.v1" && !state.battle} />
           {companionChapter ? <WildsCompanionChapter chapter={companionChapter} onFindPlace={(position, kind) => {
             if (!interactionEnabled || modalOwner !== "none" || worldOverlayState.panelKey !== "mission") return;
             closeJourney();
@@ -2422,6 +2430,7 @@ export function PlayCampaign({
               showWorldFeedback("Return to the open world to follow this shared trail.", true);
               return;
             }
+            setTrackedDestination({ label: kind === "meeting" ? "Where you first met" : "Your shared trail", ...position });
             showWorldFeedback(`${kind === "meeting" ? "Where you first met" : "Your next shared trail"}: ${wildsTrailDirection(state.player, position)}.`, true);
           }} /> : null}
           {homeLife ? <WildsHomeLife home={homeLife} onAction={doHomeActivity} /> : null}
@@ -3015,6 +3024,11 @@ export function PlayCampaign({
 
             {discoveryActive ? <div className={`wilds-search-reticle ${state.encounter.phase === "idle" ? "" : activeProximity}`} aria-live="polite">{proximityLabel}</div> : null}
 
+            {trackedDestination && exclusiveOwner === "none" ? <div className="wilds-tracked-destination" role="status">
+              <Icons.map size={17} aria-hidden="true" /><span><strong>{trackedDestination.label}</strong><small>{wildsTrailDirection(state.player, trackedDestination)}</small></span>
+              <button aria-label="Show tracked destination on map" onClick={openWorldMap} type="button"><Icons.map size={16} /></button>
+              <button aria-label="Clear tracked destination" onClick={() => setTrackedDestination(null)} type="button"><Icons.close size={16} /></button>
+            </div> : null}
             <div className={`wilds-event-toast${captureToastActive ? " is-capture" : ""}`} aria-live="polite">
               {captureToastActive ? <Icons.seal aria-hidden="true" size={19} /> : null}
               <span key={worldFeedbackRevision}>{riftError || (activeLandmarkId ? `${currentLandmark?.name ?? "Landmark"} entrance awakened.` : state.lastEvent)}</span>
@@ -3025,6 +3039,8 @@ export function PlayCampaign({
         </div>
       </div>
       {mapVisited ? <WildsWorldMap
+        trackedDestination={trackedDestination}
+        onClearDestination={() => setTrackedDestination(null)}
         crewMapSource={crewMapSource}
         currentPosition={state.player}
         discoveredLandmarkIds={discoveredLandmarkIds}

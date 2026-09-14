@@ -31,6 +31,8 @@ const zoomLevels: readonly WildsAtlasZoom[] = ["world", "region", "landmark"];
 
 function WildsWorldMapView({
   open,
+  trackedDestination,
+  onClearDestination,
   crewMapSource,
   guestId,
   currentPosition,
@@ -49,6 +51,8 @@ function WildsWorldMapView({
   onRift
 }: {
   open: boolean;
+  trackedDestination?: { label: string; x: number; z: number } | null;
+  onClearDestination?: () => void;
   crewMapSource?: WildsCrewMapSource;
   guestId: string;
   currentPosition: { x: number; z: number };
@@ -71,6 +75,7 @@ function WildsWorldMapView({
   const remoteCrewMarkers = useMemo(() => projectWildsRemoteRoamingMarkers(remotePlayers, "self"), [remotePlayers]);
   const crewMarkers = [...ownCrewMarkers, ...remoteCrewMarkers];
   const [zoom, setZoom] = useState<WildsAtlasZoom>("world");
+  const [centerOnDestination, setCenterOnDestination] = useState(false);
   const [northRequest, setNorthRequest] = useState(0);
   const [recenterRequest, setRecenterRequest] = useState(0);
   const [fitRequest, setFitRequest] = useState(0);
@@ -191,7 +196,7 @@ function WildsWorldMapView({
       <header className="wilds-world-map-header">
         <div>
           <span className="eyebrow">Living world atlas</span>
-          <h2 id="wilds-world-map-title" ref={headingRef} tabIndex={-1}>The Wilds are bigger than the horizon</h2>
+          <h2 id="wilds-world-map-title" ref={headingRef} tabIndex={-1}>The Wildz are bigger than the horizon</h2>
         </div>
         <button aria-label="Close world map" className="wilds-world-map-close" onClick={onClose} type="button">
           <Icons.close aria-hidden="true" size={20} />
@@ -211,12 +216,13 @@ function WildsWorldMapView({
             }}
             projection={projection}
             qualityProfile={qualityProfile}
+            recenterPosition={centerOnDestination && trackedDestination ? trackedDestination : currentPosition}
             recenterRequest={recenterRequest}
             northRequest={northRequest}
             fitRequest={fitRequest}
             reducedMotion={reducedMotion}
             onReady={() => setAtlasReady(true)}
-            selectedDrop={null}
+            selectedDrop={trackedDestination ?? null}
             selectedId={null}
           />
           <div className="wilds-atlas-controls">
@@ -231,7 +237,7 @@ function WildsWorldMapView({
             <button aria-label="Orient map north up" title="North up" onClick={() => setNorthRequest(value => value + 1)} type="button">↑ N</button>
             <button
               aria-label="Center map on your current location"
-              onClick={() => setRecenterRequest((value) => value + 1)}
+              onClick={() => { setCenterOnDestination(false); setRecenterRequest((value) => value + 1); }}
               type="button"
             >
               <Icons.home aria-hidden="true" size={16} />
@@ -250,6 +256,7 @@ function WildsWorldMapView({
             </button>
           </div>
           </div>
+          {trackedDestination ? <div className="wilds-atlas-destination"><Icons.map size={16} aria-hidden="true" /><button className="wilds-atlas-destination-focus" type="button" aria-label="Center map on tracked destination" onClick={() => { setCenterOnDestination(true); setRecenterRequest(value => value + 1); }}><strong>{trackedDestination.label}</strong><small>X {Math.round(trackedDestination.x)} · Z {Math.round(trackedDestination.z)}</small></button><button type="button" aria-label="Clear tracked destination" onClick={onClearDestination}><Icons.close size={16} /></button></div> : null}
           <div className="wilds-atlas-current" aria-label={`Current position X ${Math.round(currentPosition.x)}, Z ${Math.round(currentPosition.z)}`}>
             <Icons.home aria-hidden="true" size={15} />
             <span>You · X {Math.round(currentPosition.x)} · Z {Math.round(currentPosition.z)}</span>
