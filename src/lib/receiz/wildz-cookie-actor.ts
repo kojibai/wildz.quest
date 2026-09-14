@@ -36,6 +36,17 @@ export async function resolveWildzCookieActor(request: NextRequest): Promise<Wil
   }
   if (proofSession) {
     if (proofSession.authority === "proof-sealed-vault") {
+      // A restored Identity Seal establishes the owner, but it is not itself
+      // a bearer token. If the same owner is also connected through the live
+      // Receiz session, use that delegated token for registry writes exactly
+      // like a newly created profile. Never fall back to a proof-only write.
+      if (playerAccessToken) {
+        const profile = await loadReceizConnectProfile(playerAccessToken).catch(() => null);
+        if (profile?.id && profile.handle) {
+          const delegatedActor = wildzCookieActorFromReceizProfile(profile, playerAccessToken);
+          if (delegatedActor.actorId === proofSession.actorId) return delegatedActor;
+        }
+      }
       throw new Error("receiz_identity_key_required");
     }
     if (playerAccessToken) {

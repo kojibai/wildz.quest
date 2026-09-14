@@ -261,6 +261,47 @@ test("a legacy Vault recovery principal cannot claim canonical account-only writ
   }
 });
 
+test("a restored Vault identity can publish through its matching live Receiz connection", async () => {
+  const priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
+  const priorBase = process.env.RECEIZ_BASE_URL;
+  const priorFetch = globalThis.fetch;
+  process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;
+  process.env.RECEIZ_BASE_URL = "https://receiz.example";
+  try {
+    const session = createWildzVaultProofSession({
+      actorId: "restored_keeper",
+      profileHandle: "restored_keeper.receiz.id",
+      proofBasisSha256: "a".repeat(64),
+      byteDigestSha256: "b".repeat(64),
+      issuedAt: Date.now()
+    }, SECRET);
+    const token = packWildzProofSession(session, SECRET);
+    globalThis.fetch = async (_input, init) => {
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get("authorization"), "Bearer receiz-live-token");
+      return Response.json({ id: "usr_restored_keeper", handle: "restored_keeper.receiz.id" });
+    };
+    const cookies = new Map([
+      [WILDZ_PROOF_SESSION_COOKIE, token],
+      ["receiz_access_token", "receiz-live-token"],
+      ["receiz_session_scope", WILDZ_RECEIZ_SESSION_SCOPE]
+    ]);
+
+    const actor = await resolveWildzCookieActor({
+      cookies: { get: (name: string) => cookies.has(name) ? { value: cookies.get(name)! } : undefined }
+    } as never);
+
+    assert.equal(actor.actorId, "restored_keeper");
+    assert.equal(actor.accessToken, "receiz-live-token");
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (priorSecret === undefined) delete process.env.RECEIZ_OAUTH_STATE_SECRET;
+    else process.env.RECEIZ_OAUTH_STATE_SECRET = priorSecret;
+    if (priorBase === undefined) delete process.env.RECEIZ_BASE_URL;
+    else process.env.RECEIZ_BASE_URL = priorBase;
+  }
+});
+
 test("a matching Receiz response token is retained beside proof-native identity authority", async () => {
   const priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
   const priorBase = process.env.RECEIZ_BASE_URL;

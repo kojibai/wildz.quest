@@ -702,21 +702,21 @@ function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, child
 function SmoothWorldFrame({ player, terrainElevation, children }: { player: PlayState["player"]; terrainElevation: number; children: ReactNode }) {
   const group = useRef<THREE.Group>(null);
   const previous = useRef(player);
-  const previousTerrainElevation = useRef(terrainElevation);
   useLayoutEffect(() => {
     const prior = previous.current;
-    const priorTerrainElevation = previousTerrainElevation.current;
     previous.current = player;
-    previousTerrainElevation.current = terrainElevation;
     if (!group.current) return;
     group.current.position.x += player.x - prior.x;
-    group.current.position.y += terrainElevation - priorTerrainElevation;
     group.current.position.z += player.z - prior.z;
   }, [player, terrainElevation]);
   useFrame((_, delta) => {
     if (!group.current) return;
     group.current.position.x = THREE.MathUtils.damp(group.current.position.x, 0, 18, delta);
-    group.current.position.y = THREE.MathUtils.damp(group.current.position.y, 0, 14, delta);
+    // The local explorer is rendered beside this frame, so vertical smoothing
+    // here can put the terrain above the explorer during elevation changes.
+    // Keep both layers on the exact same ground reference; horizontal smoothing
+    // remains useful and cannot bury the player's feet.
+    group.current.position.y = 0;
     group.current.position.z = THREE.MathUtils.damp(group.current.position.z, 0, 18, delta);
   });
   return <group ref={group}>{children}</group>;
