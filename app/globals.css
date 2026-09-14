@@ -13329,7 +13329,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   backdrop-filter: blur(20px);
 }
 
-.wilds-world-map-header > div { min-width: 0; }
+.wilds-world-map-header > div { min-width: 0; flex: 1 1 auto; }
 .wilds-world-map-header .eyebrow { color: #71e8c3; }
 .wilds-world-map-header h2 { margin: 2px 0 0; overflow: visible; font-size: clamp(16px, 2vw, 20px); line-height: 1.05; text-overflow: clip; white-space: normal; }
 .wilds-world-map-header h2:focus { outline: none; }
@@ -13426,8 +13426,18 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-landmark-wayfinder small { color: #a9c5c7; font-size: 8px; font-weight: 800; text-transform: uppercase; }
 
 @media (max-width: 760px) {
-  .wilds-world-map-header { align-items: flex-start; width: min(312px, calc(100vw - 78px)); }
-  .wilds-world-map-header h2 { max-width: 100%; font-size: 17px; }
+  .wilds-world-map-header {
+    align-items: center;
+    width: min(430px, calc(100vw - 20px));
+    padding-right: 58px;
+  }
+  .wilds-world-map-header h2 {
+    max-width: none;
+    font-size: clamp(12px, 3.45vw, 17px);
+    letter-spacing: -.02em;
+    white-space: nowrap;
+    overflow: visible;
+  }
 }
 
 @media (max-width: 560px) {
