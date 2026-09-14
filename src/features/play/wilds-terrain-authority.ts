@@ -167,10 +167,17 @@ export function wildsTerrainWaterSurface(elevation: number): "deep-water" | "sha
 }
 
 function classifySurface(elevation: number, slope: number, routeDistance: number): WildsTerrainSurface {
+  // Water is an elevation band, but a steep face is still exposed mountain
+  // rock even when its foot is beside or below a lake. Check topography first
+  // so mountain slopes are not mislabeled as water merely because they are
+  // near a low-water basin.
   const water = wildsTerrainWaterSurface(elevation);
+  // Preserve submerged route shoulders as water; they are intentionally not
+  // dry causeways even though they sit next to a major route.
+  if (water && routeDistance <= 0.55) return water;
+  if (slope >= 0.62) return "rock";
   if (water) return water;
   if (routeDistance <= 0.55) return "trail";
-  if (slope >= 0.62) return "rock";
   if (elevation < 0.25) return "soil";
   return "grass";
 }

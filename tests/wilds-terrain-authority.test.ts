@@ -66,6 +66,15 @@ test("submerged route shoulders remain water instead of becoming walkable holes"
   assert.ok(distanceToWildsMajorRoute(-92, -37.5) < 0.55);
 });
 
+test("steep mountain faces beside low basins remain rock instead of water", () => {
+  for (let x = -96; x <= 96; x += 4) {
+    for (let z = -96; z <= 96; z += 4) {
+      const sample = sampleWildsTerrain(x, z);
+      if (sample.slope >= 0.62 && distanceToWildsMajorRoute(x, z) > 0.55) assert.equal(sample.surface, "rock", `${x},${z}`);
+    }
+  }
+});
+
 test("terrain changes across distant geography without exceeding released bounds", () => {
   const values = [
     sampleWildsTerrain(220, 190).elevation,
