@@ -80,3 +80,20 @@ test("signed collection carries exact uploaded card proofs without rewriting the
   await assert.rejects(publishWildzProfileWithIdentityProof(profile, { repository, assets: [], fetcher }), /card_unverified/);
   assert.equal(requests, 1);
 });
+
+test("signed profile carries only its bounded gallery when the local Vault is larger", async () => {
+  const { sealCollectedCard } = await import("../src/features/play/portable-card");
+  const identity = await createReceizIdIdentity({ username: "large_vault_keeper", displayName: "Keeper" });
+  const session = { schema: "receiz.wildz.identity_session.v1", keyId: identity.keyFile.keyId, actorId: "large_vault_keeper", username: "large_vault_keeper", portableStateStatus: "verified", localAuthority: "verified", remoteStatus: "connected" } as WildzIdentitySession;
+  const repository: Pick<WildzIdentityRepository, "active" | "withKeyFile"> = { active: async () => session, withKeyFile: async (_id, op) => op(identity.keyFile) };
+  const gallery = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "large_vault_keeper", encounterId: "bounded-gallery", capturedAt: "2026-09-13T12:00:00.000Z" });
+  const beyondGallery = sealCollectedCard({ formId: "voltray-1", ownerReceizId: "large_vault_keeper", encounterId: "standalone-card", capturedAt: "2026-09-13T12:01:00.000Z" });
+  const profile = sanitizePublicWildzProfile({ username: "@large_vault_keeper", displayName: "Keeper", vault: [{ id: gallery.id, name: gallery.manifest.name, proofDigest: gallery.proof.digest, visibility: "public" }] });
+  const fetcher = (async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    const admitted = parseSignedWildzProfilePublication(body.signedPublication, profile);
+    assert.deepEqual(admitted.record.vaultCards, [gallery]);
+    return Response.json({ ok: true, profile });
+  }) as typeof fetch;
+  assert.deepEqual(await publishWildzProfileWithIdentityProof(profile, { repository, assets: [gallery, beyondGallery], fetcher }), profile);
+});

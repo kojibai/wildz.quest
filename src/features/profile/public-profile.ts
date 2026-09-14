@@ -99,7 +99,7 @@ export function sanitizePublicWildzProfile(input: Record<string, unknown>): Publ
       ...(clean(card.status, 30) ? {status: clean(card.status, 30)} : {}),
       ...(Number.isFinite(card.listedPriceCents) ? {listedPriceCents: boundedInt(card.listedPriceCents, 100_000_000)} : {})
     }];
-  }).slice(0, 120) : [];
+  }) : [];
   const safeExplorer = sanitizeExplorer(input.explorer);
   const record = input.record && typeof input.record === "object" ? input.record as Record<string, unknown> : {};
 

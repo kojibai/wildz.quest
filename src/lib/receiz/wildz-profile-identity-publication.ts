@@ -22,7 +22,15 @@ export async function publishWildzProfileWithIdentityProof(profile: PublicWildzP
   if (!session || session.localAuthority !== "verified") throw new Error("wildz_profile_identity_seal_required");
   if (!owner || !sameWildzPlayerCoordinate(owner.actorId, session.actorId)) throw new Error("wildz_public_profile_owner_mismatch");
   const record = createPublicWildzProfileRecord(profile as unknown as Record<string, unknown>, `${WILDZ_PRODUCT.origin}${canonicalWildzProfilePath(profile.username)}`, options.occurredAt);
-  if (options.assets !== undefined) record.vaultCards = verifiedWildzProfileCards(record.profile, options.assets);
+  if (options.assets !== undefined) {
+    // The public profile is a bounded gallery (currently 120 entries), while
+    // the local Vault may be larger. Carry only the exact assets represented
+    // by this signed profile; cards beyond the gallery continue through the
+    // standalone public-card publisher.
+    const assetsById = new Map(options.assets.map(asset => [asset.id, asset]));
+    const galleryAssets = record.profile.vault.map(entry => assetsById.get(entry.id));
+    record.vaultCards = verifiedWildzProfileCards(record.profile, galleryAssets);
+  }
   // A connected session has already aligned this exact key with Receiz. Older seal
   // metadata may predate that canonical handle; the registry still verifies its signature.
   await repository.withKeyFile(session.keyId, async keyFile => {

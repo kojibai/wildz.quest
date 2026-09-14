@@ -1,4 +1,3 @@
-import { createReceizClient } from "@receiz/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import {
   canonicalWildzHandle,
@@ -104,7 +103,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ha
     }
 
     if (signed) {
-      const result = await createReceizClient().publicStore.publishSigned(signed.signed, {
+      // Keep signed writes on the same configured v126 rail as reads and
+      // delegated writes; a default client can target a different registry.
+      const result = await adapter.client.publicStore.publishSigned(signed.signed, {
         idempotencyKey: `wildz-profile:${requestedHandle.slice(1)}:${signed.record.publishedAt}`
       });
       if (result.ok !== true || !result.appendAnchorId || result.knownHead?.appendAnchorId !== result.appendAnchorId) {

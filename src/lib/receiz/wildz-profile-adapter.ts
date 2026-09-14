@@ -29,7 +29,7 @@ export type PublicWildzProfileRecord = {
 };
 
 export function verifiedWildzProfileCards(profile: PublicWildzProfile, value: unknown): PortableCardAsset[] {
-  if (!Array.isArray(value) || value.length !== profile.vault.length || value.length > 120) throw new Error("wildz_public_profile_card_unverified");
+  if (!Array.isArray(value) || value.length !== profile.vault.length) throw new Error("wildz_public_profile_card_unverified");
   const cards = new Map<string, PortableCardAsset>();
   for (const asset of value as PortableCardAsset[]) {
     if (!asset || !verifyAnyWildsCard(asset).ok || cards.has(asset.id)) throw new Error("wildz_public_profile_card_unverified");

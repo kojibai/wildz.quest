@@ -1,4 +1,4 @@
-import { createReceizClient, type JsonObject } from "@receiz/sdk";
+import { type JsonObject } from "@receiz/sdk";
 import { parseSignedWildzCardPublication } from "@/lib/receiz/wildz-card-publication-envelope";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ as
 
     if (body.signedPublication) {
       const { record, signed } = parseSignedWildzCardPublication(body.signedPublication, asset);
-      const result = await createReceizClient().publicStore.publishSigned(signed, {
+      const result = await createReceizCommerceAdapter().client.publicStore.publishSigned(signed, {
         idempotencyKey: `wildz-card:${asset.id}:${asset.proof.digest}`
       });
       if (result.ok !== true || !result.appendAnchorId || result.knownHead?.appendAnchorId !== result.appendAnchorId) {
