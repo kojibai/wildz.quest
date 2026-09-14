@@ -18,20 +18,23 @@ type BackgroundEnvironment = {
 };
 
 function browserEnvironment(): BackgroundEnvironment {
-  if (typeof window === "undefined") return {};
+  // Next inlines `typeof window` in client chunks, including shared worker
+  // dependencies. Read the actual global so module workers stay window-free.
+  const browserWindow = (globalThis as typeof globalThis & { window?: Window }).window;
+  if (!browserWindow) return {};
   const browserScheduler = (globalThis as typeof globalThis & {
     scheduler?: { postTask?: BackgroundPostTask };
   }).scheduler;
   return {
     postTask: browserScheduler?.postTask?.bind(browserScheduler),
-    requestIdleCallback: typeof window.requestIdleCallback === "function"
-      ? ((callback, options) => window.requestIdleCallback(callback, options))
+    requestIdleCallback: typeof browserWindow.requestIdleCallback === "function"
+      ? ((callback, options) => browserWindow.requestIdleCallback(callback, options))
       : undefined,
-    cancelIdleCallback: typeof window.cancelIdleCallback === "function"
-      ? ((handle) => window.cancelIdleCallback(handle))
+    cancelIdleCallback: typeof browserWindow.cancelIdleCallback === "function"
+      ? ((handle) => browserWindow.cancelIdleCallback(handle))
       : undefined,
-    requestAnimationFrame: (callback) => window.requestAnimationFrame(callback),
-    setTimer: (callback, delayMs) => window.setTimeout(callback, delayMs)
+    requestAnimationFrame: (callback) => browserWindow.requestAnimationFrame(callback),
+    setTimer: (callback, delayMs) => browserWindow.setTimeout(callback, delayMs)
   };
 }
 

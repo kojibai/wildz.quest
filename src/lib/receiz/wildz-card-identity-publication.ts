@@ -1,6 +1,6 @@
 import { defaultIdentityRepository } from "./wildz-active-identity";
-import { createReceizClient, type JsonObject } from "@receiz/sdk";
-import { createPublicWildsCardRecord, createPublicWildsCardTransportRecord, parsePublicWildsCardRecord } from "../../features/play/public-card-registry";
+import { prepareWildzCardPublication } from "./wildz-card-signing-client";
+import { createPublicWildsCardRecord, parsePublicWildsCardRecord } from "../../features/play/public-card-registry";
 import type { PortableCardAsset } from "../../features/play/portable-card";
 import { WILDZ_PRODUCT } from "../wildz/product";
 import type { WildzIdentityRepository } from "./wildz-identity-repository";
@@ -23,9 +23,7 @@ export async function publishWildzCardWithIdentityProof(
   if (!session || session.localAuthority !== "verified") throw new Error("wildz_card_identity_seal_required");
   if (!owner || !sameWildzPlayerCoordinate(owner.actorId, session.actorId)) throw new Error("wildz_public_card_owner_mismatch");
   const record = createPublicWildsCardRecord(asset, WILDZ_PRODUCT.origin, options.occurredAt ?? new Date().toISOString());
-  const transport = createPublicWildsCardTransportRecord(record);
   const request = options.fetcher ?? globalThis.fetch;
-  const client = createReceizClient();
   // A connected session has already aligned this exact key with Receiz. Older seal
   // metadata may predate that canonical handle; the registry still verifies its signature.
   await repository.withKeyFile(session.keyId, async keyFile => {
@@ -37,23 +35,13 @@ export async function publishWildzCardWithIdentityProof(
       throw new Error("wildz_card_identity_unlock_required");
     }
     options.signal?.throwIfAborted();
-    const signedPublication = await client.publicStore.signPublish({
-      tenantHost: WILDZ_PRODUCT.domain,
-      merchantReceizId: owner.profileHandle,
-      title: `${asset.manifest.name} living card`,
-      sourceUrl: record.sourceUrl,
-      namespace: `wildz-card:${asset.id}`,
-      projectionState: "published",
-      platform: WILDZ_PRODUCT.name,
-      storeStateRecord: transport as unknown as JsonObject,
-      keyFile
-    });
+    const body = await prepareWildzCardPublication({ record, merchantReceizId: owner.profileHandle, keyFile }, options.signal);
     options.signal?.throwIfAborted();
     // Same-origin relay avoids the registry's CORS restriction on Idempotency-Key.
     const response = await request(`/api/cards/${encodeURIComponent(asset.id)}`, {
       method: "POST", credentials: "same-origin", signal: options.signal,
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ asset, signedPublication })
+      body
     });
     const result = await response.json().catch(() => null) as {ok?:boolean; error?:string; record?:unknown} | null;
     if (!response.ok || result?.ok !== true) throw new Error(result?.error ?? "wildz_public_card_publication_unconfirmed");

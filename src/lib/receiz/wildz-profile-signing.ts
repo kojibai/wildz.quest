@@ -33,9 +33,10 @@ export async function signWildzProfilePublication(input: WildzProfileSigningInpu
       if (!asset || asset.proof.digest !== entry.proofDigest) throw new Error("wildz_public_profile_card_unverified");
       return asset;
     });
-    // Reuse the caller's exact immutable admission for display publication.
-    // The signature is still verified independently by the receiving registry.
-    record.vaultCards = admittedCards ? gallery : verifiedWildzProfileCards(record.profile, gallery);
+    // Admission is local and content-bound. Publish only the gallery references;
+    // embedding full proofs repeats their histories throughout the SDK envelope.
+    // Full card publication remains independent of this signed display projection.
+    if (!admittedCards) verifiedWildzProfileCards(record.profile, gallery);
   }
   const signedPublication = await createReceizClient().publicStore.signPublish({
     tenantHost: WILDZ_PRODUCT.domain, merchantReceizId: owner.profileHandle,

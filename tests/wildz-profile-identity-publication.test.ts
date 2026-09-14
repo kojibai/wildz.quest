@@ -55,7 +55,7 @@ test("an original seal can publish its aligned canonical profile without rewriti
   await assert.rejects(publishWildzProfileWithIdentityProof(profile, { repository, fetcher }), /owner_mismatch/);
 });
 
-test("signed collection carries exact uploaded card proofs without rewriting their original owner", async () => {
+test("signed collection carries verified card references without repeating proof histories", async () => {
   const { sealCollectedCard } = await import("../src/features/play/portable-card");
   const identity = await createReceizIdIdentity({ username: "new_keeper", displayName: "Keeper" });
   const session = { schema: "receiz.wildz.identity_session.v1", keyId: identity.keyFile.keyId, actorId: "new_keeper", username: "new_keeper", portableStateStatus: "verified", localAuthority: "verified", remoteStatus: "connected" } as WildzIdentitySession;
@@ -69,10 +69,12 @@ test("signed collection carries exact uploaded card proofs without rewriting the
     assert.doesNotMatch(raw, /privateKeyPkcs8|passphrase|keyFile/);
     const body = JSON.parse(raw);
     const admitted = parseSignedWildzProfilePublication(body.signedPublication, profile);
-    assert.deepEqual(admitted.record.vaultCards, [asset]);
-    assert.equal(admitted.record.vaultCards![0]!.manifest.ownerReceizId, "previous_keeper");
+    assert.equal(admitted.record.vaultCards, undefined);
+    assert.equal(admitted.record.profile.vault[0]!.proofDigest, asset.proof.digest);
+    assert.equal(asset.manifest.ownerReceizId, "previous_keeper");
+    assert.doesNotMatch(raw, /receizProofHistory|vaultCards/);
     const tampered = structuredClone(body.signedPublication);
-    tampered.storeStateRecord.vaultCards[0].manifest.ownerReceizId = "new_keeper";
+    tampered.storeStateRecord.profile.vault[0].proofDigest = "changed";
     assert.throws(() => parseSignedWildzProfilePublication(tampered, profile), /signed_publication_invalid/);
     return Response.json({ ok: true, profile });
   }) as typeof fetch;
@@ -92,7 +94,8 @@ test("signed profile carries only its bounded gallery when the local Vault is la
   const fetcher = (async (_url, init) => {
     const body = JSON.parse(String(init?.body));
     const admitted = parseSignedWildzProfilePublication(body.signedPublication, profile);
-    assert.deepEqual(admitted.record.vaultCards, [gallery]);
+    assert.equal(admitted.record.vaultCards, undefined);
+    assert.deepEqual(admitted.record.profile.vault, profile.vault);
     return Response.json({ ok: true, profile });
   }) as typeof fetch;
   assert.deepEqual(await publishWildzProfileWithIdentityProof(profile, { repository, assets: [gallery, beyondGallery], fetcher }), profile);

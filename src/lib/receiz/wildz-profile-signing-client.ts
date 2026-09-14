@@ -11,6 +11,19 @@ export async function prepareWildzProfilePublication(input: WildzProfileSigningI
   // Only exact, deeply frozen objects held by runtime admission qualify. This
   // is public projection preparation, never a new card/ownership admission.
   const admittedCards = input.assets !== undefined && input.assets.every(isAdmittedWildsCard);
+  // A signing operation needs the key, not the entire portable account archive.
+  // Structured cloning that archive would block the gameplay thread before the
+  // worker even starts. The verified source stays intact in local custody.
+  let signingInput = input.keyFile
+    ? { ...input, keyFile: { ...input.keyFile, portableState: null } }
+    : input;
+  if (admittedCards) {
+    const assets = new Map(input.assets!.map(asset => [asset.id, asset]));
+    for (const entry of input.profile.vault) {
+      if (assets.get(entry.id)?.proof.digest !== entry.proofDigest) throw new Error("wildz_public_profile_card_unverified");
+    }
+    signingInput = { ...signingInput, assets: undefined };
+  }
   let worker: Worker | undefined;
   if (typeof Worker !== "undefined") {
     try { worker = createWorker(); } catch { /* Unsupported worker: retain SDK verification below. */ }
@@ -28,10 +41,10 @@ export async function prepareWildzProfilePublication(input: WildzProfileSigningI
       };
       activeWorker.onerror = event => { event.preventDefault(); finish(); resolve(null); };
       if (signal?.aborted) { abort(); return; }
-      try { activeWorker.postMessage({ input, admittedCards }); } catch { finish(); resolve(null); }
+      try { activeWorker.postMessage({ input: signingInput, admittedCards }); } catch { finish(); resolve(null); }
     });
     if (result) return result;
   }
   signal?.throwIfAborted();
-  return wildzGameplayBackground.run(() => { signal?.throwIfAborted(); return signWildzProfilePublication(input, admittedCards); });
+  return wildzGameplayBackground.run(() => { signal?.throwIfAborted(); return signWildzProfilePublication(signingInput, admittedCards); });
 }

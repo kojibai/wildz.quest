@@ -78,11 +78,11 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ha
     }
     const actorId = requestedHandle.slice(1);
     const adapter = createReceizCommerceAdapter(actor?.accessToken ? {accessToken: actor.accessToken} : undefined);
-    // A signed collection projection is source-supplied display data, not a
-    // native ownership transfer. Its exact cards were verified by the envelope
-    // parser and its identity signature is admitted by publishSigned below.
-    // Older callers without carried proofs still use the registry validation.
-    const sourceCollection = signed?.record.vaultCards !== undefined;
+    // The registry authenticates the owner's signed gallery declaration. Its
+    // bounded card references are display data, never native card or ownership
+    // admission. Full card proofs publish separately and must not gate a profile.
+    // Legacy unsigned callers still require public card/ownership validation.
+    const sourceCollection = signed !== null;
     const requestedCardIds = new Set<string>();
     for (const requested of profile.vault) {
       if (requestedCardIds.has(requested.id)) throw new Error("wildz_public_profile_card_unverified");
