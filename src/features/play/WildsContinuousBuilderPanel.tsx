@@ -36,6 +36,12 @@ export function WildsContinuousBuilderPanel({ builder, materials, onOpenCatalogu
     {builder.toggleSnap && <button type="button" aria-pressed={builder.snapEnabled} disabled={Boolean(builder.busy)} onClick={builder.toggleSnap}>
       {builder.snapEnabled ? "Snap to structure · on" : "Free placement · grid"}
     </button>}
+    {(!builder.selected || builder.adjusting) && <div className="wilds-builder-transform" aria-label="Placement controls">
+      <button type="button" disabled={Boolean(builder.busy)} onClick={builder.rotate}>Rotate · {builder.rotation * 90}°</button>
+      <button type="button" disabled={Boolean(builder.busy) || builder.height <= -32} onClick={builder.lower} aria-label="Lower building piece">Lower</button>
+      <output aria-label="Building height offset">{(builder.height * .5).toFixed(1)} m</output>
+      <button type="button" disabled={Boolean(builder.busy) || builder.height >= 32} onClick={builder.raise} aria-label="Raise building piece">Raise</button>
+    </div>}
     {builder.error && <p className="wilds-builder-error" role="alert">{builder.error}</p>}
     {builder.adjusting ? <section className="wilds-builder-adjustment" aria-label="Adjust placed piece">
       <strong>Adjust {wildsConstructionLabel(builder.selected?.kind ?? builder.kind).toLowerCase()}</strong>

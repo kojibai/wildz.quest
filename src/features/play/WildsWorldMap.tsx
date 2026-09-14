@@ -1,5 +1,6 @@
 "use client";
 
+import { projectWildsCustomBuildingMap } from "./wilds-custom-building-map";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
@@ -93,6 +94,9 @@ function WildsWorldMapView({
     const region = regionForPosition(currentPosition);
     return { x: region.x + 0.5, z: region.z + 0.5 };
   })());
+  const customProjects = livingWorld?.constructionProjects;
+  const customComponents = livingWorld?.constructionComponents;
+  const customBuildings = useMemo(() => customProjects && customComponents ? projectWildsCustomBuildingMap({ constructionProjects: customProjects, constructionComponents: customComponents }) : [], [customProjects, customComponents]);
   const staticProjection = useMemo(() => projectWildsAtlas({
     center: currentPosition,
     atlasOrigin: atlasOrigin.current,
@@ -109,9 +113,10 @@ function WildsWorldMapView({
     bosses: Object.values(livingWorld?.bosses ?? {}),
     bossKnowledge,
     trainers,
+    customBuildings,
     constructionSites: Object.values(livingWorld?.constructionSites ?? {}),
     structures: Object.values(livingWorld?.structures ?? {})
-  }), [bossKnowledge, currentPosition, discoveredLandmarkIds, ecologyKnowledge, explorationAtlas, livingWorld?.bosses, livingWorld?.constructionSites, livingWorld?.ecologySites, livingWorld?.sites, livingWorld?.structures, missionProgress, trainers, worldMastery, zoom]);
+  }), [customBuildings, bossKnowledge, currentPosition, discoveredLandmarkIds, ecologyKnowledge, explorationAtlas, livingWorld?.bosses, livingWorld?.constructionSites, livingWorld?.ecologySites, livingWorld?.sites, livingWorld?.structures, missionProgress, trainers, worldMastery, zoom]);
   const localPresence = useMemo(() => projectWildsAtlasPresence({
     center: currentPosition,
     players: remotePlayers,

@@ -718,7 +718,7 @@ function SmoothWorldFrame({ player, terrainElevation, children }: { player: Play
     // remains useful and cannot bury the player's feet.
     group.current.position.y = 0;
     group.current.position.z = THREE.MathUtils.damp(group.current.position.z, 0, 18, delta);
-  });
+  }, -.4); // Finish rebasing before Html projects labels at priority 0.
   return <group ref={group}>{children}</group>;
 }
 
@@ -749,7 +749,7 @@ function TrainerExplorer({ trainer, localPlayer, onSelect, siteRuntime, siteSpac
       terrainElevation
     );
     group.current.rotation.y = -phase;
-  });
+  }, -.3);
   const rosterName = creatureForm(trainer.rosterFormIds[0])?.name ?? trainer.affinity;
   const distance = Math.hypot(trainer.position[0] - localPlayer.x, trainer.position[2] - localPlayer.z);
   const initialElevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, trainer.position[0], trainer.position[2], Number.NaN);
@@ -792,6 +792,7 @@ function useCrewFollower(input: {
   const group = useRef<THREE.Group>(null);
   const gait = useRef({ x: 0, y: 0, z: 0, distance: 0, speed: 0, travelled: 0 });
   const resetPresentation = useRef(true);
+  const facingMotion = useRef({ x: 0, z: 0 });
   const localPresentation = useRef({ x: 0, y: 0, z: 0 });
   const followMotion = useRef({ x: input.player.x, z: input.player.z, changedAt: performance.now() / 1000, speed: 0 });
   const retainedTravel = input.crewTravelRuntime?.current.get(input.assetId);
@@ -964,8 +965,12 @@ function useCrewFollower(input: {
     writeWildsCrewFollowPresentation(gait.current, localPresentation.current, distance, delta, regrouped || resetPresentation.current);
     resetPresentation.current = false;
     group.current.position.set(gait.current.x, gait.current.y, gait.current.z);
-    if (distance > .0001) {
-      const heading = Math.atan2(dx, dz), blend = 1 - Math.exp(-Math.min(delta, .05) * 8);
+    const directionBlend = 1 - Math.exp(-10 * Math.min(delta, .1));
+    const velocityX = delta > 0 ? dx / delta : 0, velocityZ = delta > 0 ? dz / delta : 0;
+    facingMotion.current.x += (velocityX - facingMotion.current.x) * directionBlend;
+    facingMotion.current.z += (velocityZ - facingMotion.current.z) * directionBlend;
+    if (Math.hypot(facingMotion.current.x, facingMotion.current.z) > .08) {
+      const heading = Math.atan2(facingMotion.current.x, facingMotion.current.z), blend = 1 - Math.exp(-Math.min(delta, .1) * 8);
       group.current.rotation.y += Math.atan2(Math.sin(heading - group.current.rotation.y), Math.cos(heading - group.current.rotation.y)) * blend;
     }
   }, -.5);
@@ -1195,7 +1200,7 @@ function RemoteExplorer({
     // Rebase once; React must not overwrite the interpolated pose on each packet.
     group.current.position.set(displayedWorld.current.x - localPlayer.x,
       displayedWorld.current.y - terrainElevation, displayedWorld.current.z - localPlayer.z);
-  });
+  }, -.3);
   return (
     <group
       onClick={(event) => {
@@ -1462,7 +1467,7 @@ function Creature({
       card.position[2],
       readability.motionScale
     );
-  });
+  }, -.3);
 
   return (
       <group ref={groupRef} position={[card.position[0], 0.42, card.position[2]]}>

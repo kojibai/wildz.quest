@@ -592,6 +592,11 @@ export async function restoreWildzArtifactForSurface(input: {
       await tx.put("ownerStates", record, scope);
       const sourceKey = wildzCrewCustodySourceKey(session.keyId, session.actorId);
       const admittedSources = wildzCrewCustodySources(crewCustody);
+      if (verifiedIdentity && admittedSources.length) {
+        for (const source of admittedSources) await tx.put("meta", {
+          bytes: input.bytes.slice(), mimeType: input.mimeType
+        }, `wildz:crew-seal-source:v1:${source.artifactSha256}`);
+      }
       const previousSources = normalizeWildzCrewCustodySources(await tx.get("meta", sourceKey));
       const admittedIds = new Set(admittedSources.flatMap(source => source.assetIds));
       const activeIds = new Set(record.playState.inventory.map(card => card.id));

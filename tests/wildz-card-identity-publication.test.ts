@@ -56,3 +56,31 @@ test("an imported seal publishes for its canonically aligned session even when e
   session.remoteStatus = "unknown";
   await assert.rejects(publishWildzCardWithIdentityProof(asset, { repository, fetcher }), /owner_mismatch/);
 });
+
+test("a collected card publishes in the verified seal's collection without rewriting its creator", async () => {
+  const { createReceizIdentityKeyFile, serializeReceizIdentityArtifact } = await import("@receiz/sdk");
+  const { createWildzArtifactCodec, readWildzArtifactCrewCustody } = await import("../src/lib/receiz/wildz-artifact-codec");
+  const { createWildzIdentityRepository } = await import("../src/lib/receiz/wildz-identity-repository");
+  const { createMemoryWildzContinuityDatabase } = await import("./support/memory-wildz-continuity-database");
+  const asset = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "original_owner", encounterId: "collected-publication", capturedAt: "2026-09-09T11:00:00.000Z" });
+  const identity = await createReceizIdentityKeyFile({ owner: { uid: "collector", username: "collector", displayName: "Collector" }, portableState: { snapshot: { cards: [asset] } } });
+  const identities = createWildzIdentityRepository({ database: createMemoryWildzContinuityDatabase() });
+  const codec = createWildzArtifactCodec({ identityRepository: identities, commerceVaultReader: { inspect: async () => null } });
+  const inspection = await codec.inspect({ bytes: new TextEncoder().encode(serializeReceizIdentityArtifact(identity.keyFile)), mimeType: "application/json" });
+  const custody = readWildzArtifactCrewCustody(inspection);
+  assert.ok(custody);
+  const prepared = await identities.prepare(identity.keyFile);
+  const repository: Pick<WildzIdentityRepository, "active" | "withKeyFile"> = { active: async () => prepared.session, withKeyFile: async (_id, op) => op(identity.keyFile) };
+  const result = await publishWildzCardWithIdentityProof(asset, { repository, custody, fetcher: (async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    const publication = parseSignedWildzCardPublication(body.signedPublication, asset);
+    assert.equal(publication.record.sourceUrl, `https://wildz.quest/u/collector/cards/${encodeURIComponent(asset.id)}`);
+    assert.equal(publication.record.asset.manifest.ownerReceizId, "original_owner");
+    assert.equal(publication.signed.merchantReceizId, "collector.receiz.id");
+    const wrongScope = structuredClone(body.signedPublication); wrongScope.merchantReceizId = "other.receiz.id";
+    assert.throws(() => parseSignedWildzCardPublication(wrongScope, asset));
+    assert.equal(String(init?.body).includes("privateKeyPkcs8B64u"), false);
+    return Response.json({ ok: true, record: publication.record });
+  }) as typeof fetch });
+  assert.equal(result.asset.proof.digest, asset.proof.digest);
+});

@@ -1,3 +1,4 @@
+import { compressPublicCardRecord, decompressPublicCardRecord } from "./public-card-compression";
 import { publishWildzCardWithIdentityProof } from "../../lib/receiz/wildz-card-identity-publication";
 import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 import {
@@ -20,12 +21,19 @@ export type PublicWildsCardRecord = {
 
 export type PublicWildsCardRegistrationOptions = {
   signal?: AbortSignal;
+  profileHandle?: string;
   prepareBody?: (value: unknown) => Promise<string>;
   proofObjects?: WildzAdmittedVaultProofObjects;
   publishWithIdentityProof?: (asset: PortableCardAsset, signal?: AbortSignal) => Promise<PublicWildsCardRecord>;
 };
 
 export type PublicWildsCardTransportRecord = {
+  schema: "receiz.wilds_public_card_transport.v2";
+  assetId: string;
+  sourceUrl: string;
+  recordDeflateB64: string;
+  recordByteLength: number;
+} | {
   schema: "receiz.wilds_public_card_transport.v1";
   assetId: string;
   sourceUrl: string;
@@ -112,10 +120,10 @@ export function createPublicWildsCardTransportRecord(record: PublicWildsCardReco
   const verified = parsePublicWildsCardRecord(record);
   if (!verified) throw new Error("wildz_public_card_verification_failed");
   return {
-    schema: "receiz.wilds_public_card_transport.v1",
+    schema: "receiz.wilds_public_card_transport.v2",
     assetId: verified.assetId,
     sourceUrl: verified.sourceUrl,
-    recordJson: JSON.stringify(verified)
+    ...compressPublicCardRecord(JSON.stringify(verified))
   };
 }
 
@@ -124,6 +132,12 @@ export function parsePublicWildsCardRecord(value: unknown): PublicWildsCardRecor
   const parse = (candidate: unknown): PublicWildsCardRecord | null => {
     if (!isRecord(candidate) || seen.has(candidate)) return null;
     seen.add(candidate);
+    if (candidate.schema === "receiz.wilds_public_card_transport.v2") {
+      try {
+        const restored = parse(JSON.parse(decompressPublicCardRecord(candidate.recordDeflateB64, candidate.recordByteLength)));
+        return restored && restored.assetId === candidate.assetId && restored.sourceUrl === candidate.sourceUrl ? restored : null;
+      } catch { return null; }
+    }
     if (candidate.schema === "receiz.wilds_public_card_transport.v1"
       && typeof candidate.assetId === "string"
       && typeof candidate.sourceUrl === "string"
@@ -145,8 +159,11 @@ export function parsePublicWildsCardRecord(value: unknown): PublicWildsCardRecor
       try {
         const asset = candidate.asset as PortableCardAsset;
         const record = createPublicWildsCardRecord(asset, candidate.sourceUrl, candidate.registeredAt);
-        return record.assetId === candidate.assetId && record.sourceUrl === new URL(candidate.sourceUrl).toString()
-          ? record
+        const source = new URL(candidate.sourceUrl);
+        const collectionPath = /^\/u\/[a-z0-9_]{3,64}\/cards\//.test(source.pathname)
+          && source.pathname.endsWith(`/cards/${encodeURIComponent(asset.id)}`) && !source.search && !source.hash;
+        return record.assetId === candidate.assetId && (record.sourceUrl === source.toString() || collectionPath)
+          ? { ...record, sourceUrl: source.toString() }
           : null;
       } catch {
         return null;
@@ -215,6 +232,11 @@ async function registerPublicWildsCardRevision(
   fetcher: typeof fetch,
   options: PublicWildsCardRegistrationOptions
 ) {
+  if (options.publishWithIdentityProof) {
+    const record = parsePublicWildsCardRecord(await options.publishWithIdentityProof(asset, options.signal));
+    if (!record || record.assetId !== asset.id || record.asset.proof.digest !== asset.proof.digest) throw new Error("wildz_public_card_publication_unconfirmed");
+    return record;
+  }
   const needsClientVerification = publicCardNeedsClientVerification(asset, options.proofObjects);
   if (needsClientVerification
     && !verifyAnyWildsCard(asset).ok) throw new Error("wildz_public_card_verification_failed");
@@ -233,7 +255,7 @@ async function registerPublicWildsCardRevision(
     record?: PublicWildsCardRecord;
     error?: string;
   } | null;
-  if (!response.ok && (payload?.error === "unauthorized" || payload?.error === "receiz_authority_required")) {
+  if (!response.ok && (response.status === 413 || payload?.error === "unauthorized" || payload?.error === "receiz_authority_required")) {
     options.signal?.throwIfAborted();
     const publishSigned = options.publishWithIdentityProof ?? (typeof window !== "undefined"
       ? async (card: PortableCardAsset, signal?: AbortSignal) => publishWildzCardWithIdentityProof(card, { fetcher, signal })
@@ -301,7 +323,7 @@ export async function requireGloballyAvailablePublicWildsCard(
 ) {
   const readPublicRevision = async () => {
     options.signal?.throwIfAborted();
-    const response = await fetcher(`/api/cards/${encodeURIComponent(asset.id)}`, {
+    const response = await fetcher(`/api/cards/${encodeURIComponent(asset.id)}${options.profileHandle ? `?profile=${encodeURIComponent(options.profileHandle)}` : ""}`, {
       method: "GET", signal: options.signal, credentials: "omit", cache: "no-store",
       headers: { accept: "application/json", "cache-control": "no-cache" }
     });

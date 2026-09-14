@@ -34,7 +34,7 @@ export function projectWildsConstructionWeather(world: World, id: string, kaiUPu
       const position = component.transform.position;
       const neighbors = nearbyWildsConstruction(world.constructionComponents, position, 8);
       for (const roof of neighbors) {
-        if (roof.kind !== "roof" || (world.constructionConditions?.[roof.componentId]?.integrity ?? 100) < 50
+        if (!["roof", "pitched-roof"].includes(roof.kind) || (world.constructionConditions?.[roof.componentId]?.integrity ?? 100) < 50
           || (roof.evidence.spaceId ?? "wildz.space.outer.v1") !== (component.evidence.spaceId ?? "wildz.space.outer.v1")) continue;
         const box = roof.placement.geometry;
         if (Math.abs(box.center.x - position.x) <= box.halfExtents.x && Math.abs(box.center.z - position.z) <= box.halfExtents.z

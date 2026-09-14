@@ -1,5 +1,7 @@
 "use client";
 
+import { publishWildzCardWithIdentityProof } from "../../lib/receiz/wildz-card-identity-publication";
+import type { WildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
 import { useEffect, useRef } from "react";
 import { wildzJsonSerializer } from "../../lib/performance/wildz-json-serializer";
 import { wildzGameplayBackground } from "../../lib/performance/wildz-gameplay-background";
@@ -73,7 +75,9 @@ export async function publicCardPublicationQueueCooperatively(
 export function usePublicCardPublisher(
   assets: readonly PortableCardAsset[],
   enabled: boolean,
-  proofObjects?: WildzAdmittedVaultProofObjects
+  proofObjects?: WildzAdmittedVaultProofObjects,
+  custody?: WildzCrewCustody | null,
+  profileHandle?: string
 ) {
   const publishedPins = useRef(new Set<string>());
   const retryAt = useRef(new Map<string, number>());
@@ -102,6 +106,8 @@ export function usePublicCardPublisher(
         // upload. Only missing or changed revisions enter the publication rail.
         const published = await requireGloballyAvailablePublicWildsCard(asset, globalThis.fetch, {
           proofObjects,
+          profileHandle,
+          publishWithIdentityProof: (card, signal) => publishWildzCardWithIdentityProof(card, { signal, custody }),
           signal: requestController.signal,
           prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
             ?? wildzGameplayBackground.run(() => JSON.stringify(value))
@@ -140,5 +146,5 @@ export function usePublicCardPublisher(
       controller?.abort();
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [assets, enabled, proofObjects]);
+  }, [assets, enabled, proofObjects, custody, profileHandle]);
 }

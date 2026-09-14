@@ -341,7 +341,7 @@ test("a new capture reaches profile verification without waiting for the separat
     if (url.startsWith("/api/cards/")) {
       if (method === "GET") return Response.json({ ok: false }, { status: 404 });
       const { asset } = JSON.parse(String(init?.body)) as { asset: PortableCardAsset };
-      assert.deepEqual(asset, captured.inventory.find(card => card.id === asset.id));
+      assert.deepEqual(asset, JSON.parse(JSON.stringify(captured.inventory.find(card => card.id === asset.id))));
       return Response.json({ ok: true, record: { schema: "receiz.wilds_public_card.v1", assetId: asset.id, sourceUrl: `https://wildz.quest/cards/${encodeURIComponent(asset.id)}`, registeredAt: "2026-09-13T12:00:00.000Z", asset } });
     }
     if (method === "GET") return Response.json({ ok: true, profile: toProfile(initial.inventory) });

@@ -15,7 +15,7 @@ import {
 describe("nonphysical Wilds blueprint mode", () => {
   it("offers the bounded inhabitable component catalog without publishing authority", () => {
     assert.deepEqual(WILDS_CONSTRUCTION_CATALOG.map((entry) => entry.kind), [
-      "foundation", "floor", "room", "wall", "roof", "door", "window", "column", "stair", "bridge", "platform", "path", "storage", "workshop", "habitat", "bed", "hearth", "light", "garden", "water", "trim", "railing", "partition"
+      "foundation", "floor", "room", "wall", "roof", "door", "window", "column", "stair", "bridge", "platform", "path", "storage", "workshop", "habitat", "bed", "hearth", "light", "garden", "water", "trim", "railing", "partition", "solid-wall", "window-wall", "pitched-roof", "gable", "stair-flight", "stairwell-floor", "beam"
     ]);
     assert.equal(WILDS_CONSTRUCTION_CATALOG.every((entry) => Object.isFrozen(entry)), true);
     const blueprint = createWildsBlueprintPreview("blueprint:test", "wildz.excavation.region.v1:0:0");

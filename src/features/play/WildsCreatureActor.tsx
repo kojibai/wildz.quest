@@ -161,6 +161,7 @@ export function WildsCreatureActor({
   const locomotionFrame = useRef<MutableWildsCreatureLocomotionFrame>({ rootY: 0, rootPitch: 0, rootRoll: 0, limbPitch: 0, wingAngle: 0 });
 
   const poseInitialized = useRef(false);
+  const groundFlightActive = useRef(false);
   const walking = useRef({ distance: 0, sourceDistance: 0, weight: 0 });
   useFrame((_, delta) => {
     if (!root.current) return;
@@ -171,7 +172,11 @@ export function WildsCreatureActor({
     const breath = Math.sin(time * cadence + identity.marking * 4) * 0.025 * motion;
     const attack = pose === "attack";
     const work = pose === "work";
-    const motionMode = locomotion === "ground" && anatomy?.locomotion === "flying" && wingPlan.pairCount > 0 && (gait?.current.speed ?? 0) > .025 ? "air" : locomotion;
+    // Snapshot-driven stop/start must not flip a winged creature between air and ground every frame.
+    const movingWeight = walking.current.weight;
+    if (movingWeight > .35) groundFlightActive.current = true;
+    else if (movingWeight < .08) groundFlightActive.current = false;
+    const motionMode = locomotion === "ground" && anatomy?.locomotion === "flying" && wingPlan.pairCount > 0 && groundFlightActive.current ? "air" : locomotion;
     const frame = writeWildsCreatureLocomotionFrame(locomotionFrame.current, motionMode, time, motion, identity.marking, pose);
     const rootY = grounded && motionMode === "ground" ? (legged ? .48 * identity.height : body === "serpentine" ? .56 : .4 * identity.height * .9) : frame.rootY;
     const blend = poseInitialized.current ? 1 - Math.exp(-18 * Math.min(.1, delta)) : 1;

@@ -13,14 +13,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ownerProfileVaultAssets,
   parseProfileVaultPublicAsset,
+  parseLatestProfileVaultPublicAsset,
   profileVaultCardImageUrl,
   profileVaultCardQrDataUrl
 } from "./profile-vault-card";
 
 type ViewerState = "idle" | "loading" | "ready" | "unavailable";
 
-export function WildzProfileVaultGallery({ cards, ownerAssets }: {
+export function WildzProfileVaultGallery({ cards, ownerAssets, profileHandle }: {
   cards: readonly PublicWildzCard[];
+  profileHandle?: string;
   ownerAssets?: readonly PortableCardAsset[];
 }) {
   const ownerAssetsById = useMemo(
@@ -69,12 +71,13 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
     setViewerState("loading");
     const timeout = window.setTimeout(() => controller.abort("timeout"), 15_000);
     try {
-      const response = await fetch(`/api/cards/${encodeURIComponent(card.id)}`, {
+      const response = await fetch(`/api/cards/${encodeURIComponent(card.id)}${profileHandle ? `?profile=${encodeURIComponent(profileHandle)}` : ""}`, {
         cache: "no-store",
         signal: controller.signal
       });
       if (!response.ok) throw new Error("wildz_profile_card_unavailable");
-      const asset = parseProfileVaultPublicAsset(card, await response.json());
+      const payload = await response.json();
+      const asset = parseProfileVaultPublicAsset(card, payload) ?? parseLatestProfileVaultPublicAsset(card, payload);
       if (!asset) throw new Error("wildz_profile_card_unverified");
       if (requestRef.current !== controller) return;
       setSelectedAsset(asset);
@@ -86,7 +89,7 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
       window.clearTimeout(timeout);
       if (requestRef.current === controller) requestRef.current = null;
     }
-  }, [ownerAssetsById]);
+  }, [ownerAssetsById, profileHandle]);
 
   useEffect(() => {
     if (!selectedCard) return;
@@ -158,7 +161,7 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
               alt={`${card.name} card front`}
               height={700}
               loading="lazy"
-              src={profileVaultCardImageUrl(card.id)}
+              src={profileVaultCardImageUrl(card.id, profileHandle)}
               unoptimized
               width={500}
             />}
@@ -183,6 +186,7 @@ export function WildzProfileVaultGallery({ cards, ownerAssets }: {
       <div className="wildz-profile-card-viewer-body">
         {viewerState === "loading" ? <div className="wildz-profile-card-state" role="status"><RotateCcw aria-hidden="true" size={24} /><strong>Recovering verified card…</strong></div> : null}
         {viewerState === "unavailable" ? <div className="wildz-profile-card-state" role="status"><ShieldCheck aria-hidden="true" size={24} /><strong>Verified card unavailable</strong><span>The public proof could not be recovered right now.</span><button type="button" onClick={() => { if (originRef.current) void openCard(selectedCard, originRef.current); }}>Retry card</button><a href={standaloneCardUrl(selectedCard.id, window.location.origin)}>Open latest published card</a></div> : null}
+        {selectedAsset && selectedAsset.proof.digest !== selectedCard.proofDigest && <p role="status">Showing the current published card. This profile lists an earlier revision.</p>}
         {selectedAsset ? <WildsCardScene
           asset={selectedAsset}
           origin={window.location.origin}

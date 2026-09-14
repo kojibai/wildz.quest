@@ -8,7 +8,7 @@ export type WildsConstructionPoint3 = Readonly<{ x: number; y: number; z: number
 type Point3 = WildsConstructionPoint3;
 type Box = Readonly<{ center: Point3; halfExtents: Point3 }>;
 
-export type WildsConstructionKind = "foundation" | "floor" | "room" | "wall" | "roof" | "door" | "window" | "column" | "stair" | "bridge" | "platform" | "path" | "storage" | "workshop" | "habitat" | "bed" | "hearth" | "light" | "garden" | "water" | "trim" | "railing" | "partition";
+export type WildsConstructionKind = "foundation" | "floor" | "room" | "wall" | "roof" | "door" | "window" | "column" | "stair" | "bridge" | "platform" | "path" | "storage" | "workshop" | "habitat" | "bed" | "hearth" | "light" | "garden" | "water" | "trim" | "railing" | "partition" | "solid-wall" | "window-wall" | "pitched-roof" | "gable" | "stair-flight" | "stairwell-floor" | "beam";
 type AnchorKind = "foundation" | "wall" | "roof" | "door" | "utility" | "water";
 
 export type WildsConstructionCatalogEntry = Readonly<{
@@ -122,7 +122,15 @@ export const WILDS_CONSTRUCTION_CATALOG: readonly WildsConstructionCatalogEntry[
   entry("water", { x: 2, y: .5, z: 2 }, "water", ["water"]),
   entry("trim", { x: 1.5, y: .08, z: .08 }, "structure", []),
   entry("railing", { x: 1.5, y: .55, z: .08 }, "structure", ["wall"]),
-  entry("partition", { x: 1.5, y: 1.25, z: .08 }, "structure", ["wall", "door"])
+  entry("partition", { x: 1.5, y: 1.25, z: .08 }, "structure", ["wall", "door"]),
+  entry("solid-wall", { x: 3, y: 1.5, z: .15 }, "structure", ["wall", "roof", "foundation"]),
+  entry("window-wall", { x: 3, y: 1.5, z: .15 }, "structure", ["wall", "roof", "utility", "foundation"]),
+  entry("pitched-roof", { x: 3.2, y: .9, z: 3.2 }, "structure", ["roof"]),
+  entry("gable", { x: 3.2, y: .8, z: .15 }, "structure", ["roof"]),
+  entry("stair-flight", { x: 1.2, y: 1.5, z: 3 }, "terrain-or-structure", ["foundation"]),
+  entry("stairwell-floor", { x: 3, y: .12, z: 3 }, "structure", ["foundation"]),
+  entry("beam", { x: 3, y: .15, z: .2 }, "structure", ["foundation", "roof"])
+
 ]);
 
 const CATALOG = new Map(WILDS_CONSTRUCTION_CATALOG.map((value) => [value.kind, value]));
@@ -149,7 +157,14 @@ const ACCEPTED_ANCHORS = Object.freeze({
   water: ["water"],
   trim: ["wall", "door"],
   railing: ["foundation", "wall"],
-  partition: ["foundation", "wall"]
+  partition: ["foundation", "wall"],
+  "solid-wall": ["foundation", "wall"],
+  "window-wall": ["foundation", "wall"],
+  "pitched-roof": ["roof"],
+  gable: ["roof"],
+  "stair-flight": ["foundation"],
+  "stairwell-floor": ["foundation", "roof"],
+  beam: ["roof", "foundation"]
 } satisfies Record<WildsConstructionKind, readonly AnchorKind[]>);
 
 function quantize(value: number, unit = .25) {
@@ -225,6 +240,27 @@ function placementGeometry(kind: WildsConstructionKind, placementId: string, cen
     halfExtents: freeze(rotatedExtents)
   });
   };
+  if (kind === "stair-flight") return freeze({ collisionSolids: Array.from({ length: 12 }, (_, i) =>
+    solid(`tread:${i}`, { x: 0, y: -1.5 + (i + 1) * .125, z: -3 + (i + .5) * .5 }, { x: 1.2, y: (i + 1) * .125, z: .25 }, true)), interior: null });
+  if (kind === "stairwell-floor") return freeze({ collisionSolids: [
+    solid("left-deck", { x: -2.2, y: 0, z: 0 }, { x: .8, y: .12, z: 3 }, true),
+    solid("right-deck", { x: 2.2, y: 0, z: 0 }, { x: .8, y: .12, z: 3 }, true),
+    solid("landing", { x: 0, y: 0, z: 2.75 }, { x: 1.4, y: .12, z: .25 }, true)
+  ], interior: null });
+  if (kind === "window-wall") return freeze({ collisionSolids: [
+    solid("left", { x: -1.9, y: 0, z: 0 }, { x: 1.1, y: 1.5, z: .15 }, true),
+    solid("right", { x: 1.9, y: 0, z: 0 }, { x: 1.1, y: 1.5, z: .15 }, true),
+    solid("sill", { x: 0, y: -1, z: 0 }, { x: .8, y: .5, z: .15 }, true),
+    solid("lintel", { x: 0, y: 1.15, z: 0 }, { x: .8, y: .35, z: .15 }, true)
+  ], interior: null });
+  if (kind === "pitched-roof" || kind === "gable") return freeze({
+    collisionSolids: Array.from({ length: 24 }, (_, i) => {
+      const x = -3.2 + (i + .5) * (6.4 / 24);
+      const rise = (1 - Math.abs(x) / 3.2) * 1.6;
+      return solid(`slope:${i}`, { x, y: kind === "gable" ? -.8 + rise / 2 : -.8 + rise, z: 0 },
+        { x: 3.2 / 24, y: kind === "gable" ? rise / 2 : .1, z: kind === "gable" ? .15 : 3.2 }, true);
+    }), interior: null
+  });
   if (kind === "water") return freeze({ collisionSolids: [], interior: null });
   if (kind === "room") {
     const wallY = 0;
@@ -315,6 +351,15 @@ function placementAnchors(kind: WildsConstructionKind, placementId: string, cent
       position = { x: center.x + side.x, y: bottom, z: center.z + side.z };
     }
     if ((kind === "wall" || kind === "partition") && anchorKind === "door") position = { x: center.x, y: bottom, z: center.z };
+    if (kind === "stair-flight" && anchorKind === "foundation") {
+      const end = rotateHorizontal({ x: 0, y: 0, z: 2.75 }, rotation);
+      position = { x: center.x + end.x, y: top, z: center.z + end.z };
+    }
+    if (kind === "stairwell-floor" && anchorKind === "foundation") {
+      const side = rotateHorizontal({ x: -2.2, y: 0, z: 0 }, rotation);
+      position = { x: center.x + side.x, y: top, z: center.z + side.z };
+    }
+    if (kind === "window-wall" && anchorKind === "utility") position = { x: center.x, y: bottom + 1, z: center.z };
     if (kind === "wall" && anchorKind === "utility") {
       const windowBottom = rotateHorizontal({ x: 2, y: 0, z: 0 }, rotation);
       position = { x: center.x + windowBottom.x, y: bottom + 1.15, z: center.z + windowBottom.z };
@@ -342,7 +387,7 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
     && canonicalPortableCardJson(blueprintAnchors.get(candidate.id) ?? null) === canonicalPortableCardJson(candidate));
   // At deck height, finish the room perimeter before offering a stacked wall.
   // Keep the original anchor selection untouched for historical placements.
-  const deckAnchors = input.snapVersion === 2 && input.surfaceSnap && ["wall", "partition"].includes(input.kind)
+  const deckAnchors = input.snapVersion === 2 && input.surfaceSnap && ["wall", "partition", "solid-wall", "window-wall"].includes(input.kind)
     ? compatibleAnchors.filter(candidate => candidate.kind === "foundation" && Math.abs(candidate.position.y - input.pointer.y) <= 1)
     : [];
   const anchor = nearestAnchor(deckAnchors, input.pointer) ?? nearestAnchor(compatibleAnchors, input.pointer);
@@ -362,7 +407,7 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
     rotated = rotationQuarterTurns % 2 === 0 ? catalog.halfExtents : { x: catalog.halfExtents.z, y: catalog.halfExtents.y, z: catalog.halfExtents.x };
     if (architectural.baseY !== undefined) baseY = architectural.baseY;
   }
-  const surfaceOffset = input.surfaceSnap && anchor && supportPiece && !["door", "window", "roof", "room"].includes(input.kind)
+  const surfaceOffset = input.surfaceSnap && anchor && supportPiece && !["door", "window", "roof", "room", "pitched-roof", "gable"].includes(input.kind)
     && Math.abs(input.pointer.x - supportPiece.geometry.center.x) <= supportPiece.geometry.halfExtents.x + .25
     && Math.abs(input.pointer.z - supportPiece.geometry.center.z) <= supportPiece.geometry.halfExtents.z + .25;
   const position = freeze({
@@ -385,7 +430,7 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
   const collides = (first: Box, second: Box) => {
     if (!overlaps(first, second)) return false;
     // Thin wall ends may meet at a corner; broad overlaps are still rejected.
-    if (input.surfaceSnap && ["wall", "partition"].includes(input.kind)
+    if (input.surfaceSnap && ["wall", "partition", "solid-wall", "window-wall"].includes(input.kind)
       && Math.min(second.halfExtents.x, second.halfExtents.z) <= .15) {
       const overlapX = first.halfExtents.x + second.halfExtents.x - Math.abs(first.center.x - second.center.x);
       const overlapZ = first.halfExtents.z + second.halfExtents.z - Math.abs(first.center.z - second.center.z);

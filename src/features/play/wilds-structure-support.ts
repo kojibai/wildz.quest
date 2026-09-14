@@ -32,7 +32,7 @@ export function projectWildsStructureSupports(world?: Pick<WildsWorldProjection,
   const components: WildsStructureSupport[] = Object.values(world.constructionComponents ?? {}).filter(c=>(c.evidence.spaceId??"wildz.space.outer.v1")===spaceId).flatMap(component => {
     const geometry = projectGeometry(component);
     if (geometry.stage === "planned") return [];
-    if (!["foundation", "floor", "room", "roof", "stair", "bridge", "platform", "path"].includes(component.kind)) return [];
+    if (!["foundation", "floor", "room", "roof", "stair", "bridge", "platform", "path", "stair-flight", "stairwell-floor", "beam"].includes(component.kind)) return [];
     return geometry.solids.filter(solid => component.kind !== "room" || solid.id.endsWith(":floor")).map(solid => ({
       id: `wildz.support.component:${solid.id}`, structureId: component.componentId, deckY: solid.center.y + solid.halfExtents.y,
       center: { x: solid.center.x, z: solid.center.z }, halfWidth: solid.halfExtents.x, halfLength: solid.halfExtents.z, rotationQuarterTurns: 0 as const

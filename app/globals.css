@@ -17224,3 +17224,16 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wilds-atlas-destination { position: absolute; z-index: 4; left: 10px; top: 220px; width: min(290px, calc(100% - 20px)); }
 .wilds-atlas-destination .wilds-atlas-destination-focus { flex: 1; display: block; text-align: left; border: 0; min-width: 0; }
 .wilds-journal-memory { margin: 5px 0 8px; color: #bad2c9; font-size: 11px; line-height: 1.65; }
+
+/* Application-wide: includes public profiles and portal-mounted card viewers.
+   Keep touch scrolling and pointer gestures native; suppress only selection/callouts. */
+html, body, body * {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  -webkit-user-drag: none !important;
+}
+
+.wilds-builder-transform { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.wilds-builder-transform button { min-height: 44px; flex: 1; padding: 8px; }
+.wilds-builder-transform output { font-variant-numeric: tabular-nums; font-size: 12px; }

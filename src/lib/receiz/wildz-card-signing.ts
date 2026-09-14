@@ -9,9 +9,9 @@ export async function signWildzCardPublication({ record, merchantReceizId, keyFi
   const signedPublication = await createReceizClient().publicStore.signPublish({
     tenantHost: WILDZ_PRODUCT.domain, merchantReceizId,
     title: `${record.asset.manifest.name} living card`, sourceUrl: record.sourceUrl,
-    namespace: `wildz-card:${record.assetId}`, projectionState: "published",
+    namespace: record.sourceUrl.includes("/u/") ? `wildz-vault-card:${merchantReceizId}:${record.assetId}` : `wildz-card:${record.assetId}`, projectionState: "published",
     platform: WILDZ_PRODUCT.name,
     storeStateRecord: createPublicWildsCardTransportRecord(record) as unknown as JsonObject, keyFile
   });
-  return JSON.stringify({ asset: record.asset, signedPublication });
+  return JSON.stringify({ signedPublication });
 }

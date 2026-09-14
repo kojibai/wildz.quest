@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { WILDZ_PRODUCT } from "@/lib/wildz/product";
 import "./globals.css";
 import { PwaController } from "@/features/pwa/PwaController";
+import { NativeInteractionGuard } from "@/features/pwa/NativeInteractionGuard";
 
 export const metadata: Metadata = {
   metadataBase: new URL(WILDZ_PRODUCT.origin),
@@ -79,7 +80,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}<PwaController /></body>
+      <body><NativeInteractionGuard />{children}<PwaController /></body>
     </html>
   );
 }

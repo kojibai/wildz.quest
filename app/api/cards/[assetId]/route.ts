@@ -3,6 +3,7 @@ import { parseSignedWildzCardPublication } from "@/lib/receiz/wildz-card-publica
 import { NextRequest, NextResponse } from "next/server";
 import {
   createPublicWildsCardRecord,
+  parsePublicWildsCardRecord,
   createPublicWildsCardTransportRecord,
   parsePublicCardParam
 } from "@/features/play/public-card-registry";
@@ -49,18 +50,21 @@ export async function POST(request: NextRequest, context: { params: Promise<{ as
     const { assetId: rawAssetId } = await context.params;
     const { assetId } = parsePublicCardParam(rawAssetId);
     const body = await request.json().catch(() => null) as { asset?: PortableCardAsset; signedPublication?: unknown } | null;
-    if (!body?.asset || !isRecord(body.asset)) {
+    const signedRecord = body?.signedPublication && isRecord(body.signedPublication)
+      ? parsePublicWildsCardRecord(body.signedPublication.storeStateRecord) : null;
+    const submittedAsset = signedRecord?.asset ?? body?.asset;
+    if (!submittedAsset || !isRecord(submittedAsset)) {
       throw new Error("wildz_public_card_request_invalid");
     }
-    const asset = body.asset as PortableCardAsset;
+    const asset = submittedAsset as PortableCardAsset;
     if (asset.id !== assetId || !verifyAnyWildsCard(asset).ok) {
       throw new Error("wildz_public_card_verification_failed");
     }
 
-    if (body.signedPublication) {
+    if (body?.signedPublication) {
       const { record, signed } = parseSignedWildzCardPublication(body.signedPublication, asset);
       const result = await createReceizCommerceAdapter().client.publicStore.publishSigned(signed, {
-        idempotencyKey: `wildz-card:${asset.id}:${asset.proof.digest}`
+        idempotencyKey: `${record.sourceUrl.includes("/u/") ? `wildz-vault-card:${signed.merchantReceizId}` : "wildz-card"}:${asset.id}:${asset.proof.digest}`
       });
       if (result.ok !== true || !result.appendAnchorId || result.knownHead?.appendAnchorId !== result.appendAnchorId) {
         throw new Error("wildz_public_card_publication_unconfirmed");
@@ -109,7 +113,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ ass
   try {
     const { assetId: rawAssetId } = await context.params;
     const { assetId } = parsePublicCardParam(rawAssetId);
-    const record = await resolvePublicWildsCardRecord(assetId, requestOrigin(request));
+    const record = await resolvePublicWildsCardRecord(assetId, requestOrigin(request), request.nextUrl.searchParams.get("profile") ?? undefined);
     if (!record) {
       return NextResponse.json({ ok: false, error: "wildz_public_card_not_found" }, { status: 404 });
     }

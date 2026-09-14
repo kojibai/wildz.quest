@@ -15,7 +15,7 @@ export function normalizeWildzCrewCustodySources(value: unknown): WildzCrewCusto
 }
 export async function reopenWildzCrewCustody(input: {
   owner: string; cards: readonly PortableCardAsset[]; sources: unknown;
-  history: { read(sha: string): Promise<WildzArtifactHistoryEntry | null> };
+  history: { read(sha: string): Promise<Pick<WildzArtifactHistoryEntry, "artifactBytes" | "mimeType" | "filename"> | null> };
   codec: WildzArtifactCodec;
 }): Promise<WildzCrewCustody | null> {
   const foreign = new Set(input.cards.filter(card => !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, input.owner)).map(card => card.id));

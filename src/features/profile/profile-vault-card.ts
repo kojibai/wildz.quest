@@ -4,8 +4,8 @@ import type { PortableCardAsset } from "@/features/play/portable-card";
 import QRCode from "qrcode";
 import type { PublicWildzCard } from "./public-profile";
 
-export function profileVaultCardImageUrl(assetId: string) {
-  return `/api/cards/${encodeURIComponent(assetId)}/image`;
+export function profileVaultCardImageUrl(assetId: string, profileHandle?: string) {
+  return `/api/cards/${encodeURIComponent(assetId)}/image${profileHandle ? `?profile=${encodeURIComponent(profileHandle)}` : ""}`;
 }
 
 export function profileVaultCardQrDataUrl(assetId: string, origin: string) {
@@ -40,4 +40,11 @@ export function parseProfileVaultPublicAsset(card: PublicWildzCard, value: unkno
   return record && record.assetId === card.id && matchesPublicCard(card, record.asset)
     ? record.asset
     : null;
+}
+
+/** Display the current verified public revision when a profile snapshot is older.
+ * This is a viewer result, never a custody or inventory admission. */
+export function parseLatestProfileVaultPublicAsset(card: PublicWildzCard, value: unknown) {
+  const record = parsePublicWildsCardRecord(value);
+  return record?.assetId === card.id ? record.asset : null;
 }

@@ -52,9 +52,17 @@ function publicCardSourceUrls(assetId: string, requestOrigin: string) {
 
 export async function resolveSdkPublicWildzCard(
   assetId: string,
-  options: { adapter: WildzPublicCardReadAdapter; requestOrigin: string }
+  options: { adapter: WildzPublicCardReadAdapter; requestOrigin: string; profileHandle?: string }
 ) {
   if (!/^wilds:[a-f0-9]{24}$/.test(assetId)) return null;
+  const handle = options.profileHandle?.replace(/^@/, "").toLowerCase();
+  if (handle && /^[a-z0-9_]{3,64}$/.test(handle)) {
+    const url = `${WILDZ_PRODUCT.origin}/u/${handle}/cards/${encodeURIComponent(assetId)}`;
+    try {
+      const scoped = parseExactPublicAsset(await options.adapter.readAppStateByUrl(url), assetId);
+      if (scoped) return scoped;
+    } catch { /* Fall back to the creator's canonical public card. */ }
+  }
   if (options.adapter.resolvePublicStore) {
     try {
       const resolvedById = parseExactPublicAsset(

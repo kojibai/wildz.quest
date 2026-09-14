@@ -8,25 +8,26 @@ import { createReceizWildzPublicRepository } from "./wildz-public-repository";
 
 export async function resolvePublicWildsCardRecord(
   rawAssetId: string,
-  requestOrigin: string
+  requestOrigin: string,
+  profileHandle?: string
 ): Promise<PublicWildsCardRecord | null> {
   const { assetId } = parsePublicCardParam(rawAssetId);
   const adapter = createReceizCommerceAdapter();
   const repository = createReceizWildzPublicRepository({ adapter });
-  let asset: PortableCardAsset | null = null;
+  let asset: PortableCardAsset | null = await resolveSdkPublicWildzCard(assetId, { adapter, requestOrigin, profileHandle });
   let registeredAt = new Date().toISOString();
+  if (asset) return createPublicWildsCardRecord(asset, requestOrigin, registeredAt);
   let repositoryFailure: unknown = null;
   try {
     const { state } = await repository.load();
     const projected = state.cards[assetId];
-    if (projected && verifyAnyWildsCard(projected).ok) {
+    if (!asset && projected && verifyAnyWildsCard(projected).ok) {
       asset = projected;
       registeredAt = state.updatedAt;
     }
   } catch (cause) {
     repositoryFailure = cause;
   }
-  if (!asset) asset = await resolveSdkPublicWildzCard(assetId, { adapter, requestOrigin });
   if (!asset || !verifyAnyWildsCard(asset).ok) {
     if (repositoryFailure) throw repositoryFailure;
     return null;

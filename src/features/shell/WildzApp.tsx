@@ -279,7 +279,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const vaultAdmission = admittedVault?.admission ?? null;
   const admittedProofObjects = admittedVault?.proofObjects;
   // Card proofs can publish independently of explorer/profile/session readiness.
-  usePublicCardPublisher(publishableOwnerAssets, Boolean(identity), admittedProofObjects);
+  usePublicCardPublisher(publishableOwnerAssets, Boolean(identity), admittedProofObjects, continuity?.crewCustody, identity?.username ?? identity?.actorId);
   const viewingOwnProfile = !overlay
     || overlay.kind !== "profile"
     || (overlay.mode !== "public" && overlay.username.toLowerCase() === `@${ownerUsername}`.toLowerCase());

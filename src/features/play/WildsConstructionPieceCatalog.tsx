@@ -3,6 +3,7 @@ import { wildsConstructionLabel } from "./wilds-continuous-builder";
 import type { WildsConstructionKind } from "./wilds-world-construction";
 export const WILDS_BUILD_PIECE_GROUPS: ReadonlyArray<{ label: string; kinds: readonly WildsConstructionKind[] }> = [
   { label: "Structure", kinds: ["foundation", "floor", "room", "wall", "roof", "door", "window", "column", "stair", "bridge", "platform", "path"] },
+  { label: "Architecture", kinds: ["solid-wall", "window-wall", "pitched-roof", "gable", "stair-flight", "stairwell-floor", "beam"] },
   { label: "Living", kinds: ["storage", "workshop", "habitat", "bed", "hearth", "light", "garden", "water"] },
   { label: "Finishing", kinds: ["trim", "railing", "partition"] }
 ];

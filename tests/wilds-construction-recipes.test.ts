@@ -31,12 +31,19 @@ const MATRIX = {
   water: [[0, 0, 2, 1], [1, 1, 2, 2], [1, 0, 1, 1], "water"],
   trim: [[1, 1, 0, 1], [1, 1, 0, 1], [1, 0, 0, 1], null],
   railing: [[0, 2, 0, 1], [1, 1, 0, 1], [1, 0, 0, 1], "safety"],
-  partition: [[1, 1, 0, 1], [2, 1, 0, 1], [1, 0, 0, 1], "cover"]
+  partition: [[1, 1, 0, 1], [2, 1, 0, 1], [1, 0, 0, 1], "cover"],
+  "solid-wall": [[0, 2, 1, 1], [2, 2, 0, 1], [1, 1, 0, 1], "cover"],
+  "window-wall": [[0, 2, 1, 1], [2, 1, 0, 1], [1, 1, 0, 1], "daylight"],
+  "pitched-roof": [[0, 3, 0, 1], [5, 2, 0, 2], [2, 1, 0, 1], "cover"],
+  gable: [[0, 2, 0, 1], [2, 1, 0, 1], [1, 1, 0, 1], "cover"],
+  "stair-flight": [[0, 3, 1, 1], [0, 3, 0, 2], [1, 1, 0, 1], "traversal"],
+  "stairwell-floor": [[0, 2, 1, 1], [1, 1, 0, 1], [1, 1, 0, 1], "floor"],
+  beam: [[0, 2, 0, 1], [0, 1, 0, 1], [1, 0, 0, 1], "support"]
 } as const;
 
 describe("Wilds construction recipes", () => {
   it("defines the exact three-stage recipe matrix for every catalog kind", () => {
-    assert.equal(WILDS_CONSTRUCTION_RECIPES.length, 23);
+    assert.equal(WILDS_CONSTRUCTION_RECIPES.length, 30);
     assert.deepEqual(WILDS_CONSTRUCTION_CATALOG.map((entry) => entry.kind), Object.keys(MATRIX));
     for (const entry of WILDS_CONSTRUCTION_CATALOG) {
       const recipe = wildsConstructionRecipe(entry.kind);

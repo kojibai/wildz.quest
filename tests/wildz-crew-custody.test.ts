@@ -125,3 +125,24 @@ test("roaming restore fences post-commit shell acceptance and merges the latest 
   assert.match(callback.slice(guard), /latest\.restoreEpoch !== current\.restoreEpoch/);
   assert.match(shell, /restoreArtifact\(file, "card-vault", true, latest\.playState \?\? currentPlayState, "merge-vault", prepared, sidecar\)/);
 });
+
+test("a verified identity snapshot admits received crew without admitting unsigned sidecars", async () => {
+  const { createReceizIdentityKeyFile, serializeReceizIdentityArtifact } = await import("@receiz/sdk");
+  const { verifyAndAdmitWildsCard } = await import("../src/features/play/admitted-inventory");
+  const identity = await createReceizIdentityKeyFile({ owner: { uid: "keeper", username: "keeper", displayName: "Keeper" }, portableState: { snapshot: { cards: [card] } } });
+  const f = fixture();
+  const inspected = await f.codec.inspect({ bytes: new TextEncoder().encode(serializeReceizIdentityArtifact(identity.keyFile)), mimeType: "application/json" });
+  assert.equal(inspected.kind, "identity-seal");
+  const custody = readWildzArtifactCrewCustody(inspected);
+  assert.ok(custody);
+  const admitted = structuredClone(card);
+  assert.equal(verifyAndAdmitWildsCard(admitted), true);
+  for (let i = 0; i < 100; i++) assert.equal(canOperateWildzCrewCard(admitted, "keeper", custody), true);
+  const unrelated = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "original", encounterId: "not-in-snapshot", capturedAt: "2026-07-15T12:00:00.000Z" });
+  assert.equal(canOperateWildzCrewCard(unrelated, "keeper", custody), false);
+  const mutable = structuredClone(card);
+  assert.equal(canOperateWildzCrewCard(mutable, "keeper", custody), true);
+  mutable.manifest.name = "tampered after first check";
+  assert.equal(canOperateWildzCrewCard(mutable, "keeper", custody), false);
+  assert.ok(createWildsCrewExpeditionGuard(() => ({ owner: "keeper", cards: [admitted], custody })).begin(admitted.id));
+});

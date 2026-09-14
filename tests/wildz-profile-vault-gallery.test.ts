@@ -67,7 +67,7 @@ test("Profile mounts real published card artwork and only one complete selected 
   const profile = readFileSync("src/features/profile/WildzProfileSheet.tsx", "utf8");
   const gallery = readFileSync("src/features/profile/WildzProfileVaultGallery.tsx", "utf8");
   assert.match(profile, /<WildzProfileVaultGallery cards=\{profile\.vault\} ownerAssets=\{vaultAssets\}/);
-  assert.match(gallery, /profileVaultCardImageUrl\(card\.id\)/);
+  assert.match(gallery, /profileVaultCardImageUrl\(card\.id, profileHandle\)/);
   assert.match(gallery, /<WildsCardScene[\s\S]*asset=\{selectedAsset\}[\s\S]*tapToFlip/);
   assert.equal((gallery.match(/<WildsCardScene/g) ?? []).length, 1);
 });

@@ -463,9 +463,22 @@ export async function bootstrapWildzContinuity(
  * hold the world or original creatures behind a captured-card source. */
 export async function reopenWildzContinuityCrewCustody(snapshot: WildzContinuitySnapshot) {
   if (!snapshot.playState || snapshot.crewCustody) return snapshot.crewCustody ?? null;
-  return reopenWildzCrewCustody({ owner: snapshot.session.actorId, cards: snapshot.playState.inventory,
+  const sourceCustody = await reopenWildzCrewCustody({ owner: snapshot.session.actorId, cards: snapshot.playState.inventory,
     sources: await defaultContinuityDatabase.read("meta", wildzCrewCustodySourceKey(snapshot.session.keyId, snapshot.session.actorId)),
-    history: defaultArtifactHistory, codec: defaultArtifactCodec });
+    history: { async read(sha) {
+      const native = await defaultArtifactHistory.read(sha);
+      if (native) return native;
+      const seal = await defaultContinuityDatabase.read<{ bytes: Uint8Array; mimeType: string }>("meta", `wildz:crew-seal-source:v1:${sha}`);
+      return seal ? { artifactBytes: seal.bytes, mimeType: seal.mimeType, filename: "identity-seal" } : null;
+    } }, codec: defaultArtifactCodec });
+  const sealCustody = await defaultIdentityRepository.withKeyFile(snapshot.session.keyId, async keyFile => {
+    if (!keyFile.portableState) return null;
+    const inspection = await defaultArtifactCodec.inspect({
+      bytes: new TextEncoder().encode(JSON.stringify(keyFile)), mimeType: "application/json"
+    });
+    return readWildzArtifactCrewCustody(inspection);
+  }).catch(() => null);
+  return mergeWildzCrewCustody(snapshot.session.actorId, [sourceCustody, sealCustody], snapshot.playState.inventory);
 }
 
 export async function createNamedWildzIdentity(

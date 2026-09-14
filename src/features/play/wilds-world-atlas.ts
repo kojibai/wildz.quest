@@ -50,7 +50,9 @@ export type WildsAtlasPlayerCluster = {
 
 export type WildsAtlasWorldAddition = {
   id: string;
-  blueprint: WildsConstructionSiteV1["blueprint"] | WildsStructureV1["blueprint"];
+  blueprint: WildsConstructionSiteV1["blueprint"] | WildsStructureV1["blueprint"] | "custom-building";
+  name?: string;
+  pieceCount?: number;
   phase: "construction" | "complete";
   ownerReceizId: string;
   position: { x: number; y: number; z: number };
@@ -112,6 +114,7 @@ export type WildsAtlasInput = {
   bosses?: readonly WildsWorldBossProjection[];
   trainers?: readonly WildsTrainerProjection[];
   constructionSites?: readonly WildsConstructionSiteV1[];
+  customBuildings?: readonly WildsAtlasWorldAddition[];
   structures?: readonly WildsStructureV1[];
   bossKnowledge?: Record<string, WildsBossKnowledge>;
   now?: number;
@@ -258,6 +261,7 @@ export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection 
       .filter((trainer) => trainer.available)
       .filter((trainer) => knownPosition({ x: trainer.position[0], z: trainer.position[2] })),
     worldAdditions: [
+      ...(input.customBuildings ?? []).filter(building => knownPosition(building.position)),
       ...(input.constructionSites ?? [])
         .filter((site) => site.stage !== "complete")
         .filter((site) => knownPosition(site.position))

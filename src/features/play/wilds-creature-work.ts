@@ -71,7 +71,14 @@ const PIECE_STAGES = Object.freeze({
   water: ["survey", "underwater-build", "stabilize", "rescue", "finish"],
   trim: ["shape", "finish"],
   railing: ["shape", "stabilize", "finish"],
-  partition: ["haul", "shape", "finish"]
+  partition: ["haul", "shape", "finish"],
+  "solid-wall": ["haul", "masonry", "stabilize", "finish"],
+  "window-wall": ["haul", "masonry", "stabilize", "finish"],
+  "pitched-roof": ["haul", "shape", "stabilize", "finish"],
+  gable: ["haul", "shape", "stabilize", "finish"],
+  "stair-flight": ["haul", "shape", "stabilize", "finish"],
+  "stairwell-floor": ["haul", "shape", "stabilize", "finish"],
+  beam: ["haul", "shape", "stabilize", "finish"]
 } satisfies Record<WildsConstructionKind, readonly WildsWorkProfession[]>);
 const TOOL_PROFESSIONS = new Set<WildsWorkProfession>(["lumber", "quarry", "mine", "burrow", "shape", "masonry", "underwater-build", "illuminate"]);
 const PIECE_MATERIALS = Object.freeze({
@@ -97,7 +104,14 @@ const PIECE_MATERIALS = Object.freeze({
   water: { materialKind: "aquatic", capacity: 2 },
   trim: { materialKind: "fiber", capacity: 1 },
   railing: { materialKind: "timber", capacity: 2 },
-  partition: { materialKind: "timber", capacity: 2 }
+  partition: { materialKind: "timber", capacity: 2 },
+  "solid-wall": { materialKind: "timber", capacity: 3 },
+  "window-wall": { materialKind: "timber", capacity: 3 },
+  "pitched-roof": { materialKind: "timber", capacity: 4 },
+  gable: { materialKind: "timber", capacity: 3 },
+  "stair-flight": { materialKind: "timber", capacity: 4 },
+  "stairwell-floor": { materialKind: "timber", capacity: 3 },
+  beam: { materialKind: "timber", capacity: 2 }
 } satisfies Record<WildsConstructionKind, Readonly<{ materialKind: WildsResourceKind; capacity: number }>>);
 const MIN_REGION = -3_906_250;
 const MAX_REGION = 3_906_249;

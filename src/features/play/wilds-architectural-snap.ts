@@ -5,14 +5,21 @@ export function architecturalSnap(kind: WildsConstructionKind, pointer: WildsCon
   const c = support.geometry.center, h = support.geometry.halfExtents;
   const alongX = Math.abs(pointer.x - c.x) >= Math.abs(pointer.z - c.z);
   const sign = (alongX ? pointer.x - c.x : pointer.z - c.z) < 0 ? -1 : 1;
-  if ((kind === "wall" || kind === "partition") && ["foundation", "floor", "platform"].includes(support.kind)) {
-    const inset = kind === "wall" ? .15 : .08;
+  if ((["wall", "partition", "solid-wall", "window-wall"].includes(kind)) && ["foundation", "floor", "platform", "stairwell-floor"].includes(support.kind)) {
+    const inset = kind === "partition" ? .08 : .15;
     return { x: c.x + (alongX ? sign * (h.x - inset) : 0), z: c.z + (alongX ? 0 : sign * (h.z - inset)), rotation: (alongX ? 1 : 0) as 0 | 1 | 2 | 3 };
   }
   if (kind === "floor" && support.kind === "floor") {
     return { x: c.x + (alongX ? sign * h.x * 2 : 0), z: c.z + (alongX ? 0 : sign * h.z * 2), rotation, baseY: c.y - h.y };
   }
-  if (kind === "roof" && support.kind === "wall") {
+  if (["roof", "pitched-roof"].includes(kind) && ["wall", "solid-wall", "window-wall"].includes(support.kind)) {
+    const normalX = support.transform.rotationQuarterTurns % 2 === 1;
+    const side = (normalX ? pointer.x - c.x : pointer.z - c.z) < 0 ? -1 : 1;
+    return { x: c.x + (normalX ? side * 2.85 : 0), z: c.z + (normalX ? 0 : side * 2.85), rotation };
+  }
+  if (kind === "gable" && ["wall", "solid-wall", "window-wall"].includes(support.kind)) return { x: c.x, z: c.z, rotation: support.transform.rotationQuarterTurns };
+  if (kind === "stairwell-floor" && support.kind === "stair-flight") return { x: c.x, z: c.z, rotation: support.transform.rotationQuarterTurns };
+  if ((kind === "floor" || kind === "stairwell-floor") && ["solid-wall", "window-wall", "beam"].includes(support.kind)) {
     const normalX = support.transform.rotationQuarterTurns % 2 === 1;
     const side = (normalX ? pointer.x - c.x : pointer.z - c.z) < 0 ? -1 : 1;
     return { x: c.x + (normalX ? side * 2.85 : 0), z: c.z + (normalX ? 0 : side * 2.85), rotation };

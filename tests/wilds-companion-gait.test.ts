@@ -25,9 +25,9 @@ test('fast travel keeps leg cycles readable at 30, 60 and 120 fps and eases into
   for(let frame=1;frame<=hz*4;frame++) {
    const before=animation.distance;
    writeWildsCompanionAnimation(animation,{distance:frame/hz*35,speed:35},1/hz);
-   assert.ok(animation.distance-before<=.65*4/hz+1e-10);
+   assert.ok(animation.distance-before<=.65*2/hz+1e-10);
   }
-  assert.ok(Math.abs(animation.distance-.65*16)<1e-9);
+  assert.ok(Math.abs(animation.distance-.65*8)<1e-9);
   assert.ok(animation.weight>.999);
   const stopped=animation.distance;
   for(let frame=0;frame<hz;frame++) {

@@ -327,12 +327,12 @@ function AtlasCameraRig({
     maxPolarAngle={Math.PI / 2 - .06}
     minDistance={activeLimits.minDistance}
     minPolarAngle={.05}
-    mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
+    mouseButtons={{ LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
     panSpeed={1}
     ref={controls}
     rotateSpeed={wildsAtlasRotateSpeed(size)}
     screenSpacePanning={false}
-    touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
+    touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }}
     zoomSpeed={1}
     zoomToCursor
   />;
@@ -356,7 +356,7 @@ function WorldAdditionMarkers({ projection }: { projection: WildsAtlasProjection
     const z = atlasLocalCoordinate(addition.position.z, projection.centerRegion.z, projection.regionUnit);
     const complete = addition.phase === "complete";
     const accent = complete ? "#71e8c3" : "#f7d25b";
-    const label = addition.blueprint.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ");
+    const label = addition.name ? `${addition.name} · ${addition.pieceCount ?? 0} pieces` : addition.blueprint.split("-").map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ");
     return <group key={addition.id} name={`atlas-world-addition-${addition.id}`} position={[x, atlasTerrainHeight(addition.position.x, addition.position.z, projection.regionUnit) + .12, z]}>
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <torusGeometry args={[.22, .025, 7, 24]} />

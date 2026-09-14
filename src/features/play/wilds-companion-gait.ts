@@ -20,7 +20,7 @@ export function writeWildsCompanionAnimation(state: WildsCompanionAnimation, gai
   const source = gait?.distance ?? 0;
   const moved = Math.max(0, source - state.sourceDistance);
   state.sourceDistance = source;
-  state.distance += Math.min(moved, .65 * 4 * dt);
+  state.distance += Math.min(moved, .65 * 2 * dt);
   const target = Math.min(1, Math.max(0, (gait?.speed ?? 0) / .8));
   state.weight += (target - state.weight) * (1 - Math.exp(-18 * dt));
 }

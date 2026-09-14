@@ -272,6 +272,6 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
       <p>{profile.reputation > 0 ? `Your choices carry ${profile.reputation} reputation into future encounters.` : "Explore, battle, and help the living world to build a remembered reputation."}</p>
     </section>
     {profile.explorer ? <p className="wildz-profile-traits">{profile.explorer.traits.outfit.replaceAll("-", " ")} · {profile.explorer.traits.trail.replaceAll("-", " ")} trail</p> : null}
-    <WildzProfileVaultGallery cards={profile.vault} ownerAssets={vaultAssets} />
+    <WildzProfileVaultGallery cards={profile.vault} ownerAssets={vaultAssets} profileHandle={profile.username} />
   </div>;
 }

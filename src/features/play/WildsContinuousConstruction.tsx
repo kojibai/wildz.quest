@@ -111,7 +111,7 @@ export function WildsContinuousConstruction({ world, player, terrainElevation, p
           {[-1, 1].flatMap(x => [-1, 1].map(z => <mesh key={`${x}:${z}`} position={[box.center.x + x * box.halfExtents.x, box.center.y - box.halfExtents.y + .3, box.center.z + z * box.halfExtents.z]}><boxGeometry args={[.09, .6, .09]} /><meshStandardMaterial color="#9dddbf" /></mesh>))}
           <mesh position={[box.center.x, box.center.y - box.halfExtents.y + .025, box.center.z]}><boxGeometry args={[box.halfExtents.x * 2, .05, box.halfExtents.z * 2]} /><meshStandardMaterial color="#72d9b7" transparent opacity={.32} depthWrite={false} /></mesh>
         </group> : geometry.solids.map(solid => <mesh castShadow receiveShadow key={solid.id} ref={mesh => {
-          if (mesh && ["wall", "partition", "room", "roof"].includes(component.kind) && !solid.id.endsWith(":floor")) {
+          if (mesh && ["wall", "partition", "room", "roof", "solid-wall", "window-wall", "pitched-roof", "gable"].includes(component.kind) && !solid.id.endsWith(":floor")) {
             cutaways.current.set(solid.id, { mesh, box: solid });
           } else cutaways.current.delete(solid.id);
         }} position={[solid.center.x, solid.center.y, solid.center.z]} geometry={surfaces.geometry(solid.halfExtents)} material={surfaces.material(component.kind, geometry.stage)} dispose={null}>

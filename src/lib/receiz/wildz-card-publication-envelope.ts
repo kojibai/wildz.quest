@@ -8,16 +8,19 @@ import {WILDZ_PRODUCT} from "../wildz/product";
 export function parseSignedWildzCardPublication(value: unknown, asset: PortableCardAsset) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("wildz_public_card_signed_publication_invalid");
   const signed=value as ReceizPublicStoreSignedPublish<JsonObject>;
-  const owner=parseWildzPlayerCoordinate(asset.manifest.ownerReceizId);
   const record=parsePublicWildsCardRecord(signed.storeStateRecord);
+  const collectionHandle = record ? new URL(record.sourceUrl).pathname.match(/^\/u\/([a-z0-9_]{3,64})\/cards\//)?.[1] : undefined;
+  const owner=parseWildzPlayerCoordinate(collectionHandle ?? asset.manifest.ownerReceizId);
   if (!owner || !record || signed.schema !== "receiz.public_store.signed_publish.v1"
     || signed.tenantHost !== WILDZ_PRODUCT.domain || signed.merchantReceizId !== owner.profileHandle
-    || record.assetId !== asset.id || record.sourceUrl !== `${WILDZ_PRODUCT.origin}/cards/${encodeURIComponent(asset.id)}`
+    || record.assetId !== asset.id || record.sourceUrl !== `${WILDZ_PRODUCT.origin}${collectionHandle ? `/u/${collectionHandle}` : ""}/cards/${encodeURIComponent(asset.id)}`
     || canonicalPortableCardJson(record.asset) !== canonicalPortableCardJson(asset)) {
     throw new Error("wildz_public_card_signed_publication_invalid");
   }
-  const transport=createPublicWildsCardTransportRecord(record);
-  const namespace=`wildz-card:${asset.id}`;
+  const transport=signed.storeStateRecord.schema === "receiz.wilds_public_card_transport.v1"
+    ? { schema: "receiz.wilds_public_card_transport.v1" as const, assetId: record.assetId, sourceUrl: record.sourceUrl, recordJson: JSON.stringify(record) }
+    : createPublicWildsCardTransportRecord(record);
+  const namespace=collectionHandle ? `wildz-vault-card:${owner.profileHandle}:${asset.id}` : `wildz-card:${asset.id}`;
   const expected=createReceizAppStateFeed([createReceizPublicStoreStateRecord({
     sourceUrl:record.sourceUrl,externalCreatorId:owner.profileHandle,title:`${asset.manifest.name} living card`,
     namespace,state:"published",platform:WILDZ_PRODUCT.name,record:transport as unknown as JsonObject,

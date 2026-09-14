@@ -1,3 +1,4 @@
+import { isAdmittedWildsCard } from "../../features/play/admitted-inventory";
 import { isVerifiedWildzCardDescendant } from "./wildz-card-descendant";
 import {
   projectReceizIdentityAccount,
@@ -33,6 +34,7 @@ export type WildzCrewCustody = Readonly<{ owner: string }>;
 export type WildzCrewCustodySource = Readonly<{ artifactSha256: string; assetIds: readonly string[] }>;
 type CrewCustodyEntry = { card: PortableCardAsset; artifactSha256: string };
 const crewAdmissions = new WeakMap<WildzCrewCustody, readonly CrewCustodyEntry[]>();
+const crewCardChecks = new WeakMap<WildzCrewCustody, WeakMap<PortableCardAsset, boolean>>();
 const inspectionCrewAdmissions = new WeakMap<object, WildzCrewCustody>();
 function issueCrewCustody(owner: string, entries: readonly CrewCustodyEntry[]): WildzCrewCustody {
   const token = Object.freeze({ owner });
@@ -70,9 +72,16 @@ export function wildzCrewCustodySources(token: WildzCrewCustody | null | undefin
 export function canOperateWildzCrewCard(card: PortableCardAsset, owner: string, token?: WildzCrewCustody | null) {
   if (sameWildzPlayerCoordinate(card.manifest.ownerReceizId, owner)) return true;
   if (!token || !sameWildzPlayerCoordinate(token.owner, owner)) return false;
+  let checks = crewCardChecks.get(token);
+  if (!checks) { checks = new WeakMap(); crewCardChecks.set(token, checks); }
+  const cacheable = isAdmittedWildsCard(card);
+  const cached = cacheable ? checks.get(card) : undefined;
+  if (cached !== undefined) return cached;
   const source = crewAdmissions.get(token)?.find(entry => entry.card.id === card.id)?.card;
-  return Boolean(source && (canonicalPortableCardJson(source) === canonicalPortableCardJson(card)
+  const allowed = Boolean(source && (source === card || canonicalPortableCardJson(source) === canonicalPortableCardJson(card)
     || isVerifiedWildzCardDescendant(source, card)));
+  if (cacheable) checks.set(card, allowed);
+  return allowed;
 }
 
 export type WildzPlayerBinding = "identity-portable-state" | "identity-v3-binding" | "artifact-v4-required" | null;
@@ -437,6 +446,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
           playerBinding
         };
       }
+      const sealSourceDigest = identity ? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes).buffer)), byte => byte.toString(16).padStart(2, "0")).join("") : "";
       const admitCrewInspection = <T extends WildzArtifactInspection>(result: T): T => {
         if (proofObject?.compatibility === "current-native" && proofObjectPayload) {
           const exact = extractVerifiedWildzCards({ pngBasis: null, verifiedPortableSnapshot: null,
@@ -444,6 +454,17 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
           const entries = exact.assets.filter(card => !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, proofObject!.ownerReceizId))
             .map(card => ({ card: structuredClone(card), artifactSha256: proofObject!.artifactBasisSha256 }));
           if (entries.length) inspectionCrewAdmissions.set(result, issueCrewCustody(proofObject.ownerReceizId, entries));
+        }
+        else if (identity && (verifiedPortableSnapshot || playerBinding === "identity-v3-binding")) {
+          // The signed snapshot grants local crew control only for its exact cards.
+          // Unbound PNG sidecars never inherit this operational admission.
+          const exact = playerBinding === "identity-v3-binding" ? extraction : extractVerifiedWildzCards({ pngBasis: null, verifiedPortableSnapshot,
+            restoredVaultFiles: [], proofObjectPayload: null, retirementAuthorityVerifier: input.retirementAuthorityVerifier });
+          const owner = identity.session.actorId;
+          const snapshotDigest = sealSourceDigest;
+          const entries = exact.assets.filter(card => !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, owner))
+            .map(card => ({ card: structuredClone(card), artifactSha256: snapshotDigest }));
+          if (entries.length) inspectionCrewAdmissions.set(result, issueCrewCustody(owner, entries));
         }
         return result;
       };
@@ -459,7 +480,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
         });
       }
       if (identity) {
-        return {
+        return admitCrewInspection({
           kind: "identity-seal",
           identity,
           portableAssets: extraction.assets,
@@ -469,7 +490,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
           ])].sort(),
           player: extraction.player,
           playerBinding
-        };
+        });
       }
       if (extraction.assets.length) {
         return admitCrewInspection({

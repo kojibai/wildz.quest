@@ -62,7 +62,14 @@ export const WILDS_CONSTRUCTION_RECIPES: readonly WildsConstructionRecipe[] = fr
   recipe("water", [0, 0, 2, 1], [1, 1, 2, 2], [1, 0, 1, 1], "water"),
   recipe("trim", [1, 1, 0, 1], [1, 1, 0, 1], [1, 0, 0, 1], null),
   recipe("railing", [0, 2, 0, 1], [1, 1, 0, 1], [1, 0, 0, 1], "safety"),
-  recipe("partition", [1, 1, 0, 1], [2, 1, 0, 1], [1, 0, 0, 1], "cover")
+  recipe("partition", [1, 1, 0, 1], [2, 1, 0, 1], [1, 0, 0, 1], "cover"),
+  recipe("solid-wall", [0, 2, 1, 1], [2, 2, 0, 1], [1, 1, 0, 1], "cover"),
+  recipe("window-wall", [0, 2, 1, 1], [2, 1, 0, 1], [1, 1, 0, 1], "daylight"),
+  recipe("pitched-roof", [0, 3, 0, 1], [5, 2, 0, 2], [2, 1, 0, 1], "cover"),
+  recipe("gable", [0, 2, 0, 1], [2, 1, 0, 1], [1, 1, 0, 1], "cover"),
+  recipe("stair-flight", [0, 3, 1, 1], [0, 3, 0, 2], [1, 1, 0, 1], "traversal"),
+  recipe("stairwell-floor", [0, 2, 1, 1], [1, 1, 0, 1], [1, 1, 0, 1], "floor"),
+  recipe("beam", [0, 2, 0, 1], [0, 1, 0, 1], [1, 0, 0, 1], "support")
 ]);
 
 const RECIPES = new Map(WILDS_CONSTRUCTION_RECIPES.map((value) => [value.kind, value]));

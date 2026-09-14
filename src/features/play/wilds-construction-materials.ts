@@ -37,7 +37,7 @@ export function createWildsConstructionMaterials() {
   const geometries = new Map<string, THREE.BoxGeometry>();
   return {
     material(kind: WildsConstructionKind, stage: string) {
-      const surface: Surface = ["foundation", "path", "hearth", "water"].includes(kind) ? "stone" : kind === "roof" ? "roof" : "timber";
+      const surface: Surface = ["foundation", "path", "hearth", "water"].includes(kind) ? "stone" : ["roof", "pitched-roof", "gable"].includes(kind) ? "roof" : "timber";
       const key = `${surface}:${stage}`;
       let material = materials.get(key);
       if (!material) {

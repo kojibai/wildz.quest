@@ -33,5 +33,7 @@ export function wildsConstructionCue(cue: string): string {
 }
 
 export function wildsConstructionLabel(kind: WildsConstructionKind): string {
+  const architecture: Partial<Record<WildsConstructionKind, string>> = { "solid-wall": "Solid wall", "window-wall": "Window wall", "pitched-roof": "Pitched roof", gable: "Gable end", "stair-flight": "Full-storey stairs", "stairwell-floor": "Stairwell floor", beam: "Support beam" };
+  if (architecture[kind]) return architecture[kind]!;
   return kind === "stair" ? "Stairs" : kind === "workshop" ? "Workbench" : kind.charAt(0).toUpperCase() + kind.slice(1);
 }
