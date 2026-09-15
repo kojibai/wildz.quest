@@ -390,13 +390,13 @@ function WildsScene({
     authoredDarkness: interior ? 1 : darkness.amount,
     mode: "adventure"
   });
-  const readability = projectWildsReadabilityProfile({
+  const readability = useMemo(() => projectWildsReadabilityProfile({
     authoredDarkness: interior ? 1 : darkness.amount,
     characterFill: nightRig.characterFill,
     nightAmount: kaiExpression.night.amount,
     reducedMotion: qualityProfile.reducedMotion,
     rim: nightRig.rim
-  });
+  }), [interior, darkness.amount, nightRig.characterFill, kaiExpression.night.amount, qualityProfile.reducedMotion, nightRig.rim]);
   const kaiFog = useMemo(() => new THREE.Color(world.chapter.palette.fog)
     .lerp(new THREE.Color(kaiExpression.sky.horizon), 0.24 + kaiExpression.night.amount * 0.7)
     .lerp(new THREE.Color(kaiExpression.accent), kaiExpression.atmosphericInfluence)
@@ -999,6 +999,10 @@ function useCrewFollower(input: {
         stepState.current.reason = "arrived"; directState.current.reason = "arrived";
         gait.current.distance = 0;
       }
+    }
+    if (current.workSource?.arrival && current.workSource.arrival.atMs === null
+      && Math.hypot(p.x - target.current.x, p.z - target.current.z) < .12) {
+      current.workSource.arrival.atMs = performance.now();
     }
     priorLocomotion.current = current.locomotion ?? "ground";
     const travel = current.crewTravelRuntime?.current.get(current.assetId);

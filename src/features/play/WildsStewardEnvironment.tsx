@@ -242,7 +242,7 @@ function ResourceManifestation({ activeWorkSource, geometry, materials, onIntera
   const impact = useRef<THREE.Group>(null);
   const timber = source.kind === "timber";
   const hay = source.kind === "hay";
-  const actorElevation = wildsSiteRuntimeGroundY(siteRuntime, siteSpaceId, source.position.x, source.position.z, source.position.y);
+  const actorElevation = useMemo(() => wildsSiteRuntimeGroundY(siteRuntime, siteSpaceId, source.position.x, source.position.z, source.position.y), [siteRuntime, siteSpaceId, source.position.x, source.position.y, source.position.z]);
   const position = projectWildsTerrainActorPosition(source.position, player, .05, { actorElevation, anchorElevation: terrainElevation });
   const distance = Math.hypot(source.position.x - player.x, source.position.z - player.z);
   const affordance = projectWildsResourceAffordance({ kind: timber ? "timber" : "stone", distance, availableCapacity, pending, companionQualified, companionReady });
@@ -256,6 +256,12 @@ function ResourceManifestation({ activeWorkSource, geometry, materials, onIntera
   const pips = Math.ceil(ratio * 4);
   useFrame(() => {
     if (!impact.current) return;
+    // Idle sources have no animated fragments. Avoid allocating/freeze-projecting
+    // work state for every visible source on every walking frame.
+    if (activeWorkSource?.sourceId !== source.sourceId || activeWorkSource.settledAtMs !== null) {
+      impact.current.visible = false;
+      return;
+    }
     const elapsedMs = activeWorkSource?.sourceId === source.sourceId ? performance.now() - activeWorkSource.startedAtMs : 0;
     const work = projectWildsWorkPresentation({
       sourceId: source.sourceId,

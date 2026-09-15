@@ -18,7 +18,7 @@ import type { PlayState } from "@/features/play/game-state";
 import { projectWildsBiome, type WildsBiomeTile } from "@/features/play/wilds-biome";
 import type { WildsQualityProfile } from "@/features/play/wilds-quality-profile";
 import { WILDS_MAJOR_ROUTES } from "@/features/play/wilds-world-geography";
-import { projectVisibleLandmarkEntrances, type WildsLandmarkDefinition } from "@/features/play/wilds-landmarks";
+import { WILDS_FLAGSHIP_LANDMARKS, projectVisibleLandmarkEntrances, type WildsLandmarkDefinition } from "@/features/play/wilds-landmarks";
 import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
 import { WildsSettlementEnvironment, type WildsSettlementWorldMode } from "@/features/play/WildsSettlementEnvironment";
 import { WAYFINDER_HOLLOW } from "@/features/play/wilds-settlements";
@@ -319,9 +319,40 @@ function LivingWorldSites({ player, terrainElevation, world }: { player: PlaySta
   </group>;
 }
 
+// Landmarks are farther apart than their 26-unit visibility radius, so two
+// shared lights cover every entrance without compiling new light-count variants.
+function FlagshipLights({ detail, player, terrainElevation }: { detail: boolean; player: PlayState["player"]; terrainElevation: number }) {
+  const floors = useMemo(() => WILDS_FLAGSHIP_LANDMARKS.map(l => wildsTerrainRelativeElevation(l.position.x, l.position.z, l.position, { anchorElevation: 0 })), []);
+  const index = WILDS_FLAGSHIP_LANDMARKS.findIndex(l => Math.hypot(l.position.x - player.x, l.position.z - player.z) <= 26);
+  const landmark = WILDS_FLAGSHIP_LANDMARKS[index];
+  const distance = landmark ? Math.hypot(landmark.position.x - player.x, landmark.position.z - player.z) : Infinity;
+  const near = detail && distance <= 18;
+  let color = "#ffffff", intensity = 0, range = 0, x = 0, y = 0, z = 0;
+  let color2 = "#ffffff", intensity2 = 0, range2 = 0, x2 = 0, y2 = 0, z2 = 0;
+  if (landmark?.id === "arena-of-echoes") {
+    color = "#f7c948"; intensity = near ? 5.2 : 3.2; range = 18; y = 4.8;
+    color2 = "#ff4f37"; intensity2 = near ? 2.4 : 1.2; range2 = 10; y2 = 2.4; z2 = -7;
+  } else if (landmark?.id === "prism-arcade") {
+    color = "#ff72bf"; intensity = 6; range = 14; y = 3.8;
+    color2 = "#72dfff"; intensity2 = 4; range2 = 10; x2 = -2.5; y2 = 2; z2 = -2.5;
+  } else if (landmark?.id === "hearttree-sanctum") {
+    const scale = distance < landmark.radius + 2 ? .44 : 1;
+    color = "#8ef2a7"; intensity = .45; range = 4.2;
+    x = scale === 1 ? 0 : 2.6; y = 1.4 * scale; z = .52 * scale + (scale === 1 ? 0 : -2.4);
+  } else if (landmark?.id === "wayfinder-hollow") {
+    color = "#8ff0a4"; intensity = 1.5; range = 6;
+    x = -6 + Math.sin(.55) * 1.2; y = 2.2; z = -3 + Math.cos(.55) * 1.2;
+  }
+  return <group name="world-flagship-lights" position={landmark ? [landmark.position.x - player.x, floors[index]! - terrainElevation, landmark.position.z - player.z] : [0, 0, 0]}>
+    <pointLight color={color} distance={range} intensity={intensity} position={[x, y, z]} />
+    <pointLight color={color2} distance={range2} intensity={intensity2} position={[x2, y2, z2]} />
+  </group>;
+}
+
 function FlagshipLandmarkEntrances({ detail, livingWorld, player, terrainElevation, worldMode }: { detail: boolean; livingWorld?: WildsWorldProjection | null; player: PlayState["player"]; terrainElevation: number; worldMode: WildsSettlementWorldMode }) {
   const entrances = projectVisibleLandmarkEntrances(player).filter(({ distance }) => distance <= 30);
   return <group name="world-flagship-landmarks">
+    <FlagshipLights detail={detail} player={player} terrainElevation={terrainElevation} />
     {entrances.map(({ landmark, relative, distance }) => (
       <group key={landmark.id} name={`world-entrance-${landmark.id}`} position={[relative.x, wildsTerrainRelativeElevation(landmark.position.x, landmark.position.z, player, { anchorElevation: terrainElevation }), relative.z]}>
         {landmark.id === "hearttree-sanctum" && distance <= 26 ? (
@@ -331,7 +362,7 @@ function FlagshipLandmarkEntrances({ detail, livingWorld, player, terrainElevati
         ) : null}
         {landmark.id === "arena-of-echoes" && distance <= 26 ? <ArenaOfEchoes detail={detail && distance <= 18} /> : null}
         {landmark.id === "prism-arcade" && distance <= 26 ? <PrismArcade /> : null}
-        {landmark.id === "wayfinder-hollow" && distance <= 26 ? <WildsSettlementEnvironment livingWorld={livingWorld} relative={{ x: 0, z: 0 }} settlement={WAYFINDER_HOLLOW} worldMode={worldMode} /> : null}
+        {landmark.id === "wayfinder-hollow" && distance <= 26 ? <WildsSettlementEnvironment livingWorld={livingWorld} relative={{ x: 0, z: 0 }} settlement={WAYFINDER_HOLLOW} worldMode={worldMode} includeLight={false} /> : null}
         <LandmarkEntranceBeacon distance={distance} landmark={landmark} />
       </group>
     ))}
@@ -649,7 +680,6 @@ const HearttreeSanctum = memo(function HearttreeSanctum() {
           <meshStandardMaterial color={index === 2 ? "#4d9e51" : "#287149"} roughness={0.76} />
         </mesh>
       ))}
-      <pointLight color="#8ef2a7" distance={4.2} intensity={0.45} position={[0, 1.4, 0.52]} />
     </group>
   );
 });
@@ -781,8 +811,6 @@ const ArenaOfEchoes = memo(function ArenaOfEchoes({ detail }: { detail: boolean 
     </instancedMesh> : null}
     <instancedMesh args={[undefined, undefined, detail ? 48 : 24]} ref={spectators} name="arena-spectator-silhouettes"><capsuleGeometry args={[1, 2.3, 3, 6]} /><meshStandardMaterial color="#101c1b" emissive="#1e5941" emissiveIntensity={.22} roughness={.92} /></instancedMesh>
     <mesh position={[0, .62, 0]} rotation={[-Math.PI / 2, 0, 0]} name="arena-canonical-seal"><torusGeometry args={[1.1, .095, 8, 48]} /><meshStandardMaterial color="#fff0a8" emissive="#f7c948" emissiveIntensity={1.8} metalness={.46} roughness={.22} /></mesh>
-    <pointLight color="#f7c948" distance={18} intensity={detail ? 5.2 : 3.2} position={[0, 4.8, 0]} />
-    <pointLight color="#ff4f37" distance={10} intensity={detail ? 2.4 : 1.2} position={[0, 2.4, -7]} />
   </group>;
 });
 
@@ -797,8 +825,6 @@ const PrismArcade = memo(function PrismArcade() {
       <mesh position={[0, 1.05, 0]}><cylinderGeometry args={[.3, .48, 2.1, 8]} /><meshStandardMaterial color="#1d2637" emissive="#7b4fc4" emissiveIntensity={.34} /></mesh>
     </group>)}
     <mesh position={[-2.55, 1.65, -2.55]} rotation={[0, Math.PI / 4, 0]}><torusGeometry args={[1.25, .2, 10, 38]} /><meshStandardMaterial color="#ff72bf" emissive="#ff72bf" emissiveIntensity={1.4} metalness={.35} roughness={.25} /></mesh>
-    <pointLight color="#ff72bf" distance={14} intensity={6} position={[0, 3.8, 0]} />
-    <pointLight color="#72dfff" distance={10} intensity={4} position={[-2.5, 2, -2.5]} />
   </group>;
 });
 

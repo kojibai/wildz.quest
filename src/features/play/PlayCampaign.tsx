@@ -201,7 +201,7 @@ import { discoverWildsExplorationSite } from "@/features/play/wilds-exploration-
 import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, selectWildsTrailBridgeRotation } from "@/features/play/wilds-steward-construction";
 import { projectWildsResourcePresentationAvailability as projectWildsResourceAvailability, projectWildsResourceRegion, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
 import { projectWildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
-import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
+import { wildsHarvestPresentationRemaining, type WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
 import { projectWildsWorkCapabilityMeters, selectNearestWildsWorkSource, selectWildsResourceWorkPartner, type WildsVisibleWorkFamily } from "@/features/play/wilds-work-capability";
 import { projectWildsCapabilityControls, projectWildsQuickCapabilityControls } from "@/features/play/wilds-world-capability-controls";
 import { projectWildsCapabilityContext } from "@/features/play/wilds-world-capability-context";
@@ -1553,7 +1553,8 @@ export function PlayCampaign({
       }
       if (workPresentationTimerRef.current !== null) window.clearTimeout(workPresentationTimerRef.current);
       const workStartedAtMs = performance.now();
-      setActiveWorkSource({ sourceId: source.sourceId, kind: source.kind === "timber" ? "timber" : "stone", position: source.position, startedAtMs: workStartedAtMs, settledAtMs: null });
+      const arrival = { atMs: partner ? null : workStartedAtMs } as { atMs: number | null };
+      setActiveWorkSource({ arrival, sourceId: source.sourceId, kind: source.kind === "timber" ? "timber" : "stone", position: source.position, startedAtMs: workStartedAtMs, settledAtMs: null });
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
       markPlaytest("harvest", "start");
       const projection = await livingWorld.harvestMaterial(source, current.head, state.player, mandate, partner ? { card: partner, cardAdmission: partnerAdmission } : null);
@@ -1561,10 +1562,16 @@ export function PlayCampaign({
       rememberJourney({ kind: "harvest", subjectId: source.sourceId, companionId: partner?.id, companionName: partner?.manifest.name, label: partner ? `Gathered ${source.kind} together` : `Gathered ${source.kind}`, position: source.position });
       if (partner) dispatch({ type: "record-steward-work", assetId: partner.id });
       setActiveWorkSource((active) => active?.sourceId === source.sourceId ? { ...active, settledAtMs: performance.now() } : active);
-      workPresentationTimerRef.current = window.setTimeout(() => {
-        setActiveWorkSource((active) => active?.sourceId === source.sourceId ? null : active);
+      const finishPresentation = () => {
+        const remaining = wildsHarvestPresentationRemaining(performance.now(), workStartedAtMs, arrival.atMs);
+        if (remaining > 0) {
+          workPresentationTimerRef.current = window.setTimeout(finishPresentation, remaining);
+          return;
+        }
+        setActiveWorkSource((active) => active?.startedAtMs === workStartedAtMs ? null : active);
         workPresentationTimerRef.current = null;
-      }, 850);
+      };
+      finishPresentation();
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       const awardMessage = award ? `+Φ${formatWildsPhiExact(award.amountPhiMicro)} earned · ` : "";
       const satchelCount = Object.values(projection.materialLots).filter((lot) => lot.kind === source.kind

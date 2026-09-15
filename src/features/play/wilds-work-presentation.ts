@@ -6,6 +6,8 @@ export type WildsActiveWorkSource = Readonly<{
   position: Readonly<{ x: number; y: number; z: number }>;
   startedAtMs: number;
   settledAtMs: number | null;
+  /** Presentation-only arrival, written by the companion movement loop. */
+  arrival?: { atMs: number | null };
 }>;
 
 export type WildsResourceBodyProjection = Readonly<{
@@ -142,4 +144,11 @@ export function projectWildsWorkPresentation(input: Readonly<{
       pose: phase === "work" ? "work" as const : phase === "settle" ? "curious" as const : "curious" as const
     })
   });
+}
+
+/** Keep a brief visible harvest at the source, independent of request speed.
+ * An unreachable source cannot retain the presentation indefinitely. */
+export function wildsHarvestPresentationRemaining(now: number, startedAt: number, arrivedAt: number | null): number {
+  const remaining = arrivedAt === null ? 100 : Math.max(0, arrivedAt + 450 - now);
+  return Math.min(remaining, Math.max(0, startedAt + 8000 - now));
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { Html } from "@react-three/drei";
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { WildsSettlementDefinition } from "./wilds-settlements";
@@ -14,8 +14,10 @@ export function WildsSettlementEnvironment({
   settlement,
   relative,
   livingWorld,
-  worldMode
+  worldMode,
+  includeLight = true
 }: {
+  includeLight?: boolean;
   settlement: WildsSettlementDefinition;
   relative: { x: number; z: number };
   livingWorld?: WildsWorldProjection | null;
@@ -50,7 +52,7 @@ export function WildsSettlementEnvironment({
       <SettlementPaths material={materials.stone} />
       <TrailGate geometry={geometry} materials={materials} />
       <DawnCommons geometry={geometry} materials={materials} />
-      <MosslightAtelier geometry={geometry} materials={materials} />
+      <MosslightAtelier geometry={geometry} materials={materials} includeLight={includeLight} />
       <CartographerHouse materials={materials} />
       <MonumentWalk geometry={geometry} livingWorld={livingWorld} materials={materials} worldMode={worldMode} />
       <SettlementLamps geometry={geometry} materials={materials} />
@@ -65,7 +67,7 @@ function SharedMesh({ geometry, material, ...props }: { geometry: THREE.BufferGe
   return <mesh {...props}><primitive attach="geometry" object={geometry} /><primitive attach="material" object={material} /></mesh>;
 }
 
-function SettlementPaths({ material }: { material: THREE.Material }) {
+const SettlementPaths = memo(function SettlementPaths({ material }: { material: THREE.Material }) {
   return <group name="settlement-path-network">
     <mesh position={[0, .015, 0]} rotation={[-Math.PI / 2, 0, 0]}><circleGeometry args={[3.25, 40]} /><primitive attach="material" object={material} /></mesh>
     {[
@@ -75,9 +77,9 @@ function SettlementPaths({ material }: { material: THREE.Material }) {
       { position: [0, .02, -4.5] as const, rotation: 0, length: 9 }
     ].map((path, index) => <mesh key={index} position={path.position} rotation={[-Math.PI / 2, 0, path.rotation]}><planeGeometry args={[1.15, path.length]} /><primitive attach="material" object={material} /></mesh>)}
   </group>;
-}
+});
 
-function TrailGate({ geometry, materials }: { geometry: Geometry; materials: Materials }) {
+const TrailGate = memo(function TrailGate({ geometry, materials }: { geometry: Geometry; materials: Materials }) {
   const dimensions = WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.trailGate;
   return <group name="district-trail-gate" position={dimensions.local} rotation={[0, Math.PI / 4, 0]}>
     {[-1, 1].map((side) => <SharedMesh castShadow geometry={geometry.post} key={side} material={materials.timber} position={[side * 1.45, 1.25, 0]} />)}
@@ -87,17 +89,17 @@ function TrailGate({ geometry, materials }: { geometry: Geometry; materials: Mat
     <mesh castShadow position={[-1.45, 2.65, 0]}><coneGeometry args={[.34, .8, 6]} /><primitive attach="material" object={materials.roof} /></mesh>
     <mesh castShadow position={[1.45, 2.65, 0]}><coneGeometry args={[.34, .8, 6]} /><primitive attach="material" object={materials.roof} /></mesh>
   </group>;
-}
+});
 
-function DawnCommons({ geometry, materials }: { geometry: Geometry; materials: Materials }) {
+const DawnCommons = memo(function DawnCommons({ geometry, materials }: { geometry: Geometry; materials: Materials }) {
   return <group name="district-dawn-commons" position={[0, 0, 1]}>
     <SharedMesh geometry={geometry.paving} material={materials.plaster} position={[0, .05, 0]} scale={[3.1, 1, 3.1]} />
     <TimberHall materials={materials} />
     <CompassGarden materials={materials} />
   </group>;
-}
+});
 
-function TimberHall({ materials }: { materials: Materials }) {
+const TimberHall = memo(function TimberHall({ materials }: { materials: Materials }) {
   const dimensions = WILDS_SETTLEMENT_PHYSICAL_DIMENSIONS.timberHall;
   return <group name="wayfinder-timber-hall" position={dimensions.districtLocal}>
     <mesh castShadow position={[0, dimensions.bodyCenterY, 0]}><boxGeometry args={dimensions.bodySize} /><primitive attach="material" object={materials.plaster} /></mesh>
@@ -106,9 +108,9 @@ function TimberHall({ materials }: { materials: Materials }) {
     <mesh position={[0, 1.12, 1.47]}><boxGeometry args={[.92, 1.72, .12]} /><primitive attach="material" object={materials.timber} /></mesh>
     {[-1.22, 1.22].map((x) => <mesh key={x} position={[x, 1.42, 1.47]}><boxGeometry args={[.62, .72, .1]} /><primitive attach="material" object={materials.glass} /></mesh>)}
   </group>;
-}
+});
 
-function CompassGarden({ materials }: { materials: Materials }) {
+const CompassGarden = memo(function CompassGarden({ materials }: { materials: Materials }) {
   const needle = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     if (needle.current) needle.current.rotation.y = Math.sin(clock.elapsedTime * .35) * .28;
@@ -120,19 +122,19 @@ function CompassGarden({ materials }: { materials: Materials }) {
       <mesh position={[0, .07, 0]} rotation={[0, Math.PI, 0]}><coneGeometry args={[.12, .78, 4]} /><primitive attach="material" object={materials.roof} /></mesh>
     </group>
   </group>;
-}
+});
 
-function MosslightAtelier({ geometry, materials }: { geometry: Geometry; materials: Materials }) {
+const MosslightAtelier = memo(function MosslightAtelier({ geometry, materials, includeLight }: { geometry: Geometry; materials: Materials; includeLight: boolean }) {
   return <group name="district-mosslight-atelier" position={[-6, 0, -3]} rotation={[0, .55, 0]}>
     <mesh castShadow position={[0, 1.05, 0]}><cylinderGeometry args={[1.65, 1.9, 2.1, 10]} /><primitive attach="material" object={materials.timberLight} /></mesh>
     <mesh castShadow position={[0, 2.42, 0]}><coneGeometry args={[2.05, 1.3, 10]} /><primitive attach="material" object={materials.moss} /></mesh>
     <mesh position={[0, 1.42, 1.78]} rotation={[0, 0, .08]} scale={[.72, .98, .12]}><primitive attach="geometry" object={geometry.beam} /><primitive attach="material" object={materials.card} /></mesh>
     <mesh position={[0, 1.42, 1.86]}><torusGeometry args={[.24, .04, 6, 24]} /><primitive attach="material" object={materials.gold} /></mesh>
-    <pointLight color="#8ff0a4" distance={6} intensity={1.5} position={[0, 2.2, 1.2]} />
+    {includeLight ? <pointLight color="#8ff0a4" distance={6} intensity={1.5} position={[0, 2.2, 1.2]} /> : null}
   </group>;
-}
+});
 
-function CartographerHouse({ materials }: { materials: Materials }) {
+const CartographerHouse = memo(function CartographerHouse({ materials }: { materials: Materials }) {
   return <group name="district-cartographer-house" position={[6, 0, -4]} rotation={[0, -.42, 0]}>
     <mesh castShadow position={[0, 1.55, 0]}><cylinderGeometry args={[1.15, 1.42, 3.1, 8]} /><primitive attach="material" object={materials.plaster} /></mesh>
     <mesh castShadow position={[0, 3.28, 0]}><coneGeometry args={[1.62, 1.52, 8]} /><primitive attach="material" object={materials.roof} /></mesh>
@@ -140,7 +142,7 @@ function CartographerHouse({ materials }: { materials: Materials }) {
     <mesh position={[0, 4.24, 0]}><sphereGeometry args={[.22, 12, 8]} /><primitive attach="material" object={materials.gold} /></mesh>
     <mesh position={[0, 4.58, 0]} rotation={[0, 0, -.28]}><coneGeometry args={[.14, .72, 4]} /><primitive attach="material" object={materials.card} /></mesh>
   </group>;
-}
+});
 
 function MonumentWalk({ geometry, livingWorld, materials, worldMode }: { geometry: Geometry; livingWorld?: WildsWorldProjection | null; materials: Materials; worldMode: WildsSettlementWorldMode }) {
   const monumentIds = livingWorld?.defeatedBossIds.slice(-6) ?? [];
@@ -160,7 +162,7 @@ function MonumentWalk({ geometry, livingWorld, materials, worldMode }: { geometr
   </group>;
 }
 
-function SettlementLamps({ geometry, materials }: { geometry: Geometry; materials: Materials }) {
+const SettlementLamps = memo(function SettlementLamps({ geometry, materials }: { geometry: Geometry; materials: Materials }) {
   const posts = useRef<THREE.InstancedMesh>(null);
   const lights = useRef<THREE.InstancedMesh>(null);
   const positions = useMemo(() => [[5.2, 5.6], [2.5, 2.7], [-2.5, 2.3], [-4.2, -1.8], [3.9, -2.3], [-1.8, -5.7], [1.8, -5.7]] as const, []);
@@ -179,4 +181,4 @@ function SettlementLamps({ geometry, materials }: { geometry: Geometry; material
     <instancedMesh args={[geometry.post, materials.timber, positions.length]} castShadow ref={posts} />
     <instancedMesh args={[geometry.lamp, materials.card, positions.length]} ref={lights} />
   </group>;
-}
+});
