@@ -813,6 +813,7 @@ function useCrewFollower(input: {
   const path = useRef<readonly Readonly<WildsCrewNavigationPoint>[]>([]);
   const latest = useRef(input); latest.current = input;
   const priorLocomotion = useRef(input.locomotion ?? "ground");
+  const returningFromWork = useRef(false);
   const alongside = useRef({ playerX: input.player.x, playerZ: input.player.z,
     changedAt: performance.now(), movingUntil: 0, speed: 0, initialized: false });
   const heading = useRef({ playerX: input.player.x, playerZ: input.player.z, heading: 0, desiredHeading: 0 });
@@ -889,7 +890,7 @@ function useCrewFollower(input: {
     const update = () => {
       const current = latest.current;
       const travel = current.crewTravelRuntime?.current.get(current.assetId);
-      if (current.mode === "follow" && !current.workSource && !travel) return;
+      if (current.mode === "follow" && !current.workSource && !travel && !returningFromWork.current) return;
       if (travel?.spaceId === current.siteSpace.spaceId && travel.position === null) travel.position = { ...position.current };
       // Refresh real coverage before route checks, including a clear direct route.
       if (travel?.spaceId === current.siteSpace.spaceId) latestAuthority.current = latestTravelAuthority.current(position.current,current.travelerCanClimb);
@@ -920,7 +921,15 @@ function useCrewFollower(input: {
     const oldX = p.x, oldZ = p.z;
     let regrouped = false;
     writeTarget(current, delta);
-    if (current.mode === "follow" && !current.workSource && !activeTrip) {
+    if (current.workSource) returningFromWork.current = true;
+    else if (returningFromWork.current && current.mode === "follow" && !activeTrip
+      && Math.hypot(p.x - target.current.x, p.z - target.current.z) < .001
+      && Math.hypot(group.current.position.x - current.offsetX, group.current.position.z - current.offsetZ) < .01) {
+      returningFromWork.current = false;
+    }
+    // Finish both the physical return and its displayed approach before handing
+    // the companion back to the fixed formation. Harvest completion cannot snap it.
+    if (current.mode === "follow" && !current.workSource && !activeTrip && !returningFromWork.current) {
       const follow = alongside.current;
       const now = performance.now();
       const dx = current.player.x - follow.playerX, dz = current.player.z - follow.playerZ;
@@ -950,7 +959,7 @@ function useCrewFollower(input: {
     alongside.current.initialized = false;
     frameInput.deltaSeconds = delta;
     frameInput.sampleSegment = activeTrip ? latestAuthority.current.sampleSegment : authority.sampleSegment;
-    const followSpeed = writeWildsCrewFollowSpeed(followMotion.current, current.player, performance.now() / 1000, Math.hypot(target.current.x - p.x, target.current.z - p.z));
+    const followSpeed = writeWildsCrewFollowSpeed(followMotion.current, current.player, performance.now() / 1000, returningFromWork.current ? 0 : Math.hypot(target.current.x - p.x, target.current.z - p.z));
     frameInput.speed = current.mode === "follow" && !current.workSource ? followSpeed : 5.5;
     if (current.locomotion && current.locomotion !== "ground") {
       // Retain the selected companion's existing player-supported flight/swim frame.
@@ -977,7 +986,7 @@ function useCrewFollower(input: {
         }
       } else directState.current.reason = "arrived";
     }
-    if (current.mode === "follow" && !activeTrip && current.enabled && !current.workSource && (!current.locomotion || current.locomotion === "ground")
+    if (current.mode === "follow" && !returningFromWork.current && !activeTrip && current.enabled && !current.workSource && (!current.locomotion || current.locomotion === "ground")
       && performance.now() / 1000 - followMotion.current.changedAt < .18
       && (directState.current.reason === "blocked" || stepState.current.reason === "moving")) {
       const landing = relocationPoint.current;

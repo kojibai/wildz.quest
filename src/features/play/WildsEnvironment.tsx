@@ -9,7 +9,7 @@ import { useWildsFoliageBreeze } from "./use-wilds-foliage-breeze";
 import { createWildsOrganicGeometry } from "./wilds-organic-geometry";
 import { useWildsRockTexture } from "./wilds-rock-material";
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
@@ -562,18 +562,24 @@ function EcologyInstances({
   const rockScale = useMemo(() => (item: Placement): [number, number, number] => { const body = item.resourceBody?.rock.scale ?? 1; return [item.scale * 0.32 * body, item.scale * 0.21 * body, item.scale * 0.38 * body]; }, []);
   const flowerScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * 0.09, item.scale * 0.22, item.scale * 0.09], []);
   const grassScale = useMemo(() => (item: Placement): [number, number, number] => [item.scale * .24, item.scale * (qualityProfile.tier === "low" ? .22 : .3), item.scale * .24], [qualityProfile.tier]);
+  // Instance transforms belong to a terrain tile, not each walking sample.
+  // Translate their common parent as the player moves; rebuild buffers only
+  // when the tile, resource state, or physical ground actually changes.
+  const anchorX = Math.floor(player.x / WILDS_TILE_SIZE) * WILDS_TILE_SIZE;
+  const anchorZ = Math.floor(player.z / WILDS_TILE_SIZE) * WILDS_TILE_SIZE;
+  const instanceAnchor = useMemo(() => ({ x: anchorX, z: anchorZ }), [anchorX, anchorZ]);
   const treeClearRadius = 13.6;
-  useInstances(trunks, trees, player, terrainElevation, 0.64, treeScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
-  useInstances(lowerCrowns, trees, player, terrainElevation, 1.65, crownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
-  useInstances(upperCrowns, trees, player, terrainElevation, 2.16, upperCrownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
-  useInstances(middleCrowns, trees, player, terrainElevation, 2.68, middleCrownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
-  useInstances(shrubMesh, bushes, player, terrainElevation, 0.23, shrubScale, 1.45, siteRuntime, siteSpaceId);
-  useInstances(rockMesh, rocks, player, terrainElevation, 0.13, rockScale, 1.2, siteRuntime, siteSpaceId, "stone", readability.motionScale === 0);
-  useInstances(flowerMesh, flowers, player, terrainElevation, 0.15, flowerScale, 0, siteRuntime, siteSpaceId);
-  useInstances(grassMesh, flowers, player, terrainElevation, .11, grassScale, .8, siteRuntime, siteSpaceId);
+  useInstances(trunks, trees, instanceAnchor, 0, 0.64, treeScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
+  useInstances(lowerCrowns, trees, instanceAnchor, 0, 1.65, crownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
+  useInstances(upperCrowns, trees, instanceAnchor, 0, 2.16, upperCrownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
+  useInstances(middleCrowns, trees, instanceAnchor, 0, 2.68, middleCrownScale, treeClearRadius, siteRuntime, siteSpaceId, "timber", readability.motionScale === 0);
+  useInstances(shrubMesh, bushes, instanceAnchor, 0, 0.23, shrubScale, 1.45, siteRuntime, siteSpaceId);
+  useInstances(rockMesh, rocks, instanceAnchor, 0, 0.13, rockScale, 1.2, siteRuntime, siteSpaceId, "stone", readability.motionScale === 0);
+  useInstances(flowerMesh, flowers, instanceAnchor, 0, 0.15, flowerScale, 0, siteRuntime, siteSpaceId);
+  useInstances(grassMesh, flowers, instanceAnchor, 0, .11, grassScale, .8, siteRuntime, siteSpaceId);
 
   return (
-    <group>
+    <group position={[anchorX - player.x, -terrainElevation, anchorZ - player.z]}>
       <instancedMesh args={[undefined, undefined, trees.length]} castShadow geometry={organic.trunk} name="ecology-trunk" ref={trunks}>
         <meshStandardMaterial vertexColors map={barkTexture} color="#806449" roughness={0.94} />
       </instancedMesh>
@@ -620,7 +626,7 @@ function Landmark({ player, terrainElevation, tile }: { player: PlayState["playe
   );
 }
 
-function HearttreeSanctum() {
+const HearttreeSanctum = memo(function HearttreeSanctum() {
   return (
     <group name="hearttree-sanctum">
       {[-1, -0.5, 0, 0.5, 1].map((side) => (
@@ -646,9 +652,9 @@ function HearttreeSanctum() {
       <pointLight color="#8ef2a7" distance={4.2} intensity={0.45} position={[0, 1.4, 0.52]} />
     </group>
   );
-}
+});
 
-function ArenaOfEchoes({ detail }: { detail: boolean }) {
+const ArenaOfEchoes = memo(function ArenaOfEchoes({ detail }: { detail: boolean }) {
   const rockTexture=useWildsRockTexture();
   const spectators = useRef<THREE.InstancedMesh>(null);
   const proofSeams = useRef<THREE.InstancedMesh>(null);
@@ -778,9 +784,9 @@ function ArenaOfEchoes({ detail }: { detail: boolean }) {
     <pointLight color="#f7c948" distance={18} intensity={detail ? 5.2 : 3.2} position={[0, 4.8, 0]} />
     <pointLight color="#ff4f37" distance={10} intensity={detail ? 2.4 : 1.2} position={[0, 2.4, -7]} />
   </group>;
-}
+});
 
-function PrismArcade() {
+const PrismArcade = memo(function PrismArcade() {
   return <group name="prism-arcade-building">
     <mesh receiveShadow position={[0, .22, 0]}><cylinderGeometry args={[4.2, 4.6, .44, 8]} /><meshStandardMaterial color="#26384c" metalness={.28} roughness={.52} /></mesh>
     {([-1.8, 0, 1.8] as const).map((x, index) => <group key={x} position={[x, 0, index === 1 ? 0 : .45]}>
@@ -794,9 +800,9 @@ function PrismArcade() {
     <pointLight color="#ff72bf" distance={14} intensity={6} position={[0, 3.8, 0]} />
     <pointLight color="#72dfff" distance={10} intensity={4} position={[-2.5, 2, -2.5]} />
   </group>;
-}
+});
 
-function RootArch() {
+const RootArch = memo(function RootArch() {
   const bark = useWildsNaturalTexture("bark");
   const leaf = useWildsNaturalTexture("leaf");
   const wood = useMemo(() => {
@@ -818,9 +824,9 @@ function RootArch() {
       <meshStandardMaterial map={leaf} color="#78965a" roughness={.86} />
     </mesh>)}
   </group>;
-}
+});
 
-function SpringLandmark() {
+const SpringLandmark = memo(function SpringLandmark() {
   const springStones = useRef<THREE.InstancedMesh>(null);
   const springReeds = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
@@ -857,4 +863,4 @@ function SpringLandmark() {
       </instancedMesh>
     </group>
   );
-}
+});
