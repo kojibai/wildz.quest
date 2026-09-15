@@ -141,6 +141,6 @@ test("full Identity Seal proof assembly leaves the visible Profile thread", () =
   assert.match(client, /new Worker\(new URL\("\.\/wildz-identity-export\.worker\.ts", import\.meta\.url\)/);
   assert.match(client, /worker\.terminate\(\)/);
   assert.match(client, /postMessage\([\s\S]*artwork\.buffer/);
-  assert.match(worker, /embedPortableVaultInPng/);
-  assert.match(worker, /createWildzIdentityBoundPlayerVault/);
+  assert.match(worker, /createRetainedPortableVaultWriter/);
+  assert.match(worker, /createWildzIdentityBoundPreparedVault/);
 });

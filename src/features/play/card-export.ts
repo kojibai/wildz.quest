@@ -1,3 +1,5 @@
+import { verifyAndAdmitWildsCard, retainAdmittedWildsInventory } from "./admitted-inventory";
+import { createRetainedProofJson, freezeProofValue } from "./retained-proof-json";
 import { pngCrc32 as crc32 } from "../../lib/png-crc32";
 import { creatureForm } from "./creature-catalog";
 import { wildzSealedDownloadFilename } from "../../lib/receiz/wildz-sealed-document";
@@ -26,7 +28,7 @@ import {
   cardArtifactFingerprint,
   type PreparedCardArtifact
 } from "./prepared-card-artifact";
-import { verifyWildsPlayerVault, type WildsPlayerVaultPayload } from "./wilds-player-vault";
+import { normalizeWildsPlayerVaultInput, verifyWildsPlayerVault, type createWildsPlayerVault, type WildsPlayerVaultPayload } from "./wilds-player-vault";
 
 export type PortableCardPngProof = {
   schema: "receiz.wilds_png_proof.v1" | "receiz.wilds_png_proof.v2";
@@ -475,6 +477,88 @@ export function embedPortableVaultInPng(source: Uint8Array, assets: PortableCard
     output.push(makeChunk(chunk.type, chunk.data));
   }
   return concatBytes(output);
+}
+
+/** Opaque same-runtime custody of an export built from validated proof inputs.
+ * Parsed uploads cannot manufacture this handle or substitute its exact bytes. */
+export type PreparedPortableVaultPng = Readonly<{ kind: "wildz.prepared-vault-png" }>;
+const preparedVaultContents = new WeakMap<PreparedPortableVaultPng, {
+  bytes: Uint8Array; vaultDigest: string; playerId: string; playerPayloadDigest: string;
+}>();
+export function withPreparedPortableVaultPng<T>(prepared: PreparedPortableVaultPng,
+  consume: (contents: { bytes: Uint8Array; vaultDigest: string; playerId: string; playerPayloadDigest: string }) => T): T {
+  const contents = preparedVaultContents.get(prepared);
+  if (!contents) throw new Error("wildz_prepared_vault_custody_missing");
+  // Consume custody before exposing bytes; mutated bytes cannot be signed again.
+  preparedVaultContents.delete(prepared);
+  return consume(contents);
+}
+
+/** Retain immutable carried proof sections. A new player append never rebuilds
+ * existing card proofs. New card revisions acquire their own retained sections. */
+export function createRetainedPortableVaultWriter() {
+  const json = createRetainedProofJson();
+  const sections = new WeakMap<PortableCardAsset, { base: PortableCardAsset; append: Uint8Array | null }>();
+  let cardSectionsPrepared = 0;
+  let previousAssets: readonly PortableCardAsset[] = [];
+  let cardSections: { base: PortableCardAsset; append: Uint8Array | null }[] = [];
+  let vaultDigest = "";
+  let previousImageDigest = "";
+  let vaultChunk: Uint8Array | null = null;
+  const encoder = new TextEncoder();
+  return {
+    diagnostics: () => ({ cardSectionsPrepared }),
+    prepare(source: Uint8Array, assets: PortableCardAsset[], input: WildsPlayerVaultPayload | Parameters<typeof createWildsPlayerVault>[0]) {
+      if (!assets.length) throw new Error("wilds_vault_cards_invalid");
+      const changed = previousAssets.length !== assets.length || assets.some((asset, index) => asset !== previousAssets[index]);
+      if (changed) {
+        if (new Set(assets.map(asset => asset.id)).size !== assets.length) throw new Error("wilds_vault_duplicate_card");
+        cardSections = assets.map(asset => {
+          const held = sections.get(asset);
+          if (held) return held;
+          if (!verifyAndAdmitWildsCard(asset)) throw new Error("wilds_vault_cards_invalid");
+          freezeProofValue(asset);
+          const base = freezeProofValue(portableCardBaseProofAsset(asset));
+          const append = wildzProofAppendFor(asset, base);
+          const section = { base, append: append ? makeChunk(WILDZ_PROOF_APPEND_CHUNK_TYPE, encoder.encode(json(freezeProofValue(append)))) : null };
+          sections.set(asset, section);
+          cardSectionsPrepared++;
+          return section;
+        });
+        previousAssets = assets.slice();
+        vaultDigest = sha256PortableBasis(json(cardSections.map(section => ({ id: section.base.id, proof: section.base.proof.digest }))));
+        vaultChunk = null;
+      }
+      retainAdmittedWildsInventory(input.playState.inventory);
+      let player: WildsPlayerVaultPayload;
+      if ("payloadDigest" in input) {
+        // Externally supplied payloads still enter through the complete verifier.
+        if (!verifyWildsPlayerVault(input).ok) throw new Error("wilds_player_vault_invalid");
+        player = freezeProofValue(structuredClone(input));
+      } else {
+        const basis = freezeProofValue({ schema: "receiz.wilds_player_vault.v3" as const, ...normalizeWildsPlayerVaultInput(input) });
+        player = freezeProofValue({ ...basis, payloadDigest: sha256PortableBasis(json(basis)) });
+      }
+      const sourceChunks = parsePng(source).filter(chunk => chunk.type !== VAULT_CHUNK_TYPE && chunk.type !== PROOF_CHUNK_TYPE && chunk.type !== WILDZ_PROOF_APPEND_CHUNK_TYPE);
+      const currentImageDigest = imageDigest(sourceChunks);
+      if (!vaultChunk || previousImageDigest !== currentImageDigest) {
+        vaultChunk = makeChunk(VAULT_CHUNK_TYPE, encoder.encode(json({ schema: "receiz.wilds_vault_png_proof.v2", imageDigest: currentImageDigest, vaultDigest, assets: cardSections.map(section => section.base) })));
+        previousImageDigest = currentImageDigest;
+      }
+      const playerChunk = makeChunk(WILDZ_PROOF_APPEND_CHUNK_TYPE, encoder.encode(json({ schema: "receiz.wildz_proof_append.v1", kind: "player-vault", base: { vaultDigest }, player })));
+      const output: Uint8Array[] = [PNG_SIGNATURE];
+      for (const chunk of sourceChunks) {
+        if (chunk.type === "IEND") {
+          for (const section of cardSections) if (section.append) output.push(section.append);
+          output.push(playerChunk, vaultChunk);
+        }
+        output.push(makeChunk(chunk.type, chunk.data));
+      }
+      const prepared: PreparedPortableVaultPng = Object.freeze({ kind: "wildz.prepared-vault-png" });
+      preparedVaultContents.set(prepared, { bytes: concatBytes(output), vaultDigest, playerId: player.playerId, playerPayloadDigest: player.payloadDigest });
+      return { prepared, playerPayloadDigest: player.payloadDigest };
+    }
+  };
 }
 
 export function readPortableVaultFromPng(source: Uint8Array): PortableVaultPngProof {

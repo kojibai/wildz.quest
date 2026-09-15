@@ -1,5 +1,7 @@
 import type { ReceizKeyFile } from "@receiz/sdk";
 import {
+  withPreparedPortableVaultPng,
+  type PreparedPortableVaultPng,
   readPortableVaultFromPng,
   readWildzPlayerVaultAppendFromPng,
   verifyPortableVaultPng
@@ -40,4 +42,18 @@ export async function createWildzIdentityBoundPlayerVault(input: {
     ...(input.passphrase !== undefined ? { passphrase: input.passphrase } : {})
   });
   return appendWildzIdentityBindingTrailer(withIdentity, binding);
+}
+
+/** The writer already validated these inputs and retains exact-byte custody.
+ * Imported/restored bytes must use createWildzIdentityBoundPlayerVault above. */
+export function createWildzIdentityBoundPreparedVault(input: {
+  keyFile: ReceizKeyFile; passphrase?: string; prepared: PreparedPortableVaultPng;
+}) {
+  return withPreparedPortableVaultPng(input.prepared, async contents => {
+    if (wildzIdentityKeyNeedsPassphrase(input.keyFile) && !input.passphrase) throw new Error("wildz_identity_passphrase_required");
+    const binding = await createWildzIdentityBinding({ keyFile: input.keyFile,
+      playerId: contents.playerId, vaultDigest: contents.vaultDigest, playerPayloadDigest: contents.playerPayloadDigest,
+      ...(input.passphrase !== undefined ? { passphrase: input.passphrase } : {}) });
+    return appendWildzIdentityBindingTrailer(appendWildzIdentitySealAuthority(contents.bytes, input.keyFile), binding);
+  });
 }
