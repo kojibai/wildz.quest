@@ -26,7 +26,10 @@ export function WildsLantern({ intensity, qualityTier, visible }: {
     camera.getWorldDirection(cameraDirection);
     if (group.current) group.current.rotation.y = wildsLanternYaw(cameraDirection);
   });
-  if (!visible || intensity <= 0.02) return null;
+  // Keep the shader light counts constant as terrain/daylight changes. Removing
+  // these lights forces every lit material to link a new program while walking.
+  const active = visible && intensity > 0.02;
+  const lightIntensity = active ? intensity : 0;
   return (
     <group name="wilds-player-lantern" position={[0.32, 1.02, 0.18]} ref={group}>
       <primitive object={target} />
@@ -36,17 +39,17 @@ export function WildsLantern({ intensity, qualityTier, visible }: {
         color="#ffd58a"
         decay={2}
         distance={8}
-        intensity={intensity}
+        intensity={lightIntensity}
         penumbra={0.72}
         position={[0, 0.16, 0]}
         target={target}
       />
-      {qualityTier !== "low" ? <pointLight castShadow={false} color="#ffca72" decay={2} distance={3.2} intensity={intensity * 0.16} /> : null}
-      <mesh name="wilds-player-lantern-core">
+      <pointLight castShadow={false} color="#ffca72" decay={2} distance={3.2} intensity={qualityTier !== "low" ? lightIntensity * 0.16 : 0} />
+      <mesh name="wilds-player-lantern-core" visible={active}>
         <sphereGeometry args={[0.065, 10, 8]} />
         <meshStandardMaterial color="#fff2bf" emissive="#ffc66d" emissiveIntensity={2.1} roughness={0.32} />
       </mesh>
-      <mesh scale={1.9}>
+      <mesh scale={1.9} visible={active}>
         <sphereGeometry args={[0.065, 8, 6]} />
         <meshBasicMaterial color="#ffd58a" depthWrite={false} opacity={0.16} transparent />
       </mesh>

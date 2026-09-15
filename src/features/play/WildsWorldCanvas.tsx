@@ -1,5 +1,5 @@
 "use client";
-import { WildsShaderWarmup } from "./WildsShaderWarmup";
+import { WildsFirstFrame } from "./WildsFirstFrame";
 import { projectWildsTraversalCapabilities } from "./wilds-traversal-capabilities";
 import { emptyAdventureCondition } from "./adventure/card-condition";
 import { writeWildsCrewFollowSpeed, writeWildsCrewFollowRegroup, writeWildsCrewFollowPresentation } from "./wilds-crew-follow-motion";
@@ -139,6 +139,7 @@ export function WildsWorldCanvas({
   remotePlayers,
   qualityProfile,
   onFrameSample,
+  onWorldReady,
   onCameraHeadingChange,
   searchEnabled,
   onSelectPlayer,
@@ -230,6 +231,7 @@ export function WildsWorldCanvas({
   suspended?: boolean;
   resourcePending?: boolean;
   resourceCompanionReady?: boolean;
+  onWorldReady?: () => void;
 }) {
   return (
     <div
@@ -255,7 +257,7 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
-          <WildsShaderWarmup />
+          <WildsFirstFrame onReady={onWorldReady} />
           <WildsScene suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>
@@ -704,21 +706,22 @@ function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, child
 function SmoothWorldFrame({ player, terrainElevation, children }: { player: PlayState["player"]; terrainElevation: number; children: ReactNode }) {
   const group = useRef<THREE.Group>(null);
   const previous = useRef(player);
+  const previousTerrainElevation = useRef(terrainElevation);
   useLayoutEffect(() => {
     const prior = previous.current;
+    const priorTerrainElevation = previousTerrainElevation.current;
     previous.current = player;
+    previousTerrainElevation.current = terrainElevation;
     if (!group.current) return;
     group.current.position.x += player.x - prior.x;
+    group.current.position.y += terrainElevation - priorTerrainElevation;
     group.current.position.z += player.z - prior.z;
   }, [player, terrainElevation]);
   useFrame((_, delta) => {
     if (!group.current) return;
     group.current.position.x = THREE.MathUtils.damp(group.current.position.x, 0, 18, delta);
-    // The local explorer is rendered beside this frame, so vertical smoothing
-    // here can put the terrain above the explorer during elevation changes.
-    // Keep both layers on the exact same ground reference; horizontal smoothing
-    // remains useful and cannot bury the player's feet.
-    group.current.position.y = 0;
+    // Restore the original ground rebase without moving the player or camera.
+    group.current.position.y = THREE.MathUtils.damp(group.current.position.y, 0, 14, delta);
     group.current.position.z = THREE.MathUtils.damp(group.current.position.z, 0, 18, delta);
   }, -.4); // Finish rebasing before Html projects labels at priority 0.
   return <group ref={group}>{children}</group>;
@@ -810,6 +813,8 @@ function useCrewFollower(input: {
   const path = useRef<readonly Readonly<WildsCrewNavigationPoint>[]>([]);
   const latest = useRef(input); latest.current = input;
   const priorLocomotion = useRef(input.locomotion ?? "ground");
+  const alongside = useRef({ playerX: input.player.x, playerZ: input.player.z,
+    changedAt: performance.now(), movingUntil: 0, speed: 0, initialized: false });
   const heading = useRef({ playerX: input.player.x, playerZ: input.player.z, heading: 0, desiredHeading: 0 });
   const fallbackTarget = useRef<{ requestedX: number; requestedZ: number; target: Readonly<WildsCrewNavigationPoint> } | null>(null);
   const relocatedKey = useRef(input.crewRelocationKey);
@@ -828,7 +833,12 @@ function useCrewFollower(input: {
     latestAuthority.current = retainedTravel ? travelAuthority(position.current,input.travelerCanClimb) : authority;
   }, [retainedTravel,travelAuthority,authority,input.travelerCanClimb]);
   function writeTarget(current: typeof input, delta: number) {
-    writeWildsCrewAlongsideTarget(target.current, heading.current, current.player, current.offsetX, delta);
+    if (current.mode === "follow" && !current.workSource && !current.crewTravelRuntime?.current.has(current.assetId)) {
+      // The original companion formation is player-relative. Rotating this
+      // destination and independently chasing each input packet caused vibration.
+      target.current.x = current.player.x + current.offsetX;
+      target.current.z = current.player.z + current.offsetZ;
+    } else writeWildsCrewAlongsideTarget(target.current, heading.current, current.player, current.offsetX, delta);
     let x = target.current.x, z = target.current.z;
     const excursion = current.mode === "roam" && (!current.locomotion || current.locomotion === "ground") ? current.crewTravelRuntime?.current.get(current.assetId) : undefined;
     if (excursion?.spaceId === current.siteSpace.spaceId) {
@@ -879,6 +889,7 @@ function useCrewFollower(input: {
     const update = () => {
       const current = latest.current;
       const travel = current.crewTravelRuntime?.current.get(current.assetId);
+      if (current.mode === "follow" && !current.workSource && !travel) return;
       if (travel?.spaceId === current.siteSpace.spaceId && travel.position === null) travel.position = { ...position.current };
       // Refresh real coverage before route checks, including a clear direct route.
       if (travel?.spaceId === current.siteSpace.spaceId) latestAuthority.current = latestTravelAuthority.current(position.current,current.travelerCanClimb);
@@ -909,6 +920,34 @@ function useCrewFollower(input: {
     const oldX = p.x, oldZ = p.z;
     let regrouped = false;
     writeTarget(current, delta);
+    if (current.mode === "follow" && !current.workSource && !activeTrip) {
+      const follow = alongside.current;
+      const now = performance.now();
+      const dx = current.player.x - follow.playerX, dz = current.player.z - follow.playerZ;
+      const distance = Math.hypot(dx, dz);
+      if (distance > .000001) {
+        follow.speed = distance < 20 ? distance / Math.max(.015, (now - follow.changedAt) / 1000) : 0;
+        follow.movingUntil = now + 180;
+        follow.changedAt = now;
+        follow.playerX = current.player.x; follow.playerZ = current.player.z;
+        if (distance < 20) group.current.rotation.y = Math.atan2(dx, dz);
+      }
+      // Side-by-side accompaniment uses the player's admitted travel; independent
+      // collision routes remain in the roaming/work path below. No A* or catch-up
+      // substeps run for an ordinary following companion.
+      p.x = target.current.x; p.y = target.current.y; p.z = target.current.z;
+      const localY = current.locomotion && current.locomotion !== "ground" ? 0 : p.y - current.terrainElevation;
+      group.current.position.x = current.offsetX;
+      group.current.position.z = current.offsetZ;
+      group.current.position.y = follow.initialized
+        ? THREE.MathUtils.damp(group.current.position.y, localY, 6.5, Math.min(delta, .05)) : localY;
+      follow.initialized = true;
+      gait.current.speed = current.enabled && now < follow.movingUntil ? follow.speed : 0;
+      gait.current.distance += gait.current.speed * Math.max(0, Math.min(delta, .05));
+      resetPresentation.current = true;
+      return;
+    }
+    alongside.current.initialized = false;
     frameInput.deltaSeconds = delta;
     frameInput.sampleSegment = activeTrip ? latestAuthority.current.sampleSegment : authority.sampleSegment;
     const followSpeed = writeWildsCrewFollowSpeed(followMotion.current, current.player, performance.now() / 1000, Math.hypot(target.current.x - p.x, target.current.z - p.z));

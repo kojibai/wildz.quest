@@ -161,6 +161,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const shellFocusFrameRef = useRef<number | null>(null);
   const priorShellOverlayOpenRef = useRef(Boolean(initialOverlay));
   const [identityActivationRevision, setIdentityActivationRevision] = useState(0);
+  const [paintedWorldKey, setPaintedWorldKey] = useState<string | null>(null);
   const [continuity, setContinuity] = useState<WildzContinuitySnapshot | null>(null);
   const continuityRef = useRef<WildzContinuitySnapshot | null>(null);
   const playerStateSyncTimerRef = useRef<number | null>(null);
@@ -1325,11 +1326,15 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     return () => channel.close();
   }, [removeLostVaultAssets]);
 
+  const worldKey = identity ? `${identity.keyId}:${identity.actorId}:${identityActivationRevision}` : null;
+  const worldPainted = worldKey !== null && paintedWorldKey === worldKey;
   return (
     <main className="wildz-app-shell" data-wildz-active-username={ownerUsername}>
       <div aria-hidden={overlay ? true : undefined} className="wildz-app" data-overlay={overlay?.kind ?? "world"} inert={overlay ? true : undefined}>
         {continuity && identity && campaignCharacter ? <PlayCampaign
           key={`${identity.keyId}:${identity.actorId}:${identityActivationRevision}`}
+          onWorldReady={() => setPaintedWorldKey(worldKey)}
+          worldVisible={worldPainted}
           campaignName="Wildz"
           character={campaignCharacter}
           enabled={true}
@@ -1380,7 +1385,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             if (!response.ok) return null;
             return { ...asset, status: "listed" as const, synchronizedAt: new Date().toISOString() };
           }}
-        /> : <div className="wildz-identity-loading" role="status">
+        /> : null}
+        {!worldPainted && <div className="wildz-identity-loading" role="status">
           <Image src="/brand/wildz-mark.svg" alt="" width={64} height={64} priority />
           <span>{identityError || "Preparing your Receiz ID…"}</span>
         </div>}
@@ -1391,7 +1397,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         <span>WILDZ</span>
       </div>
 
-      {identity ? <nav aria-hidden={overlay ? true : undefined} className="wildz-utility-dock" inert={overlay ? true : undefined} aria-label="Wildz utilities">
+      {identity && worldPainted ? <nav aria-hidden={overlay ? true : undefined} className="wildz-utility-dock" inert={overlay ? true : undefined} aria-label="Wildz utilities">
         <button type="button" onClick={() => openShellOverlay({ kind: "profile", username: `@${ownerUsername}` })} aria-label="Open player profile">◉</button>
         <button type="button" onClick={() => openShellOverlay({ kind: "vault" })} aria-label="Open public Vault">◇</button>
         <button type="button" onClick={() => openShellOverlay({ kind: "market" })} aria-label="Open player market">↝</button>

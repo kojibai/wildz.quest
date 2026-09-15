@@ -277,6 +277,8 @@ export function PlayCampaign({
   crewCustody = null,
   initialWorld = null,
   onPlayStateChange,
+  onWorldReady,
+  worldVisible = true,
   onPrepareCard,
   onExportCard,
   onExportVault,
@@ -307,6 +309,8 @@ export function PlayCampaign({
   crewCustody?: WildzCrewCustody | null;
   initialWorld?: { projection: WildsWorldProjection; mode: "receiz_live" | "kai_live" } | null;
   onPlayStateChange: (state: PlayState, playerContinuity: WildzPlayerContinuity) => void;
+  onWorldReady?: () => void;
+  worldVisible?: boolean;
   onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
   onExportCard: (asset: PortableCardAsset, player: () => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: (assets: PortableCardAsset[], player: WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityPlayerVault) => Promise<unknown>;
@@ -2694,7 +2698,7 @@ export function PlayCampaign({
   ];
 
   return (
-    <section className="panel play-panel wilds-play-panel" id="play">
+    <section className="panel play-panel wilds-play-panel" id="play" style={{ visibility: worldVisible ? "visible" : "hidden" }} inert={!worldVisible || undefined}>
       <div className="play-header wilds-header">
         <div>
           <h2>
@@ -2717,6 +2721,7 @@ export function PlayCampaign({
             ref={gameplaySurfaceRef}
           >
             <WildsWorldCanvas
+              onWorldReady={onWorldReady}
               crewModes={crewPreferences?.byAssetId}
             crewTravelMembershipRevision={crewExpeditions.runtimeMembershipRevision}
             crewTravelRuntime={crewExpeditions.runtime}
