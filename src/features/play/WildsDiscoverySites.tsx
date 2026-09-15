@@ -1,5 +1,6 @@
 "use client";
 
+import { WILDS_CAVE_EXTERIOR } from "./wilds-cave-exterior";
 import { Html } from "@react-three/drei";
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
@@ -10,10 +11,11 @@ import { projectWildsDiscoverySiteVisuals } from "./wilds-discovery-site-visuals
 import { projectWildsDiscoverySiteApproach, type WildsDiscoverySiteProjection, type WildsSiteSpaceState } from "./wilds-discovery-sites";
 import { projectWildsSitePortalCue, WILDS_SITE_PORTAL_INTERACTION_RADIUS, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 
-export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
+export function WildsDiscoverySites({ runtime, player, space, elevation = space.position.y, onPortal }: {
   runtime: WildsSiteRuntimeProjection;
   player: PlayState["player"];
   space: WildsSiteSpaceState;
+  elevation?: number;
   onPortal: (siteKey: string, direction: "enter" | "exit") => void;
 }) {
   const portalsBySite = useMemo(() => new Map(runtime.physical.portals.map((portal) => [portal.siteKey, portal])), [runtime]);
@@ -33,14 +35,14 @@ export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
   const interior = space.spaceId !== "wildz.space.outer.v1";
   if (interior) {
     return <group name="wilds-discovery-interior">
-      <CaveSurfaces boxes={interiorGeometry.walls.length?interiorGeometry.walls:naturalWalls} role="wall" player={player} elevation={space.position.y} />
-      <CaveSurfaces boxes={interiorGeometry.floors} role="floor" player={player} elevation={space.position.y} />
-      <CaveSurfaces boxes={interiorGeometry.ceilings} role="ceiling" player={player} elevation={space.position.y} />
-      {interiorGeometry.waters.map((water) => <mesh key={water.id} name={water.id} position={[water.center.x - player.x, water.center.y + water.halfExtents.y - space.position.y, water.center.z - player.z]} rotation={[-Math.PI / 2, 0, 0]}>
+      <CaveSurfaces boxes={interiorGeometry.walls.length?interiorGeometry.walls:naturalWalls} role="wall" player={player} elevation={elevation} />
+      <CaveSurfaces boxes={interiorGeometry.floors} role="floor" player={player} elevation={elevation} />
+      <CaveSurfaces boxes={interiorGeometry.ceilings} role="ceiling" player={player} elevation={elevation} />
+      {interiorGeometry.waters.map((water) => <mesh key={water.id} name={water.id} position={[water.center.x - player.x, water.center.y + water.halfExtents.y - elevation, water.center.z - player.z]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[water.halfExtents.x * 2, water.halfExtents.z * 2]} />
         <meshPhysicalMaterial color="#197c9d" emissive="#0f4d67" emissiveIntensity={0} opacity={.56} roughness={.16} side={2} transparent />
       </mesh>)}
-      {interiorGeometry.portal && Math.hypot(interiorGeometry.portal.position.x - space.position.x, interiorGeometry.portal.position.z - space.position.z) <= WILDS_SITE_PORTAL_INTERACTION_RADIUS ? <group position={[interiorGeometry.portal.position.x - player.x, (interiorGeometry.floors.find(floor => Math.abs(floor.center.x - interiorGeometry.portal!.position.x) <= floor.halfExtents.x && Math.abs(floor.center.z - interiorGeometry.portal!.position.z) <= floor.halfExtents.z)?.center.y ?? space.position.y) - space.position.y + 1, interiorGeometry.portal.position.z - player.z]}>
+      {interiorGeometry.portal && Math.hypot(interiorGeometry.portal.position.x - space.position.x, interiorGeometry.portal.position.z - space.position.z) <= WILDS_SITE_PORTAL_INTERACTION_RADIUS ? <group position={[interiorGeometry.portal.position.x - player.x, (interiorGeometry.floors.find(floor => Math.abs(floor.center.x - interiorGeometry.portal!.position.x) <= floor.halfExtents.x && Math.abs(floor.center.z - interiorGeometry.portal!.position.z) <= floor.halfExtents.z)?.center.y ?? space.position.y) - elevation + 1, interiorGeometry.portal.position.z - player.z]}>
         <CaveEntrance interior />
         <Html center zIndexRange={[20,0]}><span className="wilds-site-portal-control"><button onClick={(event) => { event.stopPropagation(); onPortal(interiorGeometry.portal!.siteKey, "exit"); }} type="button">Return outside</button></span></Html>
         </group> : null}
@@ -59,8 +61,9 @@ export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
       const portal = portalsBySite.get(site.key);
       const portalDistance = portal ? Math.hypot(portal.position.x - player.x, portal.position.z - player.z) : Number.POSITIVE_INFINITY;
       const portalCue = projectWildsSitePortalCue(portalDistance);
+      const dug = site.key.startsWith("wildz.burrow.site.v1:");
       const visuals = visualsBySite.get(site.key)!;
-      return <group key={site.key} name={`discovery-site:${site.key}`} position={[x, site.entrance.y - space.position.y, z]} userData={{ lod: approach.lod, physical: approach.physical, siteKey: approach.siteKey }}>
+      return <group key={site.key} name={`discovery-site:${site.key}`} position={[x, site.entrance.y - elevation, z]} userData={{ lod: approach.lod, physical: approach.physical, siteKey: approach.siteKey }}>
         {site.mountain ? visuals.mountainSurfaces.map((surface) => <MountainSurface color={mountainScaleClass === "massif" ? "#5b6570" : "#687263"} distant={approach.lod === "distant"} key={surface.id} site={site} surface={surface} />) : approach.lod === "distant" ? <mesh name={`discovery-site-beacon:${site.key}`} position={[0, 2.4, 0]}>
           <ringGeometry args={[.32, .48, 20]} /><meshBasicMaterial color="#7fe8c4" opacity={.58} side={2} transparent /></mesh> : null}
         {approach.lod !== "distant" ? visuals.waterSurfaces.map((water) => <mesh key={water.id} name={water.id} position={[water.x - site.entrance.x, water.y - site.entrance.y, water.z - site.entrance.z]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -70,13 +73,9 @@ export function WildsDiscoverySites({ runtime, player, space, onPortal }: {
         {site.waterfall && approach.lod !== "distant" ? <group name={`waterfall:${site.key}`}>
           <WaterfallFlow site={site} />
         </group> : null}
-        {site.key.startsWith("wildz.burrow.site.v1:") && approach.lod!=="distant" ? <group name="dug-entrance" position={[0,.06,0]} rotation={[-Math.PI/2,0,0]}>
-          <mesh><circleGeometry args={[1.4,32]}/><meshStandardMaterial color="#10130f" roughness={1}/></mesh>
-          <mesh><ringGeometry args={[1.4,1.7,32]}/><meshStandardMaterial color="#735d42" roughness={1}/></mesh>
-        </group> : null}
-        {portal && portalCue ? <group position={[portal.position.x - site.entrance.x, portal.position.y - site.entrance.y + 1, portal.position.z - site.entrance.z]}>
-          <CaveEntrance />
-          <Html center zIndexRange={[20,0]}><span className="wilds-site-portal-control">{portalCue.action === "enter" ? <button onClick={(event) => { event.stopPropagation(); onPortal(site.key, "enter"); }} type="button">Enter {site.family.replaceAll("-", " ")}</button> : <span className="wilds-cave-entrance-cue">Cave entrance</span>}</span></Html>
+        {portal && approach.lod !== "distant" ? <group position={[portal.position.x - site.entrance.x, portal.position.y - site.entrance.y + 1, portal.position.z - site.entrance.z]}>
+          <CaveEntrance dug={dug} />
+          {portalCue ? <Html center zIndexRange={[20,0]}><span className="wilds-site-portal-control">{portalCue.action === "enter" ? <button onClick={(event) => { event.stopPropagation(); onPortal(site.key, "enter"); }} type="button">Enter {site.family.replaceAll("-", " ")}</button> : <span className="wilds-cave-entrance-cue">Cave entrance</span>}</span></Html> : null}
         </group> : null}
       </group>;
     })}
@@ -137,7 +136,7 @@ function CaveSurfaces({boxes,role,player,elevation}:{boxes:Parameters<typeof cre
 }
 
 
-function CaveEntrance({ interior = false }: { interior?: boolean }) {
+function CaveEntrance({ interior = false, dug = false }: { interior?: boolean; dug?: boolean }) {
   const texture = useWildsRockTexture();
   const geometry = useMemo(() => {
     const arch = new THREE.TorusGeometry(1.05, .34, 5, 12);
@@ -154,7 +153,14 @@ function CaveEntrance({ interior = false }: { interior?: boolean }) {
   }, []);
   useEffect(() => () => geometry.dispose(), [geometry]);
   return <group name="cave-rock-threshold">
+    {!interior ? <group name="cave-solid-exterior">
+      {WILDS_CAVE_EXTERIOR.map((box, index) => <mesh key={index}
+        position={[box.center.x, box.center.y - 1, box.center.z]}
+        scale={[box.halfExtents.x * 1.25, box.halfExtents.y * 1.25, box.halfExtents.z * 1.25]}>
+        <dodecahedronGeometry args={[1, 0]} /><meshStandardMaterial map={texture} color={dug ? "#735d42" : "#70685a"} roughness={1} />
+      </mesh>)}
+    </group> : null}
     <mesh geometry={geometry}><meshStandardMaterial map={texture} color="#70685a" roughness={.98} /></mesh>
-    <mesh position={[0, 0, -.12]}><circleGeometry args={[1.01, 16]} /><meshBasicMaterial color={interior ? "#31463b" : "#020304"} side={THREE.DoubleSide} /></mesh>
+    <mesh position={[0, 0, -.12]}><circleGeometry args={[1.01, 16]} /><meshBasicMaterial color={interior ? "#31463b" : "#020304"} side={THREE.FrontSide} /></mesh>
   </group>;
 }

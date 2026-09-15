@@ -47,7 +47,7 @@ import {
   createWildzIdentitySealPng,
   wildzIdentitySealFilename
 } from "./wildz-identity-seal";
-import { createWildzIdentityPlayerCardOffThread } from "./wildz-identity-export-client";
+import { createWildzIdentityPlayerCardOffThread, createWildzIdentityPlayerCardBundleOffThread } from "./wildz-identity-export-client";
 import {
   createWildzIdentityBoundPlayerVault,
   wildzIdentityKeyNeedsPassphrase
@@ -613,6 +613,26 @@ export async function createWildzIdentityPlayerCard(input: {
     keyFile: input.keyFile,
     vaultBytes,
     ...(input.passphrase !== undefined ? { passphrase: input.passphrase } : {})
+  });
+}
+
+/** Background preparation never falls back to synchronous whole-vault work. */
+export async function prepareWildzBackgroundPlayerVault(session: WildzIdentitySession, assets: PortableCardAsset[], player: Parameters<typeof createWildsPlayerVault>[0], options: { allowPrompt?: boolean } = {}) {
+  if (session.localAuthority !== "verified") throw new Error("wildz_identity_vault_authority_required");
+  if (!sameWildzPlayerCoordinate(player.playerId, session.username ?? session.actorId)) throw new Error("wildz_vault_export_owner_invalid");
+  const artwork = await createWildzIdentityCardArtworkPng(session, player.exportedAt);
+  return defaultIdentityRepository.withKeyFile(session.keyId, async keyFile => {
+    if (keyFile.keyId !== session.keyId) throw new Error("wildz_identity_vault_key_id_mismatch");
+    let passphrase: string | undefined;
+    if (wildzIdentityKeyNeedsPassphrase(keyFile)) {
+      if (!options.allowPrompt) throw new Error("wildz_identity_passphrase_required");
+      passphrase = window.prompt("Enter this Identity Seal’s passphrase to sign the Vault export.") ?? undefined;
+      if (!passphrase) throw new Error("wildz_identity_passphrase_required");
+    }
+    const result = await createWildzIdentityPlayerCardBundleOffThread({artwork, assets, player, keyFile, passphrase});
+    if (!result) throw new Error("wildz_background_export_worker_unavailable");
+    return { ...result, blob: new Blob([result.bytes.slice().buffer], { type: "image/png" }), filename: `wilds-vault-${session.keyId}.png`, mimeType: "image/png" as const,
+      keyId: session.keyId, ownerReceizId: player.playerId };
   });
 }
 

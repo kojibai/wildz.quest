@@ -289,7 +289,7 @@ describe("production Wilds site runtime", () => {
     assert.match(renderer, /runtime\.physical/);
     assert.match(renderer, /projectWildsDiscoverySiteApproach/);
     assert.match(renderer, /<MountainSurface/);
-    assert.match(canvas, /const activeFloorY = siteSpace\.position\.y/);
+    assert.match(canvas, /const activeFloorY = Math\.max\(siteSpace\.position\.y, outdoorFloorY\)/);
     assert.match(canvas, /terrainElevation=\{activeFloorY\}/);
     assert.match(canvas, /const siteWorldY = siteSpace\.position\.y/);
     assert.match(renderer, /key=\{site\.key\}/);
@@ -337,4 +337,17 @@ it("bounds all orbit directions without rebuilding cave authority or indexes", (
     }
   }
   assert.equal(wildsSiteRuntimeDiagnostics().indexBuilds, before.indexBuilds);
+});
+
+it("resamples the actual outdoor floor after collision slides away from the requested point", async () => {
+  const { wildsTerrainElevation } = await import("../src/features/play/wilds-terrain-authority");
+  const natural = admitWildsDiscoveryPhysicalNeighborhood(0, 0);
+  const runtime = prepareWildsSiteRuntime({ ...natural, mountainFields: [], surfaces: [], ceilings: [], waterVolumes: [],
+    solids: [{ id: "test-wall", siteKey: "wall", spaceId: "wildz.space.outer.v1", center: { x: -33, y: 4, z: -20 }, halfExtents: { x: .2, y: 20, z: .2 } }] });
+  const output = { x: 0, z: 0, floorY: 0, ceilingY: 0, surfaceId: null as string | null, flooded: false, blocked: false, blockedByClimb: false };
+  writeWildsSiteRuntimeMovement(output, runtime, "wildz.space.outer.v1", -34, wildsTerrainElevation(-34,-21), -21, -33, -20, .38, wildsTerrainElevation(-33,-20));
+  assert.equal(output.x, -33);
+  assert.equal(output.z, -21);
+  assert.equal(output.floorY, wildsTerrainElevation(-33,-21));
+  assert.notEqual(output.floorY, wildsTerrainElevation(-33,-20));
 });

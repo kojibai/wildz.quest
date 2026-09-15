@@ -419,7 +419,12 @@ function WildsScene({
   const activeAppearance = useMemo(() => activeAsset ? projectCardKaiAppearance(activeAsset) : null, [activeAsset]);
   const swimming = (siteSpace.spaceId === "wildz.space.outer.v1" ? aquaticPresentation.mode === "swim" : siteSpace.flooded)
     && aerialCapabilities.includes("swim");
-  const activeFloorY = siteSpace.position.y;
+  const outdoorFloorY = useMemo(() => siteSpace.spaceId === "wildz.space.outer.v1"
+    ? Math.max(wildsTerrainElevation(state.player.x, state.player.z), wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, state.player.x, state.player.z, wildsTerrainElevation(state.player.x, state.player.z)))
+    : siteSpace.position.y, [siteRuntime, siteSpace.spaceId, siteSpace.position.y, state.player.x, state.player.z]);
+  // Restored/stale floor coordinates cannot place the outdoor terrain above feet.
+  // Retain elevated construction supports and the separate interior coordinate.
+  const activeFloorY = Math.max(siteSpace.position.y, outdoorFloorY);
   const homeResidentCards = useMemo(() => {
     // Runtime membership mutates in place; this token invalidates resident exclusion.
     void crewTravelMembershipRevision;

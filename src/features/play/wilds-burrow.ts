@@ -1,3 +1,4 @@
+import { wildsCaveExteriorSolids } from "./wilds-cave-exterior";
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import { sealConstructionProof, constructionProofDigest, validConstructionHead, validConstructionId, validConstructionKai } from "./wilds-construction-project";
 import { verifyAnyWildsCard, rememberAdmittedWildsCardVerification, type PortableCardAsset } from "./portable-card";
@@ -126,6 +127,7 @@ export function composeWildsBurrowPhysical(natural:WildsDiscoveryPhysicalNeighbo
       routes:[{id:`${key}:route`,safe:true,requirements:[],rewardTier:0,points:[root.from,root.to]}],habitat:{layer:"ground",biome:"burrow"},mountain:null,waterfall:null,
       interior:{kind:"cave",scaleClass:"underground-world",chambers,exits:[root.from],streamRadius:0}};
     sites.push(site);
+    solids.push(...wildsCaveExteriorSolids(key, root.from));
     portals.push({id:`${root.id}:entrance`,siteKey:key,position:root.from,fromSpaceId:"wildz.space.outer.v1",toSpaceId:space});
     for(const p of pieces) {
       // Half-metre treads share exact floor/ceiling geometry with physics and camera.

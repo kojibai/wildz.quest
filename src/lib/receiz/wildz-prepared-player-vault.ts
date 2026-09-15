@@ -10,6 +10,7 @@ import { createWildzPreparedCardCache } from "./wildz-prepared-card-cache";
 
 export type WildzPreparedIdentityPlayerVault = Readonly<{
   bytes: Uint8Array;
+  blob?: Blob;
   filename: string;
   mimeType: "image/png";
   keyId: string;
@@ -60,5 +61,5 @@ export function createWildzIdentityPlayerVaultPreparer(dependencies: {
 
 export function savePreparedWildzIdentityPlayerVault(artifact: WildzPreparedIdentityPlayerVault) {
   // Invoke sharing before yielding so a prepared Vault keeps the Save gesture.
-  return saveBlobToDevice(new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType }), artifact.filename);
+  return saveBlobToDevice(artifact.blob ?? new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType }), artifact.filename);
 }

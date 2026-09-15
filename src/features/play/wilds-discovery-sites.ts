@@ -1,3 +1,4 @@
+import { wildsCaveExteriorSolids } from "./wilds-cave-exterior";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
 import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
 
@@ -268,8 +269,8 @@ function siteFamily(slot: number, surface: ReturnType<typeof sampleWildsTerrain>
 }
 
 function mountainFor(regionX: number, regionZ: number, slot: number, entrance: Point3) {
-  if (slot !== 0) return null;
-  const lane = hashUnit(regionX, regionZ, slot, 101);
+  if (slot !== 0 && slot !== 1) return null;
+  const lane = slot === 1 ? 0 : hashUnit(regionX, regionZ, slot, 101);
   const scaleClass = lane < 1 / 3 ? "hill" as const : lane < 2 / 3 ? "mountain" as const : "massif" as const;
   const rise = scaleClass === "hill" ? 4.2 : scaleClass === "mountain" ? 10 : 14.5;
   const threshold = scaleClass === "hill" ? 24 : scaleClass === "mountain" ? 55 : 86;
@@ -299,7 +300,7 @@ function waterfallFor(regionX: number, regionZ: number, slot: number, entrance: 
     pool,
     mistRadius: 4.5,
     current: quantize(.35 + hashUnit(regionX, regionZ, slot, 109) * .55),
-    hiddenEntrance: hashUnit(regionX, regionZ, slot, 113) < .5 ? freezePoint(pool.x + .8, pool.y - .35, pool.z - .55) : null
+    hiddenEntrance: hashUnit(regionX, regionZ, slot, 113) < .5 ? freezePoint(pool.x + 2.5, pool.y - .35, pool.z - .55) : null
   });
 }
 
@@ -359,7 +360,7 @@ function buildSite(regionX: number, regionZ: number, slot: number): WildsDiscove
   const waterfall = waterfallFor(regionX, regionZ, slot, entrance, mountain?.summitY ?? null);
   const interiorAnchor = waterfall?.hiddenEntrance ?? entrance;
   const interior = interiorFor(regionX, regionZ, slot, interiorAnchor, family, waterfall?.hiddenEntrance !== null && waterfall !== null);
-  const ordinaryStart = freezePoint(entrance.x, entrance.y, entrance.z - 6);
+  const ordinaryStart = freezePoint(entrance.x, entrance.y, entrance.z + (slot === 1 ? 6 : -6));
   const ordinaryEnd = freezePoint(entrance.x, entrance.y + (mountain ? 1.5 : 0), entrance.z + 5);
   const requirement: WildsDiscoveryRouteRequirement = layer === "water" ? "swim" : layer === "air" ? "glide" : mountain ? "climb" : "track";
   const routes = Object.freeze([
@@ -561,29 +562,30 @@ function buildPhysicalNeighborhood(regionX: number, regionZ: number): WildsDisco
     if (site.mountain) {
       const height = site.mountain.summitY - site.entrance.y;
       const radius = site.mountain.scaleClass === "massif" ? 46 : site.mountain.scaleClass === "mountain" ? 28 : 14;
-      for (const side of [-1, 1] as const) {
+      for (const side of (site.slot === 1 ? [1] : [-1, 1])) {
         const columns = 11;
         const rows = 11;
         const halfX = radius * .82;
         const halfZ = radius * .82;
-        const centerX = site.entrance.x + side * radius * .78;
+        const centerX = site.slot === 1 ? site.entrance.x : site.entrance.x + side * radius * .78;
+        const centerZ = site.entrance.z - (site.slot === 1 ? halfZ : 0);
         const passWidth = site.mountain.scaleClass === "massif" ? 16 : site.mountain.scaleClass === "mountain" ? 10 : 5;
         const nodes: WildsMountainFieldNode[] = [];
         for (let row = 0; row < rows; row += 1) {
           const zAmount = row / (rows - 1);
-          const z = quantize(site.entrance.z - halfZ + zAmount * halfZ * 2);
+          const z = quantize(centerZ - halfZ + zAmount * halfZ * 2);
           for (let column = 0; column < columns; column += 1) {
             const xAmount = column / (columns - 1);
             const x = quantize(centerX - halfX + xAmount * halfX * 2);
             const terrain = sampleWildsTerrain(x, z);
             terrainSamples += 1;
             const normalizedX = (x - centerX) / halfX;
-            const normalizedZ = (z - site.entrance.z) / halfZ;
+            const normalizedZ = (z - centerZ) / halfZ;
             const radial = Math.hypot(normalizedX, normalizedZ);
             const edge = Math.max(0, 1 - radial);
             const rounded = edge * edge * (3 - 2 * edge);
             const passAmount = Math.min(1, Math.abs(x - site.entrance.x) / passWidth);
-            const valley = passAmount * passAmount * (3 - 2 * passAmount);
+            const valley = site.slot === 1 ? 1 : passAmount * passAmount * (3 - 2 * passAmount);
             const shoulder = .9 + hashUnit(site.regionX, site.regionZ, site.slot, 401 + row * columns + column + (side < 0 ? 0 : 997)) * .1;
             const profile = rounded * valley * shoulder;
             const topY = terrain.elevation + height * profile;
@@ -596,7 +598,7 @@ function buildPhysicalNeighborhood(regionX: number, regionZ: number): WildsDisco
           id: `mountain-field:${site.key}:${side < 0 ? "west" : "east"}`,
           siteKey: site.key,
           spaceId: outerId,
-          center: freezePoint(centerX, (minimumBase + maximumTop) / 2, site.entrance.z),
+          center: freezePoint(centerX, (minimumBase + maximumTop) / 2, centerZ),
           halfExtents: freezePoint(halfX, (maximumTop - minimumBase) / 2, halfZ),
           columns,
           rows,
@@ -666,6 +668,7 @@ function buildPhysicalNeighborhood(regionX: number, regionZ: number): WildsDisco
         }
       }
       const portalPosition = site.waterfall?.hiddenEntrance ?? site.entrance;
+      solids.push(...wildsCaveExteriorSolids(site.key, portalPosition));
       portals.push(Object.freeze({
         id: `portal:${site.key}:entrance`,
         siteKey: site.key,

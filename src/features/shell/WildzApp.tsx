@@ -36,8 +36,7 @@ import {
   connectWildzProofSession,
   downloadWildzIdentityPlayerCard,
   downloadWildzIdentityOwnedCard,
-  downloadWildzIdentityPlayerVault,
-  prepareWildzIdentityPlayerVault,
+  prepareWildzBackgroundPlayerVault,
   savePreparedWildzIdentityPlayerVault,
   type WildzPreparedIdentityPlayerVault,
   isWildzIdentityActivationInspection,
@@ -764,7 +763,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const buildCombinedVault = useCallback((current: WildzContinuitySnapshot, allowPrompt: boolean) => {
     const playerContinuity = current.playerContinuity;
     const playState = current.playState ?? createOwnerBoundInitialPlayState(current.session.actorId, current.session.createdAt);
-    const player = createWildsPlayerVault({
+    const player: Parameters<typeof createWildsPlayerVault>[0] = {
       playerId: current.session.username ?? current.session.actorId,
       exportedAt: new Date().toISOString(),
       playState,
@@ -778,51 +777,70 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       personalEvents: playerContinuity?.personalEvents ?? [],
       canonicalCursor: playerContinuity?.canonicalCursor ?? { worldId: "wilds:global:v3", revision: 0, eventId: null },
       receipts: playerContinuity?.receipts ?? []
-    });
-    return prepareWildzIdentityPlayerVault(current.session, playState.inventory, player, { allowPrompt });
+    };
+    return prepareWildzBackgroundPlayerVault(current.session, playState.inventory, player, { allowPrompt });
   }, []);
 
-  useEffect(() => {
-    // Gameplay movement updates this ref without forcing a shell render. Opening
-    // Vault must prepare that latest state, not the last card-change snapshot.
-    // Profile transitions and resumed gameplay must never build a full backup.
-    if (overlay?.kind !== "vault") {
-      setCombinedVaultPreparing(false);
-      return;
-    }
-    const current = continuityRef.current;
-    if (!current) return;
+  const combinedVaultJob = useRef<{ snapshot: WildzContinuitySnapshot; promise: Promise<WildzPreparedIdentityPlayerVault> } | null>(null);
+  const combinedVaultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sameVaultSnapshot = (left: WildzContinuitySnapshot, right: WildzContinuitySnapshot) =>
+    left.session.keyId === right.session.keyId && left.playState === right.playState
+    && left.playerContinuity === right.playerContinuity && left.character === right.character;
+  const prepareCombinedVault = useCallback((current: WildzContinuitySnapshot, allowPrompt: boolean) => {
     const held = preparedCombinedVault.current;
-    if (held && held.snapshot.session.keyId === current.session.keyId
-      && held.snapshot.playState === current.playState && held.snapshot.character === current.character
-      && held.snapshot.playerContinuity === current.playerContinuity) return;
-    let cancelled = false;
-    preparedCombinedVault.current = null;
-    const timer = window.setTimeout(() => {
-      setCombinedVaultPreparing(true);
-      void Promise.resolve().then(() => buildCombinedVault(current, false)).then(artifact => {
-        if (!cancelled) preparedCombinedVault.current = { snapshot: current, artifact };
-      }).catch(() => { /* An explicit Save can request a locked identity's passphrase. */ })
-        .finally(() => { if (!cancelled) setCombinedVaultPreparing(false); });
-    }, 0);
-    return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [overlay?.kind, continuity?.session.keyId, continuity?.playState, continuity?.character, continuity?.playerContinuity, buildCombinedVault]);
+    if (held && sameVaultSnapshot(held.snapshot, current)) return Promise.resolve(held.artifact);
+    const pending = combinedVaultJob.current;
+    if (pending && sameVaultSnapshot(pending.snapshot, current)) return pending.promise;
+    // Serialize preparations so a burst of additions cannot build concurrent backups.
+    const promise = (pending ? pending.promise.catch(() => undefined) : Promise.resolve()).then(() => buildCombinedVault(current, allowPrompt));
+    const job = { snapshot: current, promise };
+    combinedVaultJob.current = job;
+    void promise.then(artifact => {
+      if (continuityRef.current?.session.keyId === current.session.keyId) preparedCombinedVault.current = { snapshot: current, artifact };
+    }).catch(() => {}).finally(() => {
+      if (combinedVaultJob.current === job) combinedVaultJob.current = null;
+    });
+    return promise;
+  }, [buildCombinedVault]);
+  const scheduleCombinedVault = useCallback(() => {
+    if (combinedVaultTimer.current !== null) clearTimeout(combinedVaultTimer.current);
+    // Coalesce state changes; this callback never hashes or traverses cards.
+    combinedVaultTimer.current = setTimeout(() => {
+      combinedVaultTimer.current = null;
+      const current = continuityRef.current;
+      if (current?.playState?.inventory.length) void prepareCombinedVault(current, false).catch(() => {});
+    }, 750);
+  }, [prepareCombinedVault]);
+  useEffect(() => {
+    scheduleCombinedVault();
+  }, [continuity, scheduleCombinedVault]);
+  useEffect(() => () => {
+    if (combinedVaultTimer.current !== null) clearTimeout(combinedVaultTimer.current);
+  }, []);
 
   const saveCombinedVault = async () => {
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_identity_missing");
     const held = preparedCombinedVault.current;
-    if (held && held.snapshot.session.keyId === current.session.keyId
-      && held.snapshot.playState === current.playState && held.snapshot.character === current.character
-      && held.snapshot.playerContinuity === current.playerContinuity) {
+    if (held && sameVaultSnapshot(held.snapshot, current)) {
       // No await precedes the native sheet: preserve the Save tap on iOS.
       await savePreparedWildzIdentityPlayerVault(held.artifact);
       return;
     }
-    const artifact = await buildCombinedVault(current, true);
-    if (continuityRef.current?.session.keyId !== current.session.keyId) throw new Error("wildz_identity_changed");
-    preparedCombinedVault.current = { snapshot: current, artifact };
-    await savePreparedWildzIdentityPlayerVault(artifact);
+    if (combinedVaultTimer.current !== null) clearTimeout(combinedVaultTimer.current);
+    combinedVaultTimer.current = null;
+    setCombinedVaultPreparing(true);
+    try {
+      let artifact: WildzPreparedIdentityPlayerVault;
+      try { artifact = await prepareCombinedVault(current, false); }
+      catch (error) {
+        if (!(error instanceof Error) || error.message !== "wildz_identity_passphrase_required") throw error;
+        if (combinedVaultJob.current?.snapshot === current) combinedVaultJob.current = null;
+        artifact = await prepareCombinedVault(current, true);
+      }
+      if (continuityRef.current?.session.keyId !== current.session.keyId) throw new Error("wildz_identity_changed");
+      await savePreparedWildzIdentityPlayerVault(artifact);
+    } finally { setCombinedVaultPreparing(false); }
   };
 
   const restoreArtifact = useCallback(async (
@@ -1188,6 +1206,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const identityTruthChanged = cardTruthChanged || worldTruthChanged;
     const snapshot = { ...current, playState, playerContinuity, crewCustody: current.playState?.inventory === playState.inventory ? current.crewCustody : pruneWildzCrewCustody(current.crewCustody, current.session.actorId, playState.inventory) };
     continuityRef.current = snapshot;
+    scheduleCombinedVault();
     if (cardTruthChanged) {
       setContinuity(snapshot);
     }
@@ -1207,7 +1226,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       exportedAt: new Date().toISOString()
     });
     queueGlobalPlayerStateSync(snapshot);
-  }, [queueGlobalPlayerStateSync]);
+  }, [queueGlobalPlayerStateSync, scheduleCombinedVault]);
 
   const removeLostVaultAssets = useCallback((assetIds: readonly string[]) => {
     const current = continuityRef.current;
@@ -1356,11 +1375,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           onExportCard={(asset, player, prepared) => prepared && matchesPreparedWildzIdentityOwnedCard(prepared, identity, asset)
             ? savePreparedWildzIdentityOwnedCard(prepared)
             : downloadWildzIdentityOwnedCard(identity, asset, player())}
-          onPrepareVault={(assets, player) => prepareWildzIdentityPlayerVault(identity, assets, player, { allowPrompt: false })}
-          onExportVault={(assets, player, prepared) => prepared && prepared.keyId === identity.keyId
-            && sameWildzPlayerCoordinate(prepared.ownerReceizId, identity.actorId)
-            ? savePreparedWildzIdentityPlayerVault(prepared)
-            : downloadWildzIdentityPlayerVault(identity, assets, player)}
+          onExportVault={() => saveCombinedVault()}
           vaultAdmission={vaultAdmission}
           onRestoreArtifact={claimAndRestoreVaultArtifact}
           onRestoreRoamingCapture={restoreRoamingCapture}

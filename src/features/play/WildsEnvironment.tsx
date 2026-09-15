@@ -238,7 +238,7 @@ export function WildsEnvironment({
         <MajorWorldRoutes player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} terrainElevation={terrainElevation} /></> : null}
       </group>
       <group name="world-layer-mid">
-        <WildsDiscoverySites onPortal={onSitePortal} player={player} runtime={siteRuntime} space={siteSpace} />
+        <WildsDiscoverySites elevation={terrainElevation} onPortal={onSitePortal} player={player} runtime={siteRuntime} space={siteSpace} />
         {outer ? <><EcologyInstances kaiUPulse={kaiUPulse} bushes={bushes} flowers={flowers} palette={tiles[12]?.canopy} player={player} qualityProfile={qualityProfile} rocks={rocks} siteRuntime={siteRuntime} siteSpaceId={siteSpace.spaceId} terrainElevation={terrainElevation} trees={trees} />
         <FlagshipLandmarkEntrances detail={qualityProfile.tier !== "low"} livingWorld={livingWorld} player={player} terrainElevation={terrainElevation} worldMode={worldMode} />
         <LivingWorldSites player={player} terrainElevation={terrainElevation} world={livingWorld} />

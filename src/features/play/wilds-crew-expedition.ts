@@ -219,12 +219,14 @@ export function createWildsCrewExpeditions(database:WildzContinuityDatabase=crea
     block:(input:WildsCrewExpeditionChange&{reason:string})=>change(input,{type:"block",reason:input.reason}),
     async history(owner:string,asset:string,beforeHead?:string,limit=32){
       if(!id(owner)||!id(asset)||!Number.isInteger(limit)||limit<1||limit>128)return fail("window_invalid");
-      let cursor=beforeHead??(await read(owner,asset))?.head??null;const observations:WildsCrewExpedition[]=[];
+      const latest=beforeHead?null:await read(owner,asset);
+      let cursor=beforeHead??latest?.head??null;const observations:WildsCrewExpedition[]=[];
       const visited=new Set<string>();
       while(cursor&&observations.length<limit){
         if(visited.has(cursor))return fail("history_cycle");visited.add(cursor);
-        const row=await database.read<WildsCrewExpedition>("meta",key(owner,asset,"event",cursor));
-        if(!row||row.head!==cursor)return fail("history_incomplete");observations.push(await verify(row,owner,asset));cursor=row.previousHead;
+        const row=await database.read<WildsCrewExpedition>("meta",key(owner,asset,"event",cursor)) ?? (latest?.head===cursor?latest:null);
+        if(!row)return {observations,nextCursor:null,incomplete:true};
+        if(row.head!==cursor)return fail("history_incomplete");observations.push(await verify(row,owner,asset));cursor=row.previousHead;
       }
       return {observations,nextCursor:cursor};
     }

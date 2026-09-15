@@ -12,16 +12,16 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
 
   assert.match(campaign, /createWildsPlayerVault/);
-  assert.match(campaign, /const createCurrentPlayerVault = useCallback\(\(\) => createWildsPlayerVault/);
+  assert.match(campaign, /const createCurrentPlayerVault = useCallback\(\(asset\?: PortableCardAsset\) => createWildsPlayerVault/);
   assert.match(campaign, /playerVault=\{createCurrentPlayerVault\}/);
-  assert.match(campaign, /playState:\s*state/);
+  assert.match(campaign, /playState: asset \? \{ \.\.\.state, inventory: \[asset\] \} : state/);
   assert.match(campaign, /avatarStyle/);
   assert.match(campaign, /movementMode/);
   assert.match(campaign, /presentation\.audioSettings/);
-  assert.match(inventory, /playerVault:\s*\(\) => WildsPlayerVaultPayload/);
-  assert.match(inventory, /const player = ready\?\.player \?\? playerVault\(\)/);
+  assert.match(inventory, /playerVault:\s*\(asset\?: PlayState\["inventory"\]\[number\]\) => WildsPlayerVaultPayload/);
+  assert.doesNotMatch(inventory, /onPrepareVault|preparedVault/);
   assert.doesNotMatch(inventory, /ensureActiveWildzProofSession|\/api\/auth\/receiz\/start/);
-  assert.match(inventory, /onExportVault\(state\.inventory, player, ready\?\.artifact\)/);
+  assert.match(inventory, /await onExportVault\(\)/);
   assert.match(exporter, /portableVaultPngBlob\(assets: PortableCardAsset\[\], player\?: WildsPlayerVaultPayload\)/);
   assert.match(exporter, /embedPortableVaultInPng\([^;]+assets, player\)/s);
   assert.match(exporter, /verifyProofObject\?: WildzDownloadedProofObjectVerifier/);

@@ -6,7 +6,7 @@ import type { WildsCrewExpedition } from "./wilds-crew-expedition";
 import type { WildsRoamingHistoryReport } from "./wilds-roaming-report-store";
 
 export type WildsCrewTravelHistory = (assetId: string, beforeHead?: string, limit?: number) => Promise<{
-  observations: WildsCrewExpedition[]; nextCursor: string | null; battles?: WildsRoamingHistoryReport[];
+  incomplete?: boolean; observations: WildsCrewExpedition[]; nextCursor: string | null; battles?: WildsRoamingHistoryReport[];
 }>;
 
 const labels: Record<WildsCrewExpedition["kind"], string> = {
@@ -64,6 +64,7 @@ export function WildsCrewTravelJournal({ assetId, name, readHistory }: {
             <details className="wilds-journal-record"><summary>Record {row.revision}</summary><small>Kai order {row.causalKaiUPulse}</small></details>
           </li>)}
         </ol> : <p className="wilds-expedition-empty">A story waiting to unfold.<br /><small>Send this companion exploring to begin its journal.</small></p>}
+      {!busy && !error && page?.incomplete ? <p>Earlier records are not stored on this device. Your available travel memories are shown above.</p> : null}
       {!busy && !error && page?.nextCursor ? <button type="button" onClick={() => void load(page.nextCursor!)}>Older records</button> : null}
       {!busy && page ? <button type="button" onClick={() => void load()} className="wilds-journal-refresh">Latest records</button> : null}
     </section> : null}

@@ -27,7 +27,7 @@ test("the in-game Vault popover claims Vault files before saving the combined co
   assert.match(shell, /overlay\.kind === "vault"[\s\S]*onAddVault=/);
   assert.match(shell, /onAddVault=[\s\S]*claimAndRestoreVaultArtifact/);
   assert.match(shell, /onSaveVault=/);
-  assert.match(shell, /downloadWildzIdentityPlayerVault/);
+  assert.match(shell, /savePreparedWildzIdentityPlayerVault/);
   assert.match(vault, /Add Vault/);
   assert.match(vault, /Save combined Vault/);
   assert.match(vault, /onAddVault/);

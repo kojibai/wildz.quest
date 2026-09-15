@@ -318,11 +318,11 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     async history(assetId:string,beforeHead?:string,limit=24){
       const current=latest.current,card=current.state.inventory.find(c=>c.id===assetId&&canOperateWildzCrewCard(c,current.owner,current.custody));
       if(!card)throw new Error("This creature is no longer in your owned inventory.");
-      const owner=current.owner,proofDigest=card.proof.digest;
+      const owner=current.owner;
       const result=await getStore().history(owner,assetId,beforeHead,limit);
-      const battles=beforeHead?[]:await battleReports.history(owner,assetId);
+      const battles=beforeHead?[]:await battleReports.history(owner,assetId).catch(()=>[]);
       const now=latest.current;
-      if(now.owner!==owner||!now.state.inventory.some(c=>c.id===assetId&&c.proof.digest===proofDigest&&canOperateWildzCrewCard(c,owner,now.custody)))
+      if(now.owner!==owner||!now.state.inventory.some(c=>c.id===assetId&&canOperateWildzCrewCard(c,owner,now.custody)))
         throw new Error("Creature ownership or proof changed while loading history.");
       return {...result,battles};
     },

@@ -1,3 +1,4 @@
+import { wildsTerrainElevation } from "./wilds-terrain-authority";
 import { wildsDiscoverySiteDiagnostics, wildsMountainFieldValue, type WildsDiscoveryPhysicalNeighborhood, type WildsDiscoverySiteProjection, type WildsMountainField, type WildsMountainFieldNode, type WildsSiteSpaceState, type WildsSiteSurface } from "./wilds-discovery-sites";
 
 const OUTER = "wildz.space.outer.v1";
@@ -223,7 +224,9 @@ export function writeWildsSiteRuntimeMovement(output: WildsSiteMovementOutput, r
   output.x = q(x); output.z = q(z); output.blocked = blocked && x === sx && z === sz; output.blockedByClimb = output.blocked && targetClimbObstruction > .05;
   // Air height is a collision query, never the persistent ground/frame origin.
   // Without an authored surface, keep the caller's terrain floor underneath flight.
-  const floorFallback = Number.isFinite(airborneWorldY) ? fallback : targetY;
+  const floorFallback = !interior && (x !== tx || z !== tz)
+    ? wildsTerrainElevation(output.x, output.z)
+    : Number.isFinite(airborneWorldY) ? fallback : targetY;
   floorAndCeiling(output, runtime, spaceId, output.x, surface?.center.y ?? targetY, output.z, floorFallback); return output;
 }
 export function writeWildsSiteRuntimeCamera(output: { floorY: number; ceilingY: number; flooded: boolean; waterSurfaceY: number }, runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, y: number, z: number) { cameraWrites += 1; floorAndCeiling(output, runtime, spaceId, x, y, z, y); return output; }

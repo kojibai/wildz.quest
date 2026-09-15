@@ -96,10 +96,10 @@ test("profile edit control reserves the overlay close-button hit area", () => {
 
 test("Profile and return-to-world transitions never prepare full Vault backups", () => {
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
-  const preparation = shell.slice(shell.indexOf("// Gameplay movement updates this ref"), shell.indexOf("const saveCombinedVault"));
-  assert.match(preparation, /if \(overlay\?\.kind !== "vault"\) \{[\s\S]*?return;/);
-  assert.ok(preparation.indexOf('overlay?.kind !== "vault"') < preparation.indexOf("buildCombinedVault(current, false)"));
-  assert.doesNotMatch(preparation, /\? 0 : 300/);
+  const preparation = shell.slice(shell.indexOf("const scheduleCombinedVault"), shell.indexOf("const saveCombinedVault"));
+  assert.match(preparation, /prepareCombinedVault\(current, false\)/);
+  assert.doesNotMatch(preparation, /overlay/);
+  assert.match(shell, /prepareWildzBackgroundPlayerVault/);
 });
 
 test("connecting an Identity Seal never downgrades complete source-profile publication to the card queue", () => {

@@ -155,3 +155,19 @@ it("travel prose distinguishes planned stops from actual observations", async ()
  assert.match(describeWildsCrewMemory(arrived,"Mira"), /Mira stopped on/);
  assert.match(describeWildsCrewMemory(arrived,"Mira"), /Observation 1/);
 });
+
+it("shows a restored current trip when its older journal rows are absent", async () => {
+ const db=createMemoryWildzContinuityDatabase(), store=createWildsCrewExpeditions(db);
+ let trip=await store.start(start);
+ trip=await store.recall({ownerReceizId:"owner",assetId:"asset",expectedHead:trip.head,kaiUPulse:101});
+ await db.transaction(["meta"],"readwrite",async tx=>{
+   for(const [key] of db.dump().meta) {
+     if(typeof key === "string" && JSON.parse(key)[3] === "event") await tx.delete("meta",key);
+   }
+ });
+ const history=await store.history("owner","asset");
+ assert.deepEqual(history.observations,[trip]);
+ assert.equal(history.incomplete,true);
+ assert.equal(history.nextCursor,null);
+ assert.deepEqual((await store.history("other","asset")).observations,[]);
+});

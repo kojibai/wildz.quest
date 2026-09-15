@@ -282,7 +282,6 @@ export function PlayCampaign({
   onPrepareCard,
   onExportCard,
   onExportVault,
-  onPrepareVault,
   vaultAdmission,
   onRestoreArtifact,
   onRestoreRoamingCapture
@@ -313,8 +312,7 @@ export function PlayCampaign({
   worldVisible?: boolean;
   onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
   onExportCard: (asset: PortableCardAsset, player: () => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
-  onExportVault: (assets: PortableCardAsset[], player: WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityPlayerVault) => Promise<unknown>;
-  onPrepareVault?: (assets: PlayState["inventory"], player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityPlayerVault>;
+  onExportVault: () => Promise<unknown>;
   vaultAdmission: WildzVaultCardAdmission | null;
   onRestoreRoamingCapture: (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState) => Promise<WildzCommittedArtifactRestore>;
   onRestoreArtifact: (
@@ -1193,10 +1191,10 @@ export function PlayCampaign({
   const vaultWorldRevision = livingWorld.snapshot?.revision ?? initialPlayerContinuity?.canonicalCursor.revision ?? 0;
   const vaultWorldEventId = livingWorld.snapshot ? livingWorld.snapshot.cursor?.eventId ?? null : initialPlayerContinuity?.canonicalCursor.eventId ?? null;
   // Presentation clock renders must not retire an in-flight Vault preparation.
-  const createCurrentPlayerVault = useCallback(() => createWildsPlayerVault({
+  const createCurrentPlayerVault = useCallback((asset?: PortableCardAsset) => createWildsPlayerVault({
     playerId: ownerReceizId,
     exportedAt: new Date().toISOString(),
-    playState: state,
+    playState: asset ? { ...state, inventory: [asset] } : state,
     character,
     settings: { avatarStyle: explorerStyle, movementMode, audio: presentation.audioSettings, cardOrder, visual: visualSettings },
     personalEvents: initialPlayerContinuity?.personalEvents ?? [],
@@ -2676,7 +2674,6 @@ export function PlayCampaign({
             onPrepareCard={onPrepareCard}
             onExportCard={onExportCard}
             onExportVault={onExportVault}
-            onPrepareVault={onPrepareVault}
             onInput={dispatch}
             onListAsset={onListAsset}
             onRestoreArtifact={async (file, confirmCardOnly, currentPlayState) => {
