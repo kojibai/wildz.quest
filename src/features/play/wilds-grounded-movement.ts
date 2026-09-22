@@ -461,7 +461,9 @@ export function resolveWildsGroundMovement(
     x: quantize(start.x + (intended.x - start.x) * speedMultiplier),
     z: quantize(start.z + (intended.z - start.z) * speedMultiplier)
   };
-  const targetTerrain = sampleWildsTerrain(target.x, target.z);
+  const targetTerrain = target.x === intended.x && target.z === intended.z
+    ? intendedTerrain
+    : sampleWildsTerrain(target.x, target.z);
   const targetSupport = wildsStructureSupportAt(target, options.structureSupports, capsuleRadius, footY);
   const airborneClearance = options.aerialMode
     ? Math.max(0, Number.isFinite(options.verticalWorldY)
@@ -543,7 +545,9 @@ export function resolveWildsGroundMovement(
       startTerrain.elevation + airborneClearance
     ));
   const collision = resolveWildsObstacleMotion(start, target, obstacles, capsuleRadius);
-  const resolvedTerrain = sampleWildsTerrain(collision.position.x, collision.position.z);
+  const resolvedTerrain = collision.position.x === target.x && collision.position.z === target.z
+    ? targetTerrain
+    : sampleWildsTerrain(collision.position.x, collision.position.z);
   const resolvedSupport = wildsStructureSupportAt(collision.position, options.structureSupports, 0, footY);
   const pushedIntoMissingTraversal = airborneClearance !== null
     ? null

@@ -33,6 +33,31 @@ test("moving aerial broad phase matches exhaustive constraints and blocker order
   assert.ok(nearbyWildsAerialObstacles(obstacles, { x: 0, z: 0 }, .38).length < obstacles.length / 10);
 });
 
+test("moving within cached cells preserves candidates and crossing any cell edge refreshes them", () => {
+  const values = Array.from({ length: 25 }, (_, index) => {
+    const x = (index % 5 - 2) * 32, z = (Math.floor(index / 5) - 2) * 32;
+    return { minX: x, maxX: x + 1, minZ: z, maxZ: z + 1 };
+  });
+  const query = createWildsOrderedSpatialIndex(values, value => value);
+  const first = query({ minX: 2, maxX: 3, minZ: 2, maxZ: 3 });
+  assert.equal(query({ minX: 10, maxX: 30, minZ: 10, maxZ: 30 }), first);
+  for (const bounds of [
+    { minX: -1, maxX: 3, minZ: 2, maxZ: 3 },
+    { minX: -1, maxX: 32, minZ: 2, maxZ: 3 },
+    { minX: -1, maxX: 32, minZ: -1, maxZ: 3 },
+    { minX: -1, maxX: 32, minZ: -1, maxZ: 32 },
+    { minX: 2, maxX: 3, minZ: 2, maxZ: 3 }
+  ]) {
+    const freshQuery = createWildsOrderedSpatialIndex(values, value => value);
+    assert.deepEqual(query(bounds), freshQuery(bounds));
+  }
+  // Invalid/oversized queries still take the conservative full-source path.
+  assert.equal(query({ minX: NaN, maxX: 3, minZ: 2, maxZ: 3 }), values);
+  assert.equal(query({ minX: 0, maxX: 10000, minZ: 0, maxZ: 0 }), values);
+  assert.equal(query({ minX: 3, maxX: 2, minZ: 2, maxZ: 3 }), values);
+  assert.deepEqual(query({ minX: 2, maxX: 3, minZ: 2, maxZ: 3 }), first);
+});
+
 test("construction admission never reuses an index for mutable imported coordinates", async () => {
   const { nearbyWildsConstruction } = await import("../src/features/play/wilds-construction-neighborhood");
   type Components = Parameters<typeof nearbyWildsConstruction>[0];

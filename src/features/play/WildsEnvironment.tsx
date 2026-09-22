@@ -25,9 +25,9 @@ import { WAYFINDER_HOLLOW } from "@/features/play/wilds-settlements";
 import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-placement";
 import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, buildWildsTerrainWaterProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
-import { projectWildsObstaclePlacement, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
-import { projectWildsResourcePresentationAvailability as projectWildsResourceAvailability, projectWildsResourceSourceForObstacle } from "@/features/play/wilds-resource-authority";
-import { projectWildsResourceBody, projectWildsSourceWorkMotion, type WildsActiveWorkSource, type WildsResourceBodyProjection } from "@/features/play/wilds-work-presentation";
+import { wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
+import { createWildsResourcePlacementProjector } from "./wilds-resource-placements";
+import { projectWildsSourceWorkMotion, type WildsActiveWorkSource, type WildsResourceBodyProjection } from "@/features/play/wilds-work-presentation";
 import { projectWildsOverlooks, type WildsOverlookId } from "@/features/play/wilds-overlooks";
 import { WildsWorldArt } from "@/features/play/WildsWorldArt";
 import { WildsDiscoverySites } from "@/features/play/WildsDiscoverySites";
@@ -203,29 +203,12 @@ export function WildsEnvironment({
   }, [centerX, centerZ, missionProgress, outer, worldMastery]);
 
   const physicalObstacles = useMemo(() => outer ? tiles.flatMap((tile) => wildsTerrainObstaclesForTile(tile.tileX, tile.tileZ)) : EMPTY_VALUES, [outer, tiles]);
-  const resourcePlacement = (obstacle: (typeof physicalObstacles)[number]): Placement => {
-    const source = projectWildsResourceSourceForObstacle(obstacle);
-    const state = livingWorld?.harvestedSources[source.sourceId];
-    const availability = projectWildsResourceAvailability(source, {
-      admittedHarvestedCapacity: state?.harvestedCapacity ?? 0,
-      lastHarvestKaiPulse: state?.lastHarvestKaiPulse ?? "0",
-      currentKaiPulse: String(kaiUPulse)
-    });
-    return {
-      ...projectWildsObstaclePlacement(obstacle),
-      resourceBody: projectWildsResourceBody({ kind: source.kind === "timber" ? "timber" : "stone", capacity: source.capacity, availableCapacity: availability.availableCapacity }),
-      working: activeWorkSource?.sourceId === source.sourceId,
-      workStartedAtMs: activeWorkSource?.sourceId === source.sourceId ? activeWorkSource.startedAtMs : undefined
-    };
-  };
-  const trees = useMemo(() => outer ? physicalObstacles.filter((obstacle) => obstacle.kind === "tree").map(resourcePlacement) : EMPTY_PLACEMENTS,
-    // resourcePlacement is a pure projection over these exact admitted inputs.
+  const projectResourcePlacements = useMemo(createWildsResourcePlacementProjector, []);
+  const { trees, rocks } = useMemo(() => projectResourcePlacements(physicalObstacles, livingWorld?.harvestedSources, kaiUPulse, activeWorkSource),
+    // Work identity includes restarts at the same source; other work fields do not affect transforms.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeWorkSource?.sourceId, kaiUPulse, livingWorld?.harvestedSources, outer, physicalObstacles]);
+    [projectResourcePlacements, physicalObstacles, livingWorld?.harvestedSources, kaiUPulse, activeWorkSource?.sourceId, activeWorkSource?.startedAtMs]);
   const bushes = useMemo(() => outer ? placements(tiles, "bushCount", 211, qualityProfile.foliage) : EMPTY_PLACEMENTS, [outer, qualityProfile.foliage, tiles]);
-  const rocks = useMemo(() => outer ? physicalObstacles.filter((obstacle) => obstacle.kind === "rock").map(resourcePlacement) : EMPTY_PLACEMENTS,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeWorkSource?.sourceId, kaiUPulse, livingWorld?.harvestedSources, outer, physicalObstacles]);
   const flowers = useMemo(() => outer ? placements(tiles, "flowerCount", 401, qualityProfile.foliage) : EMPTY_PLACEMENTS, [outer, qualityProfile.foliage, tiles]);
 
   return (

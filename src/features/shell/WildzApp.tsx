@@ -7,7 +7,6 @@ import { pruneWildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
 import { emitWildsPlaytestEvent } from "@/features/play/wilds-playtest-events";
 import { wildsCardArtwork } from "@/features/play/wilds-card-artwork";
 import { WildzMarketSheet } from "@/features/market/WildzMarketSheet";
-import { WildzProfileSheet } from "@/features/profile/WildzProfileSheet";
 import { PlayCampaign } from "@/features/play/PlayCampaign";
 import { generateIdentityBoundWildzCharacter, type WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { applyWildsInput, createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
@@ -109,7 +108,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const loadWildzProfileSheet = () => import("@/features/profile/WildzProfileSheet").then((module) => module.WildzProfileSheet);
 const loadWildzVaultSheet = () => import("@/features/profile/WildzVaultSheet").then((module) => module.WildzVaultSheet);
-const loadWildzMarketSheet = () => import("@/features/market/WildzMarketSheet").then((module) => module.WildzMarketSheet);
+const WildzProfileSheet = dynamic(loadWildzProfileSheet, { ssr: false });
 const WildzVaultSheet = dynamic(loadWildzVaultSheet, { ssr: false });
 
 
@@ -173,14 +172,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const adoptingRemotePlayStateRef = useRef<PlayState | null>(null);
   const playStateSaveSchedulerRef = useRef<WildzPlayStatePersistenceCoordinator<PendingPlayStateSave> | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    void wildzGameplayBackground.run(async () => {
-      if (!active) return;
-      await Promise.all([loadWildzProfileSheet(), loadWildzVaultSheet(), loadWildzMarketSheet()]);
-    }, { timeoutMs: 2_500 }).catch(() => undefined);
-    return () => { active = false; };
-  }, []);
   if (!playStateSaveSchedulerRef.current) {
     playStateSaveSchedulerRef.current = createWildzPlayStatePersistenceCoordinator({
       delayMs: 400,
@@ -249,6 +240,23 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const [profileRetryRevision, setProfileRetryRevision] = useState(0);
   const retryProfilePublicationRef = useRef<(() => void) | null>(null);
   const identity = continuity?.session ?? null;
+  const worldKey = identity ? `${identity.keyId}:${identity.actorId}:${identityActivationRevision}` : null;
+  const worldPainted = worldKey !== null && paintedWorldKey === worldKey;
+  useEffect(() => {
+    // Optional surfaces must not compete with identity recovery and the first
+    // world draw. Directly opening a surface still loads it immediately.
+    if (!worldPainted) return;
+    let active = true;
+    void (async () => {
+      for (const load of [loadWildzProfileSheet, loadWildzVaultSheet]) {
+        await wildzGameplayBackground.run(async () => {
+          if (active) await load();
+        }, { timeoutMs: 2_500 }).catch(() => undefined);
+        if (!active) return;
+      }
+    })();
+    return () => { active = false; };
+  }, [worldPainted]);
   const campaignExplorer = useMemo(() => continuity ? projectWildzContinuityExplorer(continuity) : null, [continuity]);
   const campaignCharacter = campaignExplorer?.character ?? null;
   const profilePublicationReadiness = wildzProfilePublicationReadiness({
@@ -291,6 +299,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     assets: ownerPlayState.inventory
   }), [avatarImageUrl, character, campaignCharacter, identity?.displayName, ownerPlayState.inventory, ownerUsername]);
   useEffect(() => {
+    if (!worldPainted) return;
     let cancelled = false;
     // Prepare one preview at a time before Profile is opened, yielding between cards.
     void (async () => {
@@ -300,7 +309,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       }
     })().catch(() => undefined);
     return () => { cancelled = true; };
-  }, [ownerPlayState.inventory]);
+  }, [ownerPlayState.inventory, worldPainted]);
   // Publish the same complete local collection shown in the owner’s profile.
   const publishablePublicProfile = ownerSourceProfile;
   // Equal public content must not cancel a request when gameplay saves replace object references.
@@ -1345,8 +1354,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     return () => channel.close();
   }, [removeLostVaultAssets]);
 
-  const worldKey = identity ? `${identity.keyId}:${identity.actorId}:${identityActivationRevision}` : null;
-  const worldPainted = worldKey !== null && paintedWorldKey === worldKey;
   return (
     <main className="wildz-app-shell" data-wildz-active-username={ownerUsername}>
       <div aria-hidden={overlay ? true : undefined} className="wildz-app" data-overlay={overlay?.kind ?? "world"} inert={overlay ? true : undefined}>
