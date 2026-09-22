@@ -17264,3 +17264,10 @@ html, body, body * {
 .wilds-builder-transform { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .wilds-builder-transform button { min-height: 44px; flex: 1; padding: 8px; }
 .wilds-builder-transform output { font-variant-numeric: tabular-nums; font-size: 12px; }
+
+/* Atlas sharing: small visual controls with comfortable touch targets. */
+.wilds-map-sharing { display: inline-flex; align-items: center; gap: 0; padding-left: 6px; margin-left: 2px; border-left: 1px solid rgb(131 235 207 / 18%); }
+.wilds-atlas-navigation .wilds-map-share-button { width: 44px; min-width: 44px; padding: 0; color: #a8d5c8; background: rgb(5 20 27 / 45%); border-color: transparent; box-shadow: none; }
+.wilds-atlas-navigation .wilds-map-share-button:disabled { opacity: .45; cursor: progress; }
+.wilds-map-sharing-status { position: absolute; top: calc(100% + 9px); right: 0; max-width: min(340px, 100%); padding: 9px 12px; border-radius: 12px; color: #d4e8df; background: rgb(5 20 27 / 92%); font-size: 11px; line-height: 1.45; pointer-events: none; }
+.wilds-map-sharing-status:empty { display: none; }

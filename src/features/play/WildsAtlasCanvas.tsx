@@ -20,7 +20,7 @@ import {
   wildsAtlasProjectedSpan,
   type WildsAtlasRenderTile
 } from "./wilds-atlas-render-tiles";
-import { atlasCameraFrame, atlasCameraOpeningFrame, atlasCameraOpeningLimits, preserveWildsAtlasCameraLimits, rebaseWildsAtlasCameraPose, resolveWildsAtlasCameraPose, translateWildsAtlasCamera, wildsAtlasRotateSpeed } from "./wilds-atlas-camera";
+import { atlasCameraFrame, atlasCameraOpeningFrame, atlasCameraOpeningLimits, preserveWildsAtlasCameraLimits, rebaseWildsAtlasCameraPose, resolveWildsAtlasCameraPose, translateWildsAtlasCamera, wildsAtlasCameraFar, wildsAtlasRotateSpeed } from "./wilds-atlas-camera";
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 const GOLDEN_ANGLE = Math.PI * 2 / (PHI * PHI);
@@ -91,15 +91,14 @@ export function WildsAtlasCanvas({
   const gesture = useRef({ pointers: new Map<number, { x: number; y: number }>(), moved: false });
   const acceptTap = () => !gesture.current.moved;
   const atlasSparkleCount = reducedMotion ? 12 : Math.round(38 * qualityProfile.particles);
-  const atlasSpan = wildsAtlasProjectedSpan(projection.nodes, projection.regionUnit);
+  const atlasSpan = wildsAtlasProjectedSpan(projection.territory ?? projection.nodes, projection.regionUnit);
   const viewBounds = useMemo(
     () => {
-      const bounds = wildsAtlasProjectedBounds(projection.nodes);
+      const bounds = wildsAtlasProjectedBounds(projection.territory ?? projection.nodes);
       return bounds.count === 0 ? projection.bounds : bounds;
     },
-    [projection.bounds, projection.nodes]
+    [projection.bounds, projection.nodes, projection.territory]
   );
-  const fogFar = Math.max(29, Math.min(72, atlasSpan * 1.8 + 18));
   return (
     <div aria-hidden="true" className="wilds-atlas-canvas"
       onPointerDownCapture={event => {
@@ -116,10 +115,10 @@ export function WildsAtlasCanvas({
       onPointerCancelCapture={event => { gesture.current.moved = true; gesture.current.pointers.delete(event.pointerId); }}
     >
       <Canvas
-        camera={{ fov: 40, near: 0.1, far: Math.max(80, fogFar * 1.6), position: [0, 9.6, 11.5] }}
+        camera={{ fov: 40, near: 0.1, far: atlasCameraOpeningLimits(projection.regionUnit).far, position: [0, 9.6, 11.5] }}
         dpr={qualityProfile.dpr}
         frameloop={active && !reducedMotion ? "always" : "demand"}
-        gl={{ antialias: true, powerPreference: "high-performance" }}
+        gl={{ antialias: true, powerPreference: "high-performance", logarithmicDepthBuffer: true }}
         onCreated={({ gl }) => {
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
@@ -128,7 +127,7 @@ export function WildsAtlasCanvas({
         shadows={false}
       >
         <color attach="background" args={["#061820"]} />
-        <fog attach="fog" args={["#061820", Math.max(12, fogFar * .38), fogFar]} />
+        {/* Atlas terrain must remain readable at every zoom; gameplay fog does not belong here. */}
         <ambientLight intensity={1.12} />
         <hemisphereLight color="#bffff0" groundColor="#071719" intensity={1.08} />
         <directionalLight color="#fff2a8" intensity={2.35} position={[4, 10, 3]} />
@@ -160,7 +159,6 @@ export function WildsAtlasCanvas({
           bounds={viewBounds}
           centerRegion={projection.centerRegion}
           currentPosition={currentPosition}
-          far={fogFar}
           fitRequest={fitRequest}
           recenterPosition={recenterPosition}
           recenterRequest={recenterRequest}
@@ -188,7 +186,6 @@ function AtlasCameraRig({
   bounds,
   centerRegion,
   currentPosition,
-  far,
   fitRequest,
   recenterRequest,
   recenterPosition,
@@ -200,7 +197,6 @@ function AtlasCameraRig({
   bounds: WildsAtlasProjection["bounds"];
   centerRegion: WildsAtlasProjection["centerRegion"];
   currentPosition: { x: number; z: number };
-  far: number;
   fitRequest: number;
   recenterRequest: number;
   recenterPosition?: { x: number; z: number };
@@ -223,18 +219,16 @@ function AtlasCameraRig({
     () => atlasCameraOpeningFrame({ centerRegion, currentPosition, regionUnit }, size),
     [centerRegion, currentPosition, regionUnit, size]
   );
-  const limits = useRef<{ minDistance: number; maxDistance: number; far: number }>(atlasCameraOpeningLimits(regionUnit));
-  if (lastFitRequest.current !== null && lastFitRequest.current !== fitRequest) {
-    limits.current = preserveWildsAtlasCameraLimits(limits.current, frame);
-  }
+  const limits = useRef<{ minDistance: number; maxDistance: number; far: number }>(atlasCameraOpeningLimits(regionUnit, frame));
+  // Discovery expands scroll/pinch zoom immediately without moving the current view.
+  limits.current = preserveWildsAtlasCameraLimits(limits.current, frame);
   const activeLimits = limits.current;
   useLayoutEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
     camera.fov = frame.fov;
-    camera.far = Math.max(activeLimits.far, far * 1.6);
     camera.updateProjectionMatrix();
     invalidate();
-  }, [activeLimits.far, camera, far, frame.far, frame.fov, invalidate]);
+  }, [camera, frame.fov, invalidate]);
   useLayoutEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera) || !controls.current) return;
     const pose = resolveWildsAtlasCameraPose({
@@ -296,6 +290,17 @@ function AtlasCameraRig({
   useFrame((_, delta) => {
     if (controls.current) controls.current.dampingFactor = 1 - Math.exp(-14 * Math.min(.1, delta));
   }, -2);
+  useFrame(() => {
+    if (!(camera instanceof THREE.PerspectiveCamera)) return;
+    const far = wildsAtlasCameraFar({
+      position: [camera.position.x, camera.position.y, camera.position.z],
+      bounds, centerRegion, regionUnit
+    });
+    if (camera.far !== far) {
+      camera.far = far;
+      camera.updateProjectionMatrix();
+    }
+  });
   useFrame(() => {
     if (rebasing.current || !(camera instanceof THREE.PerspectiveCamera) || !controls.current) return;
     if (Math.abs(controls.current.target.x) <= 96 && Math.abs(controls.current.target.z) <= 96) return;
@@ -380,10 +385,10 @@ function WorldAdditionMarkers({ projection }: { projection: WildsAtlasProjection
 }
 
 function ContinuousWorldSurface({ projection, onDrop }: { projection: WildsAtlasProjection; onDrop: (position: { x: number; z: number }) => void }) {
-  const tiles = useMemo(() => buildWildsAtlasRenderTiles(projection.nodes, {
+  const tiles = useMemo(() => buildWildsAtlasRenderTiles(projection.territory ?? projection.nodes, {
     maxTiles: ATLAS_MAX_TERRAIN_TILES,
     maxVertices: ATLAS_MAX_TERRAIN_VERTICES
-  }), [projection.nodes]);
+  }), [projection.nodes, projection.territory]);
   const nodesByRegion = useMemo(() => new Map(projection.nodes.map((node) => [`${node.regionX}:${node.regionZ}`, node])), [projection.nodes]);
   const handleClick = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation();
@@ -392,7 +397,7 @@ function ContinuousWorldSurface({ projection, onDrop }: { projection: WildsAtlas
       x: Number(atlasWorldCoordinate(event.point.x, projection.centerRegion.x, projection.regionUnit).toFixed(2)),
       z: Number(atlasWorldCoordinate(event.point.z, projection.centerRegion.z, projection.regionUnit).toFixed(2))
     };
-    if (!wildsAtlasContainsWorld(projection.nodes, destination)) return;
+    if (!wildsAtlasContainsWorld(projection.territory ?? projection.nodes, destination)) return;
     onDrop(destination);
   };
   return <group name="continuous-world-map">{tiles.map((tile, index) => tile.renderMode === "instanced-cells"
@@ -422,11 +427,10 @@ function AtlasTerrainTile({
       const x = atlasLocalCoordinate(worldX, tile.minRegionX, projection.regionUnit);
       const z = atlasLocalCoordinate(worldZ, tile.minRegionZ, projection.regionUnit);
       const node = nodesByRegion.get(`${biomeRegionX}:${biomeRegionZ}`);
-      if (!node) return false;
       const terrain = sampleWildsTerrain(worldX, worldZ);
       const height = terrain.elevation * atlasTerrainHeightScale(projection.regionUnit);
       const surfaceColor = new THREE.Color(SURFACE_COLORS[terrain.surface]);
-      const biomeColor = new THREE.Color(node.biome.ground.base);
+      const biomeColor = new THREE.Color(node?.biome.ground.base ?? SURFACE_COLORS[terrain.surface]);
       const color = terrain.surface === "deep-water" || terrain.surface === "shallow-water"
         ? surfaceColor
         : biomeColor.lerp(surfaceColor, .72);
@@ -461,7 +465,7 @@ function AtlasTerrainTile({
     };
 
     if (tile.cells) {
-      for (const cell of tile.cells) addGrid(cell.regionX, cell.regionX, cell.regionZ, cell.regionZ, 1, 1);
+      for (const cell of tile.cells) addGrid(cell.regionX, cell.regionX + (cell.spanX ?? 1) - 1, cell.regionZ, cell.regionZ + (cell.spanZ ?? 1) - 1, 1, 1);
     } else {
       addGrid(tile.minRegionX, tile.maxRegionX, tile.minRegionZ, tile.maxRegionZ, tile.segmentsX, tile.segmentsZ);
     }
@@ -496,8 +500,8 @@ function AtlasInstancedCellFallback({
     const matrix = new THREE.Matrix4();
     const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
     cells.forEach((cell, index) => {
-      const worldX = (cell.regionX + .5) * WILDS_REGION_SIZE;
-      const worldZ = (cell.regionZ + .5) * WILDS_REGION_SIZE;
+      const worldX = (cell.regionX + (cell.spanX ?? 1) / 2) * WILDS_REGION_SIZE;
+      const worldZ = (cell.regionZ + (cell.spanZ ?? 1) / 2) * WILDS_REGION_SIZE;
       const terrain = sampleWildsTerrain(worldX, worldZ);
       const node = nodesByRegion.get(`${cell.regionX}:${cell.regionZ}`);
       const surfaceColor = new THREE.Color(SURFACE_COLORS[terrain.surface]);
@@ -511,13 +515,14 @@ function AtlasInstancedCellFallback({
           atlasLocalCoordinate(worldZ, projection.centerRegion.z, projection.regionUnit)
         ),
         rotation,
-        new THREE.Vector3(projection.regionUnit, projection.regionUnit, 1)
+        new THREE.Vector3(projection.regionUnit * (cell.spanX ?? 1), projection.regionUnit * (cell.spanZ ?? 1), 1)
       );
       mesh.current!.setMatrixAt(index, matrix);
       mesh.current!.setColorAt(index, color);
     });
     mesh.current.instanceMatrix.needsUpdate = true;
     if (mesh.current.instanceColor) mesh.current.instanceColor.needsUpdate = true;
+    mesh.current.computeBoundingSphere();
   }, [cells, nodesByRegion, projection.centerRegion.x, projection.centerRegion.z, projection.regionUnit]);
   return <instancedMesh args={[undefined, undefined, cells.length]} name="continuous-world-surface" onClick={handleClick} ref={mesh}>
     <planeGeometry args={[1, 1]} />
@@ -591,14 +596,14 @@ function AtlasTerrainDetails({ projection, qualityProfile }: { projection: Wilds
 
 function MapRoutes({ projection }: { projection: WildsAtlasProjection }) {
   const routes = useMemo(() => WILDS_MAJOR_ROUTES.flatMap((route) => (
-    clipWildsAtlasRouteSegments(route.points, projection.nodes).map((segment) => new THREE.CatmullRomCurve3(
+    clipWildsAtlasRouteSegments(route.points, projection.territory ?? projection.nodes).map((segment) => new THREE.CatmullRomCurve3(
       segment.map((point) => {
       const x = atlasLocalCoordinate(point.x, projection.centerRegion.x, projection.regionUnit);
       const z = atlasLocalCoordinate(point.z, projection.centerRegion.z, projection.regionUnit);
       return new THREE.Vector3(x, atlasTerrainHeight(point.x, point.z, projection.regionUnit) + .045, z);
     })
     ))
-  )).slice(0, ATLAS_MAX_ROUTE_SEGMENTS), [projection.centerRegion.x, projection.centerRegion.z, projection.nodes, projection.regionUnit]);
+  )).slice(0, ATLAS_MAX_ROUTE_SEGMENTS), [projection.centerRegion.x, projection.centerRegion.z, projection.nodes, projection.territory, projection.regionUnit]);
   return <group name="atlas-routes">{routes.map((route, index) => <group key={index}>
     <mesh><tubeGeometry args={[route, 32, index ? .052 : .072, 7, false]} /><meshStandardMaterial color="#263a31" roughness={.98} /></mesh>
     <mesh><tubeGeometry args={[route, 32, index ? .026 : .036, 7, false]} /><meshStandardMaterial color={index ? "#a3c7b3" : "#e8d69a"} emissive={index ? "#285e51" : "#695f39"} emissiveIntensity={0.2} roughness={0.78} /></mesh>
@@ -711,7 +716,7 @@ function LandmarkMiniature({ icon, accent, active }: { icon: "tree" | "trophy" |
 function RegionNames({ projection }: { projection: WildsAtlasProjection }) {
   if (projection.zoom !== "world") return null;
   return <group name="atlas-region-names">{WILDS_NAMED_REGIONS.filter((region) => (
-    wildsAtlasContainsWorld(projection.nodes, region.position)
+    wildsAtlasContainsWorld(projection.territory ?? projection.nodes, region.position)
   )).map((region, index) => {
     const x = atlasLocalCoordinate(region.position.x, projection.centerRegion.x, projection.regionUnit);
     const z = atlasLocalCoordinate(region.position.z, projection.centerRegion.z, projection.regionUnit);

@@ -17,6 +17,7 @@ import {
 } from "./wilds-world-atlas";
 import type { WildsExplorationAtlas } from "./wilds-exploration-atlas";
 import type { WildsQualityProfile } from "./wilds-quality-profile";
+import { WildsMapSharing } from "./WildsMapSharing";
 import { WildsAtlasCanvas } from "./WildsAtlasCanvas";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsEcologyKnowledge } from "./wilds-ecology-history";
@@ -38,6 +39,7 @@ function WildsWorldMapView({
   guestId,
   currentPosition,
   explorationAtlas,
+  onImportMap,
   remotePlayers,
   missionProgress,
   worldMastery,
@@ -58,6 +60,7 @@ function WildsWorldMapView({
   guestId: string;
   currentPosition: { x: number; z: number };
   explorationAtlas: WildsExplorationAtlas;
+  onImportMap: (atlas: WildsExplorationAtlas) => void;
   remotePlayers: WildsPresence[];
   missionProgress: number;
   worldMastery: number;
@@ -122,11 +125,11 @@ function WildsWorldMapView({
     players: remotePlayers,
     selfId: "self",
     explorationAtlas,
-    visibleRegions: staticProjection.nodes
-  }), [currentPosition, explorationAtlas, remotePlayers, staticProjection.nodes]);
+    visibleRegions: staticProjection.territory ? undefined : staticProjection.nodes
+  }), [currentPosition, explorationAtlas, remotePlayers, staticProjection.nodes, staticProjection.territory]);
   const projection = useMemo(() => {
     const presence = atlasPresence.loaded
-      ? filterWildsAtlasPresence({ exactPlayers: atlasPresence.players, playerClusters: atlasPresence.clusters }, staticProjection.nodes)
+      ? filterWildsAtlasPresence({ exactPlayers: atlasPresence.players, playerClusters: atlasPresence.clusters }, staticProjection.territory ?? staticProjection.nodes)
       : localPresence;
     return {
       ...staticProjection,
@@ -259,6 +262,11 @@ function WildsWorldMapView({
               <Icons.map aria-hidden="true" size={16} />
               Fit
             </button>
+            <WildsMapSharing atlas={explorationAtlas} onImport={atlas => {
+              onImportMap(atlas);
+              setZoom("world");
+              setFitRequest(value => value + 1);
+            }} />
           </div>
           </div>
           {trackedDestination ? <div className="wilds-atlas-destination"><Icons.map size={16} aria-hidden="true" /><button className="wilds-atlas-destination-focus" type="button" aria-label="Center map on tracked destination" onClick={() => { setCenterOnDestination(true); setRecenterRequest(value => value + 1); }}><strong>{trackedDestination.label}</strong><small>X {Math.round(trackedDestination.x)} · Z {Math.round(trackedDestination.z)}</small></button><button type="button" aria-label="Clear tracked destination" onClick={onClearDestination}><Icons.close size={16} /></button></div> : null}

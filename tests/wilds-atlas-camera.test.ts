@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { PerspectiveCamera, Vector3 } from "three";
 import { test } from "node:test";
-import { wildsAtlasRotateSpeed, atlasCameraFrame, atlasCameraOpeningFrame, atlasCameraOpeningLimits, preserveWildsAtlasCameraLimits, rebaseWildsAtlasCameraPose, resolveWildsAtlasCameraPose, translateWildsAtlasCamera } from "../src/features/play/wilds-atlas-camera";
+import { wildsAtlasRotateSpeed, atlasCameraFrame, atlasCameraOpeningFrame, atlasCameraOpeningLimits, preserveWildsAtlasCameraLimits, rebaseWildsAtlasCameraPose, resolveWildsAtlasCameraPose, translateWildsAtlasCamera, wildsAtlasCameraFar } from "../src/features/play/wilds-atlas-camera";
 
 test("fit-all framing includes the complete discovered extent on portrait and landscape screens", () => {
   const input = {
@@ -151,5 +152,43 @@ test("camera framing stays finite for degenerate and released world bounds", () 
   for (const viewport of [{ width: 320, height: 740 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
     const turns = viewport.width / viewport.height * wildsAtlasRotateSpeed(viewport);
     assert.ok(Math.abs(turns - .75) < 1e-10);
+  }
+});
+
+
+test("opening zoom limits already allow the whole discovered map without pressing Fit", () => {
+  const frame = atlasCameraFrame({
+    bounds: { minX: -100_000, maxX: 100_000, minZ: -80_000, maxZ: 80_000, count: 2 },
+    centerRegion: { x: .5, z: .5 }, regionUnit: 1.35
+  }, { width: 390, height: 844 });
+  const limits = atlasCameraOpeningLimits(1.35, frame);
+  assert.ok(limits.maxDistance >= Math.hypot(...frame.position));
+});
+
+test("Fit keeps every terrain corner inside narrow, portrait and landscape viewports", () => {
+  const bounds = { minX: -10_000, maxX: 30_000, minZ: -20_000, maxZ: 40_000, count: 2 };
+  for (const viewport of [{ width: 200, height: 2000 }, { width: 390, height: 844 }, { width: 1600, height: 600 }]) {
+    const frame = atlasCameraFrame({ bounds, centerRegion: { x: 0, z: 0 }, regionUnit: 1.35 }, viewport);
+    const camera = new PerspectiveCamera(frame.fov, viewport.width / viewport.height, .1, frame.far);
+    camera.position.set(...frame.position);
+    camera.lookAt(...frame.target);
+    camera.updateMatrixWorld();
+    for (const x of [bounds.minX, bounds.maxX + 1]) for (const z of [bounds.minZ, bounds.maxZ + 1]) {
+      const point = new Vector3(x * 1.35, 0, z * 1.35).project(camera);
+      assert.ok(Math.abs(point.x) < 1 && Math.abs(point.y) < 1 && Math.abs(point.z) < 1, `${JSON.stringify(viewport)} clipped ${point.toArray()}`);
+    }
+  }
+});
+
+
+test("draw distance encloses all land from local, far zoom and off-center camera poses", () => {
+  const bounds = { minX: -10_416_667, maxX: 10_416_667, minZ: -10_416_667, maxZ: 10_416_667, count: 2 };
+  const centerRegion = { x: 10_416_666.5, z: -10_416_666.5 };
+  for (const position of [[0, 9, 12], [0, 1e9, 1e9], [-2e9, 12, 3e9]] as const) {
+    const far = wildsAtlasCameraFar({ position, bounds, centerRegion, regionUnit: 1.35 });
+    for (const x of [bounds.minX, bounds.maxX + 1]) for (const z of [bounds.minZ, bounds.maxZ + 1]) {
+      assert.ok(far > Math.hypot((x - centerRegion.x) * 1.35 - position[0], position[1], (z - centerRegion.z) * 1.35 - position[2]));
+    }
+    assert.ok(Number.isFinite(far));
   }
 });

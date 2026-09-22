@@ -64,7 +64,6 @@ test("profile separates saving an Identity Seal from uploading one for authority
   assert.match(sheet, /aria-label="Upload Identity Seal or Record"[\s\S]{0,500}identityInputRef\.current\?\.click\(\)/);
   assert.match(sheet, /aria-label="Save Identity Seal"[\s\S]{0,900}await onSaveIdentitySeal\(\)/);
   assert.match(css, /\.wildz-profile-action-rail\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*44px\)/s);
-  assert.match(shell, /downloadWildzIdentityPlayerCard/);
   assert.match(shell, /onSaveIdentitySeal=\{saveIdentitySeal\}/);
   assert.match(adapter, /createWildzIdentityPlayerCard/);
 });

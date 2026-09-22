@@ -49,7 +49,7 @@ test("malformed legacy exploration falls back to start plus current sight", () =
   assert.equal(wildsExplorationContainsRegion(restored, 0, -15), false);
 });
 
-test("normalization discards malformed rows, clamps released coordinates, and sorts iteration", () => {
+test("normalization discards malformed rows, rejects unrepresentable coordinates, and sorts iteration", () => {
   const restored = normalizeWildsExplorationAtlas({
     version: 1,
     rows: [
@@ -61,7 +61,7 @@ test("normalization discards malformed rows, clamps released coordinates, and so
   const regions = [...wildsExplorationRegions(restored)];
   assert.deepEqual(regions.slice(0, 2), [{ x: -4, z: -4 }, { x: -3, z: -4 }]);
   assert.deepEqual(regions.at(-1), { x: 6, z: 8 });
-  assert.equal(wildsExplorationBounds(restored).count, 83);
+  assert.equal(wildsExplorationBounds(restored).count, 82);
 });
 
 test("exploration continuity stores only stable discovered site keys", () => {

@@ -5,7 +5,6 @@ export const WILDS_EXPLORATION_VERSION = 1 as const;
 
 const START_MIN = -4;
 const START_MAX = 4;
-const REGION_LIMIT = Math.ceil(500_000_000 / WILDS_REGION_SIZE);
 
 export type WildsExplorationRange = Readonly<{ minX: number; maxX: number }>;
 export type WildsExplorationRow = Readonly<{ z: number; ranges: readonly WildsExplorationRange[] }>;
@@ -16,10 +15,16 @@ export type WildsExplorationAtlas = Readonly<{
 }>;
 
 type MutableRows = Map<number, WildsExplorationRange[]>;
+const rowIndexes = new WeakMap<WildsExplorationAtlas["rows"], ReadonlyMap<number, WildsExplorationRow>>();
+
+/** Numeric representability, not a world-size policy. Cell edges must stay exact. */
+export function isWildsExplorationCoordinate(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number.isSafeInteger(((value as number) + 1) * WILDS_REGION_SIZE)
+    && Number.isSafeInteger((value as number) * WILDS_REGION_SIZE);
+}
 
 function boundedRegion(value: unknown) {
-  if (!Number.isSafeInteger(value)) return null;
-  return Math.max(-REGION_LIMIT, Math.min(REGION_LIMIT, value as number));
+  return isWildsExplorationCoordinate(value) ? value : null;
 }
 
 function normalizeRanges(values: unknown): WildsExplorationRange[] {
@@ -51,7 +56,9 @@ function normalizeRanges(values: unknown): WildsExplorationRange[] {
 function addRanges(rows: MutableRows, z: number, ranges: readonly WildsExplorationRange[]) {
   const boundedZ = boundedRegion(z);
   if (boundedZ === null || ranges.length === 0) return;
-  rows.set(boundedZ, normalizeRanges([...(rows.get(boundedZ) ?? []), ...ranges]));
+  const collected = rows.get(boundedZ) ?? [];
+  for (const range of ranges) collected.push(range);
+  rows.set(boundedZ, collected);
 }
 
 function addSight(rows: MutableRows, position: { x: number; z: number }) {
@@ -138,7 +145,12 @@ export function wildsExplorationContainsRegion(
   regionZ: number
 ) {
   if (!Number.isSafeInteger(regionX) || !Number.isSafeInteger(regionZ)) return false;
-  const row = atlas.rows.find((candidate) => candidate.z === regionZ);
+  let index = rowIndexes.get(atlas.rows);
+  if (!index) {
+    index = new Map(atlas.rows.map(row => [row.z, row]));
+    rowIndexes.set(atlas.rows, index);
+  }
+  const row = index.get(regionZ);
   return row?.ranges.some((range) => regionX >= range.minX && regionX <= range.maxX) ?? false;
 }
 

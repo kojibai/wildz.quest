@@ -310,3 +310,17 @@ describe("Wilds world atlas", () => {
     assert.equal(projectedWorldAdditions(expanded).some((addition) => addition.id === distantStructure.structureId && addition.phase === "complete"), true);
   });
 });
+
+describe("unbounded compact atlas projection", () => {
+  it("retains complete territory and remote markers while limiting only terrain detail", () => {
+    const atlas = { version: 1 as const, rows: [{ z: 0, ranges: [{ minX: -2_000_000_000, maxX: 2_000_000_000 }] }], siteKeys: [] };
+    const visitor = presence(8, { x: 48_000_000_000, z: 24 });
+    const projection = projectWildsAtlas({ center: { x: 0, z: 0 }, zoom: "world", missionProgress: 0, worldMastery: 0,
+      discoveredLandmarkIds: [], selfId: "self", players: [visitor], explorationAtlas: atlas, now: Date.parse(visitor.lastSeenAt) });
+    assert.equal(projection.territory, atlas);
+    assert.equal(projection.bounds.count, 4_000_000_001);
+    assert.ok(projection.nodes.length <= 4096);
+    assert.equal(projection.exactPlayers[0]?.playerId, visitor.playerId);
+    assert.equal(filterWildsAtlasPresence({ exactPlayers: [visitor], playerClusters: [] }, atlas).exactPlayers.length, 1);
+  });
+});

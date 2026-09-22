@@ -1,4 +1,5 @@
 import { WILDS_REGION_SIZE } from "./multiplayer-core";
+import { wildsExplorationBounds, wildsExplorationContainsRegion, wildsExplorationContainsWorld, type WildsExplorationAtlas } from "./wilds-exploration-atlas";
 import type { WildsAtlasNode } from "./wilds-world-atlas";
 
 const DEFAULT_MAX_TILES = 96;
@@ -7,7 +8,8 @@ const DEFAULT_MAX_SEGMENTS_PER_AXIS = 48;
 const MAX_ROUTE_CELL_CROSSINGS = 4_096;
 const EPSILON = 1e-10;
 
-type AtlasRegion = Pick<WildsAtlasNode, "regionX" | "regionZ">;
+type AtlasRegion = Pick<WildsAtlasNode, "regionX" | "regionZ"> & { spanX?: number; spanZ?: number };
+export type WildsAtlasTerritory = readonly AtlasRegion[] | WildsExplorationAtlas;
 
 export type WildsAtlasRenderTile = Readonly<{
   minRegionX: number;
@@ -37,13 +39,14 @@ export function atlasLocalCoordinate(world: number, centerRegion: number, region
   return (world / WILDS_REGION_SIZE - centerRegion) * regionUnit;
 }
 
-export function wildsAtlasProjectedSpan(nodes: readonly AtlasRegion[], regionUnit: number) {
+export function wildsAtlasProjectedSpan(nodes: WildsAtlasTerritory, regionUnit: number) {
   const bounds = wildsAtlasProjectedBounds(nodes);
   if (bounds.count === 0) return Math.max(0, regionUnit);
   return Math.max(bounds.maxX - bounds.minX + 1, bounds.maxZ - bounds.minZ + 1) * Math.max(0, regionUnit);
 }
 
-export function wildsAtlasProjectedBounds(nodes: readonly AtlasRegion[]) {
+export function wildsAtlasProjectedBounds(nodes: WildsAtlasTerritory) {
+  if ("rows" in nodes) return wildsExplorationBounds(nodes);
   let minX = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
   let minZ = Number.POSITIVE_INFINITY;
@@ -116,8 +119,29 @@ function sparseMaximalStrips(nodes: readonly AtlasRegion[]) {
   return tiles;
 }
 
+/** Merge equal adjacent row intervals without ever enumerating their cells. */
+function rangeStrips(atlas: WildsExplorationAtlas): MutableTile[] {
+  const strips: MutableTile[] = [];
+  let active = new Map<string, MutableTile>();
+  for (const row of atlas.rows) {
+    const next = new Map<string, MutableTile>();
+    for (const range of row.ranges) {
+      const key = `${range.minX}:${range.maxX}`;
+      let tile = active.get(key);
+      if (tile && tile.maxRegionZ === row.z - 1) tile.maxRegionZ = row.z;
+      else {
+        tile = { minRegionX: range.minX, maxRegionX: range.maxX, minRegionZ: row.z, maxRegionZ: row.z };
+        strips.push(tile);
+      }
+      next.set(key, tile);
+    }
+    active = next;
+  }
+  return strips;
+}
+
 export function buildWildsAtlasRenderTiles(
-  nodes: readonly AtlasRegion[],
+  nodes: WildsAtlasTerritory,
   options: {
     maxVertices: number;
     maxTiles?: number;
@@ -130,8 +154,12 @@ export function buildWildsAtlasRenderTiles(
   const maxTiles = Math.min(requestedMaxTiles, Math.floor(maxVertices / 4));
   if (maxTiles === 0) return [];
 
-  const regions = normalizedRegions(nodes);
-  const strips = sparseMaximalStrips(regions);
+  const compact = "rows" in nodes;
+  const strips = compact ? rangeStrips(nodes) : sparseMaximalStrips(nodes);
+  const regions: AtlasRegion[] = compact ? strips.map(tile => ({
+    regionX: tile.minRegionX, regionZ: tile.minRegionZ,
+    spanX: tile.maxRegionX - tile.minRegionX + 1, spanZ: tile.maxRegionZ - tile.minRegionZ + 1
+  })) : normalizedRegions(nodes);
   if (strips.length > maxTiles) {
     const batchCount = Math.min(maxTiles, regions.length);
     const batchSize = Math.ceil(regions.length / batchCount);
@@ -141,9 +169,9 @@ export function buildWildsAtlasRenderTiles(
     return batches.map((cells) => {
       const bounds = cells.reduce((result, cell) => ({
         minX: Math.min(result.minX, cell.regionX),
-        maxX: Math.max(result.maxX, cell.regionX),
+        maxX: Math.max(result.maxX, cell.regionX + (cell.spanX ?? 1) - 1),
         minZ: Math.min(result.minZ, cell.regionZ),
-        maxZ: Math.max(result.maxZ, cell.regionZ)
+        maxZ: Math.max(result.maxZ, cell.regionZ + (cell.spanZ ?? 1) - 1)
       }), { minX: cells[0]!.regionX, maxX: cells[0]!.regionX, minZ: cells[0]!.regionZ, maxZ: cells[0]!.regionZ });
       return {
         minRegionX: bounds.minX,
@@ -200,12 +228,13 @@ export function buildWildsAtlasRenderTiles(
 }
 
 export function wildsAtlasTileContainsRegion(tile: WildsAtlasRenderTile, regionX: number, regionZ: number) {
-  if (tile.cells) return tile.cells.some((cell) => cell.regionX === regionX && cell.regionZ === regionZ);
+  if (tile.cells) return tile.cells.some((cell) => regionX >= cell.regionX && regionX < cell.regionX + (cell.spanX ?? 1) && regionZ >= cell.regionZ && regionZ < cell.regionZ + (cell.spanZ ?? 1));
   return regionX >= tile.minRegionX && regionX <= tile.maxRegionX
     && regionZ >= tile.minRegionZ && regionZ <= tile.maxRegionZ;
 }
 
-export function wildsAtlasContainsWorld(nodes: readonly AtlasRegion[], position: { x: number; z: number }) {
+export function wildsAtlasContainsWorld(nodes: WildsAtlasTerritory, position: { x: number; z: number }) {
+  if ("rows" in nodes) return wildsExplorationContainsWorld(nodes, position);
   if (!Number.isFinite(position.x) || !Number.isFinite(position.z)) return false;
   const regionX = Math.floor(position.x / WILDS_REGION_SIZE);
   const regionZ = Math.floor(position.z / WILDS_REGION_SIZE);
@@ -229,9 +258,11 @@ function interpolate(
 
 export function clipWildsAtlasRouteSegments(
   points: readonly { x: number; z: number }[],
-  nodes: readonly AtlasRegion[]
+  nodes: WildsAtlasTerritory
 ): Array<readonly { x: number; z: number }[]> {
-  const known = new Set(normalizedRegions(nodes).map((node) => regionKey(node.regionX, node.regionZ)));
+  const keys = "rows" in nodes ? null : new Set(normalizedRegions(nodes).map((node) => regionKey(node.regionX, node.regionZ)));
+  const known = (x: number, z: number) => "rows" in nodes
+    ? wildsExplorationContainsRegion(nodes, x, z) : keys!.has(regionKey(x, z));
   const output: Array<readonly { x: number; z: number }[]> = [];
   let current: Array<{ x: number; z: number }> = [];
   let crossings = 0;
@@ -292,7 +323,7 @@ export function clipWildsAtlasRouteSegments(
       const cellZ = Math.floor(midpoint.z / WILDS_REGION_SIZE);
       const intervalStart = interpolate(start, end, t);
       const intervalEnd = interpolate(start, end, nextT);
-      if (known.has(regionKey(cellX, cellZ))) admit(intervalStart, intervalEnd);
+      if (known(cellX, cellZ)) admit(intervalStart, intervalEnd);
       else flush();
       t = nextT;
       if (Math.abs(maxTX - nextT) <= EPSILON) maxTX += deltaTX;

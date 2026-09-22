@@ -43,8 +43,8 @@ export function atlasCameraFrame(
   const fov = portrait ? 53 : 40;
   const verticalFov = fov * Math.PI / 180;
   const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * width / height);
-  const fitWidth = spanX / 2 / Math.max(.08, Math.tan(horizontalFov / 2));
-  const fitDepth = spanZ / 2 / Math.max(.08, Math.tan(verticalFov / 2));
+  const fitWidth = spanX / 2 / Math.tan(horizontalFov / 2);
+  const fitDepth = spanZ / 2 / Math.tan(verticalFov / 2);
   const distance = Math.max(7.2, Math.hypot(fitWidth, fitDepth) * 1.08);
   const elevation = distance * (portrait ? .82 : .72);
   const targetX = ((input.bounds.minX + input.bounds.maxX + 1) / 2 - input.centerRegion.x) * regionUnit;
@@ -87,13 +87,13 @@ export function atlasCameraOpeningFrame(
   });
 }
 
-export function atlasCameraOpeningLimits(regionUnit: number) {
+export function atlasCameraOpeningLimits(regionUnit: number, frame?: Pick<WildsAtlasCameraFrame, "maxDistance">) {
   const safeRegionUnit = finitePositive(regionUnit, 1);
-  const maxDistance = 512;
+  const maxDistance = Math.max(512, frame?.maxDistance ?? 512);
   return Object.freeze({
     minDistance: Math.max(.45, safeRegionUnit * .28),
     maxDistance,
-    far: maxDistance * 2.2
+    far: 512 * 2.2
   });
 }
 
@@ -180,4 +180,26 @@ export function translateWildsAtlasCamera(input: {
  * swipe so portrait phones and wide screens cover the same fraction of a turn. */
 export function wildsAtlasRotateSpeed(viewport: {width:number;height:number}) {
   return .75 * finitePositive(viewport.height, 1) / finitePositive(viewport.width, 1);
+}
+
+
+/** Cover the complete terrain from the actual camera position, including off-center pans.
+ * The renderer uses logarithmic depth so distant bounds do not sacrifice local detail. */
+export function wildsAtlasCameraFar(input: {
+  position: CameraVector;
+  bounds: WildsAtlasProjection["bounds"];
+  centerRegion: WildsAtlasProjection["centerRegion"];
+  regionUnit: number;
+}) {
+  const unit = finitePositive(input.regionUnit, 1);
+  const { bounds, centerRegion, position } = input;
+  const dx = Math.max(
+    Math.abs((bounds.minX - centerRegion.x) * unit - position[0]),
+    Math.abs((bounds.maxX + 1 - centerRegion.x) * unit - position[0])
+  );
+  const dz = Math.max(
+    Math.abs((bounds.minZ - centerRegion.z) * unit - position[2]),
+    Math.abs((bounds.maxZ + 1 - centerRegion.z) * unit - position[2])
+  );
+  return Math.max(96, Math.hypot(dx, Math.abs(position[1]) + 32, dz) * 1.1);
 }

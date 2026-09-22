@@ -68,6 +68,8 @@ export type WildsAtlasProjection = {
   regionUnit: number;
   zoom: WildsAtlasZoom;
   nodes: WildsAtlasNode[];
+  /** Complete compact territory when detail nodes cover only the local view. */
+  territory?: WildsExplorationAtlas;
   landmarks: WildsAtlasLandmark[];
   exactPlayers: WildsAtlasExactPlayer[];
   playerClusters: WildsAtlasPlayerCluster[];
@@ -127,6 +129,8 @@ const radiusByZoom: Record<WildsAtlasZoom, number> = {
 };
 
 export const WILDS_ATLAS_REGION_UNIT = 1.35;
+// A detail budget, never a discovery/coverage limit. Large maps render every range.
+const ATLAS_DETAIL_REGIONS = 4_096;
 const DEFAULT_ATLAS_ORIGIN = Object.freeze({ x: 0.5, z: 0.5 });
 
 type VisibleRegion = Pick<WildsAtlasNode, "regionX" | "regionZ">;
@@ -147,8 +151,12 @@ function worldPositionBelongsToNodes(position: { x: number; z: number }, nodeKey
 
 export function filterWildsAtlasPresence(
   presence: { exactPlayers: readonly WildsAtlasExactPlayer[]; playerClusters: readonly WildsAtlasPlayerCluster[] },
-  visibleRegions: readonly VisibleRegion[]
+  visibleRegions: readonly VisibleRegion[] | WildsExplorationAtlas
 ) {
+  if ("rows" in visibleRegions) return {
+    exactPlayers: presence.exactPlayers.filter(player => wildsExplorationContainsWorld(visibleRegions, player)),
+    playerClusters: presence.playerClusters.filter(cluster => wildsExplorationContainsRegion(visibleRegions, cluster.regionX, cluster.regionZ))
+  };
   const nodeKeys = visibleRegionKeys(visibleRegions);
   return {
     exactPlayers: presence.exactPlayers.filter((player) => worldPositionBelongsToNodes(player, nodeKeys)),
@@ -210,7 +218,10 @@ export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection 
   const centerRegion = input.atlasOrigin ?? DEFAULT_ATLAS_ORIGIN;
   const regionUnit = WILDS_ATLAS_REGION_UNIT;
   const nodes: WildsAtlasNode[] = [];
-  const regions = input.zoom === "world"
+  const territory = input.zoom === "world" && bounds.count > ATLAS_DETAIL_REGIONS ? input.explorationAtlas : undefined;
+  const regions = territory
+    ? localKnownRegions(territory, regionForPosition(input.center), 16)
+    : input.zoom === "world"
     ? wildsExplorationRegions(input.explorationAtlas)
     : localKnownRegions(input.explorationAtlas, gridCenterRegion, radiusByZoom[input.zoom]);
   for (const { x: regionX, z: regionZ } of regions) {
@@ -223,8 +234,8 @@ export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection 
   }
 
   const nodeKeys = visibleRegionKeys(nodes);
-  const knownPosition = (position: { x: number; z: number }) => worldPositionBelongsToNodes(position, nodeKeys);
-  const presence = projectWildsAtlasPresence({ ...input, visibleRegions: nodes });
+  const knownPosition = (position: { x: number; z: number }) => territory ? wildsExplorationContainsWorld(territory, position) : worldPositionBelongsToNodes(position, nodeKeys);
+  const presence = projectWildsAtlasPresence({ ...input, visibleRegions: territory ? undefined : nodes });
 
   const discovered = new Set(input.discoveredLandmarkIds);
   return {
@@ -234,6 +245,7 @@ export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection 
     regionUnit,
     zoom: input.zoom,
     nodes,
+    ...(territory ? { territory } : {}),
     landmarks: WILDS_FLAGSHIP_LANDMARKS
       .filter((landmark) => knownPosition(landmark.position))
       .map((landmark) => ({ ...landmark, discovered: discovered.has(landmark.id) })),

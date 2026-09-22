@@ -34,7 +34,6 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   assert.match(binding, /appendWildzIdentitySealAuthority/);
   assert.match(binding, /createWildzIdentityBinding/);
   assert.match(binding, /appendWildzIdentityBindingTrailer/);
-  assert.match(shell, /downloadWildzIdentityPlayerCard/);
   const profile = readFileSync("src/features/profile/WildzProfileSheet.tsx", "utf8");
   assert.doesNotMatch(campaign, /onExportIdentityCard/);
   assert.doesNotMatch(inventory, /aria-label="Save Receiz ID Card"/);

@@ -108,3 +108,20 @@ test("DDA clipping stays bounded and fails closed for extreme route spans", () =
   );
   assert.deepEqual(segments, [[{ x: 24, z: 24 }, { x: 48, z: 24 }]]);
 });
+
+test("compact range tiles cover billions of cells without expanding them or filling gaps", () => {
+  const atlas = { version: 1 as const, rows: [
+    { z: 0, ranges: [{ minX: -2_000_000_000, maxX: -2 }, { minX: 2, maxX: 2_000_000_000 }] },
+    { z: 1, ranges: [{ minX: -2_000_000_000, maxX: -2 }, { minX: 2, maxX: 2_000_000_000 }] }
+  ], siteKeys: [] };
+  for (const options of [{ maxVertices: 64, maxTiles: 10 }, { maxVertices: 4, maxTiles: 1 }]) {
+    const tiles = buildWildsAtlasRenderTiles(atlas, options);
+    assert.ok(tiles.reduce((sum, tile) => sum + tile.vertexBudget, 0) <= options.maxVertices);
+    assert.ok(tiles.length <= options.maxTiles);
+    for (const x of [-2_000_000_000, -2000, -2, 2, 2000, 2_000_000_000]) for (const z of [0, 1]) {
+      assert.ok(tiles.some(tile => tileContainsRegion(tile, x, z)), `missing ${x}:${z}`);
+    }
+    assert.ok(!tiles.some(tile => tileContainsRegion(tile, 0, 0)));
+    assert.ok(!tiles.some(tile => tileContainsRegion(tile, 2, 2)));
+  }
+});

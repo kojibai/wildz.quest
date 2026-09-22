@@ -197,6 +197,7 @@ import { projectWildsRenderedLivingObstacles, wildsTerrainObstaclesForTile } fro
 import { projectWildsStructureSupports, wildsStructureSupportAt } from "@/features/play/wilds-structure-support";
 import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition } from "@/features/play/wilds-discovery-sites";
 import { prepareWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "@/features/play/wilds-site-runtime";
+import { mergeWildsMapDiscovery } from "@/features/play/wilds-map-image";
 import { discoverWildsExplorationSite } from "@/features/play/wilds-exploration-atlas";
 import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, selectWildsTrailBridgeRotation } from "@/features/play/wilds-steward-construction";
 import { projectWildsResourcePresentationAvailability as projectWildsResourceAvailability, projectWildsResourceRegion, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
@@ -3065,6 +3066,10 @@ export function PlayCampaign({
         currentPosition={state.player}
         discoveredLandmarkIds={discoveredLandmarkIds}
         explorationAtlas={state.explorationAtlas}
+        onImportMap={atlas => setState(current => ({
+          ...current,
+          explorationAtlas: mergeWildsMapDiscovery(current.explorationAtlas, atlas)
+        }))}
         guestId={multiplayer.guestId}
         missionProgress={state.missionProgress}
         onClose={() => {
