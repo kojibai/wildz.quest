@@ -1759,7 +1759,10 @@ export function PlayCampaign({
   const dispatch = (input: WildsInput) => {
     if (!interactionEnabled) return;
     if (input.type === "select-asset") setNewRosterAssetId(null);
-    const rootedInput = rootWildsInputInKai(input, kaiUPulse);
+    // User actions share the live monotonic clock used by encounter timers;
+    // the displayed pulse can lag those timers until its next UI update.
+    const actionUPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
+    const rootedInput = rootWildsInputInKai(input, actionUPulse);
     setState((current) => {
       const next = applyWildsInput(current, rootedInput);
       if (!current.completed && next.completed) {

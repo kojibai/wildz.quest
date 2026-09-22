@@ -1795,7 +1795,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     if (battle.phase === "captured" || battle.phase === "fled" || battle.phase === "defeated") {
       const combatAsset = state.inventory.find((candidate) => candidate.id === battle.player.id);
       if (combatAsset) {
-        const settledCard = settleWildBattleCard(combatAsset, battle, input.at ?? state.encounter.searchedAt);
+        const settledCard = settleWildBattleCard(combatAsset, battle, input.at ?? state.encounter.searchedAt, input.kaiUPulse);
         resolved = {
           ...resolved,
           inventory: admitLocallySealedWildsInventory(state.inventory.map((asset) => asset.id === settledCard.id ? settledCard : asset)),
@@ -2222,7 +2222,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     const leader = selectedAsset(state);
     const maxVitality = leader && isLivingCardAsset(leader) ? currentRevision(leader).growth.life?.maxVitality : null;
     const recovered = leader && input.at
-      ? healWildBattleCard(leader, Math.max(1, Math.round((maxVitality ?? 20) * (inBed ? .35 : .25))), input.at)
+      ? healWildBattleCard(leader, Math.max(1, Math.round((maxVitality ?? 20) * (inBed ? .35 : .25))), input.at, input.kaiUPulse)
       : leader;
     const exactRecovery = Boolean(recovered && recovered !== leader && isLivingCardAsset(recovered));
     const priorCondition = leader ? state.adventureConditions[leader.id] ?? emptyAdventureCondition(leader.id) : null;

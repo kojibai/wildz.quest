@@ -14591,7 +14591,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wilds-live-share { min-height: 28px; border-color: rgba(123, 224, 189, .3); background: linear-gradient(145deg, rgba(25, 50, 43, .9), rgba(10, 27, 24, .94)); box-shadow: 0 7px 18px rgba(6, 24, 19, .22), inset 0 1px rgba(255,255,255,.06); }
   .wilds-live-share { width: 28px; }
   .wilds-utility-cluster { top: calc(92px + var(--wildz-stage-safe-top)); bottom: auto; left: 14px; }
-  .wildz-pwa-notice { top: 102px; bottom: auto; padding: 7px 9px; border-radius: 12px; font-size: 10px; }
+  .wildz-pwa-notice { top: calc(122px + env(safe-area-inset-top)); bottom: auto; padding: 7px 9px; border-radius: 12px; font-size: 10px; }
   .wildz-pwa-notice button { min-height: 30px; }
 }
 
@@ -15318,6 +15318,14 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   align-items: start;
   gap: 8px;
   padding: calc(38px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+}
+
+/* Equal desktop side tracks align Mission with the compass and scan signal;
+   the map remains right-aligned and phone layouts retain their own columns. */
+@media (min-width: 641px) and (min-height: 501px) {
+  .wildz-reference-hud {
+    grid-template-columns: minmax(0, clamp(136px, 34vw, 258px)) minmax(44px, 1fr) minmax(0, clamp(136px, 34vw, 258px));
+  }
 }
 
 .wildz-direction-compass {
