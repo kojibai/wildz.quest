@@ -3326,6 +3326,9 @@ export function PlayCampaign({
       {exclusiveOwner === "reward" ? <WildsCaptureReward asset={captureRewardAsset} onClose={() => {
         releasePlayModalOwner("reward");
         dispatch({ type: "dismiss-reveal" });
+      }} onOpenVault={() => {
+        releasePlayModalOwner("reward");
+        dispatch({ type: "dismiss-reveal" });
         window.requestAnimationFrame(() => setRequestedCommand("vault"));
       }} /> : null}
       {exclusiveOwner === "ceremony" ? <>

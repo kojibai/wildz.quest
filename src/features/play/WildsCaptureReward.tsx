@@ -5,7 +5,7 @@ import { Icons } from "@/components/icons";
 import type { PortableCardAsset } from "./portable-card";
 import { WildsCard } from "./WildsCard";
 
-export function WildsCaptureReward({ asset, onClose }: { asset: PortableCardAsset | null; onClose: () => void }) {
+export function WildsCaptureReward({ asset, onClose, onOpenVault }: { asset: PortableCardAsset | null; onClose: () => void; onOpenVault: () => void }) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (asset) titleRef.current?.focus();
@@ -14,6 +14,7 @@ export function WildsCaptureReward({ asset, onClose }: { asset: PortableCardAsse
   return (
     <div className="wilds-capture-backdrop" role="presentation">
       <section aria-describedby="wilds-capture-status" aria-labelledby="wilds-capture-title" aria-modal="true" className="wilds-capture-dialog" role="dialog">
+        <button aria-label="Return to game" className="wilds-capture-close" onClick={onClose} title="Return to game" type="button"><Icons.close aria-hidden="true" size={16} /></button>
         <div className="wilds-capture-showcase">
           <div className="wilds-capture-stage" aria-hidden="true">
             <div className="wilds-capture-rays" />
@@ -32,7 +33,7 @@ export function WildsCaptureReward({ asset, onClose }: { asset: PortableCardAsse
             <span><small>Speed</small><strong>{asset.manifest.stats.speed}</strong></span>
             <span><small>Bond</small><strong>{asset.manifest.stats.bond}</strong></span>
           </div>
-          <button className="wilds-capture-action button button-primary" onClick={onClose} type="button"><Icons.collections aria-hidden="true" size={18} /><span>Open Card Vault</span><small>View sealed character</small></button>
+          <button className="wilds-capture-action button button-primary" onClick={onOpenVault} type="button"><Icons.collections aria-hidden="true" size={18} /><span>Open Card Vault</span><small>View sealed character</small></button>
         </div>
         <WildsCard asset={asset} />
       </section>

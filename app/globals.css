@@ -13919,6 +13919,25 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   box-shadow: 0 34px 110px rgb(0 0 0 / 65%);
 }
 
+.wilds-capture-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: #bad5cf;
+  background: transparent;
+  cursor: pointer;
+}
+.wilds-capture-close:hover { color: #f0fbff; background: rgb(133 233 209 / 10%); }
+.wilds-capture-close:focus-visible { outline: 2px solid #85e9d1; outline-offset: -5px; }
+
 .wilds-capture-showcase { position: relative; isolation: isolate; display: grid; gap: 14px; align-content: center; min-width: 0; }
 .wilds-capture-stage { position: relative; display: grid; min-height: 220px; place-items: center; overflow: hidden; border-radius: 22px; }
 .wilds-capture-capsule { position: relative; z-index: 2; display: grid; width: 132px; aspect-ratio: 1; place-items: center; overflow: hidden; background: linear-gradient(#66ecc4 0 46%, #072631 46% 54%, #f7fbeb 54%); border: 7px solid #d7fff2; border-radius: 42% 58% 48% 52%; box-shadow: 0 0 0 9px rgb(34 211 160 / 12%), 0 0 56px rgb(69 237 190 / 58%); animation: wilds-capsule-lock 1.5s cubic-bezier(.2,.8,.2,1) both; }
