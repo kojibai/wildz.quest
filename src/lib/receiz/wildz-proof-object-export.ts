@@ -1,3 +1,10 @@
+import { readReceizIdentityArtifact } from "@receiz/sdk";
+import { readWildsMapFromPng } from "../../features/play/wilds-map-image";
+import type { WildzGameImageKind } from "./wildz-game-image-export";
+import { assertWildzRemoteSealPayloadSafe } from "./wildz-remote-seal-guard";
+import { packWildzCardSealPayload } from "./wildz-card-seal-payload";
+import { splitWildzPngEnvelope } from "./wildz-png-envelope";
+import { requireWildzIdentityBindingFromEnvelope } from "./wildz-identity-binding";
 import type {
   ReceizClient,
   ReceizProofObjectCreateInput
@@ -49,6 +56,7 @@ export function requireVerifiedWildzPng(
   if (!bytes.byteLength || bytes.byteLength > MAX_WILDZ_PROOF_OBJECT_BYTES) {
     throw new Error("wildz_proof_object_size_invalid");
   }
+  bytes = splitWildzPngEnvelope(bytes).pngBasis;
   if (kind === "card") {
     const verified = verifyPortableCardPng(bytes);
     const proof = readPortableCardFromPng(bytes);
@@ -87,21 +95,34 @@ export async function createWildzExportProofObject(input: {
   actor: WildzExportProofObjectActor;
   bytes: Uint8Array;
   filename: string;
-  kind: "card" | "vault";
+  kind: WildzGameImageKind;
   createProofObject: WildzExportProofObjectCreator;
   artifacts: WildzArtifactPort;
 }) {
-  requireOwnedWildzPng(input.kind, input.bytes, input.actor);
-  const digest = await sha256Hex(input.bytes);
+  if (input.kind === "map") readWildsMapFromPng(input.bytes);
+  else if (input.kind === "identity") {
+    const identity = await readReceizIdentityArtifact(input.bytes);
+    if (!identity.owner.username || !sameWildzPlayerCoordinate(identity.owner.username, input.actor.profileHandle))
+      throw new Error("wildz_proof_object_owner_mismatch");
+  } else requireOwnedWildzPng(input.kind, input.bytes, input.actor);
+  await assertWildzRemoteSealPayloadSafe(input.bytes);
+  if (input.kind !== "identity" && splitWildzPngEnvelope(input.bytes).trailer.length) {
+    const binding = await requireWildzIdentityBindingFromEnvelope(input.bytes);
+    if (!sameWildzPlayerCoordinate(binding.playerId, input.actor.profileHandle))
+      throw new Error("wildz_proof_object_owner_mismatch");
+  }
+  const payloadBytes = await packWildzCardSealPayload(input.bytes);
+  const digest = await sha256Hex(payloadBytes);
   const proofObject: ReceizProofObjectCreateInput = {
     assetType: "proof_object",
-    payload: { mimeType: "image/png", bytes: input.bytes.slice() }
+    payload: { mimeType: "image/png", bytes: payloadBytes }
   };
   const artifact = await input.createProofObject(proofObject, {
-    idempotencyKey: `wildz-v119-${digest}`,
+    idempotencyKey: `wildz-v126-${digest}`,
     filename: safeSourceFilename(input.filename)
   });
   const admitted = await downloadAndReopenWildzArtifact(artifact, input.artifacts);
+  if (admitted.payloadSha256 !== digest) throw new Error("wildz_artifact_payload_mismatch");
   if (!sameWildzPlayerCoordinate(admitted.ownerReceizId, input.actor.profileHandle)) {
     throw new Error("wildz_proof_object_owner_mismatch");
   }

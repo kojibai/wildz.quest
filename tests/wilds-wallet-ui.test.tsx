@@ -175,7 +175,7 @@ test("terminal is one modal dialog with five named surfaces and fail-closed send
   const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, { publicUsername: null, state: state({ page: "send" }), ...actions }));
   assert.match(markup, /role="dialog"/);
   assert.match(markup, /aria-modal="true"/);
-  assert.match(markup, /WILDZ SOVEREIGN TERMINAL/);
+  assert.match(markup, />Wallet<\/h1>/);
   for (const label of ["Overview", "Send", "Receive", "Assets", "Ledger"]) assert.match(markup, new RegExp(`>${label}<`));
   assert.match(markup, /cannot sign a transfer proof object/);
   assert.doesNotMatch(markup, /Transfer complete/);
@@ -276,4 +276,20 @@ test("authorized users see their saved PHI during automatic refresh without a re
     assert.match(markup, /aria-label="0.02 Phi"/);
     assert.doesNotMatch(markup, /Connect and refresh|Refresh to check|SAVED PHI|Updating balance/);
   }
+});
+
+
+test("overview shows live inventory counts and the same creature activity as Ledger", () => {
+  const summary = { ...state().summary, admittedPhiMicro: "19726741562", displayUsdCents: "671317465", assetCountsStatus: "unknown" as const, transferableResourceCount: null, transferableCardCount: null, reservedCardCount: null, pendingCount: null };
+  const props = { publicUsername: "explorer", cards: initialPlayState.inventory, inventoryCounts: { resourceUnits: 233, creatureCards: 46 }, ...actions };
+  const overview = renderToStaticMarkup(createElement(WildsWalletTerminal, { ...props, state: state({ page: "overview", balanceBasis: "current", summary }) }));
+  assert.match(overview, /19,726\.741562 Phi/);
+  assert.match(overview, /\$6,713,174\.65/);
+  assert.match(overview, /<dd>233<\/dd>/);
+  assert.match(overview, /<dd>46<\/dd>/);
+  assert.match(overview, /Recent activity/);
+  assert.match(overview, /Creature admitted/);
+  assert.doesNotMatch(overview, /No admitted entries/);
+  const ledger = renderToStaticMarkup(createElement(WildsWalletTerminal, { ...props, state: state({ page: "ledger", summary }) }));
+  assert.match(ledger, /Creature admitted/);
 });

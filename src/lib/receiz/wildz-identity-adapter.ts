@@ -1,3 +1,5 @@
+import { prepareWildzGameImage } from "./wildz-game-image-export";
+import { openWildzSealedCard, verifyWildzSealedCard } from "./wildz-sealed-card";
 import { createWildzIdentityPlayerVaultPreparer, savePreparedWildzIdentityPlayerVault } from "./wildz-prepared-player-vault";
 export { savePreparedWildzIdentityPlayerVault, type WildzPreparedIdentityPlayerVault } from "./wildz-prepared-player-vault";
 import { mergeWildzCrewCustody, readWildzArtifactCrewCustody, type WildzCrewCustody } from "./wildz-artifact-codec";
@@ -23,7 +25,6 @@ import { restorePlayState, type PlayState } from "../../features/play/game-state
 import type { WildzCharacterGenesis } from "../../features/identity/wildz-genesis";
 import {
   createReceizProofObjectArtifact,
-  downloadBlob,
   saveBlobToDevice,
   embedPortableVaultInPng,
   portableCardPngBlobForIdentityOwnership,
@@ -33,7 +34,6 @@ import {
 import type { PortableCardAsset } from "../../features/play/portable-card";
 import { cardArtifactFingerprint } from "../../features/play/prepared-card-artifact";
 import { createWildzPreparedCardCache } from "./wildz-prepared-card-cache";
-import { openWildzSealedDocument, verifyWildzSealedExport } from "./wildz-sealed-document";
 import { matchesWildzOwnedCardExport, normalizedWildzExportCardFingerprint } from "./wildz-owned-card-export";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import { receizBase64UrlDecode } from "@receiz/sdk";
@@ -631,7 +631,8 @@ export async function prepareWildzBackgroundPlayerVault(session: WildzIdentitySe
     }
     const result = await createWildzIdentityPlayerCardBundleOffThread({artwork, assets, player, keyFile, passphrase});
     if (!result) throw new Error("wildz_background_export_worker_unavailable");
-    return { ...result, blob: new Blob([result.bytes.slice().buffer], { type: "image/png" }), filename: `wilds-vault-${session.keyId}.png`, mimeType: "image/png" as const,
+    const sealed = await prepareWildzGameImage({ bytes: result.bytes, filename: `wilds-vault-${session.keyId}.png`, kind: "vault" });
+    return { ...result, ...sealed,
       keyId: session.keyId, ownerReceizId: player.playerId };
   });
 }
@@ -691,6 +692,7 @@ export function createWildzIdentityOwnedCardPreparer(dependencies: {
   sign: typeof defaultIdentityRepository.withKeyFile;
   seal: typeof createReceizProofObjectArtifact;
   verifySeal: (artifactBytes: Uint8Array, payloadBytes: Uint8Array) => Promise<unknown>;
+  openSeal?: typeof openWildzSealedCard;
 }) {
   const preparedOwnedCards = createWildzPreparedCardCache<WildzPreparedIdentityOwnedCard>();
   return async function prepareWildzIdentityOwnedCard(
@@ -713,15 +715,19 @@ export function createWildzIdentityOwnedCardPreparer(dependencies: {
       throw new Error("wildz_identity_card_owner_mismatch");
     }
     const fingerprint = cardArtifactFingerprint(asset);
-    const cacheKey = JSON.stringify(["wildz.prepared-owned-card.v1", session.keyId, ownerReceizId, asset.id, fingerprint]);
-    const localCacheKey = JSON.stringify(["wildz.prepared-local-card.v1", session.keyId, ownerReceizId, asset.id]);
+    const cacheKey = JSON.stringify(["wildz.prepared-owned-card.v2", session.keyId, ownerReceizId, asset.id, fingerprint]);
+    const localCacheKey = JSON.stringify(["wildz.prepared-local-card.v2", session.keyId, ownerReceizId, asset.id, fingerprint]);
     return preparedOwnedCards.get(cacheKey, async () => {
       // A location hint is never authority: reopen the exact retained seal and verify
       // its inner identity signature and complete card before reusing any bytes.
       const local = await dependencies.database.read<WildzPreparedIdentityOwnedCard>("meta", localCacheKey).catch(() => null);
-      if (local && local.bytes instanceof Uint8Array
-        && await matchesWildzOwnedCardExport(local.bytes, { asset, keyId: session.keyId, ownerReceizId }).catch(() => false)) {
-        return { ...local, ownerReceizId, cardFingerprint: fingerprint, keyId: session.keyId, assetId: asset.id };
+      if (local && local.bytes instanceof Uint8Array) {
+        try {
+          const opened = await (dependencies.openSeal ?? openWildzSealedCard)({ bytes: local.bytes, mimeType: local.mimeType, name: local.filename });
+          if (sameWildzPlayerCoordinate(opened.ownerReceizId, ownerReceizId)
+            && await matchesWildzOwnedCardExport(opened.payloadBytes, { asset, keyId: session.keyId, ownerReceizId }))
+            return { ...local, ownerReceizId, cardFingerprint: fingerprint, keyId: session.keyId, assetId: asset.id };
+        } catch { /* A stale or invalid cached payload is never a saved proof object. */ }
       }
       const indexed = await dependencies.database.read<string>("meta", cacheKey).catch(() => null);
       // Only an exact prepared-file index is relevant. Walking historical source
@@ -732,8 +738,9 @@ export function createWildzIdentityOwnedCardPreparer(dependencies: {
           const source = await dependencies.sources.read(sha);
           if (!source) continue;
           const bytes = receizBase64UrlDecode(source.artifact.exactBytesB64u);
-          const payload = source.artifact.mimeType === "image/png" ? bytes
-            : (await openWildzSealedDocument({ bytes, mimeType: source.artifact.mimeType, name: source.artifact.filename })).payloadBytes;
+          const opened = await (dependencies.openSeal ?? openWildzSealedCard)({ bytes, mimeType: source.artifact.mimeType, name: source.artifact.filename });
+          if (!sameWildzPlayerCoordinate(opened.ownerReceizId, ownerReceizId)) continue;
+          const payload = opened.payloadBytes;
           if (!await matchesWildzOwnedCardExport(payload, { asset, keyId: session.keyId, ownerReceizId })) continue;
           void dependencies.database.transaction(["meta"], "readwrite", tx => tx.put("meta", sha, cacheKey)).catch(() => {});
           return { assetId: asset.id, bytes, filename: source.artifact.filename, mimeType: source.artifact.mimeType,
@@ -771,21 +778,29 @@ export function createWildzIdentityOwnedCardPreparer(dependencies: {
           ...(passphrase !== undefined ? { passphrase } : {})
         });
       });
-      // The PNG already carries the verified card and signed identity binding.
-      // Saving that file is local: an additional remote document seal changes
-      // neither its card history nor its admission and must not gate download.
       if (!await matchesWildzOwnedCardExport(combined, { asset, keyId: session.keyId, ownerReceizId }))
+        throw new Error("wildz_identity_card_export_invalid");
+      const sealed = await dependencies.seal(new Blob([combined.slice().buffer], { type: "image/png" }),
+        `${portableCreatureFilename(asset.manifest.name)}.png`, "vault");
+      await dependencies.verifySeal(sealed.bytes, combined);
+      const opened = await (dependencies.openSeal ?? openWildzSealedCard)({ bytes: sealed.bytes, mimeType: sealed.mimeType, name: sealed.filename });
+      if (!sameWildzPlayerCoordinate(opened.ownerReceizId, ownerReceizId)
+        || !await matchesWildzOwnedCardExport(opened.payloadBytes, { asset, keyId: session.keyId, ownerReceizId }))
         throw new Error("wildz_identity_card_export_invalid");
       const artifact: WildzPreparedIdentityOwnedCard = {
         assetId: asset.id,
-        bytes: combined,
-        filename: `${portableCreatureFilename(asset.manifest.name)}.png`,
-        mimeType: "image/png",
+        bytes: sealed.bytes,
+        filename: sealed.filename,
+        mimeType: sealed.mimeType,
         ownerReceizId: activePlayer.playerId,
         cardFingerprint: fingerprint,
         keyId: session.keyId
       };
       void dependencies.database.transaction(["meta"], "readwrite", tx => tx.put("meta", artifact, localCacheKey)).catch(() => {});
+      void dependencies.sources.retain({ bytes: artifact.bytes, filename: artifact.filename,
+        mimeType: artifact.mimeType, assetId: asset.id }).then(source =>
+        dependencies.database.transaction(["meta"], "readwrite", tx => tx.put("meta", source.artifactSha256, cacheKey))
+      ).catch(() => {});
       return artifact;
     });
   };
@@ -797,7 +812,7 @@ const prepareOwnedCard = createWildzIdentityOwnedCardPreparer({
   renderCard: portableCardPngBlobForIdentityOwnership,
   sign: (keyId, action) => defaultIdentityRepository.withKeyFile(keyId, action),
   seal: createReceizProofObjectArtifact,
-  verifySeal: verifyWildzSealedExport
+  verifySeal: verifyWildzSealedCard
 });
 
 export async function prepareWildzIdentityOwnedCard(...args: Parameters<typeof prepareOwnedCard>) {
@@ -807,7 +822,6 @@ export async function prepareWildzIdentityOwnedCard(...args: Parameters<typeof p
 export function matchesPreparedWildzIdentityOwnedCard(artifact: WildzPreparedIdentityOwnedCard, session: WildzIdentitySession, asset: PortableCardAsset) {
   return artifact.assetId === asset.id && artifact.keyId === session.keyId
     && sameWildzPlayerCoordinate(artifact.ownerReceizId, session.username ?? session.actorId)
-    && sameWildzPlayerCoordinate(asset.manifest.ownerReceizId, artifact.ownerReceizId)
     && artifact.cardFingerprint === cardArtifactFingerprint(asset);
 }
 
@@ -846,10 +860,8 @@ export async function downloadWildzIdentityPlayerCard(
       ...(passphrase !== undefined ? { passphrase } : {})
     });
   });
-  downloadBlob(
-    new Blob([combined.slice().buffer], { type: "image/png" }),
-    wildzIdentitySealFilename(username, player.exportedAt)
-  );
+  const artifact = await prepareWildzGameImage({ bytes: combined, filename: wildzIdentitySealFilename(username, player.exportedAt), kind: "vault" });
+  await saveBlobToDevice(artifact.blob, artifact.filename);
   return { identityBound: true } as const;
 }
 
@@ -869,25 +881,9 @@ export async function downloadWildzIdentitySeal(
   if (typeof document === "undefined") throw new Error("wildz_identity_seal_download_browser_required");
 
   const exportedAt = new Date().toISOString();
-  const blob = await repository.withKeyFile(session.keyId, async (keyFile) => {
-    const bytes = await createWildzIdentitySealPng(keyFile, session, exportedAt);
-    const payload = new Uint8Array(bytes.byteLength);
-    payload.set(bytes);
-    return new Blob([payload.buffer], { type: "image/png" });
-  });
-  const url = URL.createObjectURL(blob);
-  let anchor: HTMLAnchorElement | null = null;
-  try {
-    anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = wildzIdentitySealFilename(username, exportedAt);
-    anchor.rel = "noopener";
-    document.body.append(anchor);
-    anchor.click();
-  } finally {
-    anchor?.remove();
-    URL.revokeObjectURL(url);
-  }
+  const bytes = await repository.withKeyFile(session.keyId, keyFile => createWildzIdentitySealPng(keyFile, session, exportedAt));
+  const artifact = await prepareWildzGameImage({ bytes, filename: wildzIdentitySealFilename(username, exportedAt), kind: "identity" });
+  await saveBlobToDevice(artifact.blob, artifact.filename);
 }
 
 export async function downloadCurrentWildzIdentitySeal(session: WildzIdentitySession) {

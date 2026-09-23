@@ -1,3 +1,4 @@
+import type { WildzGameImageKind } from "../../lib/receiz/wildz-game-image-export";
 import { verifyAndAdmitWildsCard, retainAdmittedWildsInventory } from "./admitted-inventory";
 import { createRetainedProofJson, freezeProofValue } from "./retained-proof-json";
 import { pngCrc32 as crc32 } from "../../lib/png-crc32";
@@ -299,6 +300,22 @@ function parsePng(bytes: Uint8Array): PngChunk[] {
 function makeChunk(type: string, data: Uint8Array) {
   const typeBytes = new TextEncoder().encode(type);
   return concatBytes([uint32Bytes(data.length), typeBytes, data, uint32Bytes(crc32(typeBytes, data))]);
+}
+
+/** Lossless application payload chunk; never use this to modify a sealed artifact. */
+export function withWildzPngPayloadChunk(source: Uint8Array, keyword: string, value: string | null) {
+  const prefix = `${keyword}\0`;
+  const chunks = parsePng(source).filter(chunk => !(chunk.type === "tEXt"
+    && new TextDecoder().decode(chunk.data).startsWith(prefix)));
+  if (value !== null) chunks.splice(chunks.length - 1, 0, { type: "tEXt", data: new TextEncoder().encode(prefix + value) });
+  return concatBytes([PNG_SIGNATURE, ...chunks.map(chunk => makeChunk(chunk.type, chunk.data))]);
+}
+
+export function readWildzPngPayloadChunks(source: Uint8Array, keyword: string) {
+  const prefix = `${keyword}\0`;
+  return parsePng(source).filter(chunk => chunk.type === "tEXt")
+    .map(chunk => new TextDecoder().decode(chunk.data)).filter(text => text.startsWith(prefix))
+    .map(text => text.slice(prefix.length));
 }
 
 function imageDigest(chunks: readonly PngChunk[]) {
@@ -679,38 +696,15 @@ export type WildzDownloadedProofObjectVerifier = (
 export async function createReceizProofObjectArtifact(
   payload: Blob,
   filename: string,
-  kind: "card" | "vault",
+  kind: WildzGameImageKind,
   verifyProofObject?: WildzDownloadedProofObjectVerifier
 ) {
   const payloadBytes = new Uint8Array(await payload.arrayBuffer());
-  let response: Response;
-  try {
-    response = await fetch("/api/receiz/proof-object", {
-      method: "POST",
-      headers: {
-        "content-type": payload.type || "application/octet-stream",
-        "x-wildz-artifact-filename": encodeURIComponent(filename),
-        "x-wildz-proof-kind": kind
-      },
-      body: payloadBytes
-    });
-  } catch {
-    throw new Error("receiz_proof_object_unavailable");
-  }
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { error?: string } | null;
-    throw new Error(payload?.error || "receiz_proof_object_failed");
-  }
-  const proofObject = new Uint8Array(await response.arrayBuffer());
-  if (!proofObject.byteLength) throw new Error("receiz_proof_object_empty");
-  const mimeType = response.headers.get("content-type")?.split(";", 1)[0]?.trim() || "application/octet-stream";
-  const dispositionFilename = response.headers.get("content-disposition")
-    ?.match(/filename=(?:"([^"]+)"|([^;\s]+))/i)
-    ?.slice(1)
-    .find(Boolean);
-  const artifactFilename = dispositionFilename && /^[a-zA-Z0-9._-]{1,220}$/.test(dispositionFilename)
-    ? dispositionFilename
-    : `${filename.replace(/\.png$/i, "")}.receized`;
+  const { sealWildzOwnedCardBlob } = await import("../../lib/receiz/local-seal/browser");
+  const artifact = await sealWildzOwnedCardBlob(payload, filename, kind);
+  const { bytes: proofObject, mimeType, filename: artifactFilename } = artifact;
+  const { verifyWildzSealedCard } = await import("../../lib/receiz/wildz-sealed-card");
+  await verifyWildzSealedCard(proofObject, payloadBytes);
   if (verifyProofObject) {
     await verifyProofObject(
       proofObject,

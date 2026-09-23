@@ -1,0 +1,42 @@
+{
+  "source": "https://github.com/kojibai/receiz",
+  "files": {
+    "app/utils/receizProofBundle.ts": "81a6335e7e6df101be556252bd12ce29f55a4a0a1dc62e7b1f61d9da3442bcca",
+    "app/utils/sha256.ts": "b3e37a059debfe96c0888183bf312701b4f038be4f7bc1b4e063228b6b275a79",
+    "app/utils/jcs.ts": "4417d1362ab96e100adb19e29401aa00d5e60e6e30e4943929544b521fbc14ab",
+    "app/utils/pngChunks.ts": "7a54e936bee91d58886690cf0a3bad0982da141bb8b8a8482851863531c674bf",
+    "app/utils/signerKeyId.ts": "e2b9c5fa16b09c314544d1b53da24deb30e319a209c93ab6d15101736e5db92b",
+    "app/utils/receizOwnershipProvenanceBundle.ts": "819ecc5199ca84cad96e4d9c805733bf613b0fc8fd9f61cb845f872541cc3a79",
+    "app/lib/profile/username.ts": "bba8c494ecffbe735f8e7bfc1ace25c27ea4b90fa8b4e14c24361e4ea6a2d9ed",
+    "app/lib/sign.ts": "da1cf30a1b11543e70d8866854f28376ce40f6796ad140d14b535823c6374c5e",
+    "app/lib/time.ts": "fc8a5dd87f36b4571f6eb9592c468400e81645e6b188f33886e780784c0c7ad2",
+    "app/lib/security/receizSignatureV3.ts": "df9cddd94dd49c0f0810b5e7fe260b2ef7182ddb1ded0f6a2109116cc19172a3",
+    "app/lib/security/receizSignatureV4.ts": "a197c23b3ce1420fd0e25208e2260538157df62b9554b434245088c886b1b879",
+    "app/lib/security/receizSignatureV4Pinned.ts": "7b1a683b9ba79ddad0a48f5791ab671ffdaff2c4f3fdd590774e1e2be64f37f5",
+    "app/lib/security/receizSignatureV4Enrollment.ts": "a687a5d6dfe9710ce43719c577b7a0b0cbbc1b6acb2abdb5d95c96448ab0ff60",
+    "app/lib/security/cspNonce.ts": "5762744e88920dd4ed3d88b1b889285a51a54b4f8089db74236c55dad8a080dd",
+    "app/lib/documentSeal/proofResourceManifest.ts": "e3a9d166bba188c916c8e7879ed5a60a4c9b9ce31015f048688932cf7eb7737a",
+    "app/lib/documentSeal/realGroth16ProofClient.ts": "c543fc760f2c69050fb099f07e79591eb1315702a32d9b80b595779a5b2c009f",
+    "app/utils/kai_pulse.ts": "c1d9a1ff780681946935389d94ada11df3245e96782dca1183e2675b0ef14954"
+  },
+  "version": "126.0.0",
+  "sourceCommit": "b2e5d231733b197fab5f4309900189aed4317856",
+  "adaptations": [
+    "Relative imports and public SDK types for a standalone Wildz runtime.",
+    "Same-origin public-key-only enrollment route; pinned certificate validation before persistence.",
+    "Hash-checked proving resources held in memory after prewarm.",
+    "Temporary exported private-key buffer cleared after nonextractable import."
+  ],
+  "publicResources": {
+    "public/snarkjs.min.js": "3f61bbd9ac0a10173902eaef65b510fa4e9a2c057f759c7f18a6d0446b20fd06",
+    "public/zk/document_seal_proof_final.zkey": "fc5bc8cce4c43dc163e44bc8a1e52c165b72813a0ccbde7fb1735f3cb01debd4",
+    "public/zk/document_seal_proof_js/sigil_proof.wasm": "fc72dd17e30f7e9b178eeac08f1deceec8fff5b757481455e465234fbc35e696",
+    "public/zk/document_seal_verification_key.json": "f42919b0ee8bd79394e78bb6c21f2c1023f7ffe432fa5cbd16f50502b81cc89f"
+  },
+  "snarkjs": {
+    "version": "0.7.6",
+    "source": "https://github.com/iden3/snarkjs",
+    "license": "public/snarkjs.COPYING",
+    "package": "snarkjs@0.7.6/build/snarkjs.min.js"
+  }
+}

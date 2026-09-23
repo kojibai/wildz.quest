@@ -145,7 +145,8 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
     {transfer.phase === "amount" ? <form onSubmit={(event) => { event.preventDefault(); const micro = parseWildsPhiInput(amount); if (micro) actions.onReviewAmount("settlement", micro, crypto.randomUUID()); }}>
       <p className="wilds-wallet-counterparty">TO <b>@{transfer.recipientUsername}</b></p>
       {state.summary ? <p>{state.balanceBasis === "current" && state.status !== "offline-verified" ? "Available PHI" : "Last known PHI"}: <PhiNetworkAmount value={formatWildsPhiExact(state.summary.admittedPhiMicro)} /></p> : null}
-      <label htmlFor="wilds-wallet-amount">Phi amount</label><input id="wilds-wallet-amount" inputMode="decimal" onChange={(event) => setAmount(event.target.value)} placeholder="0.00" value={amount} />
+      <label htmlFor="wilds-wallet-amount">Phi amount</label><input aria-describedby="wilds-wallet-amount-help" aria-invalid={amount.trim() !== "" && !parseWildsPhiInput(amount)} id="wilds-wallet-amount" inputMode="decimal" onChange={(event) => setAmount(event.target.value)} placeholder="0.00" value={amount} />
+      <p id="wilds-wallet-amount-help" role={amount.trim() && !parseWildsPhiInput(amount) ? "status" : undefined}>{amount.trim() && !parseWildsPhiInput(amount) ? "Enter a positive PHI amount with up to 6 decimal places, such as .001." : "You can send fractions of PHI, down to 0.000001."}</p>
       <button disabled={!parseWildsPhiInput(amount)} type="submit">Review exact amount</button>
     </form> : null}
     {transfer.phase === "review" || transfer.phase === "stage" ? <div className="wilds-wallet-review">

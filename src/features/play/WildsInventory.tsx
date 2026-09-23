@@ -383,9 +383,12 @@ export function WildsInventory({
       emitWildsPlaytestEvent("card-save", "failure");
       setCardSaveState("error");
       triggerCardHaptic("error");
-      setDownloadMessage(error instanceof Error
-        ? `Card save failed: ${error.message}. Try again.`
-        : "Card save failed. Try again from this browser.");
+      const setupRequired = error instanceof Error && error.message.startsWith("wildz_local_signer_setup_failed");
+      setDownloadMessage(setupRequired
+        ? "Connect to the internet once to set up signing on this device, then save offline. Your creature remains in the Vault."
+        : error instanceof Error
+          ? `Card save failed: ${error.message}. Try again.`
+          : "Card save failed. Try again from this browser.");
     }
   };
 
@@ -552,7 +555,7 @@ export function WildsInventory({
         {selected && selectedForm ? (
           <aside className={`wilds-inventory-detail${selectedRetired ? " is-retired" : ""}`}>
             <div className={`wilds-selected-card-stage${cardSaveState === "success" ? " is-secured" : ""}`}>
-              {selectedRetired ? <div className="wilds-vault-card-memorial"><WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} speaking={false} /><strong>Retired memorial · swipe to view death record</strong></div> : <WildsCardScene asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} speaking={speakingAssetId === selected.id} />}
+              {selectedRetired ? <div className="wilds-vault-card-memorial"><WildsCardScene onSaveProof={() => saveVerifiedCard(selected)} asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} speaking={false} /><strong>Retired memorial · swipe to view death record</strong></div> : <WildsCardScene onSaveProof={() => saveVerifiedCard(selected)} asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} speaking={speakingAssetId === selected.id} />}
               {cardSaveState === "success" ? <span aria-hidden="true" className="wilds-card-save-celebration"><i /><i /><i /><i /></span> : null}
             </div>
             {publicLinkStatus ? <p role="status" className="wilds-card-public-link-status">{publicLinkStatus}</p> : null}

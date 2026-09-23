@@ -471,3 +471,12 @@ test("reopening a wallet cannot replace a current settled balance with the older
   assert.equal(state.summary?.admittedPhiMicro, "20000");
   assert.equal(state.status, "offline-verified");
 });
+
+
+test("fractional PHI input accepts omitted leading zero without rounding", async () => {
+  const { parseWildsPhiInput } = await import("../src/features/play/wallet/wilds-wallet-format");
+  for (const [input, expected] of [[".001", "1000"], [".0001", "100"], [".000001", "1"], [" .5 ", "500000"], ["0.001", "1000"], ["1", "1000000"]]) {
+    assert.equal(parseWildsPhiInput(input), expected);
+  }
+  for (const invalid of [".", ".000000", ".0000001", "-.001", "1e-3", "1.2.3"]) assert.equal(parseWildsPhiInput(invalid), null);
+});

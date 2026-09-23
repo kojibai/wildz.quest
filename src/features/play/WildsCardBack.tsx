@@ -3,7 +3,7 @@
 import Image from "next/image.js";
 import Link from "next/link.js";
 import React, { useMemo, useState } from "react";
-import { portableCardPngBlob, readPortableCardFromPng, type PortableCardPngProof } from "./card-export";
+import { downloadPortableCard, portableCardPngBlob, readPortableCardFromPng, type PortableCardPngProof } from "./card-export";
 import { compactProofFingerprint, projectLivingCardDossier } from "./living-card-dossier";
 import { cardDeathRecord } from "./card-death-record";
 import type { AdventureCardCondition } from "./adventure/card-condition";
@@ -13,16 +13,7 @@ function label(value: string) {
   return value.replaceAll("_", " ").replaceAll("-", " ");
 }
 
-function downloadText(value: string, filename: string) {
-  const url = URL.createObjectURL(new Blob([value], { type: "application/json" }));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
-export function WildsCardBack({ asset, origin, qr, condition }: { asset: PortableCardAsset; origin: string; qr: string; condition?: AdventureCardCondition | null }) {
+export function WildsCardBack({ asset, origin, qr, condition, onSaveProof }: { asset: PortableCardAsset; origin: string; qr: string; condition?: AdventureCardCondition | null; onSaveProof?: () => Promise<void> }) {
   const dossier = useMemo(() => projectLivingCardDossier(asset, origin), [asset, origin]);
   const death = useMemo(() => cardDeathRecord(asset, condition), [asset, condition]);
   const [copyStatus, setCopyStatus] = useState("");
@@ -146,7 +137,7 @@ export function WildsCardBack({ asset, origin, qr, condition }: { asset: Portabl
                 setCopyStatus("Copy was blocked. Use Download canonical proof instead.");
               }
             }} type="button">Copy canonical proof</button>
-            <button onClick={() => downloadText(dossier.canonicalProofJson, `${asset.manifest.formId}-proof.json`)} type="button">Download canonical proof</button>
+            <button onClick={() => { void (onSaveProof ? onSaveProof() : downloadPortableCard(asset)).catch(error => setCopyStatus(error instanceof Error ? error.message : "Could not save the verified proof.")); }} type="button">Download canonical proof</button>
             <button disabled={generatingPngProof} onClick={async () => {
               setGeneratingPngProof(true);
               try {

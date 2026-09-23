@@ -1,3 +1,5 @@
+import { createReceizClient } from "@receiz/sdk";
+import { openWildzArtifact } from "./wildz-artifact-custody";
 import type { DocumentVerifyResponse } from "@receiz/sdk";
 import type { WildzAdmittedArtifact } from "./wildz-artifact-custody";
 
@@ -67,8 +69,13 @@ function decodeBase64Url(value: string) {
 
 export async function openWildzArtifactSameOrigin(
   input: { bytes: Uint8Array; mimeType: string; name?: string },
-  fetchImpl: WildzVerifierFetch = fetch
+  fetchImpl?: WildzVerifierFetch
 ): Promise<WildzAdmittedArtifact> {
+  if (!fetchImpl) {
+    const client = createReceizClient({ fetchImpl: async () => { throw new Error("wildz_offline_verifier_network_forbidden"); } });
+    return openWildzArtifact(new Blob([input.bytes.slice().buffer], { type: input.mimeType }),
+      input.name ?? "wildz.receized", client.artifacts);
+  }
   const response = await fetchImpl("/api/document-verify", {
     method: "POST",
     body: input.bytes.slice(),

@@ -125,14 +125,15 @@ test("standalone card recovery prefers exact verified local truth before the pub
   assert.doesNotMatch(registry, /registryKey|Symbol\.for|resolveLocalPublicWildsCard/);
 });
 
-test("card and Vault sealing use the active Wildz Receiz ID without a Connect redirect", () => {
+test("SDK sealing uses the matching connected actor without adding a redirect to Save", () => {
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const route = readFileSync("app/api/receiz/proof-object/route.ts", "utf8");
   const identityAdapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
   assert.doesNotMatch(inventory, /\/api\/auth\/receiz\/start|ensureWildzNativeProofSession|ensureActiveWildzProofSession|receizResume/);
-  assert.doesNotMatch(route, /resolveWildzCookieActor|receiz_authority_required/);
-  assert.match(route, /requireVerifiedWildzPng/);
-  assert.match(route, /\/api\/document-seal/);
+  assert.match(route, /resolveWildzCookieActor/);
+  assert.match(route, /if \(!actor.accessToken\) return json\("receiz_authority_required", 401\)/);
+  assert.match(route, /createWildzExportProofObject/);
+  assert.match(route, /client.assets.createProofObject/);
   assert.doesNotMatch(route, /verifyReceizArtifact/);
   assert.match(identityAdapter, /prepareWildzIdentityPlayerVault/);
   assert.match(identityAdapter, /savePreparedWildzIdentityPlayerVault/);

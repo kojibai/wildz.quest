@@ -113,7 +113,7 @@ test("saving an Identity Seal after Vault imports carries complete game state an
   assert.equal(verified.player, null);
 });
 
-test("Identity Seal download uses protected authority and a normalized PNG filename", async () => {
+test("Identity Seal download refuses to send a plaintext recovery key or download an unsealed fallback", async () => {
   const identity = await createReceizIdIdentity({ username: "seal_download", displayName: "Seal Download" });
   const session = await sessionFromIdentity(identity);
   let requestedKeyId: string | null = null;
@@ -182,7 +182,7 @@ test("Identity Seal download uses protected authority and a normalized PNG filen
   URL.revokeObjectURL = (url: string) => { revokedUrl = url; };
 
   try {
-    await downloadWildzIdentitySeal(repository, session);
+    await assert.rejects(downloadWildzIdentitySeal(repository, session), /wildz_local_signer_storage_unavailable/);
   } finally {
     URL.createObjectURL = createObjectUrl;
     URL.revokeObjectURL = revokeObjectUrl;
@@ -191,14 +191,12 @@ test("Identity Seal download uses protected authority and a normalized PNG filen
   }
 
   assert.equal(requestedKeyId, identity.keyFile.keyId);
-  assert.equal(download.blob?.type, "image/png");
-  assert.match(anchor.download, /^seal_download\.receiz-identity-seal\.kai-\d{10}-\d{6}\.\d{2}-\d{2}-\d{2}\.png$/);
-  assert.equal(anchor.href, "blob:wildz-identity-seal");
-  assert.equal(anchor.rel, "noopener");
-  assert.equal(appended, true);
-  assert.equal(anchor.clicked, true);
-  assert.equal(anchor.removed, true);
-  assert.equal(revokedUrl, "blob:wildz-identity-seal");
+  assert.equal(download.blob, null);
+  assert.equal(anchor.download, "");
+  assert.equal(appended, false);
+  assert.equal(anchor.clicked, false);
+  assert.equal(anchor.removed, false);
+  assert.equal(revokedUrl, null);
 });
 
 test("Identity Seal download rejects an invalid username before opening authority", async () => {
@@ -219,7 +217,7 @@ test("Identity Seal download rejects an invalid username before opening authorit
   assert.equal(authorityOpened, false);
 });
 
-test("Identity Seal download revokes its object URL when DOM setup throws", async () => {
+test("Identity Seal export refuses an unsafe seal before allocating a download URL", async () => {
   const identity = await createReceizIdIdentity({ username: "seal_cleanup", displayName: "Seal Cleanup" });
   const session = await sessionFromIdentity(identity);
   const repository = {
@@ -277,9 +275,9 @@ test("Identity Seal download revokes its object URL when DOM setup throws", asyn
   try {
     await assert.rejects(
       downloadWildzIdentitySeal(repository, session),
-      /wildz_test_dom_setup_failed/
+      /wildz_local_signer_storage_unavailable/
     );
-    assert.equal(revokedUrl, "blob:wildz-cleanup-failure");
+    assert.equal(revokedUrl, null);
   } finally {
     URL.createObjectURL = createObjectUrl;
     URL.revokeObjectURL = revokeObjectUrl;

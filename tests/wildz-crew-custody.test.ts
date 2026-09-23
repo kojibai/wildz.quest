@@ -100,12 +100,12 @@ test("bootstrap paints before optional custody reopening and inventory updates c
   assert.doesNotMatch(effect, /inventory\]/);
 });
 
-test("roaming restore downloads the existing claimed artifact before any validation and never claims or reseals", async () => {
+test("roaming restore verifies before downloading the exact claimed artifact and never claims or reseals", async () => {
   const { readFileSync } = await import("node:fs");
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
   const start = shell.indexOf("const restoreRoamingCapture = useCallback");
   const callback = shell.slice(start, shell.indexOf("const activateIdentitySeal", start));
-  assert.ok(callback.indexOf("downloadBlob(") < callback.indexOf("await openWildzArtifactSameOrigin("));
+  assert.ok(callback.indexOf("downloadBlob(") > callback.indexOf("await openWildzArtifactSameOrigin("));
   assert.match(callback, /opened\.ownershipWitness\.ownerReceizId/);
   assert.match(callback, /validateWildsRoamingHandoffCard\(opened\.payloadBytes, sidecar\)/);
   assert.match(callback, /defaultWildzProofSourceRepository\.retain/);

@@ -1,5 +1,6 @@
 "use client";
 
+import { initialPlayState } from "../game-state";
 import { useState } from "react";
 import type { WildsResourceLotV1 } from "../wilds-resource-lot";
 import { WildsWalletTerminal } from "./WildsWalletTerminal";
@@ -23,7 +24,7 @@ export function WildsWalletEdgeBrowserFixture() {
   const [state, setState] = useState<WildsWalletPresentationState>({
     ...fixtureState("verified"),
     balanceBasis: "current",
-    summary: { ...fixtureState("verified").summary!, admittedPhiMicro: "20000" },
+    summary: { ...fixtureState("verified").summary!, admittedPhiMicro: "19726741562", displayUsdCents: "671317465" },
     capabilities: {
       read: "available", receive: "available", recipientLookup: { available: true }, send: { available: true },
       resourceTransfer: { available: true }, cardTransfer: { available: true }, phiSettlement: { available: true }, phiReserve: { available: true }
@@ -33,6 +34,8 @@ export function WildsWalletEdgeBrowserFixture() {
   const fixtureActions = {
     ...actions,
     onNavigate(page: WildsWalletControllerState["page"]) { setState((current) => ({ ...current, page })); },
+    onLookupRecipient(username: string) { setState(current => ({ ...current, transfer: { ...current.transfer, phase: "amount", recipientUsername: username } })); },
+    onReviewAmount(rail: "settlement" | "reserve", amountPhiMicro: string, operationNonce: string) { setState(current => ({ ...current, transfer: { ...current.transfer, phase: "review", rail, amountPhiMicro, operationNonce } })); },
     onRequestReceive() {
       setState((current) => ({ ...current, receiveRequestId: 1, receiveLocator: null }));
       window.setTimeout(() => setState((current) => ({ ...current, receiveRequestId: null, receiveLocator: `wildz:receive:v1.${"a".repeat(16)}.${"b".repeat(32)}.${"c".repeat(22)}` })), 20);
@@ -41,7 +44,7 @@ export function WildsWalletEdgeBrowserFixture() {
       setState((current) => ({ ...current, page: "send", transfer: { ...current.transfer, phase: "amount", recipientUsername: username, recipientLocator: locator, amountPhiMicro } }));
     }
   };
-  return <main className="wildz-app" data-testid="wallet-edge-browser-fixture"><WildsWalletTerminal onSendResource={async () => ({ claimUrl: "https://wildz.quest/claim#proof=fixture" })} publicUsername="explorer" resourceLots={[resourceFixture]} state={state} {...fixtureActions} /></main>;
+  return <main className="wildz-app" data-testid="wallet-edge-browser-fixture"><WildsWalletTerminal cards={initialPlayState.inventory} inventoryCounts={{ resourceUnits: 233, creatureCards: 46 }} onSendResource={async () => ({ claimUrl: "https://wildz.quest/claim#proof=fixture" })} publicUsername="explorer" resourceLots={[resourceFixture]} state={state} {...fixtureActions} /></main>;
 }
 export function WildsWalletBrowserFixture() {
   return <div id="wilds-wallet-browser-fixture">{[["verified", fixtureState("verified")], ["offline-verified", fixtureState("offline-verified")], ["unknown", fixtureState("verified", "unknown")], ["zero-write", fixtureState("verified", "zero-write")], ["committed", fixtureState("verified", "committed")]].map(([name, state]) => <div data-fixture-state={name as string} key={name as string}><WildsWalletTerminal publicUsername="fixture-explorer" state={state as WildsWalletControllerState} {...actions} /></div>)}</div>;

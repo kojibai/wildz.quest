@@ -238,10 +238,10 @@ test("v102 keeps MCP and authenticated proof-object creation out of browser feat
   const compatibilityRoute = readFileSync("app/api/receiz/seal/route.ts", "utf8");
   assert.doesNotMatch(productionRuntime, /@receiz\/mcp-server/);
   assert.doesNotMatch(browserRuntime, /\bcreateProofObject\s*\(/);
-  assert.doesNotMatch(proofObjectRoute, /resolveWildzCookieActor/);
-  assert.match(proofObjectRoute, /requireVerifiedWildzPng/);
+  assert.match(proofObjectRoute, /resolveWildzCookieActor/);
+  assert.match(proofObjectRoute, /createWildzExportProofObject/);
   assert.doesNotMatch(proofObjectRoute, /verifyReceizArtifact/);
-  assert.match(proofObjectRoute, /\/api\/document-seal/);
+  assert.match(proofObjectRoute, /client.assets.createProofObject/);
   assert.match(proofObjectRoute, /content-length/);
   assert.match(artifactTransport, /value\.size <= 0 \|\| value\.size > input\.maximumBytes/);
   assert.doesNotMatch(proofObjectRoute, /wildz_proof_object_length_required/);

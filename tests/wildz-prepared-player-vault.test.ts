@@ -21,10 +21,12 @@ async function fixture() {
   return { identity, assets, player, session };
 }
 
-test("full Vault prepares once locally and preserves every captured card and signed player payload", async () => {
+test("Vault payload preparation shares signing and preserves all data through the supplied sealer", async () => {
   const { identity, assets, player, session } = await fixture();
   let renders = 0, signatures = 0;
   const prepare = createWildzIdentityPlayerVaultPreparer({
+    // Payload-only port for testing signing/cache behavior, not canonical sealing.
+    seal: async ({ bytes, filename }) => ({ bytes: bytes.slice(), filename, mimeType: "image/png", blob: new Blob([bytes.slice().buffer]) }),
     render: async (cards, state) => { renders++; return new Blob([embedPortableVaultInPng(png, cards, state)], { type: "image/png" }); },
     sign: async (_key, action) => { signatures++; return action(identity.keyFile); }
   });
@@ -69,9 +71,11 @@ test("full Vault refuses a substituted player or signing identity", async () => 
   await assert.rejects(wrongPayload(session, assets, player), /export_proof_invalid/);
 });
 
-test("a saved full Vault restores every captured card into the same active Receiz ID", async () => {
+test("a legacy signed Vault payload restores every captured card into the same active Receiz ID", async () => {
   const { identity, assets, player, session } = await fixture();
   const prepare = createWildzIdentityPlayerVaultPreparer({
+    // Payload-only port for testing signing/cache behavior, not canonical sealing.
+    seal: async ({ bytes, filename }) => ({ bytes: bytes.slice(), filename, mimeType: "image/png", blob: new Blob([bytes.slice().buffer]) }),
     render: async (cards, state) => new Blob([embedPortableVaultInPng(png, cards, state)]),
     sign: async (_key, action) => action(identity.keyFile)
   });

@@ -2916,6 +2916,7 @@ export function PlayCampaign({
             />
 
             {exclusiveOwner === "wallet" ? <WildsWalletTerminal
+              inventoryCounts={{ resourceUnits: walletPlayStateSeed.resourceUnits + availableMaterialLots.length + Object.values(livingWorld.snapshot?.resourceLots ?? {}).filter((lot) => sameWildzPlayerCoordinate(livingWorld.snapshot?.resourceCustody?.[lot.lotId]?.ownerReceizId ?? lot.ownerReceizId, ownerReceizId)).reduce((total, lot) => total + lot.quantity, 0), creatureCards: state.inventory.length }}
               actionHistory={state.actionHistory}
               livingOperations={livingWorld.snapshot?.livingOperations}
               cards={state.inventory}

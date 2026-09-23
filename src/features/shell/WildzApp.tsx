@@ -81,7 +81,6 @@ import { usePublicCardPublisher } from "@/features/play/use-public-card-publishe
 import { startWildzProfilePublication, wildzProfilePublicationDisposition, type ProfilePublicationStatus } from "@/features/profile/background-publication";
 import type { ProfilePublicationFailure } from "@/features/profile/publication-failure";
 import { createWildzExportCoordinator } from "@/lib/receiz/wildz-export-coordinator";
-import { wildzIdentitySealFilename } from "@/lib/receiz/wildz-identity-seal";
 import { downloadBlob } from "@/features/play/card-export";
 import { downloadRestoredWildzCard } from "@/lib/receiz/wildz-upload-card-download";
 import { publishWildzProfileWithIdentityProof } from "@/lib/receiz/wildz-profile-identity-publication";
@@ -249,7 +248,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (!worldPainted) return;
     let active = true;
     void (async () => {
-      for (const load of [loadWildzProfileSheet, loadWildzVaultSheet]) {
+      for (const load of [loadWildzProfileSheet, loadWildzVaultSheet,
+        () => import("../../lib/receiz/local-seal/reference/realGroth16ProofClient").then(runtime => runtime.prewarmDocumentSealGroth16Runtime())]) {
         await wildzGameplayBackground.run(async () => {
           if (active) await load();
         }, { timeoutMs: 2_500 }).catch(() => undefined);
@@ -736,8 +736,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (current.session.localAuthority !== "verified") throw new Error("wildz_identity_card_authority_required");
     const artifact = await prepareCombinedVaultForSave(current);
     if (continuityRef.current?.session.keyId !== current.session.keyId) throw new Error("wildz_identity_changed");
-    downloadBlob(artifact.blob ?? new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType }),
-      wildzIdentitySealFilename(current.session.username ?? current.session.actorId, new Date().toISOString()));
+    downloadBlob(artifact.blob ?? new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType }), artifact.filename);
   };
 
   const saveIdentitySeal = async () => {
@@ -866,9 +865,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const restoreRoamingCapture = useCallback(async (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState) => {
     const current = continuityRef.current;
     const bytes = new Uint8Array(await file.arrayBuffer());
-    // Claim already committed remotely. Preserve its exact successor before any
-    // verification, account switch, retention or local restore can fail.
-    downloadBlob(new Blob([bytes.slice().buffer], { type: file.type }), file.name);
     const sidecar = structuredClone(currentCard);
     if (!current) throw new Error("wildz_restore_identity_missing");
     const opened = await openWildzArtifactSameOrigin({ bytes, mimeType: file.type, name: file.name });
@@ -877,6 +873,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       || !sameWildzPlayerCoordinate(opened.ownershipWitness.ownerReceizId, current.session.actorId))
       throw new Error("The captured artifact did not verify for this keeper.");
     validateWildsRoamingHandoffCard(opened.payloadBytes, sidecar);
+    // Preserve the exact verified successor before retention or local restore.
+    downloadBlob(new Blob([bytes.slice().buffer], { type: file.type }), file.name);
     await defaultWildzProofSourceRepository.retain({ bytes, filename: file.name, mimeType: file.type, assetId: sidecar.id });
     const prepared = await prepareWildzRestore(file);
     const latest = continuityRef.current;

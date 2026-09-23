@@ -13,7 +13,7 @@ import { PhiNetworkAmount } from "./PhiNetworkMark";
 type LedgerFilter = "all" | "value" | "creatures" | "materials" | "resources" | "activity";
 type LocalEntry = Readonly<{ id: string; kind: Exclude<LedgerFilter, "all">; title: string; detail: string; value: string; timing: string; uPulse: number | null; status?: string; constitution?: WildsActivityEntry["constitution"] }>;
 
-export function WildsWalletLedger({ actionHistory = [], livingOperations = {}, cards = [], materialLots = [], resourceLots = [], state, stewardPhiAwards = [] }: {
+export type WildsWalletLedgerProps = {
   actionHistory?: readonly WildsActivityEntry[];
   livingOperations?: Readonly<Record<string, WildsLivingOperationPlanV1>>;
   cards?: readonly PortableCardAsset[];
@@ -21,7 +21,11 @@ export function WildsWalletLedger({ actionHistory = [], livingOperations = {}, c
   resourceLots?: readonly WildsResourceLotV1[];
   state: WildsWalletControllerState;
   stewardPhiAwards?: readonly WildsStewardPhiAwardV1[];
-}) {
+  preview?: boolean;
+  onOpenLedger?(): void;
+};
+
+export function WildsWalletLedger({ actionHistory = [], livingOperations = {}, cards = [], materialLots = [], resourceLots = [], state, stewardPhiAwards = [], preview = false, onOpenLedger }: WildsWalletLedgerProps) {
   const [filter, setFilter] = useState<LedgerFilter>("all");
   const localEntries = useMemo<readonly LocalEntry[]>(() => [
     ...stewardPhiAwards.map((award): LocalEntry => ({ id: award.awardId, kind: "value", title: "Stewardship award", detail: `Source proof · ${award.operationId}`, value: formatWildsPhiExact(award.amountPhiMicro), ...ledgerKaiTime({ uPulse: livingOperations[award.operationId]?.kaiUPulse }) })),
@@ -38,13 +42,14 @@ export function WildsWalletLedger({ actionHistory = [], livingOperations = {}, c
     ...ledgerKaiTime({ occurredAt: entry.createdAt }), status: entry.state
   }));
   const entries = [...localEntries, ...remoteEntries].reverse().sort((a, b) => (b.uPulse ?? -Infinity) - (a.uPulse ?? -Infinity));
-  const shownLocal = filter === "all" ? entries : entries.filter((entry) => entry.kind === filter);
+  const filtered = filter === "all" ? entries : entries.filter((entry) => entry.kind === filter);
+  const shownLocal = preview ? entries.slice(0, 3) : filtered;
   const counts = { all: entries.length, value: entries.filter((entry) => entry.kind === "value").length, creatures: cards.length, materials: materialLots.length, resources: resourceLots.length, activity: actionHistory.length };
-  return <section aria-labelledby="wilds-wallet-ledger-title" className="wilds-wallet-surface">
-    <header><small>ACTIVITY & RECEIPTS</small><h2 id="wilds-wallet-ledger-title">Ledger</h2><a href="/laws" target="_blank" rel="noreferrer">World law ↗</a></header>
-    <div aria-label="Ledger activity filters" className="wilds-wallet-ledger-filters" role="group">{([[
+  return <section aria-labelledby="wilds-wallet-ledger-title" className={`wilds-wallet-surface${preview ? " wilds-wallet-activity-preview" : ""}`}>
+    {preview ? <header><h2 id="wilds-wallet-ledger-title">Recent activity</h2><button type="button" onClick={onOpenLedger}>View all ↗</button></header> : <header><small>ACTIVITY & RECEIPTS</small><h2 id="wilds-wallet-ledger-title">Ledger</h2><a href="/laws" target="_blank" rel="noreferrer">World law ↗</a></header>}
+    {!preview && <div aria-label="Ledger activity filters" className="wilds-wallet-ledger-filters" role="group">{([[
       "all", "All activity"], ["value", "Value"], ["creatures", "Creatures"], ["materials", "Materials"], ["resources", "Resources"], ["activity", "Gameplay"]
-    ] as const).map(([value, label]) => <button aria-pressed={filter === value} key={value} onClick={() => setFilter(value)} type="button"><span>{label}</span><b>{counts[value]}</b></button>)}</div>
+    ] as const).map(([value, label]) => <button aria-pressed={filter === value} key={value} onClick={() => setFilter(value)} type="button"><span>{label}</span><b>{counts[value]}</b></button>)}</div>}
     <div className="wilds-wallet-ledger" role="list">{shownLocal.map((entry) => <article key={entry.id} role="listitem">
       <span className={`is-${entry.status ?? "committed"}`} aria-hidden="true" />
       <div><p><b>{entry.title}</b><small>{entry.detail}</small></p>{entry.constitution && <details><summary>Source &amp; world law</summary><p>{entry.constitution.result} · {entry.constitution.rulesApplied.join(" · ")}</p><small>Actor: {entry.constitution.actor}</small><small>Source: {entry.constitution.sourceState}</small><small>Successor: {entry.constitution.successor ?? "Unresolved"}</small><small>Challenge this claim by identifying its source or a failed predicate.</small></details>}</div>

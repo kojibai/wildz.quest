@@ -25,6 +25,10 @@ const LOCAL_VOICE_URLS = [
   "/vendor/onnxruntime/ort-wasm-simd-threaded.jsep.wasm"
 ];
 const SHELL_URLS = [
+  "/snarkjs.min.js",
+  "/zk/document_seal_proof_final.zkey",
+  "/zk/document_seal_proof_js/sigil_proof.wasm",
+  "/zk/document_seal_verification_key.json",
   "/",
   "/offline",
   "/brand/wildz-mark.svg",
@@ -45,7 +49,9 @@ const NETWORK_ONLY_PREFIXES = [
 ];
 
 function isImmutableShellAsset(pathname) {
-  return pathname.startsWith("/_next/static/")
+  return pathname === "/snarkjs.min.js"
+    || pathname.startsWith("/zk/")
+    || pathname.startsWith("/_next/static/")
     || pathname.startsWith("/brand/")
     || pathname.startsWith("/icons/");
 }

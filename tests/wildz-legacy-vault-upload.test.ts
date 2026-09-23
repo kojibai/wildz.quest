@@ -20,6 +20,8 @@ test("verified older portable cards restore locally into a different active Vaul
   const card = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "legacyowner", encounterId: "legacy-upload", capturedAt: "2026-09-12T12:00:00.000Z" });
   const player = createWildsPlayerVault({ playerId: "legacyowner", exportedAt: "2026-09-12T12:00:00.000Z", playState: { ...initialPlayState, inventory: [card] }, settings: { avatarStyle: null, movementMode: "walk", audio: {} }, personalEvents: [], canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null }, receipts: [] });
   const prepare = createWildzIdentityPlayerVaultPreparer({
+    // Deliberately construct the historical unsealed format for read compatibility.
+    seal: async ({ bytes, filename }) => ({ bytes: bytes.slice(), filename, mimeType: "image/png", blob: new Blob([bytes.slice().buffer]) }),
     render: async (assets, state) => new Blob([embedPortableVaultInPng(png, assets, state)], { type: "image/png" }),
     sign: async (_keyId, action) => action(source.keyFile)
   });

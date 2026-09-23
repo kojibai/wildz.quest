@@ -167,7 +167,7 @@ test("authenticated v103 native export submits only the validated PNG and return
     idempotencyKey: observedOptions.idempotencyKey
   }, {
     filename: "wilds-vault.png",
-    idempotencyKey: `wildz-v119-${await crypto.subtle.digest("SHA-256", source.slice().buffer).then((value) => Buffer.from(value).toString("hex"))}`
+    idempotencyKey: `wildz-v126-${await crypto.subtle.digest("SHA-256", source.slice().buffer).then((value) => Buffer.from(value).toString("hex"))}`
   });
   assert.strictEqual(created.artifact, nativeArtifact);
   assert.deepEqual(created.admitted.artifactBytes, nativeBytes);

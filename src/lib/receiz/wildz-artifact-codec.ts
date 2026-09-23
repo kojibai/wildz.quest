@@ -1,3 +1,4 @@
+import { hasWildzCardSealPayload, unpackWildzCardSealPayload } from "./wildz-card-seal-payload";
 import { isAdmittedWildsCard } from "../../features/play/admitted-inventory";
 import { isVerifiedWildzCardDescendant } from "./wildz-card-descendant";
 import {
@@ -282,6 +283,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
           }
         }
       }
+      if (pngBasis && hasWildzCardSealPayload(pngBasis)) proofObjectArtifactBytes = bytes;
       const proofObjectCandidate = proofObjectArtifactBytes !== null;
       if (proofObjectArtifactBytes !== null) {
         try {
@@ -292,7 +294,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
             ...(artifact.name ? { name: artifact.name } : {})
           });
           proofObjectPayload = {
-            bytes: admitted.payloadBytes,
+            bytes: isWildzPng(admitted.payloadBytes) ? await unpackWildzCardSealPayload(admitted.payloadBytes) : admitted.payloadBytes,
             mimeType: admitted.mimeType
           };
           proofObject = {

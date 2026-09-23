@@ -1,3 +1,4 @@
+import { prepareWildzGameImage } from "./wildz-game-image-export";
 import type { ReceizKeyFile } from "@receiz/sdk";
 import { canonicalPortableCardJson, sha256PortableBasis, portableCardBaseProofAsset, type PortableCardAsset } from "../../features/play/portable-card";
 import { cardArtifactFingerprint } from "../../features/play/prepared-card-artifact";
@@ -12,13 +13,14 @@ export type WildzPreparedIdentityPlayerVault = Readonly<{
   bytes: Uint8Array;
   blob?: Blob;
   filename: string;
-  mimeType: "image/png";
+  mimeType: string;
   keyId: string;
   ownerReceizId: string;
   playerPayloadDigest: string;
 }>;
 
 export function createWildzIdentityPlayerVaultPreparer(dependencies: {
+  seal?: typeof prepareWildzGameImage;
   render(assets: PortableCardAsset[], player: WildsPlayerVaultPayload): Promise<Blob>;
   sign<T>(keyId: string, action: (keyFile: ReceizKeyFile) => Promise<T>): Promise<T>;
 }) {
@@ -53,7 +55,8 @@ export function createWildzIdentityPlayerVaultPreparer(dependencies: {
         }
         return createWildzIdentityBoundPlayerVault({ keyFile, vaultBytes, ...(passphrase !== undefined ? { passphrase } : {}) });
       });
-      return { bytes, filename: `wilds-vault-${proof.vaultDigest.slice(7, 19)}.png`, mimeType: "image/png" as const,
+      const sealed = await (dependencies.seal ?? prepareWildzGameImage)({ bytes, filename: `wilds-vault-${proof.vaultDigest.slice(7, 19)}.png`, kind: "vault" });
+      return { ...sealed,
         keyId: session.keyId, ownerReceizId: player.playerId, playerPayloadDigest: player.payloadDigest };
     });
   };

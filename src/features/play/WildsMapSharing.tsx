@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, Upload } from "lucide-react";
 import type { WildsExplorationAtlas } from "./wilds-exploration-atlas";
+import { prepareWildzGameImage } from "../../lib/receiz/wildz-game-image-export";
+import { openWildzSealedCard } from "../../lib/receiz/wildz-sealed-card";
+import { saveBlobToDevice } from "./card-export";
 import { readWildsMapFromPng } from "./wilds-map-image";
 
 export function WildsMapSharing({ atlas, onImport }: {
@@ -25,11 +28,9 @@ export function WildsMapSharing({ atlas, onImport }: {
     try {
       const { renderWildsMapImage } = await import("./wilds-map-image-render");
       const blob = await renderWildsMapImage(atlas);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url; link.download = "wildz-discovered-map.png";
-      document.body.appendChild(link); link.click(); link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      const artifact = await prepareWildzGameImage({ bytes: new Uint8Array(await blob.arrayBuffer()),
+        filename: "wildz-discovered-map.png", kind: "map" });
+      await saveBlobToDevice(artifact.blob, artifact.filename);
       setStatus("Map saved. Share the original PNG so others can import it.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save your map. Try again.");
@@ -39,7 +40,8 @@ export function WildsMapSharing({ atlas, onImport }: {
     if (busyRef.current) return;
     busyRef.current = true; setBusy("import"); setStatus("Reading map…");
     try {
-      const incoming = readWildsMapFromPng(new Uint8Array(await file.arrayBuffer()));
+      const opened = await openWildzSealedCard({ bytes: new Uint8Array(await file.arrayBuffer()), mimeType: file.type, name: file.name });
+      const incoming = readWildsMapFromPng(opened.payloadBytes);
       onImport(incoming);
       setStatus("Map added. All your previous discoveries are preserved.");
     } catch (error) {
@@ -50,7 +52,7 @@ export function WildsMapSharing({ atlas, onImport }: {
     <span className="wilds-map-sharing" role="group" aria-label="Share discovered territory" aria-busy={busy !== null}>
       <button className="wilds-map-share-button" aria-label="Save map image" title="Save map image" disabled={busy !== null} onClick={() => void save()} type="button"><Download size={16} strokeWidth={1.7} aria-hidden="true" /></button>
       <button className="wilds-map-share-button" aria-label="Import map image" title="Import map image" disabled={busy !== null} onClick={() => input.current?.click()} type="button"><Upload size={16} strokeWidth={1.7} aria-hidden="true" /></button>
-      <input ref={input} type="file" accept="image/png,.png" hidden aria-label="Choose a saved Wildz map PNG" onChange={event => {
+      <input ref={input} type="file" accept="image/png,.png,.receizbundle,.receized" hidden aria-label="Choose a saved Wildz map PNG" onChange={event => {
         const file = event.currentTarget.files?.[0];
         event.currentTarget.value = "";
         if (file) void upload(file);
