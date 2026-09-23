@@ -30,9 +30,9 @@ export function projectWildsWalletFromIdentityAccount(
   const walletAccount = record(wallet?.account);
   const sourceSummary = routeSummary ?? wallet;
   const carriedBalance = sourceSummary?.balancePhiMicro ?? walletAccount?.balance_phi_micro ?? snapshot?.balancePhiMicro;
-  // The Receiz ID is the wallet. Absence of a settlement history is its exact
-  // zero-value genesis state, not absence of wallet authority.
-  const balancePhiMicro = carriedBalance === undefined || carriedBalance === null ? "0" : carriedBalance;
+  // An identity can omit its wallet snapshot. Missing funds data is unknown,
+  // not evidence of an empty account; only carry an explicitly recorded balance.
+  const balancePhiMicro = carriedBalance;
   if (typeof balancePhiMicro !== "string") return null;
   const summary = projectWildsWalletSummary({
     ok: true,

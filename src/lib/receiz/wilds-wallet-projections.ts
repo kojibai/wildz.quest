@@ -168,12 +168,22 @@ export function normalizeWildsWalletCursor(value: unknown) {
   return value;
 }
 
+function exactUsdCents(value: unknown) {
+  if (typeof value !== "string" || !/^[0-9]+(?:\.[0-9]{1,2})?$/.test(value)) {
+    throw new Error("wilds_wallet_summary_invalid");
+  }
+  const [whole, fraction = ""] = value.split(".");
+  return parseWildsWalletMicroPhi(`${whole}${fraction.padEnd(2, "0")}`.replace(/^0+(?=\d)/, ""));
+}
+
 export function projectWildsWalletSummary(value: unknown): WalletSummaryProjection {
-  const summary = asRecord(value);
-  if (summary.ok !== true) throw new Error("wilds_wallet_summary_invalid");
+  const envelope = asRecord(value);
+  if (envelope.ok !== true) throw new Error("wilds_wallet_summary_invalid");
+  // Connect wraps its summary in wallet; portable snapshots may be flat.
+  const summary = Object.hasOwn(envelope, "wallet") ? asRecord(envelope.wallet) : envelope;
   const balancePhiMicro = parseWildsWalletMicroPhi(summary.balancePhiMicro);
   const displayUsdCents = summary.balanceUsdCents === undefined || summary.balanceUsdCents === null
-    ? null
+    ? (summary.balanceUsd === undefined || summary.balanceUsd === null ? null : exactUsdCents(summary.balanceUsd))
     : parseWildsWalletMicroPhi(summary.balanceUsdCents);
   const assetCounts = projectAssetCounts(summary);
   return Object.freeze({

@@ -34,6 +34,28 @@ describe("Wilds wallet projections", () => {
     assert.doesNotMatch(JSON.stringify(projection), /private-owner|private-head/);
   });
 
+  it("reads the nested Connect wallet envelope returned by Receiz", () => {
+    const projection = projectWildsWalletSummary({
+      ok: true,
+      wallet: {
+        userId: "private-owner",
+        balancePhiMicro: "123456789012345678901234",
+        balancePhi: "123456789012345678.901234",
+        balanceUsd: "123456789012345678.90",
+        quote: { private: true }
+      }
+    });
+    assert.equal(projection.admittedPhiMicro, "123456789012345678901234");
+    assert.equal(projection.displayUsdCents, "12345678901234567890");
+    assert.doesNotMatch(JSON.stringify(projection), /private-owner|quote/);
+  });
+
+  it("does not fabricate a balance from a missing or malformed Connect wallet", () => {
+    for (const wallet of [null, {}, { balancePhiMicro: "1.25" }, { balancePhiMicro: 125 }]) {
+      assert.throws(() => projectWildsWalletSummary({ ok: true, wallet }));
+    }
+  });
+
   it("retains supplied bounded asset counts only when every count is present", () => {
     assert.deepEqual(projectWildsWalletSummary({
       ok: true,

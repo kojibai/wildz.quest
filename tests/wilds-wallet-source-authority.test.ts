@@ -69,18 +69,16 @@ test("projects the exact older portable wallet account without a server read", (
   assert.equal(projection?.summary.displayUsdCents, "90000");
 });
 
-test("a Receiz ID with no settlement block is still its exact zero-value wallet", () => {
+test("a missing settlement block does not establish a zero balance", () => {
   const projection = projectWildsWalletFromIdentityAccount(identityAccount({
     verifiedState: { account: { userId: "receiz:explorer", username: "explorer" } },
     domains: { ...identityAccount().domains, wallet: false }
   }));
 
-  assert.equal(projection?.summary.admittedPhiMicro, "0");
-  assert.equal(projection?.summary.displayUsdCents, null);
-  assert.equal(projection?.capabilities.receive, "available");
+  assert.equal(projection, null);
 });
 
-test("an identity-only Receiz ID is an active zero-value wallet", () => {
+test("an identity-only Receiz ID has an unknown balance", () => {
   const projection = projectWildsWalletFromIdentityAccount(identityAccount({
     accountStateSchema: null,
     portableStateVerified: false,
@@ -91,10 +89,16 @@ test("an identity-only Receiz ID is an active zero-value wallet", () => {
     domains: Object.fromEntries(Object.keys(identityAccount().domains).map((domain) => [domain, false])) as ReceizIdentityAccountProjection["domains"]
   }));
 
-  assert.equal(projection?.summary.admittedPhiMicro, "0");
-  assert.equal(projection?.capabilities.receive, "available");
+  assert.equal(projection, null);
 });
 
 test("never projects a rejected portable state as wallet truth", () => {
   assert.equal(projectWildsWalletFromIdentityAccount(identityAccount({ portableStateVerified: false, authority: "rejected-portable-state" })), null);
+});
+
+test("an explicitly recorded zero is a valid balance", () => {
+  const projection = projectWildsWalletFromIdentityAccount(identityAccount({
+    verifiedState: { wallet: { routeSummary: { balancePhiMicro: "0" } } }
+  }));
+  assert.equal(projection?.summary.admittedPhiMicro, "0");
 });
