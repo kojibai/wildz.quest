@@ -37,6 +37,9 @@ export type WildsWalletTransferState = Readonly<{
 export type WildsWalletControllerState = Readonly<{
   identityKey: string; authorityGeneration: string; open: boolean; page: WildsWalletPage; status: WildsWalletControllerStatus;
   sourceAuthorityVerified: boolean;
+  /** Saved proof projection remains separate from the current settlement read. */
+  sourceSnapshot?: WildsWalletReadResponse | null;
+  balanceBasis?: "saved" | "current";
   transportAuthorityRequired?: boolean;
   requestId: number | null; receiveRequestId: number | null; summary: WalletSummaryProjection | null; capabilities: WalletCapabilityProjection | null;
   ledger: WalletLedgerPageProjection | null; recipient: WildsWalletRecipientState; receiveLocator: string | null; stagedTransactionId: string | null;
@@ -129,17 +132,18 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
     case "navigate": return state.page === event.page ? state : { ...state, page: event.page };
     case "refresh-start": return { ...state, status: "loading", requestId: event.requestId };
     case "source-authority-resolved":
-      if (state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration || state.status === "verified") return state;
-      return { ...state, status: "source-verified", sourceAuthorityVerified: true, ...(event.response ? { summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger } : {}) };
+      if (state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration) return state;
+      if (state.balanceBasis === "current" || state.status === "verified") return { ...state, sourceAuthorityVerified: true, sourceSnapshot: event.response };
+      return { ...state, status: "source-verified", sourceAuthorityVerified: true, sourceSnapshot: event.response, balanceBasis: "saved", ...(event.response ? { summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger } : {}) };
     case "refresh-resolved":
       if (state.requestId !== event.requestId || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration) return state;
-      // Transport only reports globally synchronized additions. It cannot
-      // enable, disable, or replace the source proof object's authority.
-      if (state.sourceAuthorityVerified) return { ...state, transportAuthorityRequired: false, status: "source-verified", requestId: null, capabilities: event.response.capabilities };
-      return { ...state, transportAuthorityRequired: false, status: "verified", requestId: null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
+      // Show the same current settlement balance used by transfer preview.
+      // This does not rewrite the identity proof or add lifetime awards to funds.
+      return { ...state, transportAuthorityRequired: false, status: "verified", balanceBasis: "current", requestId: null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
     case "refresh-failed":
       if (state.requestId !== event.requestId) return state;
-      if (state.sourceAuthorityVerified) return { ...state, status: "source-verified", requestId: null, transportAuthorityRequired: event.reason === "authority-required" || event.reason === "revoked" || state.transportAuthorityRequired === true };
+      if (event.reason === "network" && hasRetainedProjection(state) && state.balanceBasis === "current") return { ...state, status: "offline-verified", requestId: null };
+      if (state.sourceAuthorityVerified) return { ...state, ...(state.sourceSnapshot ? { summary: state.sourceSnapshot.summary, ledger: state.sourceSnapshot.ledger, capabilities: state.sourceSnapshot.capabilities } : { summary: null, ledger: null }), balanceBasis: "saved", status: "source-verified", requestId: null, transportAuthorityRequired: event.reason === "authority-required" || event.reason === "revoked" || state.transportAuthorityRequired === true };
       if (event.reason === "revoked") return clearPrivate(state, "revoked");
       if (event.reason === "network" && hasRetainedProjection(state)) return { ...state, status: "offline-verified", requestId: null };
       return clearPrivate(state, event.reason === "authority-required" ? "authority-required" : "failed");
@@ -308,15 +312,22 @@ export function admitWildsWalletReadResponse(value: unknown): WildsWalletReadRes
   return Object.freeze({ summary: item.summary, capabilities: item.capabilities, ledger: item.ledger });
 }
 export function createWildsWalletSessionCache(maxEntries: number) {
-  const entries = new Map<string, WildsWalletReadResponse>();
+  const entries = new Map<string, { response: WildsWalletReadResponse; balanceBasis: "saved" | "current" }>();
   return {
-    read(key: string | null) { return key ? entries.get(key) ?? null : null; },
-    write(key: string | null, value: unknown) { if (!key || !Number.isSafeInteger(maxEntries) || maxEntries < 1) return; entries.delete(key); entries.set(key, admitWildsWalletReadResponse(value)); while (entries.size > maxEntries) entries.delete(entries.keys().next().value!); },
+    read(key: string | null) { return key ? entries.get(key)?.response ?? null : null; },
+    balanceBasis(key: string | null) { return key ? entries.get(key)?.balanceBasis : undefined; },
+    write(key: string | null, value: unknown, balanceBasis: "saved" | "current" = "current") {
+      if (!key || !Number.isSafeInteger(maxEntries) || maxEntries < 1) return;
+      const response = admitWildsWalletReadResponse(value);
+      entries.delete(key);
+      entries.set(key, { response, balanceBasis });
+      while (entries.size > maxEntries) entries.delete(entries.keys().next().value!);
+    },
     delete(key: string | null) { if (key) entries.delete(key); }, clear() { entries.clear(); }
   };
 }
 export function hydrateWildsWalletControllerState(identityKey: string, authorityGeneration: string, cache: ReturnType<typeof createWildsWalletSessionCache>) {
   const state = createWildsWalletControllerState(identityKey, authorityGeneration);
   const cached = cache.read(walletAuthorityCacheKey(identityKey, authorityGeneration));
-  return cached ? { ...state, status: "offline-verified" as const, summary: cached.summary, capabilities: cached.capabilities, ledger: cached.ledger } : state;
+  return cached ? { ...state, status: "offline-verified" as const, balanceBasis: cache.balanceBasis(walletAuthorityCacheKey(identityKey, authorityGeneration)), summary: cached.summary, capabilities: cached.capabilities, ledger: cached.ledger } : state;
 }

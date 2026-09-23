@@ -257,3 +257,13 @@ test("transfer outcomes remain distinct and never promote ambiguous execution to
   }));
   assert.match(rejectedMarkup, /Nothing moved/);
 });
+
+
+test("wallet overview and HUD show the exact current spendable PHI balance", () => {
+  const current = state({ balanceBasis: "current", summary: { ...state().summary, admittedPhiMicro: "20000", displayUsdCents: null } });
+  const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, { publicUsername: "explorer", state: current, ...actions }));
+  assert.match(markup, /AVAILABLE PHI/);
+  assert.match(markup, /aria-label="0.02 Phi"/);
+  const hud = renderToStaticMarkup(createElement(WildsWalletInstrument, { disabled: false, state: current, onOpen() {} }));
+  assert.match(hud, /Available Phi: 0.02 Phi/);
+});

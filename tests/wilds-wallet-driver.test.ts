@@ -194,3 +194,41 @@ test("driver rejects a valid but crossed recipient response that does not match 
   assert.equal(driver.state.recipient.status, "failed");
   assert.equal(driver.state.recipient.projection, null);
 });
+
+
+test("refreshing a source-backed wallet shows and caches settled earnings", async () => {
+  const cache = createWildsWalletSessionCache(2);
+  const source = response();
+  const live = { ...source, summary: { ...source.summary, admittedPhiMicro: "20000" } };
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "earner", authorityGeneration: "generation-1", cache, publish() {},
+    fetcher: async path => ({ ok: true, status: 200, json: async () => path.endsWith("summary") ? live.summary : path.endsWith("capabilities") ? live.capabilities : live.ledger })
+  });
+  driver.admitSourceAuthority(source as Parameters<typeof driver.admitSourceAuthority>[0]);
+  await driver.refresh();
+  assert.equal(driver.state.summary?.admittedPhiMicro, "20000");
+  assert.equal(cache.read("earner:generation-1")?.summary.admittedPhiMicro, "20000");
+  driver.admitSourceAuthority(source as Parameters<typeof driver.admitSourceAuthority>[0]);
+  assert.equal(cache.read("earner:generation-1")?.summary.admittedPhiMicro, "20000");
+});
+
+
+test("a late saved identity projection cannot populate a different account", () => {
+  const driver = createWildsWalletControllerDriver({ identityKey: "old", authorityGeneration: "one", cache: createWildsWalletSessionCache(2), publish() {}, fetcher: async () => { throw new Error("not needed"); } });
+  driver.setAuthority("new", "two");
+  driver.admitSourceAuthority(response() as Parameters<typeof driver.admitSourceAuthority>[0], { identityKey: "old", authorityGeneration: "one" });
+  assert.equal(driver.state.summary, null);
+  assert.equal(driver.state.sourceAuthorityVerified, false);
+});
+
+
+test("remounting offline keeps the last current balance instead of the old identity balance", async () => {
+  const cache = createWildsWalletSessionCache(2);
+  const source = response();
+  cache.write("earner:generation-2", { ...source, summary: { ...source.summary, admittedPhiMicro: "30000" } });
+  const driver = createWildsWalletControllerDriver({ identityKey: "earner", authorityGeneration: "generation-2", cache, publish() {}, fetcher: async () => { throw new Error("offline"); } });
+  driver.admitSourceAuthority(source as Parameters<typeof driver.admitSourceAuthority>[0]);
+  await driver.refresh();
+  assert.equal(driver.state.summary?.admittedPhiMicro, "30000");
+  assert.equal(driver.state.status, "offline-verified");
+});

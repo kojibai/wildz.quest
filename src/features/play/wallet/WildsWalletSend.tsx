@@ -144,6 +144,7 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
     </form> : null}
     {transfer.phase === "amount" ? <form onSubmit={(event) => { event.preventDefault(); const micro = parseWildsPhiInput(amount); if (micro) actions.onReviewAmount("settlement", micro, crypto.randomUUID()); }}>
       <p className="wilds-wallet-counterparty">TO <b>@{transfer.recipientUsername}</b></p>
+      {state.summary ? <p>{state.balanceBasis === "current" && state.status !== "offline-verified" ? "Available PHI" : "Last known PHI"}: <PhiNetworkAmount value={formatWildsPhiExact(state.summary.admittedPhiMicro)} /></p> : null}
       <label htmlFor="wilds-wallet-amount">Phi amount</label><input id="wilds-wallet-amount" inputMode="decimal" onChange={(event) => setAmount(event.target.value)} placeholder="0.00" value={amount} />
       <button disabled={!parseWildsPhiInput(amount)} type="submit">Review exact amount</button>
     </form> : null}

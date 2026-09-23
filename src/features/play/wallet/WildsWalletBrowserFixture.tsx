@@ -21,7 +21,9 @@ const resourceFixture: WildsResourceLotV1 = {
 };
 export function WildsWalletEdgeBrowserFixture() {
   const [state, setState] = useState<WildsWalletPresentationState>({
-    ...fixtureState("source-verified"),
+    ...fixtureState("verified"),
+    balanceBasis: "current",
+    summary: { ...fixtureState("verified").summary!, admittedPhiMicro: "20000" },
     capabilities: {
       read: "available", receive: "available", recipientLookup: { available: true }, send: { available: true },
       resourceTransfer: { available: true }, cardTransfer: { available: true }, phiSettlement: { available: true }, phiReserve: { available: true }

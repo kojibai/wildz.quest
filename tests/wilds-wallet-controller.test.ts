@@ -157,7 +157,7 @@ test("identity authority never depends on a remote representation", () => {
   assert.equal(state.summary, null);
 });
 
-test("a remote wallet representation cannot replace source-carried holdings or ledger", () => {
+test("current settled PHI replaces the displayed saved balance after earnings", () => {
   let state = createWildsWalletControllerState("explorer", "generation-1");
   state = reduceWildsWalletController(state, {
     type: "source-authority-resolved", identityKey: "explorer", authorityGeneration: "generation-1", response: readResponse()
@@ -171,9 +171,9 @@ test("a remote wallet representation cannot replace source-carried holdings or l
     type: "refresh-resolved", requestId: 10, identityKey: "explorer", authorityGeneration: "generation-1", response: remote
   });
 
-  assert.equal(state.status, "source-verified");
-  assert.equal(state.summary?.admittedPhiMicro, "42");
-  assert.equal(state.ledger?.entries.length, 0);
+  assert.equal(state.status, "verified");
+  assert.equal(state.summary?.admittedPhiMicro, "999999999");
+  assert.equal(state.ledger, null);
 });
 
 test("ignores a stale completion after identity invalidation", () => {
@@ -438,7 +438,7 @@ test("never adopts a staged preview as execution success and expires review auth
 
 test("source verification preserves holdings but cannot hide expired server authority", () => {
   let state = verifiedState();
-  state = { ...state, sourceAuthorityVerified: true };
+  state = { ...state, sourceAuthorityVerified: true, sourceSnapshot: readResponse() };
   state = reduceWildsWalletController(state, { type: "refresh-start", requestId: 42 });
   state = reduceWildsWalletController(state, { type: "refresh-failed", requestId: 42, reason: "authority-required" });
   assert.equal(state.status, "source-verified");
@@ -456,4 +456,18 @@ test("Phi formatting preserves small rewards without floating-point rounding", a
     assert.equal(formatWildsPhiCompact(micro!), expected);
     assert.equal(parseWildsPhiInput(expected!), micro);
   }
+});
+
+
+test("reopening a wallet cannot replace a current settled balance with the older identity snapshot", () => {
+  let state = createWildsWalletControllerState("explorer", "generation-1");
+  const source = { type: "source-authority-resolved" as const, identityKey: "explorer", authorityGeneration: "generation-1", response: readResponse() };
+  state = reduceWildsWalletController(state, source);
+  state = reduceWildsWalletController(state, { type: "refresh-start", requestId: 1 });
+  state = reduceWildsWalletController(state, { type: "refresh-resolved", requestId: 1, identityKey: "explorer", authorityGeneration: "generation-1", response: readResponse({ summary: { ...readResponse().summary, admittedPhiMicro: "20000" } }) });
+  state = reduceWildsWalletController(state, { type: "refresh-start", requestId: 2 });
+  state = reduceWildsWalletController(state, { type: "refresh-failed", requestId: 2, reason: "network" });
+  state = reduceWildsWalletController(state, source);
+  assert.equal(state.summary?.admittedPhiMicro, "20000");
+  assert.equal(state.status, "offline-verified");
 });

@@ -921,7 +921,7 @@ export function PlayCampaign({
     const priorIds = stewardAwardIdsRef.current;
     stewardAwardIdsRef.current = nextIds;
     if (!priorIds || !stewardPhiAwards.some((award) => !priorIds.has(award.awardId))) return;
-    void refreshWalletAfterStewardSettlement();
+    void refreshWalletAfterStewardSettlement({ replace: true });
   }, [refreshWalletAfterStewardSettlement, stewardPhiAwards]);
   const sites = livingWorld.snapshot?.sites;
   const bosses = livingWorld.snapshot?.bosses;
