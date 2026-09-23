@@ -274,6 +274,6 @@ test("authorized users see their saved PHI during automatic refresh without a re
     const authorized = state({ status, sourceAuthorityVerified: true, balanceBasis: "saved", summary: { ...state().summary, admittedPhiMicro: "20000" } });
     const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, { publicUsername: "explorer", state: authorized, ...actions }));
     assert.match(markup, /aria-label="0.02 Phi"/);
-    assert.doesNotMatch(markup, /Connect and refresh|Refresh to check|SAVED PHI/);
+    assert.doesNotMatch(markup, /Connect and refresh|Refresh to check|SAVED PHI|Updating balance/);
   }
 });

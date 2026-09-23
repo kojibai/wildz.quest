@@ -1,5 +1,5 @@
 import type { WorldOverlayOwner } from "@/features/play/world-overlay-state";
-import { normalizeWildsWalletPublicUsername } from "@/lib/receiz/wilds-wallet-projections";
+import { projectWildsWalletCapabilities, normalizeWildsWalletPublicUsername } from "@/lib/receiz/wilds-wallet-projections";
 import {
   admitWildsWalletStagedTransferResponse,
   admitWildsWalletTransferResponse,
@@ -32,6 +32,7 @@ export function createWildsWalletControllerDriver(input: {
   identityKey: string;
   authorityGeneration: string;
   fetcher: DriverFetcher;
+  readTimeoutMs?: number;
   publish(state: WildsWalletControllerState): void;
   cache?: ReturnType<typeof createWildsWalletSessionCache>;
 }) {
@@ -56,17 +57,45 @@ export function createWildsWalletControllerDriver(input: {
     const authorityGeneration = state.authorityGeneration;
     publish({ type: "refresh-start", requestId: request.id });
     const operation = (async () => {
+      const cleanups: Array<() => void> = [];
       try {
-        const [summary, capabilities, ledger] = await Promise.all([
-          input.fetcher("/api/wilds/wallet/summary", { signal: request.controller.signal }).then(json),
-          input.fetcher("/api/wilds/wallet/capabilities", { signal: request.controller.signal }).then(json),
-          input.fetcher("/api/wilds/wallet/ledger", { signal: request.controller.signal }).then(json)
+        const read = (path: string) => {
+          const controller = new AbortController();
+          return new Promise<unknown>((resolve, reject) => {
+            const abort = () => { controller.abort(); reject(new Error("wallet_read_cancelled")); };
+            const timer = setTimeout(() => { controller.abort(); reject(new Error("wallet_read_timeout")); }, input.readTimeoutMs ?? 10_000);
+            request.controller.signal.addEventListener("abort", abort, { once: true });
+            if (request.controller.signal.aborted) abort();
+            Promise.resolve().then(() => input.fetcher(path, { signal: controller.signal })).then(json).then(resolve, reject);
+            // Release listeners even when a transport ignores cancellation.
+            controller.signal.addEventListener("abort", () => clearTimeout(timer), { once: true });
+            const cleanup = () => { clearTimeout(timer); request.controller.signal.removeEventListener("abort", abort); };
+            cleanups.push(cleanup);
+          });
+        };
+        const details = Promise.allSettled([
+          read("/api/wilds/wallet/capabilities"),
+          read("/api/wilds/wallet/ledger")
         ]);
+        const summary = await read("/api/wilds/wallet/summary");
         if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted) return;
-        const response = admitWildsWalletReadResponse({ summary, capabilities, ledger });
-        cache.write(walletAuthorityCacheKey(identityKey, authorityGeneration), response);
-        runtime.recordCacheWrite();
-        publish({ type: "refresh-resolved", requestId: request.id, identityKey, authorityGeneration, response });
+        let response = admitWildsWalletReadResponse({ summary, capabilities: projectWildsWalletCapabilities(), ledger: null });
+        const publishResponse = (pendingDetails: boolean) => {
+          cache.write(walletAuthorityCacheKey(identityKey, authorityGeneration), response);
+          runtime.recordCacheWrite();
+          publish({ type: "refresh-resolved", pendingDetails, requestId: request.id, identityKey, authorityGeneration, response });
+        };
+        publishResponse(true);
+        const [capabilities, ledger] = await details;
+        if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted) return;
+        // Optional endpoint failures must not hide a successfully admitted balance.
+        if (capabilities.status === "fulfilled") {
+          try { response = admitWildsWalletReadResponse({ ...response, capabilities: capabilities.value }); } catch { /* Keep conservative capabilities. */ }
+        }
+        if (ledger.status === "fulfilled") {
+          try { response = admitWildsWalletReadResponse({ ...response, ledger: ledger.value }); } catch { /* History can be retried independently of the balance. */ }
+        }
+        publishResponse(false);
       } catch (cause) {
         if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted) return;
         const failure = cause && typeof cause === "object" && "status" in cause ? cause as { status: number | null; code: string | null } : { status: null, code: null };
@@ -74,6 +103,8 @@ export function createWildsWalletControllerDriver(input: {
         if (reason === "revoked") cache.delete(walletAuthorityCacheKey(identityKey, authorityGeneration));
         publish({ type: "refresh-failed", requestId: request.id, reason });
       } finally {
+        request.controller.abort();
+        for (const cleanup of cleanups) cleanup();
         runtime.finishRefresh(request.id);
       }
     })();

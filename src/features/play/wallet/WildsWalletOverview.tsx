@@ -17,7 +17,6 @@ export function WildsWalletOverview({ state, stewardPhiAwards = [], onNavigate }
       <span><small id="wilds-wallet-overview-title">{balanceLabel}</small><strong><PhiNetworkAmount value={formatWildsPhiExact(summary.admittedPhiMicro)} /></strong></span>
       {summary.displayUsdCents === null ? null : <span className="wilds-wallet-display-quote"><small>VERIFIED DISPLAY BASIS</small><b>{formatWildsUsdCents(summary.displayUsdCents)}</b></span>}
     </header>
-    {state.status === "loading" ? <p className="wilds-wallet-state-strip" role="status">Updating balance…</p> : null}
     {stewardPhiAwards.length ? <p className="wilds-wallet-state-strip"><span>World earnings · <PhiNetworkAmount value={formatWildsPhiExact(earnedPhiMicro)} /></span><br />Lifetime rewards. Your available balance includes settled rewards and reflects spending.</p> : null}
     {state.status === "offline-verified" ? <p className="wilds-wallet-state-strip is-offline" role="status">Offline · showing your last verified balance.</p> : null}
     {summary.pendingCount ? <p className="wilds-wallet-state-strip is-pending" role="status">{summary.pendingCount} exact transfer {summary.pendingCount === 1 ? "attempt requires" : "attempts require"} recovery.</p> : null}

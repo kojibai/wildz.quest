@@ -51,7 +51,7 @@ export type WildsWalletControllerEvent =
   | { type: "close" | "cancel-pending" }
   | { type: "navigate"; page: WildsWalletPage }
   | { type: "refresh-start"; requestId: number }
-  | { type: "refresh-resolved"; requestId: number; identityKey: string; authorityGeneration: string; response: WildsWalletReadResponse }
+  | { type: "refresh-resolved"; pendingDetails?: boolean; requestId: number; identityKey: string; authorityGeneration: string; response: WildsWalletReadResponse }
   | { type: "source-authority-resolved"; identityKey: string; authorityGeneration: string; response: WildsWalletReadResponse | null }
   | { type: "refresh-failed"; requestId: number; reason: WildsWalletFailureReason }
   | { type: "identity-invalidated"; identityKey: string; authorityGeneration: string }
@@ -130,7 +130,7 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
     case "close": return afterCancellation(state, false);
     case "cancel-pending": return afterCancellation(state, state.open);
     case "navigate": return state.page === event.page ? state : { ...state, page: event.page };
-    case "refresh-start": return { ...state, status: "loading", requestId: event.requestId };
+    case "refresh-start": return { ...state, status: state.summary ? state.status : "loading", requestId: event.requestId };
     case "source-authority-resolved":
       if (state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration) return state;
       if (state.balanceBasis === "current" || state.status === "verified") return { ...state, sourceAuthorityVerified: true, sourceSnapshot: event.response };
@@ -139,7 +139,7 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
       if (state.requestId !== event.requestId || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration) return state;
       // Show the same current settlement balance used by transfer preview.
       // This does not rewrite the identity proof or add lifetime awards to funds.
-      return { ...state, transportAuthorityRequired: false, status: "verified", balanceBasis: "current", requestId: null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
+      return { ...state, transportAuthorityRequired: false, status: "verified", balanceBasis: "current", requestId: event.pendingDetails ? event.requestId : null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
     case "refresh-failed":
       if (state.requestId !== event.requestId) return state;
       if (event.reason === "network" && hasRetainedProjection(state) && state.balanceBasis === "current") return { ...state, status: "offline-verified", requestId: null };

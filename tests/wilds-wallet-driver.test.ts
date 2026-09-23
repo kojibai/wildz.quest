@@ -232,3 +232,78 @@ test("remounting offline keeps the last current balance instead of the old ident
   assert.equal(driver.state.summary?.admittedPhiMicro, "30000");
   assert.equal(driver.state.status, "offline-verified");
 });
+
+
+test("the current PHI amount appears without waiting for transfer capabilities or history", async () => {
+  let releaseDetails!: () => void;
+  const details = new Promise<void>(resolve => { releaseDetails = resolve; });
+  const source = response();
+  const driver = createWildsWalletControllerDriver({ identityKey: "bjklock", authorityGeneration: "one", cache: createWildsWalletSessionCache(2), publish() {},
+    fetcher: async path => {
+      if (!path.endsWith("summary")) await details;
+      return { ok: true, status: 200, json: async () => path.endsWith("summary") ? { ...source.summary, admittedPhiMicro: "1234567" } : path.endsWith("capabilities") ? source.capabilities : source.ledger };
+    }
+  });
+  try {
+    const read = driver.refresh();
+    await Promise.race([read, new Promise(resolve => setTimeout(resolve, 30))]);
+    assert.equal(driver.state.summary?.admittedPhiMicro, "1234567");
+    assert.equal(driver.state.status, "verified");
+  } finally { releaseDetails(); driver.close(); }
+});
+
+test("unavailable history does not suppress a successful balance response", async () => {
+  const source = response();
+  const driver = createWildsWalletControllerDriver({ identityKey: "bjklock", authorityGeneration: "one", cache: createWildsWalletSessionCache(2), publish() {},
+    fetcher: async path => {
+      if (path.endsWith("ledger")) throw new Error("history unavailable");
+      return { ok: true, status: 200, json: async () => path.endsWith("summary") ? { ...source.summary, admittedPhiMicro: "1234567" } : source.capabilities };
+    }
+  });
+  await driver.refresh();
+  assert.equal(driver.state.summary?.admittedPhiMicro, "1234567");
+  assert.equal(driver.state.status, "verified");
+  driver.close();
+});
+
+test("a stalled optional read times out without hiding the available PHI", async () => {
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "timeout-fixture", authorityGeneration: "one", readTimeoutMs: 15,
+    cache: createWildsWalletSessionCache(2), publish() {},
+    fetcher: async path => path.endsWith("summary")
+      ? { ok: true, status: 200, json: async () => response().summary }
+      : new Promise(() => {})
+  });
+  await driver.refresh();
+  assert.equal(driver.state.summary?.admittedPhiMicro, "1");
+  assert.equal(driver.state.status, "verified");
+  assert.equal(driver.state.requestId, null);
+  driver.close();
+});
+
+test("a stalled balance request settles instead of loading forever", async () => {
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "timeout-fixture", authorityGeneration: "two", readTimeoutMs: 15,
+    cache: createWildsWalletSessionCache(2), publish() {},
+    fetcher: async () => new Promise(() => {})
+  });
+  await driver.refresh();
+  assert.equal(driver.state.status, "failed");
+  assert.equal(driver.state.summary, null);
+  assert.equal(driver.state.requestId, null);
+  driver.close();
+});
+
+test("refreshing a known amount keeps it visible without a loading state", async () => {
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "silent-fixture", authorityGeneration: "one",
+    cache: createWildsWalletSessionCache(2), publish() {},
+    fetcher: async path => ({ ok: true, status: 200, json: async () => path.endsWith("summary") ? response().summary : path.endsWith("ledger") ? response().ledger : response().capabilities })
+  });
+  await driver.refresh();
+  const refresh = driver.refresh();
+  assert.equal(driver.state.status, "verified");
+  assert.equal(driver.state.summary?.admittedPhiMicro, "1");
+  await refresh;
+  driver.close();
+});
