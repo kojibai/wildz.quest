@@ -110,15 +110,37 @@ export function useWildsWalletController(
   useEffect(() => {
     const preloadKey = JSON.stringify([identityKey, authorityGeneration]);
     if (!authorityGeneration || !options.readAuthorization || preloadGenerationRef.current === preloadKey) return;
-    preloadGenerationRef.current = preloadKey;
+    const preload = () => {
+      // Mark only when the callback actually runs. Effect cleanup can cancel a
+      // scheduled preload (including Strict Mode's initial cleanup).
+      preloadGenerationRef.current = preloadKey;
+      void admitSourceThenRefresh();
+    };
     const schedule = typeof window.requestIdleCallback === "function"
-      ? window.requestIdleCallback(() => { void admitSourceThenRefresh(); }, { timeout: 1_500 })
-      : window.setTimeout(() => { void admitSourceThenRefresh(); }, 250);
+      ? window.requestIdleCallback(preload, { timeout: 1_500 })
+      : window.setTimeout(preload, 250);
     return () => {
       if (typeof window.cancelIdleCallback === "function" && typeof schedule === "number") window.cancelIdleCallback(schedule);
       else window.clearTimeout(schedule);
     };
   }, [admitSourceThenRefresh, authorityGeneration, identityKey, options.readAuthorization]);
+  useEffect(() => {
+    const resume = () => {
+      if (document.visibilityState !== "visible" || !options.readAuthorization) return;
+      const current = driver.state;
+      if (current.identityKey !== identityKey || current.authorityGeneration !== authorityGeneration) return;
+      if (current.status === "offline-verified" || current.balanceBasis === "saved"
+        || wildsWalletStatusNeedsIdentityReadAuthority(current.status, current.transportAuthorityRequired)) {
+        void admitSourceThenRefresh({ replace: true });
+      }
+    };
+    window.addEventListener("online", resume);
+    document.addEventListener("visibilitychange", resume);
+    return () => {
+      window.removeEventListener("online", resume);
+      document.removeEventListener("visibilitychange", resume);
+    };
+  }, [admitSourceThenRefresh, authorityGeneration, driver, identityKey, options.readAuthorization]);
   const openTerminal = useCallback(() => { driver.open(); void admitSourceThenRefresh(); }, [admitSourceThenRefresh, driver]);
   const visible = state.identityKey === identityKey && state.authorityGeneration === authorityGeneration ? state : createWildsWalletControllerState(identityKey, authorityGeneration);
   const capabilities = visible.capabilities

@@ -267,3 +267,13 @@ test("wallet overview and HUD show the exact current spendable PHI balance", () 
   const hud = renderToStaticMarkup(createElement(WildsWalletInstrument, { disabled: false, state: current, onOpen() {} }));
   assert.match(hud, /Available Phi: 0.02 Phi/);
 });
+
+
+test("authorized users see their saved PHI during automatic refresh without a reconnect instruction", () => {
+  for (const status of ["source-verified", "loading"] as const) {
+    const authorized = state({ status, sourceAuthorityVerified: true, balanceBasis: "saved", summary: { ...state().summary, admittedPhiMicro: "20000" } });
+    const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, { publicUsername: "explorer", state: authorized, ...actions }));
+    assert.match(markup, /aria-label="0.02 Phi"/);
+    assert.doesNotMatch(markup, /Connect and refresh|Refresh to check|SAVED PHI/);
+  }
+});

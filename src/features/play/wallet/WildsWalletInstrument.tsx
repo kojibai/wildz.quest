@@ -28,7 +28,7 @@ export function WildsWalletInstrument({
   state: WildsWalletPresentationState;
 }) {
   const status = instrumentState(state);
-  const balanceLabel = state.balanceBasis === "current" ? (state.status === "offline-verified" ? "Last known Phi" : "Available Phi") : state.balanceBasis === "saved" ? "Saved Phi" : "Exact admitted Phi reserve";
+  const balanceLabel = state.balanceBasis === "current" ? (state.status === "offline-verified" ? "Last known Phi" : "Available Phi") : state.balanceBasis === "saved" ? "Verified Phi balance" : "Exact admitted Phi reserve";
   const exact = state.summary ? formatWildsPhiExact(state.summary.admittedPhiMicro) : null;
   return <button
     aria-label={exact

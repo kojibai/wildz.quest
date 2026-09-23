@@ -11,15 +11,15 @@ export function WildsWalletOverview({ state, stewardPhiAwards = [], onNavigate }
   if (state.status === "revoked" || state.status === "failed" || !state.summary) return <div className="wilds-wallet-message is-danger" role="alert"><b>Wallet unavailable</b><span>No private value is displayed.</span></div>;
   const summary = state.summary;
   const earnedPhiMicro = totalWildsStewardPhiMicro(stewardPhiAwards);
-  const balanceLabel = state.balanceBasis === "current" ? (state.status === "offline-verified" ? "LAST KNOWN PHI" : "AVAILABLE PHI") : state.balanceBasis === "saved" ? "SAVED PHI" : "ADMITTED PHI";
+  const balanceLabel = state.balanceBasis === "current" ? (state.status === "offline-verified" ? "LAST KNOWN PHI" : "AVAILABLE PHI") : state.balanceBasis === "saved" ? "PHI BALANCE" : "ADMITTED PHI";
   return <section aria-labelledby="wilds-wallet-overview-title" className="wilds-wallet-overview">
     <header className="wilds-wallet-balance-band">
       <span><small id="wilds-wallet-overview-title">{balanceLabel}</small><strong><PhiNetworkAmount value={formatWildsPhiExact(summary.admittedPhiMicro)} /></strong></span>
       {summary.displayUsdCents === null ? null : <span className="wilds-wallet-display-quote"><small>VERIFIED DISPLAY BASIS</small><b>{formatWildsUsdCents(summary.displayUsdCents)}</b></span>}
     </header>
-    {state.balanceBasis === "saved" ? <p className="wilds-wallet-state-strip" role="status">Saved balance. Connect and refresh to see your current available PHI.</p> : null}
+    {state.status === "loading" ? <p className="wilds-wallet-state-strip" role="status">Updating balance…</p> : null}
     {stewardPhiAwards.length ? <p className="wilds-wallet-state-strip"><span>World earnings · <PhiNetworkAmount value={formatWildsPhiExact(earnedPhiMicro)} /></span><br />Lifetime rewards. Your available balance includes settled rewards and reflects spending.</p> : null}
-    {state.status === "offline-verified" ? <p className="wilds-wallet-state-strip is-offline" role="status">Offline verified · sending is disabled until authority reconnects.</p> : null}
+    {state.status === "offline-verified" ? <p className="wilds-wallet-state-strip is-offline" role="status">Offline · showing your last verified balance.</p> : null}
     {summary.pendingCount ? <p className="wilds-wallet-state-strip is-pending" role="status">{summary.pendingCount} exact transfer {summary.pendingCount === 1 ? "attempt requires" : "attempts require"} recovery.</p> : null}
     <dl className="wilds-wallet-holdings-band">
       <div><dt>Resource units</dt><dd>{summary.assetCountsStatus === "available" ? summary.transferableResourceCount : "—"}</dd></div>
