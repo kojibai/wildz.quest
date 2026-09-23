@@ -203,3 +203,8 @@ export function wildsAtlasCameraFar(input: {
   );
   return Math.max(96, Math.hypot(dx, Math.abs(position[1]) + 32, dz) * 1.1);
 }
+
+/** Shortest signed twist, including the ±π seam during a complete turn. */
+export function wildsAtlasTwistDelta(previous: number, next: number) {
+  return Math.atan2(Math.sin(next - previous), Math.cos(next - previous));
+}

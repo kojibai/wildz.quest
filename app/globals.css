@@ -13319,7 +13319,9 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  width: min(330px, calc(100vw - 88px));
+  right: max(12px, env(safe-area-inset-right));
+  width: auto;
+  min-height: 64px;
   min-width: 0;
   padding: 10px 14px;
   border: 1px solid rgb(131 235 207 / 20%);
@@ -13334,9 +13336,8 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-world-map-header h2 { margin: 2px 0 0; overflow: visible; font-size: clamp(16px, 2vw, 20px); line-height: 1.05; text-overflow: clip; white-space: normal; }
 .wilds-world-map-header h2:focus { outline: none; }
 .wilds-world-map-close {
-  position: fixed;
-  top: max(12px, env(safe-area-inset-top));
-  right: max(12px, env(safe-area-inset-right));
+  position: static;
+  flex: 0 0 44px;
   z-index: 3;
   display: grid;
   width: 44px;
@@ -13428,8 +13429,8 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 @media (max-width: 760px) {
   .wilds-world-map-header {
     align-items: center;
-    width: min(430px, calc(100vw - 20px));
-    padding-right: 58px;
+    width: auto;
+    gap: 8px;
   }
   .wilds-world-map-header h2 {
     max-width: none;
@@ -13441,7 +13442,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 }
 
 @media (max-width: 560px) {
-  .wilds-world-map-header { top: max(10px, env(safe-area-inset-top)); left: 10px; padding: 8px 11px; border-radius: 16px; }
+  .wilds-world-map-header { top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); padding: 8px 10px; border-radius: 16px; }
   .wilds-world-map-header .eyebrow { font-size: 9px; }
   .wilds-atlas-zoom { top: max(94px, calc(env(safe-area-inset-top) + 94px)); left: 10px; }
   .wilds-atlas-navigation { top: max(94px, calc(env(safe-area-inset-top) + 94px)); right: 10px; }
@@ -17186,7 +17187,7 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 }
 
 /* Atlas controls remain reachable while leaving the terrain open to gestures. */
-.wilds-atlas-controls { position: absolute; top: max(104px, calc(env(safe-area-inset-top) + 104px)); left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); z-index: 4; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; pointer-events: none; }
+.wilds-atlas-controls { position: absolute; top: calc(max(12px, env(safe-area-inset-top)) + 76px); left: max(10px, env(safe-area-inset-left)); right: max(10px, env(safe-area-inset-right)); z-index: 4; display: flex; align-items: center; justify-content: space-between; flex-wrap: nowrap; gap: 8px; pointer-events: none; }
 .wilds-atlas-controls .wilds-atlas-zoom, .wilds-atlas-controls .wilds-atlas-navigation { position: static; pointer-events: auto; }
 .wilds-atlas-controls .wilds-atlas-navigation { margin-left: auto; }
 .wilds-atlas-controls button { min-height: 44px; min-width: 44px; }
@@ -17271,3 +17272,23 @@ html, body, body * {
 .wilds-atlas-navigation .wilds-map-share-button:disabled { opacity: .45; cursor: progress; }
 .wilds-map-sharing-status { position: absolute; top: calc(100% + 9px); right: 0; max-width: min(340px, 100%); padding: 9px 12px; border-radius: 12px; color: #d4e8df; background: rgb(5 20 27 / 92%); font-size: 11px; line-height: 1.45; pointer-events: none; }
 .wilds-map-sharing-status:empty { display: none; }
+
+/* One quiet, continuous toolbar; scale its contents instead of wrapping on phones. */
+.wilds-atlas-controls { padding: 3px; border: 1px solid rgb(131 235 207 / 18%); border-radius: 16px; background: rgb(5 20 27 / 82%); backdrop-filter: blur(18px); }
+.wilds-atlas-controls .wilds-atlas-zoom { flex: 0 1 auto; min-width: 0; padding: 0; gap: 2px; border: 0; border-radius: 12px; background: transparent; box-shadow: none; backdrop-filter: none; }
+.wilds-atlas-controls .wilds-atlas-navigation { gap: 2px; flex: 0 0 auto; }
+.wilds-atlas-controls .wilds-atlas-navigation button { border-color: transparent; border-radius: 11px; background: transparent; box-shadow: none; backdrop-filter: none; white-space: nowrap; }
+.wilds-atlas-controls button { white-space: nowrap; }
+@media (max-width: 760px) {
+  .wilds-world-map-header h2 { font-size: clamp(12px, 3.05vw, 17px); line-height: 1.25; text-wrap: initial; white-space: normal; }
+  .wilds-world-map-header .eyebrow { font-size: 8px; letter-spacing: .13em; }
+  .wilds-world-map-close { border-radius: 12px; background: rgb(131 235 207 / 5%); box-shadow: none; }
+  .wilds-atlas-controls { top: calc(max(12px, env(safe-area-inset-top)) + 76px); gap: 2px; }
+  .wilds-atlas-controls .wilds-atlas-zoom { flex: 1 1 auto; }
+  .wilds-atlas-controls .wilds-atlas-zoom button { flex: 1 1 auto; min-width: 0; padding: 0 clamp(3px, 1vw, 8px); font-size: clamp(6.5px, 1.8vw, 9px); letter-spacing: .025em; }
+  .wilds-atlas-controls .wilds-atlas-navigation { gap: 0; }
+  .wilds-atlas-controls .wilds-atlas-navigation button { min-width: 30px; min-height: 44px; padding: 0 5px; gap: 3px; font-size: 8px; letter-spacing: 0; }
+  .wilds-atlas-controls .wilds-atlas-navigation svg { width: 13px; height: 13px; flex: 0 0 13px; }
+  .wilds-atlas-controls .wilds-map-sharing { padding-left: 2px; margin-left: 2px; }
+  .wilds-atlas-controls .wilds-map-share-button { width: 30px; min-width: 30px; }
+}

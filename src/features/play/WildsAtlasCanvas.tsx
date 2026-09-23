@@ -20,7 +20,7 @@ import {
   wildsAtlasProjectedSpan,
   type WildsAtlasRenderTile
 } from "./wilds-atlas-render-tiles";
-import { atlasCameraFrame, atlasCameraOpeningFrame, atlasCameraOpeningLimits, preserveWildsAtlasCameraLimits, rebaseWildsAtlasCameraPose, resolveWildsAtlasCameraPose, translateWildsAtlasCamera, wildsAtlasCameraFar, wildsAtlasRotateSpeed } from "./wilds-atlas-camera";
+import { atlasCameraFrame, atlasCameraOpeningFrame, atlasCameraOpeningLimits, preserveWildsAtlasCameraLimits, rebaseWildsAtlasCameraPose, resolveWildsAtlasCameraPose, translateWildsAtlasCamera, wildsAtlasCameraFar, wildsAtlasRotateSpeed, wildsAtlasTwistDelta } from "./wilds-atlas-camera";
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 const GOLDEN_ANGLE = Math.PI * 2 / (PHI * PHI);
@@ -210,7 +210,56 @@ function AtlasCameraRig({
   const lastRecenterRequest = useRef(recenterRequest);
   const lastNorthRequest = useRef(northRequest);
   const lastFitRequest = useRef<number | null>(null);
-  const { camera, invalidate, size } = useThree();
+  const { camera, invalidate, size, gl } = useThree();
+  // Native map gestures: drag to pan, pinch to zoom, twist to turn. OrbitControls'
+  // DOLLY_ROTATE rotates from the fingers' midpoint, not their angle.
+  useEffect(() => {
+    const element = gl.domElement;
+    const pointers = new Map<number, { x: number; y: number }>();
+    let previousAngle: number | null = null;
+    const angle = () => {
+      if (pointers.size !== 2) return null;
+      const [a, b] = [...pointers.values()];
+      return Math.hypot(b.x - a.x, b.y - a.y) < 24 ? null : Math.atan2(b.y - a.y, b.x - a.x);
+    };
+    const down = (event: PointerEvent) => {
+      if (event.pointerType !== "touch") return;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      previousAngle = angle();
+    };
+    const move = (event: PointerEvent) => {
+      if (!pointers.has(event.pointerId)) return;
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const nextAngle = angle();
+      const orbit = controls.current;
+      if (orbit && nextAngle !== null && previousAngle !== null) {
+        const delta = wildsAtlasTwistDelta(previousAngle, nextAngle);
+        // Apply the exact finger angle; damping here would swallow small twists.
+        const damping = orbit.enableDamping;
+        orbit.enableDamping = false;
+        orbit.setAzimuthalAngle(orbit.getAzimuthalAngle() + delta);
+        orbit.enableDamping = damping;
+        invalidate();
+      }
+      previousAngle = nextAngle;
+    };
+    const up = (event: PointerEvent) => {
+      pointers.delete(event.pointerId);
+      previousAngle = angle();
+    };
+    element.addEventListener("pointerdown", down);
+    element.ownerDocument.addEventListener("pointermove", move);
+    element.ownerDocument.addEventListener("pointerup", up);
+    element.ownerDocument.addEventListener("pointercancel", up);
+    element.addEventListener("lostpointercapture", up);
+    return () => {
+      element.removeEventListener("pointerdown", down);
+      element.ownerDocument.removeEventListener("pointermove", move);
+      element.ownerDocument.removeEventListener("pointerup", up);
+      element.ownerDocument.removeEventListener("pointercancel", up);
+      element.removeEventListener("lostpointercapture", up);
+    };
+  }, [gl, invalidate]);
   const frame = useMemo(
     () => atlasCameraFrame({ bounds, centerRegion, regionUnit }, size),
     [bounds, centerRegion, regionUnit, size]
@@ -337,7 +386,7 @@ function AtlasCameraRig({
     ref={controls}
     rotateSpeed={wildsAtlasRotateSpeed(size)}
     screenSpacePanning={false}
-    touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }}
+    touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN }}
     zoomSpeed={1}
     zoomToCursor
   />;
