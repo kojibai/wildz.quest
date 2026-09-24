@@ -332,7 +332,7 @@ export function CreatureConsciousnessPanel({
         >{voiceEnabled ? "Voice on" : "Voice off"}</button>
       </header>
 
-      {journalRecollection ? <aside className="wilds-creature-awakening" aria-label="Explorer journal recollection" aria-live="polite"><strong>Shared journey</strong><p>{journalRecollection}</p><small>Explorer notes carried in your Identity Seal; separate from verified creature memory.</small></aside> : null}
+      {journalRecollection ? <aside className="wilds-creature-journal" aria-label="Explorer journal recollection" aria-live="polite"><strong>Shared journey</strong><p>{journalRecollection}</p><small>Explorer notes carried in your Identity Seal; separate from verified creature memory.</small></aside> : null}
 
       <div className="wilds-creature-transcript" aria-live="polite">
         {transcript.length ? transcript.slice(-6).map((turn) => (

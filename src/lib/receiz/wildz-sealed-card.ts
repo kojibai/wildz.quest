@@ -6,18 +6,25 @@ import { isWildzPng } from "./wildz-png-envelope";
 import { openWildzSealedDocument } from "./wildz-sealed-document";
 
 export async function openWildzSealedCard(input: { bytes: Uint8Array; mimeType: string; name?: string }) {
+  // Locally sealed backups are documents. Verify that rail first instead of
+  // running native-custody verification, failing, and verifying them again.
   try {
-    const opened = await openWildzArtifactSameOrigin(input);
-    if (opened.compatibility !== "current-native" || !isWildzPng(opened.payloadBytes))
-      throw new Error("wildz_card_native_seal_required");
-    return { ...opened, payloadBytes: await unpackWildzCardSealPayload(opened.payloadBytes) };
-  } catch (nativeError) {
-    // Document admission cannot stand in for native ownership. Its inner game
-    // signature and identity binding are independently checked by the importer.
-    const opened = await openWildzSealedDocument(input).catch(() => { throw nativeError; });
+    const opened = await openWildzSealedDocument(input);
     if (!isWildzPng(opened.payloadBytes)) throw new Error("wildz_card_png_required");
     return { ...opened, compatibility: "verified-document" as const, ownerReceizId: null,
       payloadBytes: await unpackWildzCardSealPayload(opened.payloadBytes) };
+  } catch (documentError) {
+    try {
+      const opened = await openWildzArtifactSameOrigin(input);
+      if (opened.compatibility !== "current-native" || !isWildzPng(opened.payloadBytes))
+        throw new Error("wildz_card_native_seal_required");
+      return { ...opened, payloadBytes: await unpackWildzCardSealPayload(opened.payloadBytes) };
+    } catch (nativeError) {
+      // Preserve the canonical denial rather than hide resource/format failures
+      // behind the native ownership rail's generic verification message.
+      if (documentError instanceof Error && documentError.message.startsWith("wildz_artifact_verification_failed:")) throw documentError;
+      throw nativeError;
+    }
   }
 }
 

@@ -24,8 +24,13 @@ export async function openWildzSealedDocument(input: { bytes: Uint8Array; mimeTy
   if (!input.bytes.byteLength || input.bytes.byteLength > MAX_BYTES) throw new Error("wildz_restore_artifact_too_large");
   const bytes = input.bytes.slice();
   const verification = await verifyReceizArtifact(bytes);
-  if (verification.status !== "verified-artifact" || verification.continuity.state !== "not_applicable")
-    throw new Error("wildz_document_native_custody_required");
+  if (verification.status !== "verified-artifact") {
+    const reason = verification.status === "denied" ? verification.code
+      : verification.status === "unsupported" ? verification.reason
+      : verification.errors.map(error => error.code).join(",");
+    throw new Error(`wildz_artifact_verification_failed:${verification.status}:${reason}`);
+  }
+  if (verification.continuity.state !== "not_applicable") throw new Error("wildz_document_native_custody_required");
   const admission = await admitReceizArtifact(verification, { profile: "document" });
   if (admission.verdict !== "verified-document" || admission.ownerReceizId !== null)
     throw new Error("wildz_document_native_custody_required");

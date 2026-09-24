@@ -18,6 +18,7 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
   const variant = asset.manifest.variant.traits;
   const creatureSvg = useMemo(() => wildsCardArtwork(asset), [asset]);
   const death = cardDeathRecord(asset, condition);
+  const level = isLivingCardAsset(asset) ? currentCreatureHistoryProjection(asset).level : 1;
   const fusionBorn = isLivingCardAsset(asset) && asset.manifest.birth.kind === "fusion";
   const livedAppearance = useMemo(() => {
     if (!isLivingCardAsset(asset)) return { events: 0, bonds: 0, discoveries: 0, care: "none" };
@@ -60,7 +61,7 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
   if (!form) return null;
   return (
     <article
-      aria-label={`${asset.manifest.name}, Stage ${form.stage}, ${form.rarity} Wilds card`}
+      aria-label={`${asset.manifest.name}, Level ${level}, Stage ${form.stage}, ${form.rarity} Wilds card`}
       className={`wilds-collectible-card foil-${form.foil}${compact ? " compact" : ""}${death ? " is-dead" : ""}`}
       data-conscious={interactive ? "true" : "false"}
       data-care-memory={livedAppearance.care}
@@ -82,7 +83,7 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
       <div className="wilds-card-foil" aria-hidden="true" />
       <header>
         <div><strong>{asset.manifest.name}</strong><span>{form.species}</span></div>
-        <div>{fusionBorn ? <span aria-label="Hatched from a lineage egg" className="wilds-card-hatched-mark"><i /><i /></span> : null}<b>STAGE {form.stage}</b><small>{form.cardNumber}</small></div>
+        <div>{fusionBorn ? <span aria-label="Hatched from a lineage egg" className="wilds-card-hatched-mark"><i /><i /></span> : null}<b>Lv. {level} · STAGE {form.stage}</b><small>{form.cardNumber}</small></div>
       </header>
       <div aria-label={`${asset.manifest.name} is alive on the card face${speaking ? " and speaking" : ""}`} className="wilds-card-art heartbound-card-art" dangerouslySetInnerHTML={{ __html: creatureSvg }} />
       {death ? <div className="wilds-card-death-mark"><span>Memorial</span><strong>Deceased</strong></div> : null}

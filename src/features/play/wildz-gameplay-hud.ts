@@ -1,4 +1,4 @@
-import { livingMissionTitle, selectedCard, type PlayState } from "./game-state";
+import { livingMissionTitle, selectedCard, selectedAsset, exactCompanionProgress, type PlayState } from "./game-state";
 
 const percent = (value: number) => Math.max(0, Math.min(100, Math.round(Number.isFinite(value) ? value : 0)));
 
@@ -16,7 +16,8 @@ export function projectWildzHud(
   identity: { username: string; displayName: string }
 ): WildzHudModel {
   const companion = selectedCard(state);
-  const progression = state.companionProgress[companion.id] ?? { level: 1, xp: 0, bond: 0 };
+  const asset = selectedAsset(state);
+  const progression = asset ? exactCompanionProgress(state, asset) : { level: 1, xp: 0, bond: 0 };
   return {
     player: {
       username: identity.username.trim(),

@@ -656,20 +656,19 @@ export function downloadBlob(blob: Blob, filename: string) {
  * iPhone/iPad), with the classic download rail as the desktop fallback. */
 export async function saveBlobToDevice(blob: Blob, filename: string) {
   if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-    // Construct synchronously so iOS still sees the Save tap's user activation.
-    const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
-    const data: ShareData = { files: [file] };
-    if (typeof navigator.canShare !== "function" || navigator.canShare(data)) {
-      try {
+    try {
+      // Construct synchronously so iOS still sees the Save tap's user activation.
+      const file = new File([blob], filename, { type: blob.type || "application/octet-stream" });
+      const data: ShareData = { files: [file] };
+      if (typeof navigator.canShare !== "function" || navigator.canShare(data)) {
         await navigator.share(data);
         return "native-share" as const;
-      } catch (cause) {
-        if (cause instanceof DOMException && cause.name === "AbortError") {
-          throw new Error("wilds_native_save_cancelled");
-        }
-        // Browsers may expose share() but reject file sharing. Preserve a
-        // working save rail in that case.
       }
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === "AbortError") {
+        throw new Error("wilds_native_save_cancelled");
+      }
+      // Capability probing and sharing can both reject. Keep downloads usable.
     }
   }
   downloadBlob(blob, filename);
@@ -700,18 +699,17 @@ export async function createReceizProofObjectArtifact(
   verifyProofObject?: WildzDownloadedProofObjectVerifier,
   options: { allowEnrollment?: boolean } = {}
 ) {
-  const payloadBytes = new Uint8Array(await payload.arrayBuffer());
   const { sealWildzOwnedCardBlob } = await import("../../lib/receiz/local-seal/browser");
   const artifact = await sealWildzOwnedCardBlob(payload, filename, kind, options);
   const { bytes: proofObject, mimeType, filename: artifactFilename } = artifact;
-  const { verifyWildzSealedCard } = await import("../../lib/receiz/wildz-sealed-card");
-  await verifyWildzSealedCard(proofObject, payloadBytes);
+  // sealWildzOwnedCardBlob verifies the exact artifact and original payload
+  // before returning. Do not repeat the same cryptographic round trip here.
   if (verifyProofObject) {
     await verifyProofObject(
       proofObject,
       mimeType,
       artifactFilename,
-      payloadBytes
+      new Uint8Array(await payload.arrayBuffer())
     );
   }
   return { bytes: proofObject, filename: artifactFilename, mimeType };

@@ -523,3 +523,11 @@ test("failed preparation reports an error and retry clears it while retaining th
   assert.equal(retry.transfer.operationNonce, "same-nonce");
   assert.equal(retry.transfer.amountPhiMicro, "1000");
 });
+
+test("transient refresh failure retains the current verified balance", () => {
+  const current = verifiedState();
+  const loading = reduceWildsWalletController(current, { type: "refresh-start", requestId: 20 });
+  const failed = reduceWildsWalletController(loading, { type: "refresh-failed", requestId: 20, reason: "failed" });
+  assert.equal(failed.summary, current.summary);
+  assert.equal(failed.status, "offline-verified");
+});

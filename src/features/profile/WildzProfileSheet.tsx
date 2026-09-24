@@ -230,7 +230,13 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
             const code = cause instanceof Error ? cause.message : "";
             setIdentityMessage(code === "wildz_identity_card_authority_required" || code === "wildz_identity_seal_authority_required"
               ? "Upload your Identity Seal first, then save the continuity seal again."
-              : "Identity Seal could not be saved from this browser.");
+              : code === "wilds_native_save_cancelled"
+                ? "Save cancelled. Your Identity Seal is ready to save again."
+                : code.startsWith("wildz_artifact_verification_failed")
+                  ? "The Identity Seal could not be verified. Try saving again."
+                  : code === "wildz_identity_passphrase_required"
+                    ? "Enter your Identity Seal’s passphrase to save it."
+                    : "Identity Seal save did not complete. Please try again.");
           } finally {
             setIdentitySealSaving(false);
           }

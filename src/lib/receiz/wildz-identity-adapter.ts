@@ -631,7 +631,7 @@ export async function prepareWildzBackgroundPlayerVault(session: WildzIdentitySe
     }
     const result = await createWildzIdentityPlayerCardBundleOffThread({artwork, assets, player, keyFile, passphrase});
     if (!result) throw new Error("wildz_background_export_worker_unavailable");
-    const sealed = await prepareWildzGameImage({ bytes: result.bytes, filename: `wilds-vault-${session.keyId}.png`, kind: "vault" });
+    const sealed = await prepareWildzGameImage({ bytes: result.bytes, filename: `wilds-vault-${session.keyId}.png`, kind: "vault", allowEnrollment: options.allowPrompt === true });
     return { ...result, ...sealed,
       keyId: session.keyId, ownerReceizId: player.playerId };
   });

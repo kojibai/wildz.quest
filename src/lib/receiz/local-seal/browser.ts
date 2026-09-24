@@ -17,7 +17,7 @@ function request(command: "ready" | "enroll" | "seal", input?: Parameters<Sealer
       pending.delete(event.data.id); clearTimeout(entry.timer);
       if (event.data.error) entry.reject(new Error(event.data.error)); else entry.resolve(event.data.result);
     };
-    worker.onerror = () => reset(new Error("wildz_local_seal_worker_failed"));
+    worker.onerror = (event) => reset(new Error(`wildz_local_seal_worker_failed${event.message ? `: ${event.message}` : ""}`));
     worker.onmessageerror = () => reset(new Error("wildz_local_seal_worker_failed"));
   }
   return new Promise((resolve, reject) => {

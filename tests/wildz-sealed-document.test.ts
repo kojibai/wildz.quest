@@ -5,7 +5,7 @@ import { openWildzSealedDocument, verifyWildzSealedExport, wildzSealedDownloadFi
 test("unsealed payload and forged enclosing document cannot pass export or restore", async () => {
   const bytes = new TextEncoder().encode('{"kind":"receiz.bundle.v1","payload":"unverified"}');
   await assert.rejects(verifyWildzSealedExport(bytes, bytes), /continuity_invalid/);
-  await assert.rejects(openWildzSealedDocument({ bytes, mimeType: "application/json" }), /native_custody_required/);
+  await assert.rejects(openWildzSealedDocument({ bytes, mimeType: "application/json" }), /wildz_artifact_verification_failed:invalid:ARTIFACT_VERIFICATION_FAILED/);
   await assert.rejects(verifyWildzSealedExport(new Uint8Array(), bytes), /size_invalid/);
 });
 

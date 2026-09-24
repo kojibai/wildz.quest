@@ -25,7 +25,7 @@ export function WildsCardBack({ asset, origin, qr, condition, onSaveProof }: { a
       <div className="wilds-card-back-scroll">
         <header>
           <div><span>Living companion dossier</span><strong>{asset.manifest.name}</strong></div>
-          <b>{asset.manifest.rarity} · Stage {asset.manifest.stage}</b>
+          <b>Level {dossier.gameplay.level} · {asset.manifest.rarity} · Stage {asset.manifest.stage}</b>
         </header>
 
         <section className="wilds-card-back-story">

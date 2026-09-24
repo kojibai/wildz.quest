@@ -1064,7 +1064,7 @@ function growthForAsset(state: PlayState, asset: PortableCardAsset) {
     ?? (isLivingCardAsset(asset) ? currentRevision(asset).growth : emptyLivingGrowth(state.companionProgress[asset.manifest.familyId]?.bond ?? 0));
 }
 
-function exactCompanionProgress(state: PlayState, asset: PortableCardAsset) {
+export function exactCompanionProgress(state: Pick<PlayState, "companionProgress">, asset: PortableCardAsset) {
   if (isLivingCardAsset(asset)) {
     const projection = currentCreatureHistoryProjection(asset);
     return { level: projection.level, xp: projection.xp, bond: projection.bond };

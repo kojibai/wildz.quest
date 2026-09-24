@@ -11,6 +11,7 @@ import { canOperateWildzCrewCard, type WildzCrewCustody } from "../../lib/receiz
 import { isWildsCrewPhysicallyActive, settleWildsCrewPendingGrowth, type WildsCrewActiveTrips } from "./wilds-crew-passive-settlement";
 import { nextWildsPartyTravelRevision } from "./wilds-party-transport";
 import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
+import { createWildsWorldGeometrySelector } from "./wilds-world-geometry-selector";
 import { composeWildsBurrowPhysical } from "./wilds-burrow";
 import { useWildsBurrowBuilder } from "./use-wilds-burrow-builder";
 import { WildsBurrowBuilderPanel } from "./WildsBurrowBuilderPanel";
@@ -48,6 +49,7 @@ import {
   isPlayableAsset,
   selectedAsset,
   selectedCard,
+  exactCompanionProgress,
   type PlayState,
   type WildsInput
 } from "@/features/play/game-state";
@@ -283,6 +285,7 @@ export function PlayCampaign({
   onPrepareCard,
   onExportCard,
   onExportVault,
+  onPrepareVault,
   vaultAdmission,
   onRestoreArtifact,
   onRestoreRoamingCapture
@@ -314,6 +317,7 @@ export function PlayCampaign({
   onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
   onExportCard: (asset: PortableCardAsset, player: () => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: () => Promise<unknown>;
+  onPrepareVault?: () => Promise<unknown>;
   vaultAdmission: WildzVaultCardAdmission | null;
   onRestoreRoamingCapture: (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState) => Promise<WildzCommittedArtifactRestore>;
   onRestoreArtifact: (
@@ -645,7 +649,7 @@ export function PlayCampaign({
     return () => window.clearTimeout(timeout);
   }, [newRosterAssetId]);
   const landmarkUnlocks = state.achievements;
-  const activeProgress = state.companionProgress[activeCard.id] ?? { level: 1, xp: 0, bond: 0 };
+  const activeProgress = activeAsset ? exactCompanionProgress(state, activeAsset) : { level: 1, xp: 0, bond: 0 };
   const { discoveredByFamily, discoveredKaiLineages, guideFamilies } = useMemo(() => {
     const byFamily = new Map(deckCards.map((card) => [card.manifest.familyId, card]));
     const lineages = new Set(deckCards.map((card) => card.manifest.variant.generatorVersion === 2
@@ -923,12 +927,14 @@ export function PlayCampaign({
     if (!priorIds || !stewardPhiAwards.some((award) => !priorIds.has(award.awardId))) return;
     void refreshWalletAfterStewardSettlement({ replace: true });
   }, [refreshWalletAfterStewardSettlement, stewardPhiAwards]);
-  const sites = livingWorld.snapshot?.sites;
-  const bosses = livingWorld.snapshot?.bosses;
-  const structures = livingWorld.snapshot?.structures;
-  const constructionComponents = livingWorld.snapshot?.constructionComponents;
-  const constructionMaterialContributions = livingWorld.snapshot?.constructionMaterialContributions;
-  const constructionWorkContributions = livingWorld.snapshot?.constructionWorkContributions;
+  const selectWorldGeometry = useMemo(createWildsWorldGeometrySelector, []);
+  const worldGeometry = useMemo(() => selectWorldGeometry(livingWorld.snapshot), [selectWorldGeometry, livingWorld.snapshot]);
+  const sites = worldGeometry?.sites;
+  const bosses = worldGeometry?.bosses;
+  const structures = worldGeometry?.structures;
+  const constructionComponents = worldGeometry?.constructionComponents;
+  const constructionMaterialContributions = worldGeometry?.constructionMaterialContributions;
+  const constructionWorkContributions = worldGeometry?.constructionWorkContributions;
   const livingPhysicalObstacles = useMemo(
     () => sites && bosses && structures && constructionComponents && constructionMaterialContributions && constructionWorkContributions
       ? projectWildsRenderedLivingObstacles({ sites, bosses, structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions }) : [],
@@ -975,8 +981,8 @@ export function PlayCampaign({
   }, [aquaticPresentation.terrainElevation, state.player]);
   const siteRegion = wildsDiscoverySiteRegionForPosition(state.player);
   const sitePhysical = useMemo(
-    () => composeWildsInteriorConstruction(composeWildsBurrowPhysical(admitWildsDiscoveryPhysicalNeighborhood(siteRegion.x, siteRegion.z),livingWorld.snapshot?.burrows),livingWorld.snapshot),
-    [siteRegion.x, siteRegion.z, livingWorld.snapshot]
+    () => composeWildsInteriorConstruction(composeWildsBurrowPhysical(admitWildsDiscoveryPhysicalNeighborhood(siteRegion.x, siteRegion.z),worldGeometry?.burrows),worldGeometry),
+    [siteRegion.x, siteRegion.z, worldGeometry]
   );
   const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
   const accompanyingCrew = useMemo(() => state.inventory.filter(card => card.id === state.selectedAssetId || state.supportAssetIds.includes(card.id)).slice(0, 3), [state.inventory, state.selectedAssetId, state.supportAssetIds]);
@@ -2610,7 +2616,7 @@ export function PlayCampaign({
           </div>
           <div className="wilds-heartbeat-pack" aria-label="Trail Pack leader and support companions">
             {trailPack.map((card, index) => {
-              const progress = state.companionProgress[card.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
+              const progress = exactCompanionProgress(state, card);
               const mastery = projectWildsCardMastery(card);
               const element = creatureForm(card.manifest.formId)?.element ?? card.manifest.species;
               const mood = index === 0 ? heartbeatMood : progress.bond >= 60 ? "Devoted" : progress.bond >= 25 ? "Steady" : "Listening";
@@ -2678,6 +2684,7 @@ export function PlayCampaign({
             onPrepareCard={onPrepareCard}
             onExportCard={onExportCard}
             onExportVault={onExportVault}
+            onPrepareVault={onPrepareVault}
             onInput={dispatch}
             onListAsset={onListAsset}
             onRestoreArtifact={async (file, confirmCardOnly, currentPlayState) => {

@@ -7,7 +7,7 @@ import { totalWildsStewardPhiMicro } from "./wilds-wallet-inventory";
 import { PhiNetworkAmount } from "./PhiNetworkMark";
 
 export function WildsWalletOverview({ state, stewardPhiAwards = [], inventoryCounts, ledgerProps, onNavigate }: { inventoryCounts?: { resourceUnits: number; creatureCards: number }; ledgerProps?: Omit<WildsWalletLedgerProps, "state">; state: WildsWalletPresentationState; stewardPhiAwards?: readonly WildsStewardPhiAwardV1[]; onNavigate(page: "send" | "receive" | "ledger"): void }) {
-  if (state.status === "loading" && !state.summary) return <div className="wilds-wallet-message" role="status"><b>Verifying reserve</b><span>Reading admitted wallet state…</span></div>;
+  if (["idle", "loading", "source-verified", "verified"].includes(state.status) && !state.summary) return <div className="wilds-wallet-message" role="status"><b>Verifying reserve</b><span>Reading admitted wallet state…</span></div>;
   if (state.status === "authority-required") return <div className="wilds-wallet-message" role="status"><b>Authorization required</b><span>Your world remains preserved while wallet access is secured.</span></div>;
   if (state.status === "revoked" || state.status === "failed" || !state.summary) return <div className="wilds-wallet-message is-danger" role="alert"><b>Wallet unavailable</b><span>No private value is displayed.</span></div>;
   const summary = state.summary;

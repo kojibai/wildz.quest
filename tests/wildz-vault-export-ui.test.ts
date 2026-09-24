@@ -19,7 +19,7 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   assert.match(campaign, /movementMode/);
   assert.match(campaign, /presentation\.audioSettings/);
   assert.match(inventory, /playerVault:\s*\(asset\?: PlayState\["inventory"\]\[number\]\) => WildsPlayerVaultPayload/);
-  assert.doesNotMatch(inventory, /onPrepareVault|preparedVault/);
+  assert.match(inventory, /scheduleAfterPaint\(\(\) => \{ void onPrepareVault\(\)/);
   assert.doesNotMatch(inventory, /ensureActiveWildzProofSession|\/api\/auth\/receiz\/start/);
   assert.match(inventory, /await onExportVault\(\)/);
   assert.match(exporter, /portableVaultPngBlob\(assets: PortableCardAsset\[\], player\?: WildsPlayerVaultPayload\)/);

@@ -144,7 +144,7 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
       return { ...state, transportAuthorityRequired: false, status: "verified", balanceBasis: "current", requestId: event.pendingDetails ? event.requestId : null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
     case "refresh-failed":
       if (state.requestId !== event.requestId) return state;
-      if (event.reason === "network" && hasRetainedProjection(state) && state.balanceBasis === "current") return { ...state, status: "offline-verified", requestId: null };
+      if ((event.reason === "network" || event.reason === "failed") && hasRetainedProjection(state) && state.balanceBasis === "current") return { ...state, status: "offline-verified", requestId: null };
       if (state.sourceAuthorityVerified) return { ...state, ...(state.sourceSnapshot ? { summary: state.sourceSnapshot.summary, ledger: state.sourceSnapshot.ledger, capabilities: state.sourceSnapshot.capabilities } : { summary: null, ledger: null }), balanceBasis: "saved", status: "source-verified", requestId: null, transportAuthorityRequired: event.reason === "authority-required" || event.reason === "revoked" || state.transportAuthorityRequired === true };
       if (event.reason === "revoked") return clearPrivate(state, "revoked");
       if (event.reason === "network" && hasRetainedProjection(state)) return { ...state, status: "offline-verified", requestId: null };

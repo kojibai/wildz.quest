@@ -22,7 +22,7 @@ import {
   preparePortableCardArtifact
 } from "./card-export";
 import { cardArtifactFingerprint, createPreparedCardArtifactCache } from "./prepared-card-artifact";
-import type { PlayState, WildsInput } from "./game-state";
+import { exactCompanionProgress, type PlayState, type WildsInput } from "./game-state";
 import type { KaiKlokMoment } from "./kai-klok-moment";
 import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
 import type { WildzPreparedIdentityOwnedCard } from "@/lib/receiz/wildz-identity-adapter";
@@ -69,6 +69,7 @@ export function WildsInventory({
   onPrepareCard,
   onExportCard,
   onExportVault,
+  onPrepareVault,
   onInput,
   onListAsset,
   onRestoreArtifact,
@@ -86,6 +87,7 @@ export function WildsInventory({
   onPrepareCard: (asset: PlayState["inventory"][number], player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
   onExportCard: (asset: PlayState["inventory"][number], player: () => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: () => Promise<unknown>;
+  onPrepareVault?: () => Promise<unknown>;
   onInput: (input: WildsInput) => void;
   onListAsset?: (asset: PlayState["inventory"][number], priceCents: number) => Promise<PlayState["inventory"][number] | null>;
   onRestoreArtifact: (
@@ -94,6 +96,10 @@ export function WildsInventory({
     currentPlayState: PlayState
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
+  useEffect(() => {
+    if (!onPrepareVault) return;
+    return scheduleAfterPaint(() => { void onPrepareVault().catch(() => undefined); });
+  }, [onPrepareVault]);
   const [query, setQuery] = useState("");
   const [rarity, setRarity] = useState("all");
   const [page, setPage] = useState(0);
@@ -125,6 +131,7 @@ export function WildsInventory({
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const suppressCardClick = useRef(false);
   const saveResetTimer = useRef<number | null>(null);
+  const cardSaveInFlight = useRef(false);
   const preparedIdentityCard = useRef<WildzPreparedIdentityOwnedCard | null>(null);
   const previousFocusedAssetId = useRef(focusedAssetId);
   const playerVaultRef = useRef(playerVault);
@@ -156,7 +163,7 @@ export function WildsInventory({
     state.adventureConditions[selected.id]?.life === "dead"
     || (isLivingCardAsset(selected) && currentRevision(selected).growth.life?.retired)
   ));
-  const progress = selectedForm ? state.companionProgress[selectedForm.familyId] ?? { level: 1, xp: 0, bond: 0 } : null;
+  const progress = selected ? exactCompanionProgress(state, selected) : null;
   const next = selectedForm && selectedForm.stage < 3 ? creatureForm(`${selectedForm.familyId}-${selectedForm.stage + 1}`) : null;
   const canEvolve = Boolean(next && progress && progress.level >= next.evolution.level && progress.bond >= next.evolution.bond);
   const cardSave = cardSavePresentation(cardSaveState);
@@ -364,17 +371,23 @@ export function WildsInventory({
   };
 
   const saveVerifiedCard = async (asset: PlayState["inventory"][number]) => {
-    if (cardSaving) return;
+    if (cardSaveInFlight.current) return;
+    cardSaveInFlight.current = true;
     emitWildsPlaytestEvent("card-save", "start");
     if (saveResetTimer.current !== null) window.clearTimeout(saveResetTimer.current);
     triggerCardHaptic("press");
     try {
-      setCardSaveState("saving");
-      setDownloadMessage(cardSavePresentation("saving").message);
+      flushSync(() => {
+        setCardSaveState("saving");
+        setDownloadMessage(cardSavePresentation("saving").message);
+      });
       const prepared = preparedIdentityCard.current?.assetId === asset.id
-        && preparedIdentityCard.current.cardFingerprint === cardArtifactFingerprint(asset)
+        && preparedIdentityCard.current.cardFingerprint === (asset === selected ? selectedArtifactFingerprint : cardArtifactFingerprint(asset))
         ? preparedIdentityCard.current
         : undefined;
+      // Cold preparation can hash a large player snapshot. Paint the first tap's
+      // feedback before that work; ready files retain synchronous user activation.
+      if (!prepared) await new Promise<void>(resolve => { scheduleAfterPaint(resolve); });
       await onExportCard(asset, playerVault, prepared);
       emitWildsPlaytestEvent("card-save", "success");
       setCardSaveState("success");
@@ -394,6 +407,8 @@ export function WildsInventory({
         : error instanceof Error
           ? `Card save failed: ${error.message}. Try again.`
           : "Card save failed. Try again from this browser.");
+    } finally {
+      cardSaveInFlight.current = false;
     }
   };
 
@@ -534,7 +549,7 @@ export function WildsInventory({
         <div className="wilds-inventory-grid">
           {visible.map((asset) => {
             const form = creatureForm(asset.manifest.formId)!;
-            const cardProgress = state.companionProgress[asset.manifest.familyId] ?? { level: 1, xp: 0, bond: 0 };
+            const cardProgress = exactCompanionProgress(state, asset);
             const retired = state.adventureConditions[asset.id]?.life === "dead"
               || (isLivingCardAsset(asset) && Boolean(currentRevision(asset).growth.life?.retired));
             return <button aria-pressed={selected?.id === asset.id} className={retired ? "is-retired" : ""} key={asset.id} onClick={() => { if (suppressCardClick.current) { suppressCardClick.current = false; return; } flushSync(() => setSelectedId(asset.id)); }} type="button">
@@ -542,7 +557,7 @@ export function WildsInventory({
               <span className="wilds-vault-card-copy">
                 <span className="wilds-inventory-card-xp">{cardProgress.xp} XP</span>
                 <strong className="wilds-creature-name"><span>{asset.manifest.name}</span><WildsVerifiedBadge /></strong>
-                <small>Stage {form.stage} · {form.rarity} · Bond {cardProgress.bond}</small>
+                <small>Lv. {cardProgress.level} · Stage {form.stage} · {form.rarity} · Bond {cardProgress.bond}</small>
                 <b>{retired ? "Retired memorial · permanently unplayable" : `${asset.manifest.stats.power} PWR · ${portableCardStatusLabel(asset.status)}`}</b>
               </span>
             </button>;

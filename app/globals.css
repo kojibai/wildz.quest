@@ -12712,6 +12712,9 @@ button.product-purchase-secondary-link {
 .wilds-creature-exchange .from-owner { justify-self: end; background: rgb(247 210 91 / 12%); border: 1px solid rgb(247 210 91 / 18%); }
 .wilds-creature-exchange .from-owner span { color: #f7d25b; }
 .wilds-creature-exchange .from-creature { justify-self: start; background: rgb(113 232 195 / 10%); border: 1px solid rgb(113 232 195 / 18%); }
+.wilds-creature-journal { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; min-width: 0; padding: 11px; border: 1px dashed rgb(113 232 195 / 24%); border-radius: 14px; background: rgb(113 232 195 / 5%); }
+.wilds-creature-journal strong { color: #eafff9; font-size: 11px; }
+.wilds-creature-journal p, .wilds-creature-journal small { min-width: 0; margin: 0; color: #9db8be; font-size: 9px; line-height: 1.45; overflow-wrap: anywhere; }
 .wilds-creature-awakening { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 9px; padding: 11px; border: 1px dashed rgb(113 232 195 / 24%); border-radius: 14px; background: rgb(113 232 195 / 5%); }
 .wilds-creature-awakening > span { display: grid; width: 32px; height: 32px; place-items: center; color: #76e9c6; border-radius: 50%; background: rgb(118 233 198 / 10%); box-shadow: 0 0 22px rgb(118 233 198 / 22%); }
 .wilds-creature-awakening p { margin: 0; color: #9db8be; font-size: 9px; line-height: 1.45; }
