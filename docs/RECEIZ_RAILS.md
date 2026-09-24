@@ -2,7 +2,7 @@
 
 The complete V124 production-runtime composition and its latency/authority boundaries are documented in [`RECEIZ_V124_RUNTIME.md`](./RECEIZ_V124_RUNTIME.md).
 
-Wildz targets the exact `@receiz/sdk@126.0.0` release. Application code uses SDK identity, artifact, durable subject admission, proof-authority exchange, authority sessions, durable execution, recipient resolution, and executable Phi clients. `@receiz/mcp-server@126.0.0` and `@receiz/ai-skills@126.0.0` are operator tooling only; neither can replace proof verification or independently admit a mutation. The packages resolve from the public npm registry, and their published SHA-512 lockfile integrity values keep installation reproducible. This release adopts the v126 registry digest `80137c2e6f294050ef36ff75e4daac15c7790b7f04d9a91fab9d1970fa3c0b09` and operation-matrix digest `42c7f0924df91b4ba11c1b891fee2b92abb509430a86b030735c23d055e67949`.
+Wildz targets the exact `@receiz/sdk@127.0.0` release. Application code uses SDK identity, artifact, durable subject admission, proof-authority exchange, authority sessions, durable execution, recipient resolution, and executable Phi clients. `@receiz/mcp-server@127.0.0` and `@receiz/ai-skills@127.0.0` are operator tooling only; neither can replace proof verification or independently admit a mutation. The packages resolve from the public npm registry, and their published SHA-512 lockfile integrity values keep installation reproducible. This release adopts the v127 registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `eadd171a45fcc51e275a1c57de1eb8e67614757a5723d141793641edf7207a10`.
 
 ## Authority map
 
@@ -43,7 +43,7 @@ High-frequency Arena inputs belong in a deterministic transcript, not in per-fra
 
 ## Persistence boundary
 
-There is no external database added by Wildz. The installed app keeps owner-scoped continuity in browser IndexedDB. Shared public, world, social, and economy durability depends on configured Receiz publication, audit, proof, wallet, and settlement rails. Under the current V123 release, unattended shared-world/publication writes use the server-only `RECEIZ_CONNECT_ACCESS_TOKEN`; it is an app/service coordination credential, never a generated player login token or artifact authority.
+There is no external database added by Wildz. The installed app keeps owner-scoped continuity in browser IndexedDB. Shared public, world, social, and economy durability depends on configured Receiz publication, audit, proof, wallet, and settlement rails. Through the retained V123 coordination APIs, unattended shared-world/publication writes use the server-only `RECEIZ_CONNECT_ACCESS_TOKEN`; it is an app/service coordination credential, never a generated player login token or artifact authority.
 
 Durable Receiz rails fail closed. Capability absence, network failure, stale revisions, proof mismatch, and unconfirmed reads or writes are returned as unavailable, conflict, or recovery-pending states; they are never simulated as success.
 
@@ -53,9 +53,9 @@ Wildz can carry Phi, resources, exact card or creature custody, experience acces
 
 The claim representation is never proof authority and cannot commit. Successful edge execution prepares the recipient's sealed source addition immediately; global source publication and message projection are asynchronous distribution. Missing projection therefore cannot demote a lawful local result, while malformed, expired, wrong-recipient, replayed, or unverified claims fail closed. Card offers are the first live producer; Phi, resource, access, and world-operation producers plug into the same carrier whenever their source operation emits the canonical V124 transition set.
 
-## V126 constitutional application boundary
+## V127 constitutional application boundary
 
-`receiz.app.json` is compiled by the official v126 compiler with artifact-first authority and `allowDatabaseAuthority: false`. The release is bound to registry digest `80137c2e6f294050ef36ff75e4daac15c7790b7f04d9a91fab9d1970fa3c0b09` and operation-matrix digest `42c7f0924df91b4ba11c1b891fee2b92abb509430a86b030735c23d055e67949`. Canonical changes are command-only and must carry same-runtime verified admission/history/actor evidence, the discovered registry law, named commit domain, exact plan-bound capability, expected head, canonical event, idempotency identity, and bounded effects. `pnpm receiz:check` runs the v126 repository checker and is included in the local release gate.
+`receiz.app.json` is compiled by the official v127 compiler with artifact-first authority and `allowDatabaseAuthority: false`. The release is bound to registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `eadd171a45fcc51e275a1c57de1eb8e67614757a5723d141793641edf7207a10`. Canonical changes are command-only and must carry same-runtime verified admission/history/actor evidence, the discovered registry law, named commit domain, exact plan-bound capability, expected head, canonical event, idempotency identity, and bounded effects. `pnpm receiz:check` runs the v127 repository checker and is included in the local release gate.
 
 V123 is one coordinated SDK/MCP/AI/ruleset/registry/matrix/package-range/runtime release identity. Durable proof memory is first admission only, then append forever. V123 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
 
@@ -78,3 +78,14 @@ The versioned service worker caches the app shell, its route chunks, previously 
 ## Release qualification boundary
 
 The default doctor reports package compatibility and configured capability presence without exposing values. `--strict-live` is a separate release gate and must verify configured authenticated reads. Missing production credentials remain an explicit pending external gate; they are never rewritten as a pass. Local release qualification must still fail closed on code, proof, PWA, browser, or secret-scan regressions.
+
+
+## v127 offline saves
+
+All game-bearing image saves use the public SDK offline runtime and packaged
+proof resources. Device enrollment is the one-time network operation; sealed
+payloads and recovery keys remain local. Complete payloads are canonically
+verified before saving, with independent inner identity/game verification on
+restore. A document seal never substitutes for native ownership or settlement
+admission. See [save verification](game-image-export-verification.md) and
+[v127 release evidence](release/receiz-v127-integration.md).

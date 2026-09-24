@@ -103,7 +103,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ha
     }
 
     if (signed) {
-      // Keep signed writes on the same configured v126 rail as reads and
+      // Keep signed writes on the same configured subject rail as reads and
       // delegated writes; a default client can target a different registry.
       const result = await adapter.client.publicStore.publishSigned(signed.signed, {
         idempotencyKey: `wildz-profile:${requestedHandle.slice(1)}:${signed.record.publishedAt}`

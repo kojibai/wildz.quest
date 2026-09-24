@@ -52,10 +52,8 @@ test("installation precaches the exact public shell and waits for explicit updat
     "/icons/icon-192.png",
     "/icons/icon-512.png",
     "/offline",
-    "/snarkjs.min.js",
     "/zk/document_seal_proof_final.zkey",
     "/zk/document_seal_proof_js/sigil_proof.wasm",
-    "/zk/document_seal_verification_key.json"
   ].sort());
   const rootRequest = worker.fetchCalls.find((request) => request.url === "https://wildz.quest/");
   assert.ok(rootRequest instanceof Request);

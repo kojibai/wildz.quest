@@ -697,11 +697,12 @@ export async function createReceizProofObjectArtifact(
   payload: Blob,
   filename: string,
   kind: WildzGameImageKind,
-  verifyProofObject?: WildzDownloadedProofObjectVerifier
+  verifyProofObject?: WildzDownloadedProofObjectVerifier,
+  options: { allowEnrollment?: boolean } = {}
 ) {
   const payloadBytes = new Uint8Array(await payload.arrayBuffer());
   const { sealWildzOwnedCardBlob } = await import("../../lib/receiz/local-seal/browser");
-  const artifact = await sealWildzOwnedCardBlob(payload, filename, kind);
+  const artifact = await sealWildzOwnedCardBlob(payload, filename, kind, options);
   const { bytes: proofObject, mimeType, filename: artifactFilename } = artifact;
   const { verifyWildzSealedCard } = await import("../../lib/receiz/wildz-sealed-card");
   await verifyWildzSealedCard(proofObject, payloadBytes);

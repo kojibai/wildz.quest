@@ -182,7 +182,7 @@ test("terminal is one modal dialog with five named surfaces and fail-closed send
   assert.doesNotMatch(markup, /proofDigest|subjectId|ownerReceizId|accessToken/);
   assert.doesNotMatch(markup, /explorer-with-an-intentionally-long-coordinate/);
   assert.match(markup, /PUBLIC HANDLE NOT AVAILABLE/);
-  assert.match(markup, /RECEIZ V124 · PROOF-NATIVE CUSTODY/);
+  assert.match(markup, /RECEIZ V127 · PROOF-NATIVE CUSTODY/);
   assert.doesNotMatch(markup, /RECEIZ V123/);
 });
 

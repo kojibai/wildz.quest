@@ -1,0 +1,7 @@
+{
+  "sdkVersion": "127.0.0",
+  "sha256": {
+    "/zk/document_seal_proof_js/sigil_proof.wasm": "fc72dd17e30f7e9b178eeac08f1deceec8fff5b757481455e465234fbc35e696",
+    "/zk/document_seal_proof_final.zkey": "fc5bc8cce4c43dc163e44bc8a1e52c165b72813a0ccbde7fb1735f3cb01debd4"
+  }
+}

@@ -5,15 +5,12 @@ import {
   receizOidcScopesForRails
 } from "@receiz/sdk";
 
-const TARGET_MAJOR = 126;
+const TARGET_MAJOR = 127;
 const REQUIRED_STRICT_CAPABILITIES = [
   "identity",
   "wallet",
   "payments",
-  "proofStore",
-  "world",
-  "portability",
-  "releases"
+  "world"
 ];
 const LIVE_PROBE_TIMEOUT_MS = 8_000;
 
@@ -85,7 +82,7 @@ function boundedFetch(input, init = {}) {
   return fetch(input, { ...init, ...(signal ? { signal } : {}) });
 }
 
-async function runLiveReadProbes(client, tenantHost) {
+async function runLiveReadProbes(client) {
   const liveProbes = Object.fromEntries(
     REQUIRED_STRICT_CAPABILITIES.map((name) => [name, "not-checked"])
   );
@@ -103,14 +100,7 @@ async function runLiveReadProbes(client, tenantHost) {
         throw error;
       }
     },
-    proofStore: async () => successfulRecord(await client.proof.query({
-      namespace: "wildz:release:readiness",
-      tenantHost,
-      limit: 1
-    })),
-    world: async () => successfulRecord(await client.world.publicSnapshot()),
-    portability: async () => successfulRecord(await client.portability.exportStore({ tenantHost })),
-    releases: async () => successfulRecord(await client.releases.check({ tenantHost }))
+    world: async () => successfulRecord(await client.world.publicSnapshot())
   };
 
   await Promise.all(REQUIRED_STRICT_CAPABILITIES.map(async (name) => {
@@ -187,12 +177,9 @@ if (strictLive) {
         "identity",
         "wallet",
         "payments",
-        "proofStore",
         "world",
         "appState",
-        "publicStore",
-        "portability",
-        "releases"
+        "publicStore"
       );
       walletTransferScope = scopes.includes("receiz:wallet.transfer");
       const client = createReceizClient({
@@ -212,7 +199,7 @@ if (strictLive) {
       sdkIssueCodes = [...new Set([...doctor.missing, ...doctor.warnings].map((issue) => issue.code))].sort();
       doctorOk = doctor.ok;
       if (doctorOk) {
-        ({ liveProbes, liveProbeIssueCodes } = await runLiveReadProbes(client, tenantHost));
+        ({ liveProbes, liveProbeIssueCodes } = await runLiveReadProbes(client));
       }
     } catch {
       sdkIssueCodes = ["doctor_failed"];
@@ -235,6 +222,7 @@ if (strictLive) {
     ok,
     requiredCapabilities,
     liveProbes,
+    historicalHttp: { proofQuery: "unavailable-by-default", storePortability: "unavailable-by-default", releasePinning: "unavailable-by-default" },
     missingEnvironment,
     sdkIssueCodes,
     liveProbeIssueCodes

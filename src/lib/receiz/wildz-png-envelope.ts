@@ -43,3 +43,38 @@ export function splitWildzPngEnvelope(bytes: Uint8Array): { pngBasis: Uint8Array
   if (!sawHeader || !sawImageData) throw new Error("png_critical_chunks_missing");
   return { pngBasis: bytes.slice(0, endedAt), trailer: bytes.slice(endedAt) };
 }
+
+/** Lossless transport inspection. This never establishes proof authority. */
+export function wildzPngTextChunks(bytes: Uint8Array) {
+  const { pngBasis, trailer } = splitWildzPngEnvelope(bytes);
+  const chunks: { start: number; end: number; keyword: string | null }[] = [];
+  for (let start = 8; start < pngBasis.length;) {
+    const length = uint32(pngBasis, start);
+    const end = start + 12 + length;
+    const type = new TextDecoder().decode(pngBasis.subarray(start + 4, start + 8));
+    const data = pngBasis.subarray(start + 8, start + 8 + length);
+    const zero = data.indexOf(0);
+    const keyword = ["tEXt", "iTXt", "zTXt"].includes(type) && zero >= 0
+      ? new TextDecoder().decode(data.subarray(0, zero)) : null;
+    chunks.push({ start, end, keyword });
+    start = end;
+  }
+  return { pngBasis, trailer, chunks };
+}
+
+export function hasWildzCanonicalPngProof(bytes: Uint8Array) {
+  return wildzPngTextChunks(bytes).chunks.some(chunk => chunk.keyword === "receiz.proof_bundle");
+}
+
+/** Only use after canonical admission; compare the result with its payload digest. */
+export function extractWildzSealedPngBasis(bytes: Uint8Array) {
+  const { pngBasis, trailer, chunks } = wildzPngTextChunks(bytes);
+  if (trailer.length) throw new Error("wildz_card_payload_unbound_trailer");
+  const excluded = new Set(["receiz.proof_bundle", "receiz.ownership_provenance"]);
+  const parts = [pngBasis.subarray(0, 8), ...chunks.filter(c => !excluded.has(c.keyword ?? ""))
+    .map(c => pngBasis.subarray(c.start, c.end))];
+  const result = new Uint8Array(parts.reduce((n, part) => n + part.length, 0));
+  let offset = 0;
+  for (const part of parts) { result.set(part, offset); offset += part.length; }
+  return result;
+}

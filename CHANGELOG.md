@@ -2,14 +2,23 @@
 
 All notable changes to Wildz are documented here. Wildz uses semantic versioning for public releases.
 
-## [Unreleased]
+## [10.0.0] - 2026-09-23
 
-Target: **9.0.0 — The Living Wilds**. Release preparation and continuous-construction qualification are in progress; see the [v9.0.0 release notes](docs/release/v9.0.0.md).
+**The Living World — official major public release.** See the [complete v10.0.0 release notes](docs/release/v10.0.0.md), including every commit since v9.0.0.
 
-### Changed
+- Expand persistent companion journeys, independent exploration, roaming battles, capture and crew recovery.
+- Complete extensive continuous-construction, placement, material-reservation, repair, weather, home-life and guidance work.
+- Improve physical geography, caves, grounded movement, discovery stories, portable memories and earned progression.
+- Refine the mobile living atlas, gestures and discovered-world image exports.
+- Repair identity/Vault restoration, exact card saves, public profiles, background publication and retries.
+- Improve authorized PHI balance reads, wallet presentation, fractional amounts, recipient selection and transfer feedback.
+- Reduce startup and gameplay work through spatial indexing, geometry reuse, compact projections and worker-based preparation.
+- Pin official Receiz SDK, MCP and AI skills to 127.0.0; replace copied v126 sealing code with the packaged offline API and proof resources.
+- Verify saved card, Vault, Identity Seal and map payloads canonically offline; retain the separate requirements for native ownership and settlement authority.
 
-- Upgrade the coordinated Receiz SDK, MCP server, and AI skills to exact public `126.0.0`, with the v126 registry and 60-operation application contract. Retain historical artifact readers and V124 runtime methods.
-- Refresh identity projection compatibility for v125 market coverage and permanent local continuity metadata.
+## [9.0.0] - 2026-09-07
+
+**The Living Wilds.** Historical [v9.0.0 release notes](docs/release/v9.0.0.md) record the terrain, traversal, exploration, capability, sovereign-wallet and construction foundation. Receiz integration used exact public 126.0.0 packages.
 
 ## [8.0.0] - 2026-08-20
 

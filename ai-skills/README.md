@@ -1,8 +1,8 @@
-# Wildz v126 AI operating doctrine
+# Wildz v127 AI operating doctrine
 
-Wildz is aligned only to the public npm releases `@receiz/ai-skills@126.0.0`, `@receiz/sdk@126.0.0`, and `@receiz/mcp-server@126.0.0`, with published SHA-512 integrity values pinned in `pnpm-lock.yaml`. All current procedures bind to registry digest `80137c2e6f294050ef36ff75e4daac15c7790b7f04d9a91fab9d1970fa3c0b09`, operation-matrix digest `42c7f0924df91b4ba11c1b891fee2b92abb509430a86b030735c23d055e67949`, and artifact laws `ARTIFACT-001` through `ARTIFACT-030`.
+Wildz is aligned only to the public npm releases `@receiz/ai-skills@127.0.0`, `@receiz/sdk@127.0.0`, and `@receiz/mcp-server@127.0.0`, with published SHA-512 integrity values pinned in `pnpm-lock.yaml`. All current procedures bind to registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065`, operation-matrix digest `eadd171a45fcc51e275a1c57de1eb8e67614757a5723d141793641edf7207a10`, and artifact laws `ARTIFACT-001` through `ARTIFACT-030`.
 
-V126 is one coordinated release identity across SDK, MCP, AI manifests, ruleset, registry, operation matrix, compatible package range, and packed runtime. Durable proof memory is first admission only, then append forever. V121 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
+V127 is one coordinated release identity across SDK, MCP, AI manifests, ruleset, registry, operation matrix, compatible package range, and packed runtime. Durable proof memory is first admission only, then append forever. V121 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
 
 Sealed proof-object truth and verified local history outrank SDK, MCP, AI, server, database, session, and UI projections. Receiz.com reference behavior comes before developer rails. Never mutate witnessed history; append authenticated truth and rebuild projections. A queued proposal is not a global commitment.
 

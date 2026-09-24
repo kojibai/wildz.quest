@@ -1,38 +1,48 @@
-import { activeReceizSignatureV4SignerFromEnrollment, enrollReceizSignatureV4DeviceFromServer, verifyReceizSignatureV4SignerReadiness } from "./reference/receizSignatureV4Enrollment";
-import { prewarmDocumentSealGroth16Runtime } from "./reference/realGroth16ProofClient";
+import type { createReceizOfflineSealer } from "@receiz/sdk/offline";
 import { createWildzIdentityRepository } from "../wildz-identity-repository";
 import type { WildzGameImageKind } from "../wildz-game-image-export";
 import { sealWildzCardLocally } from "./seal-card";
 
-let readiness: Promise<NonNullable<Awaited<ReturnType<typeof activeReceizSignatureV4SignerFromEnrollment>>>> | null = null;
-
-/** One device enrollment, then local signing. No card bytes leave the browser. */
-export function prepareWildzLocalCardSealer(): Promise<NonNullable<Awaited<ReturnType<typeof activeReceizSignatureV4SignerFromEnrollment>>>> {
+type Sealer = ReturnType<typeof createReceizOfflineSealer>;
+let worker: Worker | undefined;
+let sequence = 0;
+const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
+function request(command: "ready" | "enroll" | "seal", input?: Parameters<Sealer["seal"]>[0]): Promise<unknown> {
   if (typeof window === "undefined" || !window.indexedDB) return Promise.reject(new Error("wildz_local_signer_storage_unavailable"));
-  if (!readiness) readiness = (async () => {
-    const runtime = prewarmDocumentSealGroth16Runtime();
-    void runtime.catch(() => {});
-    let signer = await activeReceizSignatureV4SignerFromEnrollment();
-    if (!signer) {
-      const result = await enrollReceizSignatureV4DeviceFromServer();
-      signer = await activeReceizSignatureV4SignerFromEnrollment();
-      if (!signer) throw new Error(`wildz_local_signer_setup_failed:${result.reason ?? "unavailable"}`);
-    }
-    if (!await verifyReceizSignatureV4SignerReadiness(signer)) throw new Error("wildz_local_signer_not_ready");
-    await runtime;
-    return signer;
-  })().catch(error => { readiness = null; throw error; });
-  return readiness.then(signer => {
-    if (signer.cert.expiresAtMs < Date.now()) {
-      readiness = null;
-      return prepareWildzLocalCardSealer();
-    }
-    return signer;
+  if (!worker) {
+    worker = new Worker(new URL("./seal.worker.ts", import.meta.url), { type: "module" });
+    worker.onmessage = event => {
+      const entry = pending.get(event.data.id);
+      if (!entry) return;
+      pending.delete(event.data.id); clearTimeout(entry.timer);
+      if (event.data.error) entry.reject(new Error(event.data.error)); else entry.resolve(event.data.result);
+    };
+    worker.onerror = () => reset(new Error("wildz_local_seal_worker_failed"));
+    worker.onmessageerror = () => reset(new Error("wildz_local_seal_worker_failed"));
+  }
+  return new Promise((resolve, reject) => {
+    const id = ++sequence;
+    const timer = setTimeout(() => reset(new Error("wildz_local_seal_timeout")), 120_000);
+    pending.set(id, { resolve, reject, timer });
+    worker!.postMessage({ id, command, ...(input ? { input } : {}) });
   });
 }
-
-export async function sealWildzOwnedCardBlob(payload: Blob, filename: string, kind: WildzGameImageKind) {
-  const signer = await prepareWildzLocalCardSealer();
+function reset(error: Error) {
+  worker?.terminate(); worker = undefined;
+  for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(error); }
+  pending.clear();
+}
+/** Warm packaged resources after first paint. This never enrolls a device. */
+export async function prewarmWildzLocalSealer() { await request("ready"); }
+/** Explicit Save setup only; background preparation must already have custody. */
+export async function prepareWildzLocalCardSealer() {
+  if (!await request("ready")) await request("enroll");
+}
+export async function sealWildzOwnedCardBlob(payload: Blob, filename: string, kind: WildzGameImageKind, options: { allowEnrollment?: boolean } = {}) {
+  if (options.allowEnrollment !== false) await prepareWildzLocalCardSealer();
+  else if (!await request("ready")) throw new Error("offline_seal_enrollment_required");
   const session = await createWildzIdentityRepository().active();
-  return sealWildzCardLocally({ kind, mapOwner: session?.username ?? undefined, payload: new Uint8Array(await payload.arrayBuffer()), filename, signer });
+  return sealWildzCardLocally({ kind, mapOwner: session?.username ?? undefined,
+    payload: new Uint8Array(await payload.arrayBuffer()), filename,
+    sealer: { seal: async input => await request("seal", input) as Awaited<ReturnType<Sealer["seal"]>> } });
 }

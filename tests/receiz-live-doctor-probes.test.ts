@@ -64,9 +64,6 @@ test("strict-live doctor proves bounded authenticated read rails", () => {
   assert.deepEqual(Object.keys(report.liveProbes).sort(), [
     "identity",
     "payments",
-    "portability",
-    "proofStore",
-    "releases",
     "wallet",
     "world"
   ]);

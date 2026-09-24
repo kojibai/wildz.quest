@@ -211,7 +211,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(cameraRig, /enablePan/);
     assert.match(cameraRig, /enableRotate/);
     assert.match(cameraRig, /zoomToCursor/);
-    assert.match(cameraRig, /touches=\{\{ ONE: THREE\.TOUCH\.PAN, TWO: THREE\.TOUCH\.DOLLY_ROTATE \}\}/);
+    assert.match(cameraRig, /touches=\{\{ ONE: THREE\.TOUCH\.PAN, TWO: THREE\.TOUCH\.DOLLY_PAN \}\}/);
+    assert.match(cameraRig, /Apply the exact finger angle/);
     assert.doesNotMatch(cameraRig, /minAzimuthAngle|maxAzimuthAngle/);
     assert.doesNotMatch(cameraRig, /onChange=\{/);
     assert.equal(passThroughLabels.length, htmlLabels.length);
@@ -684,7 +685,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(inventory, /Retired memorial/);
     assert.match(inventory, /selectedRetired/);
     assert.match(inventory, /selectedRetired \? <div className="wilds-vault-card-memorial"/);
-    assert.match(inventory, /: <WildsCardScene asset=\{selected\} condition=\{state\.adventureConditions\[selected\.id\]\} origin=\{origin\} qr=\{qr\} speaking=\{speakingAssetId === selected\.id\} \/>/);
+    assert.match(inventory, /: <WildsCardScene onSaveProof=\{\(\) => saveVerifiedCard\(selected\)\} asset=\{selected\} condition=\{state\.adventureConditions\[selected\.id\]\} origin=\{origin\} qr=\{qr\} speaking=\{speakingAssetId === selected\.id\} \/>/);
     assert.match(roster, /const retired = condition\.life === "dead"/);
     assert.match(roster, /if \(retired\) return \[\]/);
     assert.doesNotMatch(drawer, /is-retired|wildz-memorial-card-viewer/);
@@ -747,7 +748,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(inventory, /import QRCode from "qrcode"/);
     assert.match(inventory, /requireGloballyAvailablePublicWildsCard/);
     assert.match(inventory, /QRCode\.toDataURL\(record\.sourceUrl/);
-    assert.match(inventory, /<WildsCardScene asset=\{selected\} condition=\{state\.adventureConditions\[selected\.id\]\} origin=\{origin\} qr=\{qr\}/);
+    assert.match(inventory, /<WildsCardScene onSaveProof=\{\(\) => saveVerifiedCard\(selected\)\} asset=\{selected\} condition=\{state\.adventureConditions\[selected\.id\]\} origin=\{origin\} qr=\{qr\}/);
     assert.match(inventory, />Import card or vault</);
     assert.match(inventory, /"Save verified vault"/);
     assert.match(inventory, /cardSave\.button/);

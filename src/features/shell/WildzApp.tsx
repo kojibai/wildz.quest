@@ -249,7 +249,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     let active = true;
     void (async () => {
       for (const load of [loadWildzProfileSheet, loadWildzVaultSheet,
-        () => import("../../lib/receiz/local-seal/reference/realGroth16ProofClient").then(runtime => runtime.prewarmDocumentSealGroth16Runtime())]) {
+        () => import("../../lib/receiz/local-seal/browser").then(runtime => runtime.prewarmWildzLocalSealer())]) {
         await wildzGameplayBackground.run(async () => {
           if (active) await load();
         }, { timeoutMs: 2_500 }).catch(() => undefined);

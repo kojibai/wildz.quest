@@ -92,7 +92,7 @@ export function WildsWalletTerminal({ actionHistory, livingOperations, cards = [
         {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} materialLots={materialLots} resourceLots={resourceLots} stewardPhiAwards={stewardPhiAwards} onOpenVaultCard={closeAllowed ? actions.onOpenVaultCard : undefined} onPrepareCard={onPrepareCard} onListCard={onListCard} onSendCard={onSendCard} onSendMaterial={onSendMaterial} onSendResource={onSendResource} state={state} /> : null}
         {state.page === "ledger" ? <WildsWalletLedger actionHistory={actionHistory} livingOperations={livingOperations} cards={cards} materialLots={ledgerMaterialLots ?? materialLots} resourceLots={resourceLots} state={state} stewardPhiAwards={stewardPhiAwards} /> : null}
       </main>
-      <footer><span>RECEIZ V124 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>
+      <footer><span>RECEIZ V127 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>
     </section>
   </div>;
 }

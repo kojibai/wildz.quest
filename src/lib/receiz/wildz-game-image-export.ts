@@ -2,7 +2,7 @@ import { createReceizProofObjectArtifact } from "../../features/play/card-export
 
 export type WildzGameImageKind = "card" | "vault" | "identity" | "map";
 
-/** All game-bearing PNG downloads use the enrolled local v126 runtime. */
+/** All game-bearing PNG downloads use the enrolled official SDK v127 offline runtime. */
 export async function prepareWildzGameImage(input: {
   bytes: Uint8Array; filename: string; kind: WildzGameImageKind;
 }) {

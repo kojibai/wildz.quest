@@ -1,3 +1,4 @@
+import { hasWildzCanonicalPngProof } from "./wildz-png-envelope";
 import { hasWildzCardSealPayload, unpackWildzCardSealPayload } from "./wildz-card-seal-payload";
 import { isAdmittedWildsCard } from "../../features/play/admitted-inventory";
 import { isVerifiedWildzCardDescendant } from "./wildz-card-descendant";
@@ -283,7 +284,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
           }
         }
       }
-      if (pngBasis && hasWildzCardSealPayload(pngBasis)) proofObjectArtifactBytes = bytes;
+      if (pngBasis && (hasWildzCardSealPayload(pngBasis) || hasWildzCanonicalPngProof(pngBasis))) proofObjectArtifactBytes = bytes;
       const proofObjectCandidate = proofObjectArtifactBytes !== null;
       if (proofObjectArtifactBytes !== null) {
         try {
@@ -319,7 +320,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
             const document = await openWildzSealedDocument({ bytes: proofObjectArtifactBytes,
               mimeType: artifact.mimeType, name: artifact.name });
             if (!isWildzPng(document.payloadBytes)) throw error;
-            const restored = await createWildzArtifactCodecAtDepth(input, depth + 1).inspect({ bytes: document.payloadBytes,
+            const restored = await createWildzArtifactCodecAtDepth(input, depth + 1).inspect({ bytes: await unpackWildzCardSealPayload(document.payloadBytes),
               mimeType: document.payloadMimeType, name: document.payloadFilename });
             if (restored.kind !== "invalid" && restored.kind !== "unsupported") {
               await input.sealedDocumentStore?.retain({ bytes: document.exactSealedArtifactBytes,

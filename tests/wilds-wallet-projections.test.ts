@@ -211,7 +211,7 @@ describe("Wilds wallet projections", () => {
     );
 
     const admitted = projectWildsWalletCapabilities({
-      sdkVersion: "126.0.0",
+      sdkVersion: "127.0.0",
       rails,
       grantedScopes: exactScopes
     }, true);
@@ -229,7 +229,7 @@ describe("Wilds wallet projections", () => {
     });
 
     const partial = projectWildsWalletCapabilities({
-      sdkVersion: "126.0.0",
+      sdkVersion: "127.0.0",
       rails,
       grantedScopes: exactScopes.filter((scope) => scope !== "receiz:reserve.write")
     });
@@ -240,7 +240,7 @@ describe("Wilds wallet projections", () => {
     assert.deepEqual(partial.send, { available: true });
 
     const packageOnly = projectWildsWalletCapabilities({
-      sdkVersion: "126.0.0",
+      sdkVersion: "127.0.0",
       rails: { ...rails, valueExecutionRecovery: false },
       grantedScopes: exactScopes
     });

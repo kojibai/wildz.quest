@@ -22,7 +22,7 @@ test("the Slate selector and Vault rows show creature artwork without a circular
   assert.match(css, /\.wilds-vault-creature-art,\s*\.wildz-slate-creature-art\s*\{[^}]*background:\s*transparent;[^}]*border-radius:\s*0;/s);
   assert.doesNotMatch(inventory, /<WildsCardPreview/);
   assert.doesNotMatch(drawer, /<WildsCardPreview/);
-  assert.match(inventory, /<WildsCardScene asset=\{selected\}/);
+  assert.match(inventory, /<WildsCardScene onSaveProof=\{\(\) => saveVerifiedCard\(selected\)\} asset=\{selected\}/);
   assert.match(scene, /wilds-card-flipper/);
   assert.match(scene, /<WildsCard asset=\{asset\} condition=\{condition\}/);
   assert.match(css, /\.wilds-inventory-detail \.wilds-card-scene\s*\{[^}]*width:\s*min\(380px,\s*calc\(100vw - 48px\)\);/s);

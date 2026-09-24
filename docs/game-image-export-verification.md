@@ -1,63 +1,56 @@
-# Game image export verification — v126
+# Game image export verification — v127
 
-Creature cards, Identity Seals, combined identity/player cards, full Vaults, map
-images, and the card-back proof download use the shared local sealing boundary.
-Diagnostic playtest JSON is not a game proof export.
+Creature cards, Identity Seals, combined identity/player cards, Vaults and map
+images share the official `@receiz/sdk/offline` sealing boundary. Diagnostic
+playtest JSON is not a game proof export.
 
-## Runtime
+## Runtime and custody
 
-The app stays on SDK/MCP/AI-skills 126.0.0. SDK126's server convenience method is
-not used for browser saves. Wildz temporarily carries the v126 browser sealing
-primitives in `src/lib/receiz/local-seal/reference`; the source commit, file
-hashes and adaptations are recorded in `provenance.json`. No changes to the
-Receiz repository or SDK package are required. Replace this adapter with the
-packaged v127 local entry point when available.
+SDK, MCP and AI skills are pinned to 127.0.0. No copied Receiz main-application
+runtime remains. The package supplies the sealer, production verification roots
+and Groth16 resources. `pnpm receiz:offline-resources` copies the public package
+resources and records their hashes before development and production builds.
 
-The browser enrolls an Ed25519 device once through the public-key-only
-`/api/receiz/local-signer/enroll` proxy. It checks the returned certificate against
-Receiz production roots, stores the nonextractable private key in IndexedDB,
-and uses it with local Groth16 resources. Enrollment/renewal needs connectivity;
-sealing and canonical verification after setup do not. Clearing browser storage
-removes this device setup. Proof resources are hash-checked, prewarmed after the
-world paints, and precached by the service worker.
+Proof generation runs in a dedicated browser worker. After the world paints,
+prewarming loads resources without enrolling a device. Explicit Save can perform
+one-time enrollment through the same-origin public-key-only proxy. The SDK
+retains a nonexportable CryptoKey in IndexedDB. Existing v126 origin-local
+custody is migrated only after the official SDK validates its certificate and
+key possession. Keys and game payloads never enter a remote sealing endpoint.
+Clearing browser storage removes that device's local setup.
 
-Private recovery keys and game payloads never enter a remote sealing endpoint.
-The retained server export route separately rejects plaintext recovery keys.
+## Full payload, identity and authority
 
-## Payload and verification
+Identity trailers are packed inside the PNG before sealing. Every byte of the
+original signed game envelope, card proofs, receipts, history and unknown
+namespaces is recoverable. The standard SDK identity PNG namespace remains
+readable by other SDK consumers. The canonical verifier validates the enclosing
+proof; the importer separately validates the inner game proof and identity
+signature. Exact admitted payload digests bind transport extraction.
 
-PNG identity trailers are packed inside the PNG before sealing because PNG
-canonicalization does not bind trailing bytes. The SDK identity PNG namespace
-remains readable across SDK consumers. The complete signed game envelope,
-receipts, history and unknown PNG chunks survive byte-for-byte reconstruction.
-The V4 signature covers the enclosing proof bundle. SDK canonical verification
-and an exact payload digest check must pass before download. Sealed bytes are
-never changed after issuance. Existing native objects cannot be wrapped as new
-genesis by this sealer; their verified bytes must be reused or advanced through
-the SDK transition workflow.
+A canonical document seal proves the file's integrity and enrolled signature.
+It does not mint native ownership, admit a transfer or settle PHI. Existing native
+artifacts are reused without changing their ownership or history. The SDK's
+owner-bound creation path additionally requires a genuine admitted Identity
+Record; a username or device certificate is not a substitute. Wildz's saved
+backup envelope does not invent that admission. Native-only transfer admission
+remains separate and unchanged.
 
-A new backup snapshot's enclosing native genesis is not a transfer of an
-existing native asset. Preserving inner game history does not independently
-prove every cross-application transfer workflow. Those transitions retain their
-existing predecessor/append verification requirements.
+Sealed bytes are never modified after issuance. Existing enclosing proofs must
+be reused or advanced through their SDK transition workflow, never resealed as
+new genesis. Old unsealed saves do not retroactively become canonical objects.
 
-## Evidence
+## Executed evidence
 
-`tests/wildz-local-image-seal.test.ts` generates all four export types with a
-previously enrolled disposable device and real Groth16 proving. After loading
-resources from disk it blocks all network calls, verifies each output with the
-SDK canonical verifier, checks exact payload restoration, imports card/Vault
-payloads through the Wildz codec, reads the carried identity through the standard
-SDK namespace, and rejects tampering and rewrapping existing native objects.
-The private test device key remains outside the repository. Run with
-`WILDZ_TEST_SIGNER_FILE` pointing to an already-enrolled test fixture containing
-`cert` and private JWK `key`; the test never enrolls a device itself.
+`tests/wildz-local-image-seal.test.ts` uses an already-enrolled disposable device
+with real SDK Groth16 proving. With network calls blocked, all four save types
+passed canonical verification, exact payload reconstruction and tamper rejection.
+Cards and Vaults restored through the game codec; identity remained readable
+through the public SDK. Rewrapping existing proofs was rejected.
 
-Local measurements for the four small fixtures were roughly 0.5–0.8 seconds
-including repeated verification. Repeated prepared-card saves reuse exact cached
-bytes. Larger backups and slower devices can take longer; zero computation time
-is not claimed. Original saved PNG bytes must be preserved: image editors or
-photo services that strip metadata cannot preserve a proof they remove.
-
-Old unsealed files are not retroactively canonical proof objects. Legacy game
-payload readers remain separate from canonical verification.
+Set `WILDZ_TEST_SEAL_DIRECTORY` to a private directory created by the official
+Node offline sealer. The test never enrolls or prints keys. Without private
+custody, the integration case is explicitly skipped. Small fixtures took roughly
+0.5–0.6 seconds each including repeated verification; this is not a mobile-device
+latency guarantee. Cached prepared saves reuse verified bytes. Image editors or
+photo services that strip proof metadata cannot preserve a removed proof.

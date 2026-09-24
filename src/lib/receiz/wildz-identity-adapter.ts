@@ -668,7 +668,7 @@ export async function downloadWildzIdentityOwnedCard(
   } catch (error) {
     // A Save can join the non-prompting background read. Its rejected cache entry
     // is removed before this catch, so the explicit action may now request a key.
-    if (options.allowPrompt === false || !(error instanceof Error) || error.message !== "wildz_identity_passphrase_required") throw error;
+    if (options.allowPrompt === false || !(error instanceof Error) || !["wildz_identity_passphrase_required", "offline_seal_enrollment_required"].includes(error.message)) throw error;
     prepared = await prepareWildzIdentityOwnedCard(session, asset, player, options);
   }
   await savePreparedWildzIdentityOwnedCard(prepared);
@@ -724,7 +724,7 @@ export function createWildzIdentityOwnedCardPreparer(dependencies: {
       if (local && local.bytes instanceof Uint8Array) {
         try {
           const opened = await (dependencies.openSeal ?? openWildzSealedCard)({ bytes: local.bytes, mimeType: local.mimeType, name: local.filename });
-          if (sameWildzPlayerCoordinate(opened.ownerReceizId, ownerReceizId)
+          if ((opened.ownerReceizId === null || sameWildzPlayerCoordinate(opened.ownerReceizId, ownerReceizId))
             && await matchesWildzOwnedCardExport(opened.payloadBytes, { asset, keyId: session.keyId, ownerReceizId }))
             return { ...local, ownerReceizId, cardFingerprint: fingerprint, keyId: session.keyId, assetId: asset.id };
         } catch { /* A stale or invalid cached payload is never a saved proof object. */ }
@@ -739,7 +739,7 @@ export function createWildzIdentityOwnedCardPreparer(dependencies: {
           if (!source) continue;
           const bytes = receizBase64UrlDecode(source.artifact.exactBytesB64u);
           const opened = await (dependencies.openSeal ?? openWildzSealedCard)({ bytes, mimeType: source.artifact.mimeType, name: source.artifact.filename });
-          if (!sameWildzPlayerCoordinate(opened.ownerReceizId, ownerReceizId)) continue;
+          if (opened.ownerReceizId !== null && !sameWildzPlayerCoordinate(opened.ownerReceizId, ownerReceizId)) continue;
           const payload = opened.payloadBytes;
           if (!await matchesWildzOwnedCardExport(payload, { asset, keyId: session.keyId, ownerReceizId })) continue;
           void dependencies.database.transaction(["meta"], "readwrite", tx => tx.put("meta", sha, cacheKey)).catch(() => {});
@@ -781,10 +781,10 @@ export function createWildzIdentityOwnedCardPreparer(dependencies: {
       if (!await matchesWildzOwnedCardExport(combined, { asset, keyId: session.keyId, ownerReceizId }))
         throw new Error("wildz_identity_card_export_invalid");
       const sealed = await dependencies.seal(new Blob([combined.slice().buffer], { type: "image/png" }),
-        `${portableCreatureFilename(asset.manifest.name)}.png`, "vault");
+        `${portableCreatureFilename(asset.manifest.name)}.png`, "vault", undefined, { allowEnrollment: options.allowPrompt !== false });
       await dependencies.verifySeal(sealed.bytes, combined);
       const opened = await (dependencies.openSeal ?? openWildzSealedCard)({ bytes: sealed.bytes, mimeType: sealed.mimeType, name: sealed.filename });
-      if (!sameWildzPlayerCoordinate(opened.ownerReceizId, ownerReceizId)
+      if ((opened.ownerReceizId !== null && !sameWildzPlayerCoordinate(opened.ownerReceizId, ownerReceizId))
         || !await matchesWildzOwnedCardExport(opened.payloadBytes, { asset, keyId: session.keyId, ownerReceizId }))
         throw new Error("wildz_identity_card_export_invalid");
       const artifact: WildzPreparedIdentityOwnedCard = {
