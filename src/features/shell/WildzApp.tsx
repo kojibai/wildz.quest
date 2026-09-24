@@ -736,7 +736,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_identity_missing");
     if (current.session.localAuthority !== "verified") throw new Error("wildz_identity_card_authority_required");
-    const artifact = await prepareCombinedVaultForSave(current);
+    const artifact = combinedVaultCoordinator.current!.peek(current) ?? await prepareCombinedVaultForSave(current);
     if (continuityRef.current?.session.keyId !== current.session.keyId) throw new Error("wildz_identity_changed");
     downloadBlob(artifact.blob ?? new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType }), artifact.filename);
   };
