@@ -55,6 +55,7 @@ export type WildsWalletSendActions = Readonly<{
   onAuthorizationPointerCancel(pointerId: number): void;
   onAuthorize?: (pointerId: number) => void;
   onRecover(): void;
+  onEditTransfer(field: "recipient" | "amount"): void;
   onResetTransfer(): void;
   onReturnToMessages?(): void;
 }>;
@@ -68,7 +69,7 @@ function unavailableReason(state: WildsWalletControllerState) {
 
 export function WildsWalletSend({ state, ...actions }: { state: WildsWalletControllerState } & WildsWalletSendActions) {
   const [username, setUsername] = useState(state.transfer.recipientUsername ?? "");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(state.transfer.amountPhiMicro ? formatWildsPhiExact(state.transfer.amountPhiMicro) : "");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanStatus, setScanStatus] = useState<string | null>(null);
   const onAuthorizationPointerCancel = actions.onAuthorizationPointerCancel;
@@ -83,6 +84,13 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
   const unavailable = unavailableReason(state);
   const transfer = state.transfer;
   const onSelectReceiveCoordinate = actions.onSelectReceiveCoordinate;
+  const resetTransfer = () => {
+    setUsername("");
+    setAmount("");
+    setScanStatus(null);
+    setScannerOpen(false);
+    actions.onResetTransfer();
+  };
   useEffect(() => {
     if (transfer.phase === "amount" && transfer.amountPhiMicro) setAmount(formatWildsPhiExact(transfer.amountPhiMicro));
   }, [transfer.amountPhiMicro, transfer.phase]);
@@ -129,8 +137,8 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
     cancelHold(KEYBOARD_AUTHORIZATION_GESTURE_ID);
   };
   if (transfer.phase === "unknown") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>EXACT ATTEMPT RETAINED</small><h2 id="wilds-wallet-send-title">Recovery pending</h2></header><p>The outcome is ambiguous. Wildz will not create or send another transfer.</p><button disabled={transfer.requestId !== null} onClick={actions.onRecover} type="button">Check exact outcome</button></section>;
-  if (transfer.phase === "zero-write") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>ZERO-WRITE REJECTION</small><h2 id="wilds-wallet-send-title">Nothing moved</h2></header><p>The proof-object transition was not admitted. Balance, assets, and ownership remain unchanged.</p><button onClick={actions.onResetTransfer} type="button">Start again</button></section>;
-  if (transfer.phase === "committed") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>PROOF OBJECT ISSUED</small><h2 id="wilds-wallet-send-title">Transfer committed</h2></header><p role="status">Your Receiz ID issued the exact transfer proof. Its private message-thread record synchronizes globally without replacing source truth.</p><button onClick={actions.onReturnToMessages ?? actions.onResetTransfer} type="button">{actions.onReturnToMessages ? "Return to messages" : "Done"}</button></section>;
+  if (transfer.phase === "zero-write") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>ZERO-WRITE REJECTION</small><h2 id="wilds-wallet-send-title">Nothing moved</h2></header><p>The proof-object transition was not admitted. Balance, assets, and ownership remain unchanged.</p><button onClick={resetTransfer} type="button">Start again</button></section>;
+  if (transfer.phase === "committed") return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>PROOF OBJECT ISSUED</small><h2 id="wilds-wallet-send-title">Transfer committed</h2></header><p role="status">Your Receiz ID issued the exact transfer proof. Its private message-thread record synchronizes globally without replacing source truth.</p><button onClick={actions.onReturnToMessages ?? resetTransfer} type="button">{actions.onReturnToMessages ? "Return to messages" : "Done"}</button></section>;
   if (unavailable) return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface"><header><small>TRANSFER AUTHORITY</small><h2 id="wilds-wallet-send-title">Send</h2></header><p className="wilds-wallet-state-strip is-source" role="status">{unavailable}</p><p>You can still inspect verified holdings and receive coordinates. Wildz never simulates settlement.</p></section>;
 
   return <section aria-labelledby="wilds-wallet-send-title" className="wilds-wallet-surface">
@@ -148,10 +156,18 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
       <label htmlFor="wilds-wallet-amount">Phi amount</label><input aria-describedby="wilds-wallet-amount-help" aria-invalid={amount.trim() !== "" && !parseWildsPhiInput(amount)} id="wilds-wallet-amount" inputMode="decimal" onChange={(event) => setAmount(event.target.value)} placeholder="0.00" value={amount} />
       <p id="wilds-wallet-amount-help" role={amount.trim() && !parseWildsPhiInput(amount) ? "status" : undefined}>{amount.trim() && !parseWildsPhiInput(amount) ? "Enter a positive PHI amount with up to 6 decimal places, such as .001." : "You can send fractions of PHI, down to 0.000001."}</p>
       <button disabled={!parseWildsPhiInput(amount)} type="submit">Review exact amount</button>
+      <div className="wilds-wallet-edit-actions"><button onClick={() => actions.onEditTransfer("recipient")} type="button">Edit recipient</button><button onClick={resetTransfer} type="button">Cancel transfer</button></div>
     </form> : null}
     {transfer.phase === "review" || transfer.phase === "stage" ? <div className="wilds-wallet-review">
       <p><span>Recipient</span><b>@{transfer.recipientUsername}</b></p><p><span>Exact amount</span><b><PhiNetworkAmount value={transfer.amountPhiMicro ? formatWildsPhiExact(transfer.amountPhiMicro) : "—"} /></b></p><p><span>Rail</span><b>{transfer.rail}</b></p>
-      <button disabled={transfer.phase === "stage"} onClick={actions.onStage} type="button">{transfer.phase === "stage" ? "Preparing exact proof…" : "Prepare transfer proof"}</button>
+      <small className="wilds-wallet-transfer-help">Next, you’ll confirm before anything is sent.</small>
+      {transfer.preparationError ? <p className="wilds-wallet-transfer-error" role="alert">{transfer.preparationError}</p> : null}
+      <button disabled={transfer.phase === "stage"} onClick={actions.onStage} type="button">{transfer.phase === "stage" ? "Preparing exact proof…" : transfer.preparationError ? "Retry preparation" : "Prepare transfer proof"}</button>
+      <div className="wilds-wallet-edit-actions">
+        <button disabled={transfer.phase === "stage"} onClick={() => actions.onEditTransfer("amount")} type="button">Edit amount</button>
+        <button disabled={transfer.phase === "stage"} onClick={() => actions.onEditTransfer("recipient")} type="button">Edit recipient</button>
+        <button disabled={transfer.phase === "stage"} onClick={resetTransfer} type="button">Cancel transfer</button>
+      </div>
     </div> : null}
     {transfer.phase === "authorize" || transfer.phase === "authorize-pending" ? <div className="wilds-wallet-authorize">
       <p><span>Final amount</span><b><PhiNetworkAmount value={transfer.amountPhiMicro ? formatWildsPhiExact(transfer.amountPhiMicro) : "—"} /></b></p>
@@ -168,6 +184,11 @@ export function WildsWalletSend({ state, ...actions }: { state: WildsWalletContr
         type="button"
       >{actions.onAuthorize ? (transfer.phase === "authorize-pending" ? "Issuing transfer proof…" : "Hold to issue exact proof object") : "Proof-object signing unavailable"}</button>
       <small>Keep pointer, Space, or Enter held. Releasing or leaving cancels authorization.</small>
+      <div className="wilds-wallet-edit-actions">
+        <button disabled={transfer.phase === "authorize-pending" || transfer.authorizationPointerId !== null} onClick={() => actions.onEditTransfer("amount")} type="button">Edit amount</button>
+        <button disabled={transfer.phase === "authorize-pending" || transfer.authorizationPointerId !== null} onClick={() => actions.onEditTransfer("recipient")} type="button">Edit recipient</button>
+        <button disabled={transfer.phase === "authorize-pending" || transfer.authorizationPointerId !== null} onClick={resetTransfer} type="button">Cancel transfer</button>
+      </div>
     </div> : null}
   </section>;
 }

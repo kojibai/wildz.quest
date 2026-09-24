@@ -480,3 +480,46 @@ test("fractional PHI input accepts omitted leading zero without rounding", async
   }
   for (const invalid of [".", ".000000", ".0000001", "-.001", "1e-3", "1.2.3"]) assert.equal(parseWildsPhiInput(invalid), null);
 });
+
+test("editing transfer details keeps the draft but invalidates the previous proof", () => {
+  const base = verifiedState();
+  const reviewed: WildsWalletControllerState = { ...base, stagedTransactionId: "old-proof", transfer: { ...base.transfer, phase: "authorize", recipientUsername: "klok", recipientLocator: "old-coordinate", amountPhiMicro: "1000", rail: "settlement", operationNonce: "old-nonce", attempt: "old-proof", expiresAtKai: 100 } };
+  const amount = reduceWildsWalletController(reviewed, { type: "transfer-edit", field: "amount" });
+  assert.equal(amount.transfer.phase, "amount");
+  assert.equal(amount.transfer.recipientLocator, "old-coordinate");
+  assert.equal(amount.transfer.amountPhiMicro, "1000");
+  assert.equal(amount.transfer.operationNonce, null);
+  assert.equal(amount.transfer.attempt, null);
+  assert.equal(amount.stagedTransactionId, null);
+  const recipient = reduceWildsWalletController(reviewed, { type: "transfer-edit", field: "recipient" });
+  const changed = reduceWildsWalletController(recipient, { type: "transfer-recipient-selected", username: "other" });
+  assert.equal(changed.transfer.recipientUsername, "other");
+  assert.equal(changed.transfer.recipientLocator, null);
+  assert.equal(changed.transfer.amountPhiMicro, "1000");
+  const cancelled = reduceWildsWalletController(reviewed, { type: "transfer-reset" });
+  assert.equal(cancelled.transfer.phase, "recipient");
+  assert.equal(cancelled.transfer.amountPhiMicro, null);
+  assert.equal(cancelled.transfer.recipientUsername, null);
+});
+
+test("editing and cancelling cannot discard an in-flight or ambiguous transfer", () => {
+  const base = verifiedState();
+  for (const phase of ["stage", "authorize-pending", "unknown"] as const) {
+    const pending = { ...base, transfer: { ...base.transfer, phase, operationNonce: "retained-nonce", attempt: "retained-proof" } };
+    assert.equal(reduceWildsWalletController(pending, { type: "transfer-edit", field: "amount" }), pending);
+    assert.equal(reduceWildsWalletController(pending, { type: "transfer-reset" }), pending);
+  }
+});
+
+test("failed preparation reports an error and retry clears it while retaining the exact draft", () => {
+  const base = verifiedState();
+  const pending: WildsWalletControllerState = { ...base, transfer: { ...base.transfer, phase: "stage", requestId: 5, recipientUsername: "klok", amountPhiMicro: "1000", rail: "settlement", operationNonce: "same-nonce" } };
+  const failed = reduceWildsWalletController(pending, { type: "transfer-stage-failed", requestId: 5 });
+  assert.equal(failed.transfer.phase, "review");
+  assert.match(failed.transfer.preparationError!, /Nothing has been sent/);
+  const retry = reduceWildsWalletController(failed, { type: "transfer-stage-start", requestId: 6, identityKey: base.identityKey, authorityGeneration: base.authorityGeneration });
+  assert.equal(retry.transfer.phase, "stage");
+  assert.equal(retry.transfer.preparationError, null);
+  assert.equal(retry.transfer.operationNonce, "same-nonce");
+  assert.equal(retry.transfer.amountPhiMicro, "1000");
+});

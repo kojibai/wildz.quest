@@ -711,6 +711,10 @@ body {
 .wilds-wallet-review, .wilds-wallet-authorize { display: grid; gap: 0; }
 .wilds-wallet-review p, .wilds-wallet-authorize p { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid rgba(177,208,193,.12); }.wilds-wallet-review span, .wilds-wallet-authorize span { color: #8ca097; }.wilds-wallet-review b, .wilds-wallet-authorize b { min-width: 0; color: #eff6f3; font-family: ui-monospace, monospace; text-align: right; overflow-wrap: anywhere; }
 .wilds-wallet-review button, .wilds-wallet-authorize button { min-height: 52px; margin-top: 16px; }.wilds-wallet-authorize small { padding-top: 8px; color: #84988f; text-align: center; }
+.wilds-wallet-edit-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.wilds-wallet-surface .wilds-wallet-edit-actions button { flex: 1 1 120px; min-height: 44px; margin-top: 0; color: #c6dfd8; background: transparent; border-color: rgba(177,208,193,.3); box-shadow: none; }
+.wilds-wallet-transfer-help { display: block; margin-top: 12px; color: #a6bbb3; line-height: 1.5; }
+.wilds-wallet-review .wilds-wallet-transfer-error { display: block; color: #ffd4a3; line-height: 1.5; }
 
 @media (max-width: 900px) {
   .wilds-wallet-layer { align-items: center; justify-content: center; }

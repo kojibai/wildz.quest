@@ -43,7 +43,7 @@ function state(overrides: Record<string, unknown> = {}) {
 const actions = {
   onClose() {}, onNavigate() {}, onLookupRecipient() {}, onSelectRecipient() {}, onReviewAmount() {},
   onStage() {}, onAuthorizationPointerStart() {}, onAuthorizationPointerCancel() {}, onAuthorize() {},
-  onRecover() {}, onResetTransfer() {}, onRefresh() {}, onRequestReceive() {}
+  onRecover() {}, onEditTransfer() {}, onResetTransfer() {}, onRefresh() {}, onRequestReceive() {}
 };
 
 test("wallet instrument announces exact admitted value while abbreviating the visual HUD value", () => {
@@ -292,4 +292,30 @@ test("overview shows live inventory counts and the same creature activity as Led
   assert.doesNotMatch(overview, /No admitted entries/);
   const ledger = renderToStaticMarkup(createElement(WildsWalletTerminal, { ...props, state: state({ page: "ledger", summary }) }));
   assert.match(ledger, /Creature admitted/);
+});
+
+test("send review provides an escape from locked transfer details", () => {
+  const base = state();
+  const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, {
+    publicUsername: "explorer",
+    state: { ...base, page: "send", capabilities: gateWildsWalletClientCapabilities(base.capabilities, { proofAuthorization: true }),
+      transfer: { ...base.transfer, phase: "review", recipientUsername: "klok", amountPhiMicro: "1000", rail: "settlement", operationNonce: "review-nonce" } },
+    ...actions
+  }));
+  assert.match(markup, /Edit amount/);
+  assert.match(markup, /Edit recipient/);
+  assert.match(markup, /Cancel transfer/);
+  assert.match(markup, /confirm before anything is sent/);
+});
+
+test("failed preparation has a visible retry and pending preparation disables editing", () => {
+  const base = state();
+  const reviewed = { ...base, page: "send" as const, capabilities: gateWildsWalletClientCapabilities(base.capabilities, { proofAuthorization: true }), transfer: { ...base.transfer, phase: "review" as const, recipientUsername: "klok", amountPhiMicro: "1000", rail: "settlement" as const, operationNonce: "review-nonce" } };
+  const pending = reduceWildsWalletController(reviewed, { type: "transfer-stage-start", requestId: 7, identityKey: reviewed.identityKey, authorityGeneration: reviewed.authorityGeneration });
+  const failed = reduceWildsWalletController(pending, { type: "transfer-stage-failed", requestId: 7 });
+  const render = (value: typeof pending) => renderToStaticMarkup(createElement(WildsWalletTerminal, { publicUsername: "explorer", state: value, ...actions }));
+  assert.match(render(failed), /role="alert"[^>]*>Could not prepare your transfer/);
+  assert.match(render(failed), /Retry preparation/);
+  assert.match(render(pending), /disabled=""[^>]*>Edit amount/);
+  assert.match(render(pending), /disabled=""[^>]*>Cancel transfer/);
 });

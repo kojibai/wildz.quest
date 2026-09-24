@@ -2981,6 +2981,7 @@ export function PlayCampaign({
               onAuthorizationPointerCancel={walletController.authorizationPointerCancel}
               onAuthorize={walletController.authorizeTransfer ?? undefined}
               onRecover={() => { void walletController.recoverTransfer(); }}
+              onEditTransfer={walletController.editTransfer}
               onResetTransfer={walletController.resetTransfer}
               onReturnToMessages={walletMessagePeer ? () => {
                 closeOwnedModal("wallet");

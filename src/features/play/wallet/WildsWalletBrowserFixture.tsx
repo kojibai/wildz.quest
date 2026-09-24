@@ -4,7 +4,7 @@ import { initialPlayState } from "../game-state";
 import { useState } from "react";
 import type { WildsResourceLotV1 } from "../wilds-resource-lot";
 import { WildsWalletTerminal } from "./WildsWalletTerminal";
-import { createWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPresentationState } from "./wilds-wallet-controller";
+import { reduceWildsWalletController, createWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPresentationState } from "./wilds-wallet-controller";
 
 function fixtureState(status: WildsWalletControllerState["status"], phase: WildsWalletControllerState["transfer"]["phase"] = "recipient"): WildsWalletControllerState {
   return {
@@ -14,7 +14,7 @@ function fixtureState(status: WildsWalletControllerState["status"], phase: Wilds
     ledger: { cursor: null, nextCursor: null, entries: [] }, transfer: { phase, recipientUsername: "recipient-with-long-coordinate", amountPhiMicro: "2500000", rail: "settlement", operationNonce: "fixture", attempt: phase === "unknown" ? "opaque-fixture" : null, expiresAtKai: null, requestId: null, authorizationPointerId: null, result: phase === "unknown" ? { status: "unknown", rail: "settlement", amountPhiMicro: "2500000" } : phase === "zero-write" ? { status: "zero-write", rail: "settlement", code: "SOURCE_HEAD_STALE" } : phase === "committed" ? { status: "committed", rail: "settlement", amountPhiMicro: "2500000" } : null }
   };
 }
-const actions = { onClose() {}, onNavigate() {}, onRefresh() {}, onLookupRecipient() {}, onSelectRecipient() {}, onReviewAmount() {}, onStage() {}, onAuthorizationPointerStart() {}, onAuthorizationPointerCancel() {}, onRecover() {}, onResetTransfer() {}, onRequestReceive() {} };
+const actions = { onClose() {}, onNavigate() {}, onRefresh() {}, onLookupRecipient() {}, onSelectRecipient() {}, onReviewAmount() {}, onStage() {}, onAuthorizationPointerStart() {}, onAuthorizationPointerCancel() {}, onRecover() {}, onEditTransfer() {}, onResetTransfer() {}, onRequestReceive() {} };
 const resourceFixture: WildsResourceLotV1 = {
   schema: "wildz.resource-lot.v1", lotId: `wildz:resource:living-honey:${"a".repeat(64)}`, kind: "living-honey", quantity: 1, quality: 4,
   ownerReceizId: "explorer", source: { groveId: "grove:fixture", groveSourceHead: `sha256:${"b".repeat(64)}`, groveAdmittedHead: `sha256:${"c".repeat(64)}`, operationId: "grove:fixture:harvest", operationPlanDigest: `sha256:${"d".repeat(64)}`, kaiUPulse: 1 },
@@ -33,8 +33,10 @@ export function WildsWalletEdgeBrowserFixture() {
   });
   const fixtureActions = {
     ...actions,
+    onEditTransfer(field: "recipient" | "amount") { setState(current => reduceWildsWalletController(current, { type: "transfer-edit", field })); },
+    onResetTransfer() { setState(current => reduceWildsWalletController(current, { type: "transfer-reset" })); },
     onNavigate(page: WildsWalletControllerState["page"]) { setState((current) => ({ ...current, page })); },
-    onLookupRecipient(username: string) { setState(current => ({ ...current, transfer: { ...current.transfer, phase: "amount", recipientUsername: username } })); },
+    onLookupRecipient(username: string) { setState(current => reduceWildsWalletController(current, { type: "transfer-recipient-selected", username })); },
     onReviewAmount(rail: "settlement" | "reserve", amountPhiMicro: string, operationNonce: string) { setState(current => ({ ...current, transfer: { ...current.transfer, phase: "review", rail, amountPhiMicro, operationNonce } })); },
     onRequestReceive() {
       setState((current) => ({ ...current, receiveRequestId: 1, receiveLocator: null }));

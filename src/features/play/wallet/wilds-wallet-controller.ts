@@ -24,6 +24,7 @@ export type WildsWalletStagedTransferResponse = Readonly<{
 export type WildsWalletTransferState = Readonly<{
   phase: "recipient" | "amount" | "review" | "stage" | "authorize" | "authorize-pending" | "unknown" | "zero-write" | "committed";
   recipientUsername: string | null;
+  preparationError?: string | null;
   recipientLocator?: string | null;
   amountPhiMicro: string | null;
   rail: "settlement" | "reserve" | null;
@@ -64,6 +65,7 @@ export type WildsWalletControllerEvent =
   | { type: "receive-request-resolved"; requestId: number; identityKey: string; locator: string }
   | { type: "receive-request-cleared" }
   | { type: "transfer-reset" }
+  | { type: "transfer-edit"; field: "recipient" | "amount" }
   | { type: "transfer-recipient-selected"; username: string }
   | { type: "transfer-coordinate-selected"; username: string; locator: string; amountPhiMicro: string | null }
   | { type: "transfer-amount-reviewed"; rail: "settlement" | "reserve"; amountPhiMicro: string; operationNonce: string }
@@ -156,9 +158,17 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
     case "receive-request-start": return state.open && state.identityKey === event.identityKey ? { ...state, receiveRequestId: event.requestId, receiveLocator: null } : state;
     case "receive-request-resolved": return state.open && state.identityKey === event.identityKey && state.receiveRequestId === event.requestId ? { ...state, receiveRequestId: null, receiveLocator: event.locator } : state;
     case "receive-request-cleared": return state.receiveLocator === null && state.receiveRequestId === null ? state : { ...state, receiveRequestId: null, receiveLocator: null };
-    case "transfer-reset": return { ...state, stagedTransactionId: null, transfer: emptyTransfer };
+    case "transfer-reset":
+      return ["stage", "authorize-pending", "unknown"].includes(state.transfer.phase) || state.transfer.authorizationPointerId !== null
+        ? state : { ...state, recipient: emptyRecipient, stagedTransactionId: null, transfer: emptyTransfer };
+    case "transfer-edit":
+      if (!["amount", "review", "authorize"].includes(state.transfer.phase) || state.transfer.authorizationPointerId !== null) return state;
+      return { ...state, recipient: emptyRecipient, stagedTransactionId: null, transfer: {
+        ...emptyTransfer, phase: event.field, recipientUsername: state.transfer.recipientUsername,
+        recipientLocator: state.transfer.recipientLocator, amountPhiMicro: state.transfer.amountPhiMicro
+      } };
     case "transfer-recipient-selected":
-      return { ...state, transfer: { ...emptyTransfer, phase: "amount", recipientUsername: event.username } };
+      return { ...state, transfer: { ...emptyTransfer, phase: "amount", recipientUsername: event.username, amountPhiMicro: state.transfer.phase === "recipient" ? state.transfer.amountPhiMicro : null } };
     case "transfer-coordinate-selected":
       return { ...state, transfer: { ...emptyTransfer, phase: "amount", recipientUsername: event.username, recipientLocator: event.locator, amountPhiMicro: event.amountPhiMicro } };
     case "transfer-amount-reviewed":
@@ -168,7 +178,7 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
     case "transfer-stage-start":
       return state.open && state.identityKey === event.identityKey && state.authorityGeneration === event.authorityGeneration
         && state.transfer.phase === "review"
-        ? { ...state, transfer: { ...state.transfer, phase: "stage", requestId: event.requestId } }
+        ? { ...state, transfer: { ...state.transfer, phase: "stage", requestId: event.requestId, preparationError: null } }
         : state;
     case "transfer-stage-resolved":
       if (!state.open || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration
@@ -181,7 +191,7 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
       };
     case "transfer-stage-failed":
       return state.transfer.phase === "stage" && state.transfer.requestId === event.requestId
-        ? { ...state, transfer: { ...state.transfer, phase: "review", requestId: null } } : state;
+        ? { ...state, transfer: { ...state.transfer, phase: "review", requestId: null, preparationError: "Could not prepare your transfer. Nothing has been sent. Retry or edit the details." } } : state;
     case "authorization-pointer-start":
       return state.transfer.phase === "authorize"
         ? { ...state, transfer: { ...state.transfer, authorizationPointerId: event.pointerId } } : state;

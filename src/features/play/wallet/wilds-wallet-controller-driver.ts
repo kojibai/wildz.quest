@@ -286,6 +286,7 @@ export function createWildsWalletControllerDriver(input: {
     reviewTransferAmount(rail: "settlement" | "reserve", amountPhiMicro: string, operationNonce: string) { publish({ type: "transfer-amount-reviewed", rail, amountPhiMicro, operationNonce }); },
     authorizationPointerStart(pointerId: number) { publish({ type: "authorization-pointer-start", pointerId }); },
     authorizationPointerCancel(pointerId: number) { publish({ type: "authorization-pointer-cancel", pointerId }); },
+    editTransfer(field: "recipient" | "amount") { publish({ type: "transfer-edit", field }); },
     resetTransfer() { publish({ type: "transfer-reset" }); },
     expireTransferReview(currentKai: number) { publish({ type: "transfer-review-expired", currentKai }); },
     stageTransfer,
