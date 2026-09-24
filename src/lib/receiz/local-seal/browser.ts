@@ -33,7 +33,8 @@ function reset(error: Error) {
   pending.clear();
 }
 /** Warm packaged resources after first paint. This never enrolls a device. */
-export async function prewarmWildzLocalSealer() { await request("ready"); }
+export async function readWildzLocalSealerReadiness() { return Boolean(await request("ready")); }
+export async function prewarmWildzLocalSealer() { await readWildzLocalSealerReadiness(); }
 /** Explicit Save setup only; background preparation must already have custody. */
 export async function prepareWildzLocalCardSealer() {
   if (!await request("ready")) await request("enroll");

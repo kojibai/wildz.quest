@@ -11,3 +11,4 @@ output/
 !.env.example
 .pnpm-store/
 tmp/
+.vercel

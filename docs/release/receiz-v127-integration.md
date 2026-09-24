@@ -51,7 +51,23 @@ The final serialized `pnpm release:check` completed successfully.
   report `needs-env`. This is not a strict-live production qualification.
 - Local production browser: existing identity and 46 creatures loaded. Wallet
   authorization reported `receiz_wallet_application_required` because the
-  preview has no registered client ID configuration.
+  local preview had no registered client ID configuration. This does not
+  describe the deployed Vercel Preview environment.
+
+### Browser qualification follow-up
+
+The development-only `/test-fixtures/offline-seal` page exercises the actual
+application worker with disposable card, vault, identity and map payloads,
+offers downloads, and checks reopened files against their original bytes.
+Type checking passed. Browser readiness executed successfully and reported no
+enrolled signer for this browser origin; sealing remains pending enrollment.
+
+Vercel CLI authentication succeeded. The existing `wildz-quest` project has
+17 application variables scoped to Production and Preview, none to Development.
+Vercel refuses to export their sensitive values and returns placeholders;
+those placeholders were removed from the ignored local environment. Local
+live-wallet qualification therefore remains blocked on usable configuration
+or an authenticated session on the deployed site. No remote variables changed.
 
 ## Exact limits
 
