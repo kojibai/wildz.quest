@@ -3,6 +3,7 @@ import type { WildzPreparedIdentityPlayerVault } from "../../lib/receiz/wildz-pr
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { scheduleAfterPaint } from "./schedule-after-paint";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { emitWildsPlaytestEvent } from "./wilds-playtest-events";
@@ -244,8 +245,8 @@ export function WildsInventory({
     };
     const wake = () => void prepare();
     window.addEventListener("online", wake);
-    void prepare();
-    return () => { active = false; controller?.abort(); if (retry) clearTimeout(retry); window.removeEventListener("online", wake); };
+    const cancelPreparation = scheduleAfterPaint(() => void prepare());
+    return () => { cancelPreparation(); active = false; controller?.abort(); if (retry) clearTimeout(retry); window.removeEventListener("online", wake); };
   }, [ownerReceizId, selected?.id, selected?.proof.digest]);
 
   useEffect(() => {
@@ -256,7 +257,7 @@ export function WildsInventory({
   useEffect(() => {
     setSelectedCardAdmissionState(null);
     if (!selected) return;
-    const frame = window.requestAnimationFrame(() => {
+    const cancelPreparation = scheduleAfterPaint(() => {
       try {
         setSelectedCardAdmissionState({
           assetId: selected.id,
@@ -266,7 +267,7 @@ export function WildsInventory({
         setSelectedCardAdmissionState(null);
       }
     });
-    return () => window.cancelAnimationFrame(frame);
+    return cancelPreparation;
   }, [selected, vaultAdmission]);
 
   useEffect(() => {
@@ -276,16 +277,20 @@ export function WildsInventory({
       return;
     }
     let active = true;
-    void prepareCardRef.current(selectedCard, playerVaultRef.current(selectedCard))
-      .then((artifact) => {
-        if (!active || artifact.assetId !== selectedCard.id) return;
-        preparedIdentityCard.current = artifact;
-      })
-      .catch(() => {
-        // Encrypted identities and transient preparation failures retain the
-        // original click-time export rail.
-      });
-    return () => { active = false; };
+    const cancelPreparation = scheduleAfterPaint(() => {
+      // Snapshot construction hashes the player snapshot synchronously.
+      // Keep it, and the export warmup, outside the overlay's opening frame.
+      void Promise.resolve().then(() => prepareCardRef.current(selectedCard, playerVaultRef.current(selectedCard)))
+        .then((artifact) => {
+          if (!active || artifact.assetId !== selectedCard.id) return;
+          preparedIdentityCard.current = artifact;
+        })
+        .catch(() => {
+          // Encrypted identities and transient preparation failures retain the
+          // original click-time export rail.
+        });
+    });
+    return () => { cancelPreparation(); active = false; };
   }, [ownerReceizId, selected?.id, selectedArtifactFingerprint, selectedRetired]);
 
   useEffect(() => () => {
