@@ -3,6 +3,7 @@ import {
 } from "@receiz/sdk";
 
 import { isWildzPng, extractWildzSealedPngBasis } from "./wildz-png-envelope";
+import { openWildzLargeSealedPngDocument } from "./wildz-large-sealed-document";
 
 const MAX_BYTES = 64 * 1024 * 1024;
 
@@ -22,13 +23,15 @@ export async function verifyWildzSealedExport(artifactBytes: Uint8Array, payload
  * still pass the existing restore pipeline. There is no network fallback. */
 export async function openWildzSealedDocument(input: { bytes: Uint8Array; mimeType: string; name?: string }) {
   if (!input.bytes.byteLength || input.bytes.byteLength > MAX_BYTES) throw new Error("wildz_restore_artifact_too_large");
+  if (input.bytes.byteLength > 16 * 1024 * 1024 && isWildzPng(input.bytes))
+    return openWildzLargeSealedPngDocument(input);
   const bytes = input.bytes.slice();
   const verification = await verifyReceizArtifact(bytes);
   if (verification.status !== "verified-artifact") {
     const reason = verification.status === "denied" ? verification.code
       : verification.status === "unsupported" ? verification.reason
       : verification.errors.map(error => error.code).join(",");
-    throw new Error(`wildz_artifact_verification_failed:${verification.status}:${reason}`);
+    throw new Error(`wildz_artifact_verification_failed:${verification.status}:${reason}:bytes=${bytes.byteLength}`);
   }
   if (verification.continuity.state !== "not_applicable") throw new Error("wildz_document_native_custody_required");
   const admission = await admitReceizArtifact(verification, { profile: "document" });

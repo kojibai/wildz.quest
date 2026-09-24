@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { appendReceizIdentityArtifactTrailerToPng, createReceizIdentityKeyFile, sha256ReceizBytes, verifyReceizArtifact } from "@receiz/sdk";
+import { appendReceizIdentityArtifactTrailerToPng, createReceizIdentityKeyFile, sha256ReceizBytes } from "@receiz/sdk";
 import { readWildzLocalSealerReadiness, prepareWildzLocalCardSealer } from "../../lib/receiz/local-seal/browser";
 import { prepareWildzGameImage, type WildzGameImageKind } from "../../lib/receiz/wildz-game-image-export";
 import { openWildzSealedCard, verifyWildzSealedCard } from "../../lib/receiz/wildz-sealed-card";
@@ -36,12 +36,12 @@ export function OfflineSealBrowserFixture() {
     }).inspect({ bytes, mimeType, name });
     if (inspection.kind !== (kind === "identity" ? "identity-seal" : "card-vault")) throw new Error(`recovery_rejected:${inspection.kind}`);
   }
-  async function run(cardCount = 1) {
+  async function run(cardCount = 1, paddingBytes = 0) {
     if (!await readWildzLocalSealerReadiness()) throw new Error("enrollment_required_no_automatic_enrollment");
     const identity = await createReceizIdentityKeyFile({ owner: { uid: "wildz-browser-qualification", username: "offline_fixture" } });
     const assets = Array.from({ length: cardCount }, (_, index) => admitLegacyCard(sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "offline_fixture", encounterId: `browser-qualification-${index}`, capturedAt: "2026-07-15T21:00:00.000Z" }), "2026-07-15T21:00:00.000Z"));
     const player = createWildsPlayerVault({ playerId: "offline_fixture", exportedAt: "2026-07-15T21:01:00.000Z", playState: { ...initialPlayState, inventory: assets }, settings: { avatarStyle: null, movementMode: "walk", audio: {} }, personalEvents: [], canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null }, receipts: [] });
-    const unknown = withWildzPngPayloadChunk(png(), "another.application", "preserve exactly");
+    const unknown = withWildzPngPayloadChunk(png(), "another.application", paddingBytes ? "x".repeat(paddingBytes) : "preserve exactly");
     const vault = await createWildzIdentityBoundPlayerVault({ keyFile: identity.keyFile, vaultBytes: embedPortableVaultInPng(unknown, assets, player) });
     const fixtures: { kind: WildzGameImageKind; bytes: Uint8Array }[] = [
       { kind: "card", bytes: vault }, { kind: "vault", bytes: vault },
@@ -55,7 +55,10 @@ export function OfflineSealBrowserFixture() {
       await verifyWildzSealedCard(artifact.bytes, fixture.bytes);
       await inspectRecovery(artifact.bytes, artifact.mimeType, artifact.filename, fixture.kind);
       const modified = withWildzPngPayloadChunk(artifact.bytes, "another.application", "tampered");
-      if ((await verifyReceizArtifact(modified)).status === "verified-artifact") throw new Error("tampering_accepted");
+      let tamperRejected = false;
+      try { await openWildzSealedCard({ bytes: modified, mimeType: artifact.mimeType, name: artifact.filename }); }
+      catch { tamperRejected = true; }
+      if (!tamperRejected) throw new Error("tampering_accepted");
       output.push({ ...artifact, kind: fixture.kind, original: fixture.bytes });
       setSaved([...output]);
     }
@@ -79,6 +82,7 @@ export function OfflineSealBrowserFixture() {
     <button disabled={busy} onClick={() => void act(async () => { await prepareWildzLocalCardSealer(); setStatus("Enrolled signer ready"); })}>Enroll browser signing device</button>{" "}
     <button disabled={busy} onClick={() => void act(() => run())}>Run four save round trips</button>{" "}
     <button disabled={busy} onClick={() => void act(() => run(46))}>Run 46-card recovery round trips</button>
+    <button disabled={busy} onClick={() => void act(() => run(49, 17 * 1024 * 1024))}>Run above-limit recovery round trips</button>
     <p role="status">{status}</p>
     {saved.map(row => <p key={row.kind}><button disabled={busy} onClick={() => void act(async () => { await saveBlobToDevice(row.blob, row.filename); setStatus(`Downloaded ${row.filename}`); })}>Download {row.kind}</button>{" "}<button disabled={busy} onClick={() => { const start = performance.now(); downloadBlob(row.blob, row.filename); setStatus(`Download handed off in ${(performance.now() - start).toFixed(1)}ms: ${row.filename}`); }}>Download file {row.kind}</button> {row.filename} ({row.bytes.length} bytes)</p>)}
     <label>Reopen downloaded proof <input disabled={busy} type="file" accept=".png" onChange={event => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void act(() => reopen(file)); }} /></label>
