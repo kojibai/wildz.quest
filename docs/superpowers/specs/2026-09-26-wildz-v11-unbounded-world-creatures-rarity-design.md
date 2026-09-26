@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-26
 
-**Status:** Design approved in conversation; written spec awaiting review
+**Status:** Approved for implementation planning by user on 2026-09-26
 
 **Release target:** v11.0.0
 
