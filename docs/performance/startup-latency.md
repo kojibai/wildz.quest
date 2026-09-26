@@ -68,3 +68,15 @@ unmet.** These measurements observe the completed-draw reveal, not settlement of
 all remote updates or late material assets. GPU waits, module evaluation and
 scene construction remain on the critical path. Temporary browser profiling
 instrumentation was removed from the built output after measurement.
+
+## Correction after final comparison
+
+Early shader submission was removed after the final build failed to demonstrate
+an end-to-end improvement. It submitted both normal and transmission variants
+before the first draw (130 shader submissions versus 64 in the recorded baseline),
+so lower query wait alone was insufficient evidence of a startup win. Host/cache
+variation prevents attributing the entire regression to that change. Shader
+preparation returns to its original deferred behavior. The terrain calculation
+and cancellable completed-draw microtask changes remain; no claim of a verified
+end-to-end startup improvement is made for them. The final build measurements
+above describe the experimental early-submission version, not this correction.

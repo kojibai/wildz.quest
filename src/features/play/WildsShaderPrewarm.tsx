@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { WebGLRenderTarget } from "three";
 import { prewarmWildsSceneShaders, wildsSceneShaderSignature } from "./wilds-shader-prewarm";
@@ -10,15 +10,10 @@ export function WildsShaderPrewarm() {
   const { gl, scene, camera } = useThree();
   const drawn = useRef(false);
   useFrame(() => { drawn.current = true; });
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!gl.extensions.has("KHR_parallel_shader_compile")) return;
     const controller = new AbortController();
     const target = new WebGLRenderTarget(1, 1, { depthBuffer: false, stencilBuffer: false });
-    // Submit all existing material programs together once the scene is committed.
-    // The normal first draw still decides readiness. No draw, uniform reflection,
-    // completion polling or shader promise is introduced here.
-    try { prewarmWildsSceneShaders(gl, scene, camera, target, controller.signal); }
-    catch { /* A driver without working preparation still renders normally. */ }
     let signature: string | null = null;
     let idle: number | null = null;
     let timer: number | null = null;
