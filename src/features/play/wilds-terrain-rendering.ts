@@ -1,5 +1,5 @@
-import { WILDS_TERRAIN_TILE_SIZE, sampleWildsTerrain, wildsTerrainElevation, type WildsTerrainSurface } from "./wilds-terrain-authority";
-import { buildWildsTerrainTile } from "./wilds-terrain-tiles";
+import { WILDS_TERRAIN_TILE_SIZE, WILDS_TERRAIN_VERSION, sampleWildsTerrain, wildsTerrainElevation, type WildsTerrainSurface } from "./wilds-terrain-authority";
+import { buildWildsTerrainTile, wildsTerrainTileKey, type WildsTerrainTileData } from "./wilds-terrain-tiles";
 
 type WorldPoint = Readonly<{ x: number; z: number }>;
 
@@ -45,6 +45,94 @@ export type WildsTerrainRibbonProjection = {
 
 let actorTerrainSamples = 0;
 let anchorTerrainSamples = 0;
+
+// A moving patch revisits nearly all of its tiles at each tile transition.
+// Bound both caches by entry count and estimated storage so high segment counts
+// cannot retain an unbounded set of sampled terrain objects.
+function createTerrainRenderCache<T>(maxEntries: number, maxBytes: number) {
+  const entries = new Map<string, { value: T; bytes: number }>();
+  let bytes = 0;
+  let hits = 0;
+  let misses = 0;
+  return {
+    get(key: string): T | undefined {
+      const entry = entries.get(key);
+      if (!entry) {
+        misses += 1;
+        return undefined;
+      }
+      hits += 1;
+      entries.delete(key);
+      entries.set(key, entry);
+      return entry.value;
+    },
+    set(key: string, value: T, entryBytes: number) {
+      if (entryBytes > maxBytes) return;
+      const previous = entries.get(key);
+      if (previous) {
+        bytes -= previous.bytes;
+        entries.delete(key);
+      }
+      entries.set(key, { value, bytes: entryBytes });
+      bytes += entryBytes;
+      while (entries.size > maxEntries || bytes > maxBytes) {
+        const oldestKey = entries.keys().next().value;
+        if (oldestKey === undefined) break;
+        bytes -= entries.get(oldestKey)!.bytes;
+        entries.delete(oldestKey);
+      }
+    },
+    clear() {
+      entries.clear();
+      bytes = 0;
+      hits = 0;
+      misses = 0;
+    },
+    diagnostics() {
+      return { entries: entries.size, bytes, hits, misses, maxEntries, maxBytes };
+    }
+  };
+}
+
+const meshTileCache = createTerrainRenderCache<WildsTerrainTileData>(384, 12 * 1024 * 1024);
+const waterTileCache = createTerrainRenderCache<Uint8Array>(512, 1024 * 1024);
+
+export function wildsTerrainRenderCacheDiagnostics() {
+  return Object.freeze({ mesh: meshTileCache.diagnostics(), water: waterTileCache.diagnostics() });
+}
+
+export function clearWildsTerrainRenderCaches() {
+  meshTileCache.clear();
+  waterTileCache.clear();
+}
+
+function cachedTerrainTile(tileX: number, tileZ: number, segments: number): WildsTerrainTileData {
+  if (!Number.isInteger(segments) || segments < 1 || segments > 64) throw new Error("wilds_terrain_tile_segments_invalid");
+  const key = `${wildsTerrainTileKey(tileX, tileZ)}:${segments}`;
+  const cached = meshTileCache.get(key);
+  if (cached) return cached;
+  const tile = buildWildsTerrainTile(tileX, tileZ, segments);
+  // Account conservatively for the tile vertex and its nested normal object.
+  meshTileCache.set(key, tile, tile.vertices.length * 256 + key.length * 2 + 64);
+  return tile;
+}
+
+function cachedWaterSurfaces(tileX: number, tileZ: number, segments: number, cellSize: number): Uint8Array {
+  // Water sampling uses the incoming coordinates without terrain-tile truncation.
+  const key = `${WILDS_TERRAIN_VERSION}:${tileX}:${tileZ}:${segments}`;
+  const cached = waterTileCache.get(key);
+  if (cached) return cached;
+  const surfaces = new Uint8Array(segments * segments);
+  for (let gridZ = 0; gridZ < segments; gridZ += 1) {
+    for (let gridX = 0; gridX < segments; gridX += 1) {
+      const worldX = tileX * WILDS_TERRAIN_TILE_SIZE + gridX * cellSize;
+      const worldZ = tileZ * WILDS_TERRAIN_TILE_SIZE + gridZ * cellSize;
+      surfaces[gridZ * segments + gridX] = sampleWildsTerrain(worldX + cellSize / 2, worldZ + cellSize / 2).surface === "shallow-water" ? 1 : 0;
+    }
+  }
+  waterTileCache.set(key, surfaces, surfaces.byteLength + key.length * 2 + 64);
+  return surfaces;
+}
 
 export type WildsTerrainActorProjectionInput = Readonly<{
   actorElevation?: number;
@@ -107,7 +195,7 @@ export function wildsTerrainProjectionDiagnostics() {
 }
 
 export function buildWildsTerrainMeshProjection(tileX: number, tileZ: number, segments: number): WildsTerrainMeshProjection {
-  const tile = buildWildsTerrainTile(tileX, tileZ, segments);
+  const tile = cachedTerrainTile(tileX, tileZ, segments);
   const origin = {
     x: tile.tileX * WILDS_TERRAIN_TILE_SIZE,
     z: tile.tileZ * WILDS_TERRAIN_TILE_SIZE
@@ -167,15 +255,15 @@ export function buildWildsTerrainWaterProjection(
 
   for (let tileZ = centerTileZ - radius; tileZ <= centerTileZ + radius; tileZ += 1) {
     for (let tileX = centerTileX - radius; tileX <= centerTileX + radius; tileX += 1) {
+      const surfaces = cachedWaterSurfaces(tileX, tileZ, segments, cellSize);
       for (let gridZ = 0; gridZ < segments; gridZ += 1) {
         for (let gridX = 0; gridX < segments; gridX += 1) {
           const worldX = tileX * WILDS_TERRAIN_TILE_SIZE + gridX * cellSize;
           const worldZ = tileZ * WILDS_TERRAIN_TILE_SIZE + gridZ * cellSize;
-          const surface = sampleWildsTerrain(worldX + cellSize / 2, worldZ + cellSize / 2).surface;
           // Keep a continuous water body below the terrain. Opaque terrain hides this
           // plane on land, while submerged route shoulders can no longer punch square
           // holes through the ocean merely because their cell center is a trail.
-          const layer = surface === "shallow-water" ? shallow : deep;
+          const layer = surfaces[gridZ * segments + gridX] === 1 ? shallow : deep;
           const vertexOffset = layer.positions.length / 3;
           const x0 = worldX - origin.x;
           const z0 = worldZ - origin.z;

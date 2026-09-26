@@ -12,6 +12,7 @@ import { isWildsCrewPhysicallyActive, settleWildsCrewPendingGrowth, type WildsCr
 import { nextWildsPartyTravelRevision } from "./wilds-party-transport";
 import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
 import { createWildsWorldGeometrySelector } from "./wilds-world-geometry-selector";
+import { nearestWildsVisible } from "./wilds-nearest-visible";
 import { composeWildsBurrowPhysical } from "./wilds-burrow";
 import { useWildsBurrowBuilder } from "./use-wilds-burrow-builder";
 import { WildsBurrowBuilderPanel } from "./WildsBurrowBuilderPanel";
@@ -583,8 +584,13 @@ export function PlayCampaign({
   const homeCompanions = useMemo(() => playableInventory({inventory:state.inventory,adventureConditions:state.adventureConditions}), [state.inventory, state.adventureConditions]);
   const crewCards = useMemo(() => homeCompanions.filter(card => canOperateWildzCrewCard(card, ownerReceizId, crewCustody)), [homeCompanions, ownerReceizId, crewCustody]);
   const journeyStructures = useMemo(() => Object.values(state.ownedWorldAdditions.structures).filter(item => sameWildzPlayerCoordinate(item.ownerReceizId, ownerReceizId)), [state.ownedWorldAdditions.structures, ownerReceizId]);
-  const journeyHome = useMemo(() => journeyStructures.filter(item => item.blueprint === "trail-shelter").sort((a, b) => Math.hypot(a.position.x-state.player.x,a.position.z-state.player.z)-Math.hypot(b.position.x-state.player.x,b.position.z-state.player.z))[0], [journeyStructures, state.player.x, state.player.z]);
+  const journeyShelters = useMemo(() => journeyStructures.filter(item => item.blueprint === "trail-shelter"), [journeyStructures]);
+  const journeyHome = useMemo(() => [...journeyShelters].sort((a, b) => Math.hypot(a.position.x-state.player.x,a.position.z-state.player.z)-Math.hypot(b.position.x-state.player.x,b.position.z-state.player.z))[0], [journeyShelters, state.player.x, state.player.z]);
   const homeResidents = useMemo(() => journeyHome ? { shelterPosition: journeyHome.position, cards: homeCompanions } : undefined, [journeyHome, homeCompanions]);
+  const homeCompanionResidents = useMemo(() => homeCompanions.map(asset => ({ id: asset.id, name: asset.manifest.name })), [homeCompanions]);
+  const homeLife = useMemo(() => projectWildsHomeLife({ structures: journeyStructures, preferredHomeId: journeyHome?.structureId, companions: homeCompanionResidents, activeCompanionId: activeAsset?.id, now: Date.parse(kaiUPulseToISOString(kaiUPulse)) }), [journeyStructures, journeyHome?.structureId, homeCompanionResidents, activeAsset?.id, kaiUPulse]);
+  const unfinishedJourneyShelter = useMemo(() => Object.values(state.ownedWorldAdditions.constructionSites).find(site => site.blueprint === "trail-shelter" && site.stage !== "complete" && sameWildzPlayerCoordinate(site.placedByReceizId, ownerReceizId)), [state.ownedWorldAdditions.constructionSites, ownerReceizId]);
+  const civic = useMemo(() => projectWildsCivicHistory(state.civicEvents), [state.civicEvents]);
 
   const [activeWorldCapability, setActiveWorldCapability] = useState<WildsWorldCapabilityFamily | null>(null);
   useEffect(() => setActiveWorldCapability(null), [activeAsset?.id]);
@@ -1046,11 +1052,11 @@ export function PlayCampaign({
     if (isWildsTemporalContinuityError(error)) void refreshLivingWorld();
     showWorldFeedback(friendlyWildsGameplayError(error, fallback), true);
   }, [refreshLivingWorld, showWorldFeedback]);
-  const kaiMoment = resolveWildsRuntimeKaiMoment({
+  const kaiMoment = useMemo(() => resolveWildsRuntimeKaiMoment({
     uPulse: kaiUPulse,
     mode: livingWorld.mode,
     cursor: livingWorld.snapshot?.cursor ?? null
-  });
+  }), [kaiUPulse, livingWorld.mode, livingWorld.snapshot?.cursor]);
   const roamingBattle = useWildsRoamingBattle({
     enabled: enabled && networkEnabled,
     selfId: multiplayer.selfId,
@@ -1092,45 +1098,49 @@ export function PlayCampaign({
     }
   });
   useEffect(() => { setRoamingDialogOpen(roamingBattle.dialogProps.open); }, [roamingBattle.dialogProps.open]);
-  const saga = projectWildsSaga({
+  const saga = useMemo(() => projectWildsSaga({
     moment: kaiMoment,
     framework: wildsSagaFramework(),
     memories: livingWorld.snapshot?.story.memories ?? []
-  });
+  }), [kaiMoment, livingWorld.snapshot?.story.memories]);
   const sagaPlayer = livingWorld.snapshot?.players[ownerReceizId] ?? null;
   const wildBattleActive = isWildBattleModalOwner(state.encounter.phase, Boolean(state.battle));
-  const sagaContributions: WildsMissionContribution[] = saga.chapter.missions.flatMap((mission) => mission.nodes.flatMap((node) => {
-    const amount = sagaPlayer?.contributions[node.id] ?? 0;
-    return amount > 0 ? [{
-      eventId: `projection:${saga.dayId}:${ownerReceizId}:${node.id}`,
-      dayId: saga.dayId,
-      objectiveId: node.id,
-      playerId: ownerReceizId,
-      verb: node.acceptedVerbs[0]!,
-      amount
-    }] : [];
-  }));
-  const sagaMissions = projectMissionGraph({ saga, playerId: ownerReceizId, contributions: sagaContributions, currentDayId: saga.dayId });
-  const sagaPrimaryNodes = sagaMissions.nodes.filter((node) => node.primary);
-  const sagaPrimaryTarget = sagaPrimaryNodes.reduce((total, node) => total + node.target, 0);
-  const sagaPrimaryProgress = sagaPrimaryNodes.reduce((total, node) => total + node.progress, 0);
-  const sagaProgressPercent = sagaPrimaryTarget ? Math.round(sagaPrimaryProgress / sagaPrimaryTarget * 100) : 0;
-  const sagaTrainerIds = new Set(saga.chapter.trainers.map((trainer) => trainer.id));
-  const worldTrainerValues = Object.values(livingWorld.snapshot?.trainers ?? {});
-  const worldTrainerMemories = worldTrainerValues.flatMap((trainer) =>
-    Array.isArray(trainer.battleMemories) ? trainer.battleMemories as WildsTrainerBattleMemory[] : []
-  );
-  const projectedTrainers = projectSagaTrainers({
-    saga,
-    playerLevel: sagaPlayer?.trainerLevel ?? state.level,
-    battleMemories: worldTrainerMemories
-  });
-  const liveSagaTrainers = worldTrainerValues.filter((trainer) => sagaTrainerIds.has(trainer.id)) as unknown as WildsTrainerProjection[];
-  const liveSagaTrainerById = new Map(liveSagaTrainers.map((trainer) => [trainer.id, trainer]));
-  const sagaTrainers = projectedTrainers.map((projected) => {
-    const live = liveSagaTrainerById.get(projected.id);
-    return live ? { ...live, position: projected.position } : projected;
-  });
+  const { sagaMissions, sagaProgressPercent } = useMemo(() => {
+    const sagaContributions: WildsMissionContribution[] = saga.chapter.missions.flatMap((mission) => mission.nodes.flatMap((node) => {
+      const amount = sagaPlayer?.contributions[node.id] ?? 0;
+      return amount > 0 ? [{
+        eventId: `projection:${saga.dayId}:${ownerReceizId}:${node.id}`,
+        dayId: saga.dayId,
+        objectiveId: node.id,
+        playerId: ownerReceizId,
+        verb: node.acceptedVerbs[0]!,
+        amount
+      }] : [];
+    }));
+    const sagaMissions = projectMissionGraph({ saga, playerId: ownerReceizId, contributions: sagaContributions, currentDayId: saga.dayId });
+    const sagaPrimaryNodes = sagaMissions.nodes.filter((node) => node.primary);
+    const sagaPrimaryTarget = sagaPrimaryNodes.reduce((total, node) => total + node.target, 0);
+    const sagaPrimaryProgress = sagaPrimaryNodes.reduce((total, node) => total + node.progress, 0);
+    return { sagaMissions, sagaProgressPercent: sagaPrimaryTarget ? Math.round(sagaPrimaryProgress / sagaPrimaryTarget * 100) : 0 };
+  }, [saga, sagaPlayer?.contributions, ownerReceizId]);
+  const sagaTrainers = useMemo(() => {
+    const sagaTrainerIds = new Set(saga.chapter.trainers.map((trainer) => trainer.id));
+    const worldTrainerValues = Object.values(livingWorld.snapshot?.trainers ?? {});
+    const worldTrainerMemories = worldTrainerValues.flatMap((trainer) =>
+      Array.isArray(trainer.battleMemories) ? trainer.battleMemories as WildsTrainerBattleMemory[] : []
+    );
+    const projectedTrainers = projectSagaTrainers({
+      saga,
+      playerLevel: sagaPlayer?.trainerLevel ?? state.level,
+      battleMemories: worldTrainerMemories
+    });
+    const liveSagaTrainers = worldTrainerValues.filter((trainer) => sagaTrainerIds.has(trainer.id)) as unknown as WildsTrainerProjection[];
+    const liveSagaTrainerById = new Map(liveSagaTrainers.map((trainer) => [trainer.id, trainer]));
+    return projectedTrainers.map((projected) => {
+      const live = liveSagaTrainerById.get(projected.id);
+      return live ? { ...live, position: projected.position } : projected;
+    });
+  }, [saga, sagaPlayer?.trainerLevel, state.level, livingWorld.snapshot?.trainers]);
   const openTrainerEncounter = (trainer: WildsTrainerProjection, origin: "world" | "mission") => {
     const trainerActionAllowed = origin === "mission"
       ? modalOwner === "none" && worldOverlayState.panelKey === "mission"
@@ -1156,8 +1166,8 @@ export function PlayCampaign({
   const sendTrainerEncounter = (event: TrainerEncounterEvent) => {
     setTrainerEncounter((current) => current ? advanceTrainerEncounter(current, event) : current);
   };
-  const sagaTournament = (Object.values(livingWorld.snapshot?.tournaments ?? {}).find((tournament) => tournament.dayId === saga.dayId) ?? null) as WildsTournamentProjection | null;
-  const kaiExpression = projectKaiWorldExpression(kaiMoment);
+  const sagaTournament = useMemo(() => (Object.values(livingWorld.snapshot?.tournaments ?? {}).find((tournament) => tournament.dayId === saga.dayId) ?? null) as WildsTournamentProjection | null, [livingWorld.snapshot?.tournaments, saga.dayId]);
+  const kaiExpression = useMemo(() => projectKaiWorldExpression(kaiMoment), [kaiMoment]);
   const commitArenaSettlement = useCallback((settlement: ArenaSettlement) => setState((current) => {
     return applyCommittedArenaSettlement(current, settlement);
   }), []);
@@ -1432,16 +1442,27 @@ export function PlayCampaign({
     stone: availableMaterialLots.filter((lot) => lot.kind === "stone").length
   }), [availableMaterialLots]);
   const stewardWorkMeters = useMemo(() => projectWildsWorkCapabilityMeters(activeAsset ?? null, activeCondition), [activeAsset, activeCondition]);
-  const nearbyFunctionalPieces = useMemo(() => livingWorld.snapshot ? Object.values(livingWorld.snapshot.constructionComponents).filter(component => sameWildzPlayerCoordinate(component.ownerReceizId, ownerReceizId) && Math.hypot(component.transform.position.x - state.player.x, component.transform.position.z - state.player.z) <= 6) : [], [livingWorld.snapshot, ownerReceizId, state.player.x, state.player.z]);
-  const nearbyStewardWorkbench = useMemo(() => Object.values(livingWorld.snapshot?.structures ?? {}).find(structure => structure.blueprint === "steward-workbench" && sameWildzPlayerCoordinate(structure.ownerReceizId, ownerReceizId) && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6)
-    ?? nearbyFunctionalPieces.filter(component => component.kind === "workshop").map(component => resolveWildsConstructionFunction(livingWorld.snapshot!, component.componentId, "workshop")).find(Boolean) ?? null, [livingWorld.snapshot, nearbyFunctionalPieces, ownerReceizId, state.player.x, state.player.z]);
-  const nearbyTrailCache = useMemo(() => Object.values(livingWorld.snapshot?.structures ?? {}).find(structure => structure.blueprint === "trail-cache" && sameWildzPlayerCoordinate(structure.ownerReceizId, ownerReceizId) && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6)
-    ?? nearbyFunctionalPieces.filter(component => component.kind === "storage").map(component => resolveWildsConstructionFunction(livingWorld.snapshot!, component.componentId, "storage")).find(Boolean) ?? null, [livingWorld.snapshot, nearbyFunctionalPieces, ownerReceizId, state.player.x, state.player.z]);
-  const nearbyConstructionSite = useMemo(() => Object.values(livingWorld.snapshot?.constructionSites ?? {})
-    .filter((site) => site.stage !== "complete" && Math.hypot(site.position.x - state.player.x, site.position.z - state.player.z) <= 7)
+  const ownedFunctionalPieces = useMemo(() => Object.values(livingWorld.snapshot?.constructionComponents ?? {})
+    .filter(component => sameWildzPlayerCoordinate(component.ownerReceizId, ownerReceizId)), [livingWorld.snapshot?.constructionComponents, ownerReceizId]);
+  const ownedStructures = useMemo(() => Object.values(livingWorld.snapshot?.structures ?? {})
+    .filter(structure => sameWildzPlayerCoordinate(structure.ownerReceizId, ownerReceizId)), [livingWorld.snapshot?.structures, ownerReceizId]);
+  const unfinishedConstructionSites = useMemo(() => Object.values(livingWorld.snapshot?.constructionSites ?? {})
+    .filter(site => site.stage !== "complete"), [livingWorld.snapshot?.constructionSites]);
+  const nearbyFunctionalPieces = useMemo(() => ownedFunctionalPieces.filter(component => Math.hypot(component.transform.position.x - state.player.x, component.transform.position.z - state.player.z) <= 6), [ownedFunctionalPieces, state.player.x, state.player.z]);
+  const nearbyStewardWorkbench = useMemo(() => ownedStructures.find(structure => structure.blueprint === "steward-workbench" && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6)
+    ?? nearbyFunctionalPieces.filter(component => component.kind === "workshop").map(component => resolveWildsConstructionFunction(livingWorld.snapshot!, component.componentId, "workshop")).find(Boolean) ?? null, [livingWorld.snapshot, ownedStructures, nearbyFunctionalPieces, state.player.x, state.player.z]);
+  const nearbyTrailCache = useMemo(() => ownedStructures.find(structure => structure.blueprint === "trail-cache" && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6)
+    ?? nearbyFunctionalPieces.filter(component => component.kind === "storage").map(component => resolveWildsConstructionFunction(livingWorld.snapshot!, component.componentId, "storage")).find(Boolean) ?? null, [livingWorld.snapshot, ownedStructures, nearbyFunctionalPieces, state.player.x, state.player.z]);
+  const nearbyConstructionSite = useMemo(() => unfinishedConstructionSites
+    .filter((site) => Math.hypot(site.position.x - state.player.x, site.position.z - state.player.z) <= 7)
     .sort((left, right) => Math.hypot(left.position.x - state.player.x, left.position.z - state.player.z)
       - Math.hypot(right.position.x - state.player.x, right.position.z - state.player.z) || left.siteId.localeCompare(right.siteId))[0] ?? null,
-  [livingWorld.snapshot?.constructionSites, state.player.x, state.player.z]);
+  [unfinishedConstructionSites, state.player.x, state.player.z]);
+  const nearbyLivingSiteCandidates = useMemo(() => Object.values(livingWorld.snapshot?.sites ?? {})
+    .filter(site => Boolean(site.bossId) && site.phase !== "memorialized" && site.phase !== "expired"), [livingWorld.snapshot?.sites]);
+  const nearbyEcologyCandidates = useMemo(() => Object.values(livingWorld.snapshot?.ecologySites ?? {})
+    .filter(site => site.phase === "foreshadowed" || site.phase === "discovered" || site.phase === "active"), [livingWorld.snapshot?.ecologySites]);
+  const nearbyGroveCandidates = useMemo(() => Object.values(livingWorld.snapshot?.groves ?? {}), [livingWorld.snapshot?.groves]);
   const stewardTools = useMemo(() => Object.values(livingWorld.snapshot?.stewardTools ?? {}).filter((tool) => sameWildzPlayerCoordinate(tool.ownerReceizId, ownerReceizId)), [livingWorld.snapshot?.stewardTools, ownerReceizId]);
   const storedStewardLots = useMemo(() => Object.entries(livingWorld.snapshot?.storedMaterialLots ?? {})
     .filter(([, cacheId]) => cacheId === nearbyTrailCache?.structureId)
@@ -2077,7 +2098,6 @@ export function PlayCampaign({
     : `${activeProximity}${state.encounter.trend ? ` · ${state.encounter.trend}` : ""}`;
   const captureToastActive = ["emerging", "capsule", "sealed", "revealed"].includes(state.encounter.phase);
   const currentLandmark = landmarkAtPosition(state.player);
-  const civic = projectWildsCivicHistory(state.civicEvents);
   const civicActorId = normalizeWildsCivicActorId(ownerReceizId);
   const settlementWorldMode = livingWorld.mode === "receiz_live" || livingWorld.mode === "kai_live" ? livingWorld.mode : livingWorld.mode === "local_practice" ? "local_practice" : "connecting";
   const discoveredLandmarkIds: WildsLandmarkId[] = civic.completedSourceIds.includes("settlement:wayfinder-hollow")
@@ -2090,19 +2110,13 @@ export function PlayCampaign({
     partySize: multiplayer.remotePlayers.length + 1
   };
   const currentLandmarkAccess = currentLandmark ? evaluateLandmarkAccess(currentLandmark, landmarkProgress) : null;
-  const nearbyLivingSite = Object.values(livingWorld.snapshot?.sites ?? {})
-    .map((site) => ({ site, distance: Math.hypot(site.position.x - state.player.x, site.position.z - state.player.z) }))
-    .filter(({ site, distance }) => Boolean(site.bossId) && site.phase !== "memorialized" && site.phase !== "expired" && distance <= site.radius + 8)
-    .sort((left, right) => left.distance - right.distance)[0] ?? null;
+  const livingSiteSelection = nearestWildsVisible(nearbyLivingSiteCandidates, state.player, site => site.radius + 8);
+  const nearbyLivingSite = livingSiteSelection ? { site: livingSiteSelection.candidate, distance: livingSiteSelection.distance } : null;
   const nearbyLivingBoss = nearbyLivingSite?.site.bossId ? livingWorld.snapshot?.bosses[nearbyLivingSite.site.bossId] : null;
-  const nearbyEcology = Object.values(livingWorld.snapshot?.ecologySites ?? {})
-    .map((site) => ({ site, distance: Math.hypot(site.position.x - state.player.x, site.position.z - state.player.z) }))
-    .filter(({ site, distance }) => (site.phase === "foreshadowed" || site.phase === "discovered" || site.phase === "active") && distance <= site.radius)
-    .sort((left, right) => left.distance - right.distance)[0] ?? null;
-  const nearbyGrove = Object.values(livingWorld.snapshot?.groves ?? {})
-    .map((grove) => ({ grove, distance: Math.hypot(grove.position.x - state.player.x, grove.position.z - state.player.z) }))
-    .filter(({ distance }) => distance <= 16)
-    .sort((left, right) => left.distance - right.distance || left.grove.groveId.localeCompare(right.grove.groveId))[0] ?? null;
+  const ecologySelection = nearestWildsVisible(nearbyEcologyCandidates, state.player, site => site.radius);
+  const nearbyEcology = ecologySelection ? { site: ecologySelection.candidate, distance: ecologySelection.distance } : null;
+  const groveSelection = nearestWildsVisible(nearbyGroveCandidates, state.player, 16, (left, right) => left.groveId.localeCompare(right.groveId));
+  const nearbyGrove = groveSelection ? { grove: groveSelection.candidate, distance: groveSelection.distance } : null;
   const activeEcologySite = activeEcologySiteId ? livingWorld.snapshot?.ecologySites[activeEcologySiteId] ?? null : null;
   const activeRaidBoss = activeRaid ? livingWorld.snapshot?.bosses[activeRaid.bossId] ?? null : null;
   const activeRaidRound = activeRaid ? livingWorld.snapshot?.raids[activeRaid.roundId] ?? null : null;
@@ -2268,8 +2282,6 @@ export function PlayCampaign({
     dispatchLayeredSearch(state.player);
   };
   const homeDistance = journeyHome ? Math.hypot(journeyHome.position.x-state.player.x,journeyHome.position.z-state.player.z) : Infinity;
-  const unfinishedJourneyShelter = Object.values(state.ownedWorldAdditions.constructionSites).find(site => site.blueprint === "trail-shelter" && site.stage !== "complete" && sameWildzPlayerCoordinate(site.placedByReceizId, ownerReceizId));
-  const homeLife = projectWildsHomeLife({ structures: journeyStructures, preferredHomeId: journeyHome?.structureId, companions: homeCompanions.map(asset => ({id:asset.id,name:asset.manifest.name})), activeCompanionId: activeAsset?.id, now: Date.parse(kaiUPulseToISOString(kaiUPulse)) });
   const discoveryLead = nextReachableWildsSite(siteRuntime.sites, state.explorationAtlas.siteKeys, state.player, activeTraversalCapabilities);
   const discoveryStory = discoveryLead ? projectWildsDiscoveryStory(discoveryLead, activeTraversalCapabilities, state.explorationAtlas.siteKeys.includes(discoveryLead.key)) : null;
   const companionChapter = worldOverlayState.panelKey === "mission" ? projectWildsCompanionChapter({

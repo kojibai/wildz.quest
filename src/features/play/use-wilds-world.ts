@@ -51,7 +51,7 @@ import {
   type WildsWorldOutboxEntry
 } from "./wilds-world-outbox";
 import { createWildsSessionRestore } from "./wilds-session-restore";
-import { prepareWildsWorldOutboxEntryAsync, restoreWildsWorldEdgeSource, acknowledgeWildsWorldCommand, acknowledgeWildsWorldPublication, persistWildsWorldCommand, readWildsWorldOutbox } from "./wilds-world-work-client";
+import { prepareAndPersistWildsWorldOutboxEntryAsync, prepareWildsWorldOutboxEntryAsync, restoreWildsWorldEdgeSource, acknowledgeWildsWorldCommand, acknowledgeWildsWorldPublication, persistWildsWorldCommand, readWildsWorldOutbox } from "./wilds-world-work-client";
 import {
   shouldAttemptWildsNetwork,
   isOpaqueWildsNetworkFailure,
@@ -229,6 +229,7 @@ export function useWildsWorld(input: {
     edge.current = { actorId: input.actorId, refresh: createWildsWorldRefreshCoordinator(), queue: createWildsWorldEdgeAdmissionQueue({
       initialProjection: snapshot ?? createWildsSourceAuthorityProjection(),
       prepare: prepareWildsWorldOutboxEntryAsync,
+      prepareAndPersist: prepareAndPersistWildsWorldOutboxEntryAsync,
       persist: async (entry) => {
         try { await persistWildsWorldCommand(entry); }
         catch (cause) { throw new Error("wilds_world_local_persistence_failed", { cause }); }

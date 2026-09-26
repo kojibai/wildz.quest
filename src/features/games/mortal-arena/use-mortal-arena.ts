@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { runFixedSteps } from "../kernel/fixed-step";
 import type { ArenaMode } from "../../play/arena/mode";
+import { ARENA_FIXED_HZ } from "../../play/arena/rules";
 import type { PortableCardAsset } from "../../play/portable-card";
 import { sealArenaReceipt } from "../../play/arena/receipt";
 import { createArenaTranscript } from "../../play/arena/transcript";
@@ -19,6 +21,42 @@ import { ARENA_SETTLEMENT_JOURNAL_PREFIX, createArenaSettlement, recoverArenaSet
 import type { MortalArenaInput } from "./types";
 
 const PATH_KEY = "wildz:mortal-arena:path:v1";
+const ARENA_MAX_FRAME_ELAPSED_MS = 100;
+const ARENA_MAX_CATCH_UP_STEPS = 4;
+
+export type MortalArenaFrameClock = { lastFrameAtMs: number; accumulatorMs: number };
+
+export function advanceMortalArenaFrameClock(clock: MortalArenaFrameClock, frameAtMs: number) {
+  const elapsedMs = Math.max(0, Math.min(ARENA_MAX_FRAME_ELAPSED_MS, frameAtMs - clock.lastFrameAtMs));
+  const result = runFixedSteps({ accumulatorMs: clock.accumulatorMs, tick: 0 }, elapsedMs, ARENA_FIXED_HZ, ARENA_MAX_CATCH_UP_STEPS);
+  return {
+    clock: {
+      lastFrameAtMs: frameAtMs,
+      // A tab or device stall must not leave seconds of combat to replay later.
+      accumulatorMs: result.dropped ? result.accumulatorMs % (1_000 / ARENA_FIXED_HZ) : result.accumulatorMs
+    },
+    steps: result.steps
+  };
+}
+
+export function advanceMortalArenaSessionFrames(
+  session: CanonicalArenaSession,
+  steps: number,
+  movement: Readonly<{ x: number; z: number }>,
+  held: Readonly<Pick<MortalArenaInput, "guard" | "flee">>,
+  pulse: Readonly<Partial<MortalArenaInput>>
+) {
+  let next = session;
+  for (let step = 0; step < steps && !next.canonical.terminal; step += 1) {
+    next = advanceCanonicalArenaSession(next, {
+      moveX: Math.round(movement.x * 1_000),
+      moveZ: Math.round(movement.z * 1_000),
+      ...held,
+      ...(step === 0 ? pulse : {})
+    });
+  }
+  return next;
+}
 
 type SessionProjection = Readonly<{
   session: CanonicalArenaSession;
@@ -66,21 +104,24 @@ export function useMortalArena({ active, roster, onCommit, requestedOpponent = n
   const [path, setPath] = useState(initialPath);
   const [opponent, setOpponent] = useState(initialOpponent);
   const [projection, setProjection] = useState<SessionProjection>(initial);
+  const projectionRef = useRef(initial);
   const [settlement, setSettlement] = useState<ArenaSettlement | null>(null);
   const [impactTick, setImpactTick] = useState(0);
   const movementRef = useRef({ x: 0, z: 0 });
   const pulseRef = useRef<Partial<MortalArenaInput>>({});
   const heldRef = useRef<Pick<MortalArenaInput, "guard" | "flee">>({});
   const settledMatchRef = useRef<string | null>(null);
-  const initialState = projectCanonicalArenaState(initial.session);
+  const initialState = useMemo(() => projectCanonicalArenaState(initial.session), [initial.session]);
   const previousVitalityRef = useRef(initialState.sides[0].fighters[0]!.vitality + initialState.sides[1].fighters[0]!.vitality);
 
   const resetForPath = useCallback((nextPath: WildzArenaPath) => {
     const nextOpponent = requestedOpponent ?? projectCampaignOpponent(nextPath);
     const next = createMortalArenaSessionProjection({ roster, path: nextPath, opponent: nextOpponent, mode, mortalAdmission });
     setOpponent(nextOpponent);
+    projectionRef.current = next;
     setProjection(next);
     setSettlement(null);
+    setImpactTick(0);
     settledMatchRef.current = null;
     const nextState = projectCanonicalArenaState(next.session);
     previousVitalityRef.current = nextState.sides[0].fighters[0]!.vitality + nextState.sides[1].fighters[0]!.vitality;
@@ -93,8 +134,10 @@ export function useMortalArena({ active, roster, onCommit, requestedOpponent = n
         { roster, path, opponent, mode, mortalAdmission },
         { claimMortalAdmission: true }
       );
+      projectionRef.current = next;
       setProjection(next);
       setSettlement(null);
+      setImpactTick(0);
       settledMatchRef.current = null;
       const nextState = projectCanonicalArenaState(next.session);
       previousVitalityRef.current = nextState.sides[0].fighters[0]!.vitality + nextState.sides[1].fighters[0]!.vitality;
@@ -104,33 +147,48 @@ export function useMortalArena({ active, roster, onCommit, requestedOpponent = n
     }
   }, [mode, mortalAdmission, opponent, path, roster]);
 
-  const state = projectCanonicalArenaState(projection.session);
-  const result = projectCanonicalArenaResult(projection.session);
+  const state = useMemo(() => projectCanonicalArenaState(projection.session), [projection.session]);
+  const result = useMemo(() => projectCanonicalArenaResult(projection.session), [projection.session]);
   const playable = active && !projection.unavailableReason;
 
   useEffect(() => {
     if (!playable || state.phase === "complete" || settlement) return;
-    const timer = window.setInterval(() => {
-      setProjection((current) => {
-        let next = current.session;
-        for (let step = 0; step < 2 && !next.canonical.terminal; step += 1) {
-          const playerInput: MortalArenaInput = {
-            moveX: Math.round(movementRef.current.x * 1_000),
-            moveZ: Math.round(movementRef.current.z * 1_000),
-            ...heldRef.current,
-            ...(step === 0 ? pulseRef.current : {})
-          };
-          if (step === 0) pulseRef.current = {};
-          next = advanceCanonicalArenaSession(next, playerInput);
+    let clock: MortalArenaFrameClock = { lastFrameAtMs: performance.now(), accumulatorMs: 0 };
+    let frame = 0;
+    const resetClock = () => { clock = { lastFrameAtMs: performance.now(), accumulatorMs: 0 }; };
+    const tick = (frameAtMs: number) => {
+      if (document.hidden) resetClock();
+      else {
+        const due = advanceMortalArenaFrameClock(clock, frameAtMs);
+        clock = due.clock;
+        if (due.steps > 0) {
+          // Snapshot the gesture before React schedules the state update. A later
+          // pointer event cannot move a one-shot action to a different frame.
+          const movement = { ...movementRef.current };
+          const held = { ...heldRef.current };
+          const pulse = pulseRef.current;
+          pulseRef.current = {};
+          const current = projectionRef.current;
+          const next = advanceMortalArenaSessionFrames(current.session, due.steps, movement, held, pulse);
+          if (next !== current.session) {
+            const view = projectCanonicalArenaState(next);
+            const vitality = view.sides[0].fighters[view.sides[0].activeIndex]!.vitality + view.sides[1].fighters[view.sides[1].activeIndex]!.vitality;
+            if (vitality < previousVitalityRef.current) setImpactTick(view.tick);
+            previousVitalityRef.current = vitality;
+            const updated = { ...current, session: next };
+            projectionRef.current = updated;
+            setProjection(updated);
+          }
         }
-        const view = projectCanonicalArenaState(next);
-        const vitality = view.sides[0].fighters[view.sides[0].activeIndex]!.vitality + view.sides[1].fighters[view.sides[1].activeIndex]!.vitality;
-        if (vitality < previousVitalityRef.current) setImpactTick(view.tick);
-        previousVitalityRef.current = vitality;
-        return { ...current, session: next };
-      });
-    }, 33);
-    return () => window.clearInterval(timer);
+      }
+      if (!projectionRef.current.session.canonical.terminal) frame = window.requestAnimationFrame(tick);
+    };
+    document.addEventListener("visibilitychange", resetClock);
+    frame = window.requestAnimationFrame(tick);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("visibilitychange", resetClock);
+    };
   }, [playable, settlement, state.phase]);
 
   useEffect(() => {

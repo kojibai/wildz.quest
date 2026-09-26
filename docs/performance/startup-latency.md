@@ -80,3 +80,24 @@ preparation returns to its original deferred behavior. The terrain calculation
 and cancellable completed-draw microtask changes remain; no claim of a verified
 end-to-end startup improvement is made for them. The final build measurements
 above describe the experimental early-submission version, not this correction.
+
+## Combined cold-start and gameplay pass
+
+The later gameplay pass reuses deterministic terrain samples across overlapping
+streamed patches. The tile caches are bounded by both entries and estimated bytes,
+and golden hashes verify exact mesh and water output, including after eviction.
+For 30 adjacent tile centers in a Node CPU probe, patch projection took 578 ms
+before caching and 146 ms after; water projection took 440 ms and 75 ms. These
+totals are not browser frame times. The natural bark, leaf and skin texture loops
+now skip calculations unused by their role; all generated RGBA bytes match the
+previous algorithm.
+
+Two fresh local production-browser runs of the combined main checkout reached
+first contentful paint at 128 and 276 ms, canvas creation at 353 and 689 ms,
+and the existing first-complete-draw reveal at 843 and 1,347 ms. The faster run
+still included a 226 ms first-scene long task. One ten-second walk across several
+tiles had 600 of 600 sampled frame gaps at or below 16.7 ms. An earlier walk had
+one 550 ms gap, so hitch-free gameplay is not certified across runs or devices.
+The first-complete-draw callback remains the readiness gate; it does not certify
+settlement of later network and texture updates. **A cold, fully settled screen
+below 300 ms has not been achieved or guaranteed.**

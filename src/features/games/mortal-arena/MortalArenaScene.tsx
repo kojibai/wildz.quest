@@ -90,6 +90,7 @@ function ArenaWorld({ state, roster, opponent, impactTick, particleScale }: {
 function ArenaCamera({ state, impactTick }: { state: MortalArenaState; impactTick: number }) {
   const { camera, size } = useThree();
   const shakeRef = useRef(0);
+  const desired = useMemo(() => new THREE.Vector3(), []);
   useEffect(() => { shakeRef.current = impactTick > 0 ? .16 : 0; }, [impactTick]);
   useFrame((_, delta) => {
     const left = state.sides[0].fighters[state.sides[0].activeIndex]!;
@@ -104,7 +105,7 @@ function ArenaCamera({ state, impactTick }: { state: MortalArenaState; impactTic
       aspect: size.width / Math.max(1, size.height),
       verticalFovDegrees: camera instanceof THREE.PerspectiveCamera ? camera.fov : 43
     });
-    const desired = new THREE.Vector3(centerX, 6.4 + distance * .13, centerZ + distance);
+    desired.set(centerX, 6.4 + distance * .13, centerZ + distance);
     if (shakeRef.current > .003) {
       desired.x += Math.sin(impactTick * 2.17) * shakeRef.current;
       desired.y += Math.cos(impactTick * 1.31) * shakeRef.current * .45;

@@ -70,4 +70,34 @@ describe("Wilds adaptive audio director", () => {
     assert.ok(ramps.some((value) => value === .72 * .3));
     assert.equal(runtime.activeProgramId(), "mortal-arena-final");
   });
+
+  it("keeps the latest scene when an earlier decode finishes later", async () => {
+    let releaseArena!: () => void;
+    const arenaDecode = new Promise<void>((resolve) => { releaseArena = resolve; });
+    const starts: string[] = [];
+    const param = { setValueAtTime() {}, exponentialRampToValueAtTime() {} };
+    const runtime = createWildsAudioRuntime(() => ({
+      currentTime: 10, destination: {}, resume: async () => {}, close: async () => {},
+      createOscillator: () => ({ type: "sine", frequency: param, connect() {}, disconnect() {}, start() {}, stop() {} }),
+      createGain: () => ({ gain: param, connect() {}, disconnect() {} }),
+      decodeAudioData: async (data) => ({ id: new Uint8Array(data)[0] }),
+      createBufferSource: () => ({ buffer: null, connect() {}, disconnect() {}, start() { starts.push("buffer"); }, stop() {} })
+    }), async (path) => ({
+      ok: true,
+      arrayBuffer: async () => {
+        if (path.includes("mortal-arena-boss")) await arenaDecode;
+        return new Uint8Array([1]).buffer;
+      }
+    }));
+    await runtime.unlock();
+    const arena = runtime.setScene(projectWildsAudioScene({ position: { x: 0, z: 0 }, activity: "combat", combatPhase: "final" }));
+    await runtime.setScene(projectWildsAudioScene({ position: { x: 80, z: 80 } }));
+    const startsAfterExploration = starts.length;
+    assert.equal(runtime.activeProgramId(), "biome-heartwood");
+    releaseArena();
+    await arena;
+    assert.equal(runtime.activeProgramId(), "biome-heartwood");
+    assert.equal(starts.length, startsAfterExploration, "a stale scene must not start audio sources");
+    await runtime.destroy();
+  });
 });

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { test } from "node:test";
 import { wildsTerrainElevation } from "../src/features/play/wilds-terrain-authority";
 import { WILDS_WATERLINE_ELEVATION } from "../src/features/play/wilds-aquatic-presentation";
@@ -7,11 +8,59 @@ import {
   buildWildsTerrainMeshProjection,
   buildWildsTerrainWaterProjection,
   buildWildsTerrainRibbonProjection,
+  clearWildsTerrainRenderCaches,
   projectWildsTerrainActorPosition,
   writeWildsTerrainActorPosition,
   wildsTerrainProjectionDiagnostics,
+  wildsTerrainRenderCacheDiagnostics,
   wildsTerrainRelativeElevation
 } from "../src/features/play/wilds-terrain-rendering";
+
+function projectionDigest(value: unknown) {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+test("cached terrain and water preserve exact projection output and return independent values", () => {
+  clearWildsTerrainRenderCaches();
+  const cases = [
+    ["e43da4837b66db92442effb74e9ece8ff5add59bca2b0dc884ee6783528c4bd1", () => buildWildsTerrainMeshProjection(-2, 3, 4)],
+    ["177269fe3093301405d9c6e38b84d5017baf777aa55bbbbca9c85d96dd4d84a2", () => buildWildsTerrainPatchProjection(2, -1, 2, 4)],
+    ["607db2700f50b70dc2449dc720655361ec63b2194d855da54c22700d01ea2a88", () => buildWildsTerrainWaterProjection(-1, -9, 2, 4)],
+    ["27dca4c90f6a7fd3abddd938894d49af22e4f83ccd4a6cb49903d34382989294", () => buildWildsTerrainPatchProjection(1.25, -2.5, 1, 3)],
+    ["b118a956ce349aaef82ff1bbae8c3d1d271c9de4ffd367dc274275dbb99c141d", () => buildWildsTerrainWaterProjection(1.25, -2.5, 1, 3)]
+  ] as const;
+  for (const [expected, build] of cases) {
+    assert.equal(projectionDigest(build()), expected);
+    assert.equal(projectionDigest(build()), expected);
+  }
+  const beforeMutation = buildWildsTerrainMeshProjection(-2, 3, 4);
+  (beforeMutation.positions as number[])[0] = 999;
+  beforeMutation.vertices[0]!.world.x = 999;
+  beforeMutation.vertices[0]!.normal.y = 999;
+  assert.equal(projectionDigest(buildWildsTerrainMeshProjection(-2, 3, 4)), cases[0][0]);
+  const diagnostics = wildsTerrainRenderCacheDiagnostics();
+  assert.ok(diagnostics.mesh.hits > 0);
+  assert.ok(diagnostics.water.hits > 0);
+});
+
+test("terrain rendering caches evict old tiles at their fixed entry bounds", () => {
+  clearWildsTerrainRenderCaches();
+  for (let tileX = 0; tileX <= 384; tileX += 1) buildWildsTerrainMeshProjection(tileX, 0, 1);
+  let diagnostics = wildsTerrainRenderCacheDiagnostics();
+  assert.equal(diagnostics.mesh.entries, diagnostics.mesh.maxEntries);
+  assert.ok(diagnostics.mesh.bytes <= diagnostics.mesh.maxBytes);
+  const meshMisses = diagnostics.mesh.misses;
+  buildWildsTerrainMeshProjection(0, 0, 1);
+  assert.equal(wildsTerrainRenderCacheDiagnostics().mesh.misses, meshMisses + 1);
+
+  for (let tileX = 0; tileX <= 512; tileX += 1) buildWildsTerrainWaterProjection(tileX, 0, 0, 1);
+  diagnostics = wildsTerrainRenderCacheDiagnostics();
+  assert.equal(diagnostics.water.entries, diagnostics.water.maxEntries);
+  assert.ok(diagnostics.water.bytes <= diagnostics.water.maxBytes);
+  const waterMisses = diagnostics.water.misses;
+  buildWildsTerrainWaterProjection(0, 0, 0, 1);
+  assert.equal(wildsTerrainRenderCacheDiagnostics().water.misses, waterMisses + 1);
+});
 
 test("terrain mesh projection has stable indexed geometry dimensions", () => {
   const mesh = buildWildsTerrainMeshProjection(2, -3, 4);

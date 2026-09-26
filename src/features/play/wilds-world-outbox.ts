@@ -85,6 +85,16 @@ export async function enqueueWildsWorldCommand(entry: WildsWorldOutboxEntry, sto
 }
 
 async function enqueueUnlocked(entry: WildsWorldOutboxEntry, storage: ReceizOfflineProofQueueStorage) {
+  await persistUnlocked(entry, storage);
+  return readWildsWorldOutbox(entry.actorId, storage);
+}
+
+/** Admission needs the durable append, not a second read of the queue. */
+export async function persistWildsWorldCommandDurably(entry: WildsWorldOutboxEntry, storage?: ReceizOfflineProofQueueStorage) {
+  await withOutboxMutation(entry.actorId, storage, async (resolved) => persistUnlocked(entry, resolved));
+}
+
+async function persistUnlocked(entry: WildsWorldOutboxEntry, storage: ReceizOfflineProofQueueStorage) {
   const queue = await createReceizOfflineProofQueue({ ownerId: entry.actorId, storage });
   const previous = [...queue.snapshot().pending, ...queue.snapshot().settled].find((item) => item.id === entry.command.commandId);
   if (previous && constructionProofDigest(previous.payload.entry) !== constructionProofDigest(entry)) throw new Error("wilds_world_outbox_command_conflict");
@@ -96,7 +106,6 @@ async function enqueueUnlocked(entry: WildsWorldOutboxEntry, storage: ReceizOffl
     createdAt: entry.queuedAt
   });
   await queue.flush();
-  return readWildsWorldOutbox(entry.actorId, storage);
 }
 
 export async function acknowledgeWildsWorldCommand(actorId: string, commandId: string, storage?: ReceizOfflineProofQueueStorage) {
@@ -169,6 +178,28 @@ export function prepareWildsWorldOutboxEntry(base: WildsWorldProjection, entry: 
   };
 }
 
+function compactWildsWorldAdmissionAnchor(entry: WildsWorldOutboxEntry, anchorId?: string | null) {
+  return entry.admittedSource && anchorId
+    ? { ...entry, admittedSource: { anchorId, events: entry.admittedSource.events } }
+    : entry;
+}
+
+/** Prepare and durably queue one ordinary action in a single worker request.
+ * The projection must never be shown until the queue write has completed. */
+export async function prepareAndPersistWildsWorldOutboxEntry(
+  base: WildsWorldProjection,
+  entry: WildsWorldOutboxEntry,
+  anchorId?: string | null,
+  persist: (entry: WildsWorldOutboxEntry) => Promise<unknown> = persistWildsWorldCommandDurably
+): Promise<ReturnType<typeof prepareWildsWorldOutboxEntry>> {
+  const prepared = prepareWildsWorldOutboxEntry(base, entry, anchorId);
+  if (prepared.projection === base || prepared.projection.revision === base.revision) return prepared;
+  const durable = compactWildsWorldAdmissionAnchor(prepared.entry, anchorId);
+  try { await persist(durable); }
+  catch (cause) { throw new Error("wilds_world_local_persistence_failed", { cause }); }
+  return durable === prepared.entry ? prepared : { ...prepared, entry: durable };
+}
+
 export function admitWildsWorldOutboxEntry(base: WildsWorldProjection, entry: WildsWorldOutboxEntry) {
   return prepareWildsWorldOutboxEntry(base, entry).projection;
 }
@@ -230,6 +261,7 @@ export function createWildsWorldEdgeAdmissionQueue(input: {
   initialProjection: WildsWorldProjection;
   persist: (entry: WildsWorldOutboxEntry) => Promise<unknown>;
   prepare?: (base: WildsWorldProjection, entry: WildsWorldOutboxEntry, anchorId?: string | null) => Promise<ReturnType<typeof prepareWildsWorldOutboxEntry>>;
+  prepareAndPersist?: (base: WildsWorldProjection, entry: WildsWorldOutboxEntry, anchorId?: string | null) => Promise<ReturnType<typeof prepareWildsWorldOutboxEntry>>;
   onAdmitted?: (projection: WildsWorldProjection, entry: WildsWorldOutboxEntry, events: readonly WildsWorldEvent[], constitution?: ConstitutionalDecision) => void;
 }) {
   let projection = input.initialProjection;
@@ -254,17 +286,21 @@ export function createWildsWorldEdgeAdmissionQueue(input: {
       const exact = structuredClone(entry);
       activeAdmissions += 1;
       const next = tail.catch(() => undefined).then(async () => {
-        const prepared = await (input.prepare ?? prepareWildsWorldOutboxEntry)(projection, exact, anchorId);
+        // Crew admissions have an intervening custody CAS, so their preparation
+        // and persistence must remain separate. Other actions use one worker hop.
+        const fused = !admission && Boolean(input.prepareAndPersist);
+        const prepared = fused
+          ? await input.prepareAndPersist!(projection, exact, anchorId)
+          : await (input.prepare ?? prepareWildsWorldOutboxEntry)(projection, exact, anchorId);
         if (prepared.projection === projection || prepared.projection.revision === projection.revision) return projection;
-        let durable = prepared.entry;
-        if (durable.admittedSource && anchorId) durable = { ...durable, admittedSource: { anchorId, events: durable.admittedSource.events } };
+        const durable = compactWildsWorldAdmissionAnchor(prepared.entry, anchorId);
         if(admission){
           // A crew intent remains cancellable throughout asynchronous source planning.
           // The callback commits its pending CAS; persistence follows with no other await.
           if(canonicalPortableCardJson(durable.command)!==canonicalPortableCardJson(exact.command))throw new Error("wilds_crew_source_command_changed");
           await admission.beforeAdmit(structuredClone(exact));
         }
-        await input.persist(durable);
+        if (!fused) await input.persist(durable);
         if (durable.admittedSource) anchorId = durable.admittedSource.anchorId;
         else anchorId = null;
         projection = prepared.projection;

@@ -384,8 +384,9 @@ function LandmarkEntranceBeacon({ landmark, distance }: { landmark: WildsLandmar
 
 function MajorWorldRoutes({ player, palette, terrainElevation }: { player: PlayState["player"]; palette: WildsBiomeTile["trail"]; terrainElevation: number }) {
   const readability = useWildsReadability();
-  const edgeGeometry = useMemo(() => mergeGeometries(WILDS_MAJOR_ROUTES.map((route, index) => terrainRibbonGeometry(route.points, index ? .42 : .54, .026)), false)!, []);
-  const trailGeometry = useMemo(() => mergeGeometries(WILDS_MAJOR_ROUTES.map((route, index) => terrainRibbonGeometry(route.points, index ? .28 : .36, .032)), false)!, []);
+  const edgeGeometry = useMemo(() => mergeDisposableGeometries(WILDS_MAJOR_ROUTES.map((route, index) => terrainRibbonGeometry(route.points, index ? .42 : .54, .026))), []);
+  const trailGeometry = useMemo(() => mergeDisposableGeometries(WILDS_MAJOR_ROUTES.map((route, index) => terrainRibbonGeometry(route.points, index ? .28 : .36, .032))), []);
+  useEffect(() => () => { edgeGeometry.dispose(); trailGeometry.dispose(); }, [edgeGeometry, trailGeometry]);
   return <group name="world-major-routes" position={[-player.x, -terrainElevation, -player.z]}>
     <mesh geometry={edgeGeometry} name="world-route-edges"><meshStandardMaterial color={palette.edge} emissive={palette.edge} emissiveIntensity={readability.pathEmissive * .45} roughness={.98} /></mesh>
     <mesh geometry={trailGeometry} name="world-route-surfaces"><meshStandardMaterial color={palette.base} emissive={palette.base} emissiveIntensity={readability.pathEmissive} roughness={.91} /></mesh>
@@ -402,12 +403,21 @@ function terrainRibbonGeometry(points: readonly { x: number; z: number }[], widt
   return geometry;
 }
 
+function mergeDisposableGeometries(parts: THREE.BufferGeometry[]) {
+  try {
+    return mergeGeometries(parts, false)!;
+  } finally {
+    parts.forEach((part) => part.dispose());
+  }
+}
+
 function WorldWatercourses({ player, qualityProfile, terrainElevation }: { player: PlayState["player"]; qualityProfile: WildsQualityProfile; terrainElevation: number }) {
   const geometry = useMemo(() => terrainRibbonGeometry([
     { x: 148, z: -118 }, { x: 116, z: -88 }, { x: 82, z: -61 }, { x: 48, z: -34 },
     { x: 18, z: -12 }, { x: 4, z: 2 }, { x: -21, z: 31 }, { x: -55, z: 66 },
     { x: -86, z: 96 }, { x: -122, z: 126 }
   ], qualityProfile.tier === "low" ? .72 : .92, .028), [qualityProfile.tier]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   return <group name="world-watercourses" position={[-player.x, -terrainElevation, -player.z]}>
     <mesh geometry={geometry} receiveShadow>
       <meshPhysicalMaterial color="#2c8790" emissive="#143f43" emissiveIntensity={.18} roughness={.22} metalness={.02} clearcoat={qualityProfile.tier === "low" ? .2 : .72} />
@@ -502,13 +512,14 @@ function TrailNetwork({ player, palette, terrainElevation }: { player: PlayState
   const edgeGeometry = useMemo(() => {
     const eastWest = terrainRibbonGeometry([{ x: startX, z: centerZ * WILDS_TILE_SIZE }, { x: endX, z: centerZ * WILDS_TILE_SIZE }], .51, .018);
     const northSouth = terrainRibbonGeometry([{ x: centerX * WILDS_TILE_SIZE, z: startZ }, { x: centerX * WILDS_TILE_SIZE, z: endZ }], .41, .018);
-    return mergeGeometries([eastWest, northSouth], false)!;
+    return mergeDisposableGeometries([eastWest, northSouth]);
   }, [centerX, centerZ, endX, endZ, startX, startZ]);
   const trailGeometry = useMemo(() => {
     const eastWest = terrainRibbonGeometry([{ x: startX, z: centerZ * WILDS_TILE_SIZE }, { x: endX, z: centerZ * WILDS_TILE_SIZE }], .36, .027);
     const northSouth = terrainRibbonGeometry([{ x: centerX * WILDS_TILE_SIZE, z: startZ }, { x: centerX * WILDS_TILE_SIZE, z: endZ }], .28, .027);
-    return mergeGeometries([eastWest, northSouth], false)!;
+    return mergeDisposableGeometries([eastWest, northSouth]);
   }, [centerX, centerZ, endX, endZ, startX, startZ]);
+  useEffect(() => () => { edgeGeometry.dispose(); trailGeometry.dispose(); }, [edgeGeometry, trailGeometry]);
   return (
     <group position={[-player.x, -terrainElevation, -player.z]}>
       <mesh geometry={edgeGeometry}>
@@ -685,14 +696,15 @@ const ArenaOfEchoes = memo(function ArenaOfEchoes({ detail }: { detail: boolean 
     roughness: .94
   }), [rockTexture]);
   useEffect(()=>()=>arenaStoneMaterial.dispose(),[arenaStoneMaterial]);
-  const arenaRingsGeometry = useMemo(() => mergeGeometries([7.5, 8.6, 10.35].map((radius, index) => {
+  const arenaRingsGeometry = useMemo(() => mergeDisposableGeometries([7.5, 8.6, 10.35].map((radius, index) => {
     const geometry = new THREE.TorusGeometry(radius, index === 2 ? .34 : .16, 8, 72);
     geometry.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2));
     geometry.translate(0, .48 + index * .25, 0);
     const color = new THREE.Color(index === 2 ? "#17312d" : "#bfae67");
     geometry.setAttribute("color", new THREE.Float32BufferAttribute(Array.from({ length: geometry.attributes.position.count }, () => color.toArray()).flat(), 3));
     return geometry;
-  }), false)!, []);
+  })), []);
+  useEffect(() => () => arenaRingsGeometry.dispose(), [arenaRingsGeometry]);
   useLayoutEffect(() => {
     const matrix = new THREE.Matrix4();
     const quaternion = new THREE.Quaternion();

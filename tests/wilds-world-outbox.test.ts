@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createReceizInMemoryOfflineProofQueueStorage } from "@receiz/sdk";
 import {
   admitWildsWorldOutboxEntry,
+  prepareAndPersistWildsWorldOutboxEntry,
   prepareWildsWorldOutboxPublication,
   bindWildsCrewOutboxIdentity,
   acknowledgeWildsWorldCommand,
@@ -10,6 +11,7 @@ import {
   createWildsWorldEdgeAdmissionQueue,
   drainWildsWorldOutbox,
   enqueueWildsWorldCommand,
+  persistWildsWorldCommandDurably,
   projectWildsWorldOutbox,
   readWildsWorldOutbox,
   restoreWildsWorldEdgeSource,
@@ -92,6 +94,20 @@ test("the SDK offline queue durably persists and deduplicates the canonical comm
   assert.equal(queued[0]?.command.commandId, "command:team:create:offline");
   assert.deepEqual(await acknowledgeWildsWorldCommand("global_keeper.receiz.id", queued[0]!.command.commandId, storage), []);
   assert.deepEqual(await readWildsWorldOutbox("global_keeper.receiz.id", storage), []);
+});
+
+test("fused admission returns the exact entry committed by the fast durable append", async () => {
+  const storage = createReceizInMemoryOfflineProofQueueStorage();
+  const prepared = await prepareAndPersistWildsWorldOutboxEntry(
+    initialWildsWorldProjection(),
+    projectEntry("command:fused:durable", "Durable fused action"),
+    null,
+    (entry) => persistWildsWorldCommandDurably(entry, storage)
+  );
+  assert.equal(prepared.projection.revision, 1);
+  const durable = JSON.parse(storage.readText()!);
+  assert.deepEqual(durable.pending[0]?.payload.entry, prepared.entry);
+  assert.equal((await readWildsWorldOutbox(prepared.entry.actorId, storage))[0]?.command.commandId, prepared.entry.command.commandId);
 });
 
 test("edge admission becomes authoritative only after the exact command is durably appended", async () => {
@@ -373,6 +389,61 @@ test("edge admission waits for asynchronous preparation and durable storage befo
   release();
   assert.equal(await pending, projected);
   assert.deepEqual(order, ["prepared", "persisted", "displayed"]);
+});
+
+test("fused ordinary admissions preserve exact intent, durable order and the shared source anchor", async () => {
+  const persisted: WildsWorldOutboxEntry[] = [];
+  const displayed: number[] = [];
+  const queue = createWildsWorldEdgeAdmissionQueue({
+    initialProjection: initialWildsWorldProjection(),
+    prepareAndPersist: (base, exact, anchorId) => prepareAndPersistWildsWorldOutboxEntry(base, exact, anchorId, async durable => { persisted.push(structuredClone(durable)); }),
+    persist: async () => { throw new Error("separate persistence must not run"); },
+    onAdmitted: projection => displayed.push(projection.revision)
+  });
+  const first = projectEntry("command:fused:first", "First exact name");
+  const firstAdmission = queue.admit(first);
+  (first.command as Extract<typeof first.command, { type: "construction.project.create" }>).name = "Mutated after admission";
+  const secondAdmission = queue.admit(projectEntry("command:fused:second", "Second exact name"));
+  const [firstProjection, secondProjection] = await Promise.all([firstAdmission, secondAdmission]);
+  assert.equal(firstProjection.revision, 1);
+  assert.equal(secondProjection.revision, 2);
+  assert.deepEqual(displayed, [1, 2]);
+  assert.deepEqual(persisted.map(row => row.command.commandId), ["command:fused:first", "command:fused:second"]);
+  assert.equal((persisted[0]!.command as { name: string }).name, "First exact name");
+  assert.ok(persisted[0]!.admittedSource?.checkpoint);
+  assert.equal(persisted[1]!.admittedSource?.checkpoint, undefined);
+  assert.equal(persisted[1]!.admittedSource?.anchorId, persisted[0]!.command.commandId);
+});
+
+test("fused admission leaves projection hidden on preparation and storage failures", async () => {
+  const initial = initialWildsWorldProjection();
+  const displayed: number[] = [];
+  let writes = 0;
+  const queue = createWildsWorldEdgeAdmissionQueue({
+    initialProjection: initial,
+    prepareAndPersist: (base, exact, anchorId) => prepareAndPersistWildsWorldOutboxEntry(base, exact, anchorId, async () => { writes++; throw new Error("disk_full"); }),
+    persist: async () => { throw new Error("separate persistence must not run"); },
+    onAdmitted: projection => displayed.push(projection.revision)
+  });
+  await assert.rejects(queue.admit(projectEntry("command:fused:invalid", "")), /wilds_construction_project_invalid/);
+  assert.equal(writes, 0);
+  await assert.rejects(queue.admit(projectEntry("command:fused:failed-write", "Valid")), /wilds_world_local_persistence_failed/);
+  assert.equal(writes, 1);
+  assert.equal(queue.current(), initial);
+  assert.deepEqual(displayed, []);
+});
+
+test("crew custody callback keeps preparation and persistence separate even when fused admission is available", async () => {
+  const order: string[] = [];
+  const queue = createWildsWorldEdgeAdmissionQueue({
+    initialProjection: initialWildsWorldProjection(),
+    prepareAndPersist: async () => { throw new Error("crew must not fuse"); },
+    persist: async () => { order.push("persist"); }
+  });
+  await queue.admit(projectEntry("command:fused:crew", "Crew project"), {
+    beforeAdmit: async () => { order.push("beforeAdmit"); }
+  });
+  assert.deepEqual(order, ["beforeAdmit", "persist"]);
 });
 
 test("worker preparation receives only a durable anchor and omits successor checkpoints before reply", async () => {

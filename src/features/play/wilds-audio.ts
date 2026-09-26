@@ -285,6 +285,7 @@ export function createWildsAudioRuntime(
   const activeSources = new Set<AudioBufferSourceLike>();
   let programSources: Array<{ source: AudioBufferSourceLike; gain: GainLike; kind: "music" | "ambience" }> = [];
   let programMemory: WildsAudioMemory = { activeProgramId: null, enteredAt: 0, recent: [] };
+  let sceneRequest = 0;
 
   const preload = async (assetIds: readonly string[]) => {
     if (!context || destroyed || !context.decodeAudioData || !context.createBufferSource) return;
@@ -365,11 +366,15 @@ export function createWildsAudioRuntime(
 
   const setScene = async (scene: WildsAudioScene) => {
     if (!context || destroyed || settings.muted) return programMemory.activeProgramId;
+    const request = ++sceneRequest;
     const nowMs = Date.now();
     const next = selectWildsAudioProgram(scene, programMemory, nowMs);
     if (next.id === programMemory.activeProgramId) return next.id;
     const assetIds = next.layers.filter((id) => WILDS_AUDIO_BY_ID.has(id));
     await preload(assetIds);
+    // Decoding can finish out of order while the player moves between scenes.
+    // Only the latest requested scene may replace the audible program.
+    if (request !== sceneRequest || destroyed || settings.muted || !context) return programMemory.activeProgramId;
     const now = context.currentTime;
     const end = now + next.crossfadeSeconds;
     const oldSources = programSources;
@@ -414,6 +419,7 @@ export function createWildsAudioRuntime(
     setSettings(next: WildsAudioSettings) {
       settings = normalizeWildsAudioSettings(next);
       if (settings.muted) {
+        sceneRequest += 1;
         stopAmbience();
         stopProgram();
       } else if (context) {
@@ -448,6 +454,7 @@ export function createWildsAudioRuntime(
     async destroy() {
       if (destroyed) return;
       destroyed = true;
+      sceneRequest += 1;
       stopAmbience();
       activeSources.forEach((source) => {
         try { source.stop(); } catch { /* The decoded source may already have ended. */ }
