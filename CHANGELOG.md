@@ -2,6 +2,16 @@
 
 All notable changes to Wildz are documented here. Wildz uses semantic versioning for public releases.
 
+## [10.1.0] - 2026-09-26
+
+**Continuity and Control.** See the [complete release notes](docs/release/v10.1.0.md) for the full change ledger since v10.0.0 and qualification limits.
+
+- Reduce cold-start and active-world CPU work through deferred optional panels, bounded terrain and obstacle caches, geometry reuse, nearest-candidate pruning, texture preparation, and lower frame allocation.
+- Restore distinct, lawful Glide and Flight controls with a short ground-launched Glide path, separate energy and ceiling behavior, and preserved collision and airspace checks.
+- Strengthen Identity Seal, card and complete-Vault preparation, canonical offline large-document verification, save errors, and restored account continuity.
+- Correct wallet resource totals, transfer review recovery and editing, and honey acquisition lifecycle feedback.
+- Keep Receiz SDK, MCP and AI skills pinned to the coordinated public v127 release and retain proof-authority boundaries.
+
 ## [10.0.0] - 2026-09-23
 
 **The Living World — official major public release.** See the [complete v10.0.0 release notes](docs/release/v10.0.0.md), including every commit since v9.0.0.
