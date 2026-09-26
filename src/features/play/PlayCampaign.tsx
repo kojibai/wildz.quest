@@ -1340,18 +1340,17 @@ export function PlayCampaign({
       const timer = window.setTimeout(() => {
         const uPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
         setState((current) => applyWildsInput(current, rootWildsInputInKai({ type: "start-battle", at: kaiUPulseToISOString(uPulse) }, uPulse)));
-      }, reducedMotion ? 0 : 180);
+      }, 0);
       return () => window.clearTimeout(timer);
     }
-    const duration = state.encounter.phase === "emerging" ? 300 : state.encounter.phase === "capsule" ? 360 : state.encounter.phase === "sealed" ? 180 : null;
-    const delay = duration === null ? null : reducedMotion ? 0 : duration;
+    const delay = ["emerging", "capsule", "sealed"].includes(state.encounter.phase) ? 0 : null;
     if (delay === null) return;
     const timer = window.setTimeout(() => {
       const uPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
       setState((current) => applyWildsInput(current, rootWildsInputInKai({ type: "advance-encounter", at: kaiUPulseToISOString(uPulse) }, uPulse)));
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [state.encounter.phase, reducedMotion]);
+  }, [state.encounter.phase]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

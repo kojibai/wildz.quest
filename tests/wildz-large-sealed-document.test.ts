@@ -29,3 +29,11 @@ test("above-limit PNGs still require a real canonical seal", async () => {
   const unsealed = withWildzPngPayloadChunk(png, "large.fixture", "x".repeat(17 * 1024 * 1024));
   await assert.rejects(openWildzSealedDocument({ bytes: unsealed, mimeType: "image/png" }), /wildz_artifact_verification_failed:invalid/);
 });
+
+test("document retention rejects unverified bytes without creating native source custody", async () => {
+  const { createWildzSealedDocumentStore } = await import("../src/lib/receiz/wildz-sealed-document-store");
+  const { createMemoryWildzContinuityDatabase } = await import("./support/memory-wildz-continuity-database");
+  const database = createMemoryWildzContinuityDatabase();
+  await assert.rejects(createWildzSealedDocumentStore(database).retain({ bytes: png, filename: "unsealed.png", mimeType: "image/png" }), /verification_failed/);
+  assert.deepEqual(database.dump().artifacts, []);
+});

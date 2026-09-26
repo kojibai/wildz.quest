@@ -21,6 +21,7 @@ export function WildsWalletOverview({ state, stewardPhiAwards = [], inventoryCou
       <span><small id="wilds-wallet-overview-title">{balanceLabel}</small><strong style={{ "--wallet-balance-scale": `${Math.min(9, 125 / (displayedBalance.length + 3))}cqw` } as React.CSSProperties}><PhiNetworkAmount value={displayedBalance} /></strong></span>
       {summary.displayUsdCents === null ? null : <span className="wilds-wallet-display-quote"><small>USD equivalent</small><b>{formatWildsUsdCents(summary.displayUsdCents)}</b></span>}
     </header>
+    {state.balanceBasis === "saved" ? <p className="wilds-wallet-state-strip" role="status">Balance carried by your Identity Seal. Checking the current available amount…</p> : null}
     {stewardPhiAwards.length ? <p className="wilds-wallet-state-strip"><span>World earnings · <PhiNetworkAmount value={formatWildsPhiExact(earnedPhiMicro)} /></span><br />Lifetime rewards. Your available balance includes settled rewards and reflects spending.</p> : null}
     {state.status === "offline-verified" ? <p className="wilds-wallet-state-strip is-offline" role="status">Offline · showing your last verified balance.</p> : null}
     {summary.pendingCount ? <p className="wilds-wallet-state-strip is-pending" role="status">{summary.pendingCount} exact transfer {summary.pendingCount === 1 ? "attempt requires" : "attempts require"} recovery.</p> : null}

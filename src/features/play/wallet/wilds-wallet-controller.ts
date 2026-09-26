@@ -86,8 +86,8 @@ const emptyTransfer: WildsWalletTransferState = Object.freeze({
   authorizationPointerId: null, result: null
 });
 const V123_UNAVAILABLE = "receiz_v123_execution_unavailable";
-const REVOKED_CODES = new Set(["receiz_wallet_authority_revoked", "receiz_wallet_token_revoked", "receiz_wallet_token_expired", "receiz_wallet_profile_binding_invalid", "receiz_wallet_token_binding_invalid"]);
-const AUTHORITY_REQUIRED_CODES = new Set(["receiz_wallet_authority_required", "receiz_wallet_read_scope_required"]);
+const REVOKED_CODES = new Set(["receiz_wallet_authority_revoked", "receiz_wallet_token_revoked", "receiz_wallet_profile_binding_invalid", "receiz_wallet_token_binding_invalid"]);
+const AUTHORITY_REQUIRED_CODES = new Set(["receiz_wallet_token_expired", "receiz_wallet_authority_required", "receiz_wallet_read_scope_required"]);
 
 export function gateWildsWalletClientCapabilities(
   capabilities: WalletCapabilityProjection,
@@ -144,13 +144,15 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
       return { ...state, transportAuthorityRequired: false, status: "verified", balanceBasis: "current", requestId: event.pendingDetails ? event.requestId : null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
     case "refresh-failed":
       if (state.requestId !== event.requestId) return state;
+      if (event.reason === "authority-required" && hasRetainedProjection(state) && state.balanceBasis === "current") return { ...state, status: "offline-verified", requestId: null, transportAuthorityRequired: true };
       if ((event.reason === "network" || event.reason === "failed") && hasRetainedProjection(state) && state.balanceBasis === "current") return { ...state, status: "offline-verified", requestId: null };
       if (state.sourceAuthorityVerified) return { ...state, ...(state.sourceSnapshot ? { summary: state.sourceSnapshot.summary, ledger: state.sourceSnapshot.ledger, capabilities: state.sourceSnapshot.capabilities } : { summary: null, ledger: null }), balanceBasis: "saved", status: "source-verified", requestId: null, transportAuthorityRequired: event.reason === "authority-required" || event.reason === "revoked" || state.transportAuthorityRequired === true };
       if (event.reason === "revoked") return clearPrivate(state, "revoked");
       if (event.reason === "network" && hasRetainedProjection(state)) return { ...state, status: "offline-verified", requestId: null };
       return clearPrivate(state, event.reason === "authority-required" ? "authority-required" : "failed");
     case "identity-invalidated": return event.identityKey === state.identityKey && event.authorityGeneration === state.authorityGeneration ? state : createWildsWalletControllerState(event.identityKey, event.authorityGeneration);
-    case "exclusive-owner-changed": return event.owner === "none" || event.owner === "wallet" ? state : afterCancellation(state, false);
+    case "exclusive-owner-changed": return event.owner === "none" || event.owner === "wallet" ? state
+      : { ...afterCancellation(state, false), status: state.status, requestId: state.requestId };
     case "recipient-start": return { ...state, recipient: { status: "loading", requestId: event.requestId, username: event.username, projection: null } };
     case "recipient-resolved": return state.open && state.recipient.status === "loading" && state.recipient.requestId === event.requestId ? { ...state, recipient: { status: "verified", requestId: null, username: event.projection.username, projection: event.projection } } : state;
     case "recipient-failed": return state.recipient.status === "loading" && state.recipient.requestId === event.requestId ? { ...state, recipient: { ...state.recipient, status: "failed", requestId: null, projection: null } } : state;
@@ -255,6 +257,7 @@ export function createWildsWalletRequestRuntime() {
     beginTransfer(options: Readonly<{ replace?: boolean }> = {}) { return begin("transfer", options.replace); },
     isCurrentRefresh(id: number) { return refresh?.id === id; }, isCurrentReceive(id: number) { return receive?.id === id; }, isCurrentTransfer(id: number) { return transfer?.id === id; },
     finishRefresh(id: number) { if (refresh?.id === id) refresh = null; }, finishReceive(id: number) { if (receive?.id === id) receive = null; }, finishTransfer(id: number) { if (transfer?.id === id) transfer = null; },
+    cancelInteractive() { receive?.controller.abort(); transfer?.controller.abort(); receive = null; transfer = null; },
     cancelAll() { refresh?.controller.abort(); receive?.controller.abort(); transfer?.controller.abort(); refresh = null; receive = null; transfer = null; },
     recordCacheWrite() { diagnostics.cacheWrites += 1; }, recordPublication() { diagnostics.publications += 1; },
     diagnostics() { return { ...diagnostics }; }

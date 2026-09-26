@@ -1,3 +1,4 @@
+import { createWildzSealedDocumentStore } from "./wildz-sealed-document-store";
 import { prepareWildzGameImage } from "./wildz-game-image-export";
 import { openWildzSealedCard, verifyWildzSealedCard } from "./wildz-sealed-card";
 import { createWildzIdentityPlayerVaultPreparer, savePreparedWildzIdentityPlayerVault } from "./wildz-prepared-player-vault";
@@ -98,8 +99,9 @@ export { defaultIdentityRepository } from "./wildz-active-identity";
 const defaultArtifactHistory = createWildzArtifactHistory(defaultContinuityDatabase);
 export const defaultWildzProofSourceRepository = createWildzProofSourceRepository(defaultContinuityDatabase);
 const defaultArtifactCodec = createWildzArtifactCodec({
+  allowQuarantinedIdentityRecovery: true,
   identityRepository: defaultIdentityRepository,
-  sealedDocumentStore: defaultWildzProofSourceRepository,
+  sealedDocumentStore: createWildzSealedDocumentStore(defaultContinuityDatabase),
   commerceVaultReader: { inspect: inspectReceizCommerceVault },
   artifactOpener: {
     async open(input) {

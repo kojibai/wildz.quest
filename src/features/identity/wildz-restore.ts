@@ -76,6 +76,9 @@ export function friendlyWildzRestoreError(cause: unknown) {
   }
   if (code === "receiz_key_file_too_large") return "This Receiz identity artifact is too large.";
   if (code === "receiz_key_invalid") return "This file is not a valid Receiz Identity Record or Receiz Key.";
+  if (code === "wildz_restore_retirement_authority_untrusted") return "A creature retirement record needs verification. Restore this file through your profile Identity upload to recover the account and preserve that record separately.";
+  if (code === "wildz_restore_quarantine_identity_activation_required") return "Use the profile Identity upload to restore this account. A creature retirement record will be preserved separately while its authority is checked.";
+  if (code === "wildz_identity_seal_required") return "Choose the account’s verified Identity Seal or Record.";
   if (code === "wildz_restore_confirmation_required") return "Restore cancelled. Your Receiz ID and Card Vault were not changed.";
   if (code === "wildz_restore_owner_mismatch" || code === "wildz_restore_receiz_account_mismatch") return "This player Vault belongs to a different Receiz ID. Sign in with the Receiz account embedded in this Vault.";
   if (code === "wildz_restore_login_required") return "Sign in with Receiz to restore the player and every card sealed in this Vault.";
@@ -436,6 +439,9 @@ export async function restoreWildzArtifactForSurface(input: {
   if (inspection.kind === "invalid") throw new Error(inspection.code);
   if (inspection.kind === "unsupported") throw new Error(inspection.code);
   if (inspection.kind === "retirement-quarantine") throw new WildzRetirementQuarantineError(inspection);
+  const quarantinedAssets = "quarantinedAssets" in inspection ? inspection.quarantinedAssets ?? [] : [];
+  if (quarantinedAssets.length && (!input.carryCurrentVault || input.preserveActiveIdentity))
+    throw new Error("wildz_restore_quarantine_identity_activation_required");
   const verifiedIdentity = identityFromInspection(inspection);
   const cardOnlyConfirmed = verifiedIdentity
     ? true
@@ -489,7 +495,8 @@ export async function restoreWildzArtifactForSurface(input: {
       })
     : player;
   const crewCustody = mergeWildzCrewCustody(session.actorId, [readWildzArtifactCrewCustody(inspection)], assets);
-  const verifiedAssetIds = [...new Set(assets.map((asset) => asset.id))].sort();
+  const quarantinedIds = new Set(quarantinedAssets.map(asset => asset.id));
+  const verifiedAssetIds = [...new Set(assets.filter(asset => !quarantinedIds.has(asset.id)).map((asset) => asset.id))].sort();
   const scope = wildzOwnerScope(session.keyId, session.actorId);
   let committedOwnerState: StoredWildzOwnerState | null = null;
   try {
@@ -544,9 +551,19 @@ export async function restoreWildzArtifactForSurface(input: {
           );
       const keepLaterLocalLedger = Boolean(playerForSession && sameWildzPlayerCoordinate(playerForSession.playerId, session.actorId)
         && hasLaterWildsPlayerLedger(current, merged));
-      const next = keepLaterLocalLedger
+      let next = keepLaterLocalLedger
         ? (shouldMergeIntoActiveVault ? { ...current, inventory: merged.inventory } : current)
         : merged;
+      if (quarantinedAssets.length) {
+        const inventory = next.inventory.filter(card => !quarantinedIds.has(card.id));
+        const selected = inventory.find(card => card.id === next.selectedAssetId) ?? inventory[0];
+        next = { ...next, inventory, selectedAssetId: selected?.id ?? "", selectedCardId: selected?.manifest.familyId ?? "",
+          quarantinedInventory: [...new Map([...(next.quarantinedInventory ?? []), ...quarantinedAssets].map(card => [card.id, card])).values()],
+          lastEvent: `${quarantinedAssets.length} creature retirement record(s) preserved for verification. Your account and remaining Vault were restored.` };
+        // Exact source survives independently of the gameplay projection.
+        await tx.put("meta", { bytes: input.bytes.slice(), mimeType: input.mimeType, name: input.name },
+          `wildz:retirement-quarantine:v1:${scope}:${quarantinedAssets.map(card => card.proof.digest).join(":")}`);
+      }
       const localContinuity = input.currentPlayerContinuity ?? (previous ? continuityFromOwner(previous) : null);
       const carriedContinuity = keepLaterLocalLedger ? localContinuity : shouldCarryCurrentVault
         ? localContinuity

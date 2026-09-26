@@ -415,7 +415,7 @@ export function WildsInventory({
   return (
     <section className="wilds-inventory" aria-label="Portable creature card inventory">
       <header className="wilds-vault-compact-header">
-        <div><span>Portable collection</span><h3>Wilds Inventory</h3><p>{state.inventory.length} sealed forms · unlimited unique variants</p></div>
+        <div><span>Portable collection</span><h3>Wilds Inventory</h3><p>{state.inventory.length} sealed forms · unlimited unique variants</p>{state.quarantinedInventory?.length ? <p role="status">Retirement verification pending: {state.quarantinedInventory.map(card => card.manifest.name).join(", ")}. Their complete records are preserved in your saves and unavailable for play.</p> : null}</div>
         <div className="wilds-vault-actions">
           <button aria-busy={importing} aria-label="Import card or vault" className={`wilds-import-card wilds-action-feedback${importing ? " wilds-action-busy" : ""}`} disabled={importing} onClick={() => {
             if (!importInput.current) return;

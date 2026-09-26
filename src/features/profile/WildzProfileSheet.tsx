@@ -1,4 +1,5 @@
 "use client";
+import { friendlyWildzRestoreError } from "../identity/wildz-restore";
 import { identitySaveErrorMessage } from "./identity-save-error";
 
 import { canonicalWildzProfilePath, type PublicWildzProfile } from "@/features/profile/public-profile";
@@ -251,8 +252,8 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
           try {
             await onAuthenticateIdentitySeal(file);
             setIdentityMessage("Receiz ID activated. This Identity Seal now owns the current Vault.");
-          } catch {
-            setIdentityMessage("That file did not activate a Receiz ID. Choose the account's verified Identity Seal or Record.");
+          } catch (cause) {
+            setIdentityMessage(friendlyWildzRestoreError(cause));
           } finally {
             setIdentityAuthenticating(false);
           }

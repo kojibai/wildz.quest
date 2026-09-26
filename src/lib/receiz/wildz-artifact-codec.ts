@@ -1,3 +1,5 @@
+import { isLivingCardAsset } from "../../features/play/living-card-types";
+import { livingCardHasIrreversibleMortality, verifyLivingCardRetirementAuthority } from "../../features/play/living-card-proof";
 import { hasWildzCanonicalPngProof } from "./wildz-png-envelope";
 import { hasWildzCardSealPayload, unpackWildzCardSealPayload } from "./wildz-card-seal-payload";
 import { isAdmittedWildsCard } from "../../features/play/admitted-inventory";
@@ -129,6 +131,7 @@ export type WildzArtifactInspection =
       kind: "identity-seal";
       identity: VerifiedWildzIdentity;
       portableAssets: PortableCardAsset[];
+      quarantinedAssets?: PortableCardAsset[];
       portableDomainSchemas: string[];
       player: WildsPlayerVaultPayload | null;
       playerBinding: WildzPlayerBinding;
@@ -145,6 +148,7 @@ export type WildzArtifactInspection =
       kind: "card-vault";
       identity?: VerifiedWildzIdentity | null;
       assets: PortableCardAsset[];
+      quarantinedAssets?: PortableCardAsset[];
       vaultDigest: string;
       player: WildsPlayerVaultPayload | null;
       playerBinding: WildzPlayerBinding;
@@ -248,6 +252,7 @@ function vaultDigest(assets: readonly PortableCardAsset[]) {
 }
 
 export function createWildzArtifactCodec(input: {
+  allowQuarantinedIdentityRecovery?: boolean;
   identityRepository: Pick<WildzIdentityRepository, "prepare">;
   commerceVaultReader: ReceizCommerceVaultReader;
   artifactOpener?: WildzArtifactOpener;
@@ -327,7 +332,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
                 filename: artifact.name ?? "wildz.receizbundle", mimeType: artifact.mimeType });
             }
             return restored;
-          } catch { return invalid(normalizedError(error)); }
+          } catch (documentError) { return invalid(normalizedError(documentError)); }
         }
       }
 
@@ -376,7 +381,8 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
         commerceError = normalizedError(error);
       }
 
-      let extraction: WildzCrossPlatformCardExtraction;
+      let extraction!: WildzCrossPlatformCardExtraction;
+      let quarantinedAssets: PortableCardAsset[] = [];
       try {
         extraction = extractVerifiedWildzCards({
           pngBasis,
@@ -396,7 +402,14 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
               // Parsing only: these assets never enter authoritative gameplay.
               retirementAuthorityVerifier: { verifyRetirement: () => true }
             });
-            return {
+            if (input.allowQuarantinedIdentityRecovery && identity && !identityError && !commerceError && quarantined.player) {
+              // Parsing does not authorize mortality. Bind the complete player to
+              // its identity below, then restore affected cards only as quarantine.
+              extraction = quarantined;
+              quarantinedAssets = quarantined.assets.filter(card => isLivingCardAsset(card)
+                && livingCardHasIrreversibleMortality(card)
+                && !verifyLivingCardRetirementAuthority(card, input.retirementAuthorityVerifier));
+            } else return {
               kind: "retirement-quarantine",
               code: "wildz_restore_retirement_authority_untrusted",
               memorialAssets: quarantined.assets,
@@ -408,7 +421,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
             return invalid("wildz_restore_retirement_authority_untrusted");
           }
         }
-        return invalid(normalizedError(error));
+        if (!quarantinedAssets.length) return invalid(normalizedError(error));
       }
 
       if (identityError) return invalid(identityError);
@@ -461,11 +474,11 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
         else if (identity && (verifiedPortableSnapshot || playerBinding === "identity-v3-binding")) {
           // The signed snapshot grants local crew control only for its exact cards.
           // Unbound PNG sidecars never inherit this operational admission.
-          const exact = playerBinding === "identity-v3-binding" ? extraction : extractVerifiedWildzCards({ pngBasis: null, verifiedPortableSnapshot,
+          const exact = playerBinding === "identity-v3-binding" || quarantinedAssets.length ? extraction : extractVerifiedWildzCards({ pngBasis: null, verifiedPortableSnapshot,
             restoredVaultFiles: [], proofObjectPayload: null, retirementAuthorityVerifier: input.retirementAuthorityVerifier });
           const owner = identity.session.actorId;
           const snapshotDigest = sealSourceDigest;
-          const entries = exact.assets.filter(card => !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, owner))
+          const entries = exact.assets.filter(card => !quarantinedAssets.includes(card) && !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, owner))
             .map(card => ({ card: structuredClone(card), artifactSha256: snapshotDigest }));
           if (entries.length) inspectionCrewAdmissions.set(result, issueCrewCustody(owner, entries));
         }
@@ -474,6 +487,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
       if (identity && extraction.player && playerBinding === "identity-v3-binding") {
         return admitCrewInspection({
           kind: "card-vault",
+          ...(quarantinedAssets.length ? { quarantinedAssets } : {}),
           identity,
           assets: extraction.assets,
           vaultDigest: vaultDigest(extraction.assets),
@@ -485,6 +499,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
       if (identity) {
         return admitCrewInspection({
           kind: "identity-seal",
+          ...(quarantinedAssets.length ? { quarantinedAssets } : {}),
           identity,
           portableAssets: extraction.assets,
           portableDomainSchemas: [...new Set([

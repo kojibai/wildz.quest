@@ -49,6 +49,7 @@ const DEFAULT_DEPENDENCIES: ReadAuthorizationDependencies = {
   async request(path, body) {
     const response = await fetch(path, {
       method: body === undefined ? "GET" : "POST",
+      signal: AbortSignal.timeout(10_000),
       credentials: "same-origin",
       cache: "no-store",
       headers: body === undefined ? undefined : { "content-type": "application/json" },

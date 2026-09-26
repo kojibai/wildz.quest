@@ -216,6 +216,10 @@ export function mergeWildsPlayerPlayStates(input: {
       ? mergeWildsJourneyJournal(input.actorId, sanitizeWildsJourneyJournal(input.local.journeyJournal, input.actorId)?.memories ?? [], restoredPlayState.journeyJournal)
       : undefined,
     inventory: [...input.local.inventory, ...restoredPlayState.inventory],
+    ...((input.local.quarantinedInventory?.length || restoredPlayState.quarantinedInventory?.length) ? {
+      quarantinedInventory: [...new Map([...(input.local.quarantinedInventory ?? []), ...(restoredPlayState.quarantinedInventory ?? [])]
+        .map(card => [card.proof.digest, card])).values()]
+    } : {}),
     explorationAtlas: input.mergeExploration === false
       ? input.local.explorationAtlas
       : mergeWildsExplorationAtlases(

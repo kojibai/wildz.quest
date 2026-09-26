@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 const require = createRequire(import.meta.url);
 const version = JSON.parse(await readFile(require.resolve('@receiz/sdk/package.json'), 'utf8')).version;
@@ -15,4 +15,9 @@ for (const [source, target] of Object.entries(assets)) {
   await copyFile(path, target);
   hashes[target.replace(/^public/, '')] = createHash('sha256').update(await readFile(path)).digest('hex');
 }
+const sdkRequire = createRequire(require.resolve('@receiz/sdk/package.json'));
+const browserVerifier = join(dirname(sdkRequire.resolve('snarkjs')), 'snarkjs.min.js');
+await copyFile(browserVerifier, 'public/snarkjs.min.js');
+await copyFile(join(dirname(dirname(browserVerifier)), 'COPYING'), 'public/snarkjs.LICENSE.txt');
+hashes['/snarkjs.min.js'] = createHash('sha256').update(await readFile(browserVerifier)).digest('hex');
 await writeFile('public/zk/receiz-offline-resources.json', JSON.stringify({ sdkVersion: version, sha256: hashes }, null, 2)+'\n');

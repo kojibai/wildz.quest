@@ -521,3 +521,45 @@ test("portable traversal enforces node, depth, and restored-file bounds", () => 
     }))
   }), /wildz_restore_schema_unsupported/);
 });
+
+test("identity recovery isolates untrusted mortality, preserves exact evidence, and keeps it out of gameplay across saves", async () => {
+  const retired = retiredAsset();
+  const healthy = assets(2)[1]!;
+  const identity = await createReceizIdentityKeyFile({
+    owner: { uid: "quarantine_recovery_uid", username: "artifact_codec_owner", displayName: "Keeper" }, portableState: null
+  });
+  const player = createWildsPlayerVault({
+    playerId: "artifact_codec_owner", exportedAt: "2026-07-15T15:00:00.000Z",
+    playState: { ...structuredClone(initialPlayState), inventory: [retired, healthy], discoveredCardIds: [healthy.manifest.familyId], selectedAssetId: retired.id },
+    settings: { avatarStyle: null, movementMode: "walk", audio: {}, cardOrder: "rarity" },
+    personalEvents: [], canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null }, receipts: []
+  });
+  const bytes = await createWildzIdentityBoundPlayerVault({ keyFile: identity.keyFile, vaultBytes: embedPortableVaultInPng(BASE_PNG, [retired, healthy], player) });
+  const database = createMemoryWildzContinuityDatabase();
+  const repository = createWildzIdentityRepository({ database });
+  const recoveryCodec = createWildzArtifactCodec({ allowQuarantinedIdentityRecovery: true,
+    identityRepository: repository, commerceVaultReader: { inspect: inspectReceizCommerceVault } });
+  const inspection = await recoveryCodec.inspect({ bytes, mimeType: "image/png" });
+  assert.equal(inspection.kind, "card-vault");
+  if (inspection.kind !== "card-vault") return;
+  assert.deepEqual(inspection.quarantinedAssets, [retired]);
+  assert.equal(isWildzIdentityActivationInspection(inspection), true);
+  const restored = await restoreWildzArtifactForSurface({ surface: "card-vault", bytes, mimeType: "image/png",
+    inspection, codec: recoveryCodec, repository, database, confirmCardOnly: false, carryCurrentVault: true });
+  assert.deepEqual(restored.playState.inventory.map(card => card.id), [healthy.id]);
+  assert.deepEqual(restored.playState.quarantinedInventory, [retired]);
+  assert.equal(restored.playState.selectedAssetId, healthy.id);
+  assert.deepEqual(restored.verifiedAssetIds, [healthy.id]);
+  const retained = database.dump().meta.find(([key]) => String(key).startsWith("wildz:retirement-quarantine:v1:"));
+  assert.deepEqual((retained?.[1] as { bytes: Uint8Array }).bytes, bytes);
+  const { payloadDigest: _digest, schema: _schema, ...playerInput } = player;
+  const nextPlayer = createWildsPlayerVault({ ...playerInput, playState: restored.playState });
+  const nextBytes = await createWildzIdentityBoundPlayerVault({ keyFile: identity.keyFile,
+    vaultBytes: embedPortableVaultInPng(BASE_PNG, restored.playState.inventory, nextPlayer) });
+  const reopened = await recoveryCodec.inspect({ bytes: nextBytes, mimeType: "image/png" });
+  assert.equal(reopened.kind, "card-vault");
+  assert.deepEqual(reopened.player?.playState.quarantinedInventory, [retired]);
+  assert.deepEqual(reopened.player?.playState.inventory.map(card => card.id), [healthy.id]);
+  await assert.rejects(restoreWildzArtifactForSurface({ surface: "card-vault", bytes, mimeType: "image/png",
+    inspection, codec: recoveryCodec, repository, database, confirmCardOnly: true, preserveActiveIdentity: true }), /quarantine_identity_activation_required/);
+});

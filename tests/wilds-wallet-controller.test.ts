@@ -441,7 +441,7 @@ test("source verification preserves holdings but cannot hide expired server auth
   state = { ...state, sourceAuthorityVerified: true, sourceSnapshot: readResponse() };
   state = reduceWildsWalletController(state, { type: "refresh-start", requestId: 42 });
   state = reduceWildsWalletController(state, { type: "refresh-failed", requestId: 42, reason: "authority-required" });
-  assert.equal(state.status, "source-verified");
+  assert.equal(state.status, "offline-verified");
   assert.ok(state.summary);
   assert.equal(wildsWalletStatusNeedsIdentityReadAuthority(state.status, state.transportAuthorityRequired), true);
   state = reduceWildsWalletController(state, { type: "refresh-start", requestId: 43 });
@@ -530,4 +530,20 @@ test("transient refresh failure retains the current verified balance", () => {
   const failed = reduceWildsWalletController(loading, { type: "refresh-failed", requestId: 20, reason: "failed" });
   assert.equal(failed.summary, current.summary);
   assert.equal(failed.status, "offline-verified");
+});
+
+
+test("expired read authorization preserves the current amount while renewing, without reverting to an older seal", () => {
+  assert.equal(classifyWildsWalletRefreshFailure({ status: 401, code: "receiz_wallet_token_expired" }), "authority-required");
+  let state: WildsWalletControllerState = { ...verifiedState(), sourceAuthorityVerified: true, sourceSnapshot: null };
+  state = reduceWildsWalletController(state, { type: "refresh-start", requestId: 50 });
+  state = reduceWildsWalletController(state, { type: "refresh-failed", requestId: 50, reason: "authority-required" });
+  assert.equal(state.summary?.admittedPhiMicro, "42");
+  assert.equal(state.status, "offline-verified");
+  assert.equal(state.transportAuthorityRequired, true);
+  state = reduceWildsWalletController(state, { type: "refresh-start", requestId: 51 });
+  state = reduceWildsWalletController(state, { type: "refresh-resolved", requestId: 51, identityKey: state.identityKey,
+    authorityGeneration: state.authorityGeneration, response: readResponse() });
+  assert.equal(state.summary?.admittedPhiMicro, "42");
+  assert.equal(state.transportAuthorityRequired, false);
 });

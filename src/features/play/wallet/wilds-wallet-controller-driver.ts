@@ -276,7 +276,9 @@ export function createWildsWalletControllerDriver(input: {
     open() { publish({ type: "open" }); },
     close() { runtime.cancelAll(); recipientRequest?.controller.abort(); recipientRequest = null; refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "close" }); },
     cancelPending() { runtime.cancelAll(); recipientRequest?.controller.abort(); recipientRequest = null; refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "cancel-pending" }); },
-    cancelForExclusiveOwner(owner: WorldOverlayOwner) { if (owner !== "none" && owner !== "wallet") { runtime.cancelAll(); recipientRequest?.controller.abort(); recipientRequest = null; refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "exclusive-owner-changed", owner }); } },
+    cancelForExclusiveOwner(owner: WorldOverlayOwner) { if (owner !== "none" && owner !== "wallet") {
+      if (!state.open && !recipientRequest && state.receiveRequestId === null && state.transfer.requestId === null && state.transfer.authorizationPointerId === null) return;
+      runtime.cancelInteractive(); recipientRequest?.controller.abort(); recipientRequest = null; receivePromise = null; transferPromise = null; publish({ type: "exclusive-owner-changed", owner }); } },
     setAuthority(identityKey: string, authorityGeneration: string) { cache.delete(walletAuthorityCacheKey(state.identityKey, state.authorityGeneration)); runtime.cancelAll(); recipientRequest?.controller.abort(); recipientRequest = null; refreshPromise = null; receivePromise = null; transferPromise = null; state = hydrateWildsWalletControllerState(identityKey, authorityGeneration, cache); runtime.recordPublication(); input.publish(state); },
     navigate(page: WildsWalletControllerState["page"]) { publish({ type: "navigate", page }); },
     recipientUnavailable(username: string) { publish({ type: "recipient-lookup-unavailable", username }); },

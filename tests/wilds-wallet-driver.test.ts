@@ -307,3 +307,34 @@ test("refreshing a known amount keeps it visible without a loading state", async
   await refresh;
   driver.close();
 });
+
+test("combat takeover preserves the background balance read while closing interactive wallet work", async () => {
+  let resolveSummary!: (value: { ok: boolean; status: number; json(): Promise<unknown> }) => void;
+  let summarySignal: AbortSignal | undefined;
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "overlay-race", authorityGeneration: "one", cache: createWildsWalletSessionCache(1), publish: () => {},
+    fetcher: async (path, init) => {
+      if (path.endsWith("summary")) {
+        summarySignal = init.signal;
+        return new Promise(resolve => { resolveSummary = resolve; });
+      }
+      return { ok: true, status: 200, json: async () => path.endsWith("ledger") ? response().ledger : response().capabilities };
+    }
+  });
+  driver.open();
+  const pending = driver.refresh();
+  await Promise.resolve();
+  driver.cancelForExclusiveOwner("combat");
+  assert.equal(driver.state.open, false);
+  const afterTakeover = driver.diagnostics().publications;
+  for (let frame = 0; frame < 100; frame++) driver.cancelForExclusiveOwner("combat");
+  assert.equal(driver.diagnostics().publications, afterTakeover);
+  assert.equal(summarySignal?.aborted, false);
+  assert.notEqual(driver.state.requestId, null);
+  resolveSummary({ ok: true, status: 200, json: async () => response().summary });
+  await pending;
+  assert.equal(driver.state.summary?.admittedPhiMicro, "1");
+  assert.equal(driver.state.status, "verified");
+  assert.equal(driver.state.open, false);
+  driver.close();
+});

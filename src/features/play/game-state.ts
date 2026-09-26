@@ -16,7 +16,8 @@ import {
   sealCollectedCard,
   sha256PortableBasis,
   verifyPortableCard,
-  type PortableCardAsset
+  type PortableCardAsset,
+  verifyAnyWildsCard
 } from "./portable-card";
 import {
   admitLocallySealedWildsInventory,
@@ -217,6 +218,8 @@ export type PlayState = {
   energy: number;
   encounter: EncounterState;
   inventory: PortableCardAsset[];
+  /** Preserved evidence only: never admitted to gameplay or irreversible mortality. */
+  quarantinedInventory?: PortableCardAsset[];
   lastEvent: string;
   level: number;
   missionProgress: number;
@@ -626,6 +629,8 @@ export function restorePlayState(
       ? saved.discoveredCardIds.filter((id): id is string => typeof id === "string" && creatureCards.some((card) => card.id === id))
       : fallback.discoveredCardIds;
     const sameSessionInventory = ownerReceizId ? restoreAdmittedWildsInventory(admittedInventory, ownerReceizId) : null;
+    const quarantinedInventory = Array.isArray(saved.quarantinedInventory)
+      ? saved.quarantinedInventory.filter((asset): asset is PortableCardAsset => Boolean(asset) && verifyAnyWildsCard(asset).ok) : [];
     const restoredInventory = sameSessionInventory ?? (Array.isArray(saved.inventory)
       ? saved.inventory.filter((asset): asset is PortableCardAsset => Boolean(asset) && verifyAndAdmitWildsCard(asset as PortableCardAsset))
       : []);
@@ -634,7 +639,8 @@ export function restorePlayState(
       : restoredInventory;
     const migratedAssetIds = new Map(restoredInventory.map((asset, index) => [asset.id, ownerScopedInventory[index]?.id ?? asset.id]));
     const inventoryWithMigrations = discoveredCardIds.reduce<PortableCardAsset[]>((assets, cardId, index) => {
-      if (assets.some((asset) => asset.manifest.familyId === cardId)) return assets;
+      if (assets.some((asset) => asset.manifest.familyId === cardId)
+        || quarantinedInventory.some(asset => asset.manifest.familyId === cardId)) return assets;
       const sealed = sealCollectedCard({
         formId: `${cardId}-1`,
         ownerReceizId: ownerReceizId ?? LEGACY_PLACEHOLDER_OWNER,
@@ -741,6 +747,7 @@ export function restorePlayState(
         : [],
       discoveredCardIds,
       inventory: migratedInventory,
+      ...(quarantinedInventory.length ? { quarantinedInventory } : {}),
       selectedAssetId: restoredSelectedAssetId,
       selectedCardId: livingInventory.find((asset) => asset.id === restoredSelectedAssetId)?.manifest.familyId ?? "",
       supportAssetIds: normalizeWildsSupportAssetIds(

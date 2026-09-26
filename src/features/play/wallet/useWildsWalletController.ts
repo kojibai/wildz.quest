@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { WorldOverlayOwner } from "@/features/play/world-overlay-state";
 import { createWildsWalletControllerState, gateWildsWalletClientCapabilities, hydrateWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPage, type WildsWalletReadResponse } from "./wilds-wallet-controller";
 import { normalizeWildsWalletPublicUsername } from "@/lib/receiz/wilds-wallet-projections";
 import { createWildsWalletControllerDriver, type WildsWalletControllerDriver, wildsWalletSharedSessionCache } from "./wilds-wallet-controller-driver";
@@ -45,7 +44,13 @@ export function useWildsWalletController(
   const sourceAuthorityPromiseRef = useRef<Promise<void> | null>(null);
   const preloadGenerationRef = useRef("");
   useEffect(() => {
-    if (stateRef.current.identityKey !== identityKey || stateRef.current.authorityGeneration !== authorityGeneration) driver.setAuthority(identityKey, authorityGeneration);
+    if (stateRef.current.identityKey !== identityKey || stateRef.current.authorityGeneration !== authorityGeneration) {
+      readAuthorityPromiseRef.current = null;
+      sourceAuthorityPromiseRef.current = null;
+      readAuthorityErrorRef.current = null;
+      setOperationError(null);
+      driver.setAuthority(identityKey, authorityGeneration);
+    }
   }, [authorityGeneration, driver, identityKey]);
   useEffect(() => () => driver.close(), [driver]);
   useEffect(() => {
@@ -99,7 +104,7 @@ export function useWildsWalletController(
     if (options.readAuthorization?.projectSource && !sourceAuthorityPromiseRef.current) {
       const operation = options.readAuthorization.projectSource()
         .then((response) => { driver.admitSourceAuthority(response, expected); })
-        .catch(() => { driver.admitSourceAuthority(null, expected); });
+        .catch(() => { /* Failed projection grants no source authority; retry the read below. */ });
       sourceAuthorityPromiseRef.current = operation;
       void operation.finally(() => { if (sourceAuthorityPromiseRef.current === operation) sourceAuthorityPromiseRef.current = null; });
     }
@@ -129,7 +134,7 @@ export function useWildsWalletController(
       if (document.visibilityState !== "visible" || !options.readAuthorization) return;
       const current = driver.state;
       if (current.identityKey !== identityKey || current.authorityGeneration !== authorityGeneration) return;
-      if (current.status === "offline-verified" || current.balanceBasis === "saved"
+      if (current.status !== "verified" || current.balanceBasis === "saved"
         || wildsWalletStatusNeedsIdentityReadAuthority(current.status, current.transportAuthorityRequired)) {
         void admitSourceThenRefresh({ replace: true });
       }
@@ -141,6 +146,25 @@ export function useWildsWalletController(
       document.removeEventListener("visibilitychange", resume);
     };
   }, [admitSourceThenRefresh, authorityGeneration, driver, identityKey, options.readAuthorization]);
+  // Retry read-only work after cancellation or transient failure, even when the
+  // terminal is closed and only the world HUD needs the balance.
+  useEffect(() => {
+    if (!authorityGeneration || !options.readAuthorization) return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let failures = 0;
+    const retry = async () => {
+      if (disposed) return;
+      if (document.visibilityState === "visible" && navigator.onLine !== false
+        && driver.state.status !== "verified" && driver.state.requestId === null) {
+        await admitSourceThenRefresh();
+        failures = (driver.state as WildsWalletControllerState).status === "verified" ? 0 : failures + 1;
+      }
+      if (!disposed) timer = setTimeout(retry, Math.min(30_000, 2_000 * 2 ** Math.min(failures, 4)));
+    };
+    timer = setTimeout(retry, 2_000);
+    return () => { disposed = true; clearTimeout(timer); };
+  }, [admitSourceThenRefresh, authorityGeneration, driver, options.readAuthorization]);
   const openTerminal = useCallback(() => { driver.open(); void admitSourceThenRefresh(); }, [admitSourceThenRefresh, driver]);
   const visible = state.identityKey === identityKey && state.authorityGeneration === authorityGeneration ? state : createWildsWalletControllerState(identityKey, authorityGeneration);
   const capabilities = visible.capabilities
@@ -207,6 +231,6 @@ export function useWildsWalletController(
     expireTransferReview: driver.expireTransferReview,
     requestReceive: driver.requestReceive,
     cancelPending: driver.cancelPending,
-    cancelForExclusiveOwner: (owner: WorldOverlayOwner) => driver.cancelForExclusiveOwner(owner)
+    cancelForExclusiveOwner: driver.cancelForExclusiveOwner
   };
 }

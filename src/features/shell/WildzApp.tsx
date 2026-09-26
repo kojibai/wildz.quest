@@ -899,6 +899,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
 
   const activateIdentitySeal = useCallback(async (file: File) => {
     const prepared = await prepareWildzRestore(file);
+    if (prepared.inspection.kind === "invalid" || prepared.inspection.kind === "unsupported" || prepared.inspection.kind === "retirement-quarantine") throw new Error(prepared.inspection.code);
     if (!isWildzIdentityActivationInspection(prepared.inspection)) {
       throw new Error("wildz_identity_seal_required");
     }
