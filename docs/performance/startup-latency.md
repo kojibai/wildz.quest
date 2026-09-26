@@ -40,3 +40,31 @@ identity restoration and the first scene/GPU draw across representative devices
 and cold networks. A first-scene main-thread task still took about 173 ms in the
 final local probe. No production deployment or device-wide latency guarantee is
 included.
+
+## Follow-up: first-draw preparation
+
+- Submit existing shader programs from the committed scene's layout effect on
+  drivers with parallel shader compilation. The first actual draw still controls
+  readiness. No rendering quality, admission, uniform reflection, completion
+  polling or shader promise is added to the readiness gate.
+- Publish the completed-draw callback in a cancellable microtask instead of
+  waiting for another animation frame. Preserve previous scene callbacks and
+  cancel pending readiness when the observer unmounts.
+- Cache immutable landmark/overlook center elevations and skip masks outside
+  their bounding axes before computing distance. Exact full sample equivalence
+  holds across another 40,401 distant positions. Five CPU probe runs decreased
+  from 66–70 ms to 52–54 ms for those positions.
+
+Validation: production build and 87 focused tests pass. The normal crew control
+still opens its panel. Intermediate warm GPU program-query time fell from 215 ms
+before early submission to 107 ms after it; later final warm probes measured
+88–95 ms. These are individual observations, not a controlled percentage claim.
+
+The final production build's first local navigation measured 2,328 ms to the
+existing playable-world reveal; two warm reloads measured 746 and 764 ms. An
+intermediate shader-only build reached 430 ms in one warm reload. Host contention
+and cache state varied substantially. **The below-300-ms requirement remains
+unmet.** These measurements observe the completed-draw reveal, not settlement of
+all remote updates or late material assets. GPU waits, module evaluation and
+scene construction remain on the critical path. Temporary browser profiling
+instrumentation was removed from the built output after measurement.

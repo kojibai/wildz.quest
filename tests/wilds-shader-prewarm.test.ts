@@ -73,3 +73,13 @@ describe("background shader link preparation", () => {
     mesh.geometry.dispose(); material.dispose();
   });
 });
+
+it("submits the initial shader batch after scene commit and before the first draw", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile("src/features/play/WildsShaderPrewarm.tsx", "utf8");
+  assert.match(source, /useLayoutEffect\(\(\) =>/);
+  const layout = source.slice(source.indexOf("useLayoutEffect(() =>"));
+  assert.ok(layout.indexOf("prewarmWildsSceneShaders(gl, scene, camera, target, controller.signal)")
+    < layout.indexOf("const schedule ="), "initial linking must start before deferred maintenance");
+  assert.doesNotMatch(source, /compileAsync|gl\.render\(/);
+});

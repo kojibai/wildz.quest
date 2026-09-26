@@ -58,3 +58,13 @@ test("startup terrain optimization preserves every sampled terrain field", () =>
   assert.equal(createHash("sha256").update(JSON.stringify(samples)).digest("hex"),
     "66d4659cccfbf1c1c139b001b4db8728d553b39503dececc5f6cbaf488a3ea01");
 });
+
+test("authored mask acceleration preserves terrain across distant world coordinates", () => {
+  const hash = createHash("sha256");
+  for (let z = -100; z <= 100; z++) for (let x = -100; x <= 100; x++) {
+    hash.update(JSON.stringify(sampleWildsTerrain(x * 7.123, z * 7.789)));
+  }
+  // Recorded before caching authored mask heights and rejecting distant masks.
+  assert.equal(hash.digest("hex"),
+    "a57c797de3b8bdb3473c3993e50a4528954c0b0cf325619aad7430844bc722ae");
+});

@@ -120,14 +120,26 @@ function routeMaskedElevation(x: number, z: number, elevation: number) {
   return elevation + (routeGrade - elevation) * blend;
 }
 
+// Authored masks never move. Reuse their exact center heights and radii.
+const landmarkMasks = WILDS_FLAGSHIP_LANDMARKS.map(landmark => ({
+  x: landmark.position.x, z: landmark.position.z,
+  innerRadius: landmark.radius + WILDS_LANDMARK_LEVEL_APRON,
+  outerRadius: landmark.radius + WILDS_LANDMARK_BLEND_APRON,
+  centerElevation: Math.max(0.08, unmaskedElevation(landmark.position.x, landmark.position.z))
+}));
+const overlookMasks = WILDS_AUTHORED_OVERLOOKS.map(overlook => ({
+  x: overlook.position.x, z: overlook.position.z,
+  centerElevation: unmaskedElevation(overlook.position.x, overlook.position.z)
+}));
+
 function landmarkMaskedElevation(x: number, z: number, elevation: number) {
   let result = elevation;
-  for (const landmark of WILDS_FLAGSHIP_LANDMARKS) {
-    const distance = Math.hypot(x - landmark.position.x, z - landmark.position.z);
-    const innerRadius = landmark.radius + WILDS_LANDMARK_LEVEL_APRON;
-    const outerRadius = landmark.radius + WILDS_LANDMARK_BLEND_APRON;
+  for (const { x: centerX, z: centerZ, innerRadius, outerRadius, centerElevation } of landmarkMasks) {
+    const dx = x - centerX;
+    const dz = z - centerZ;
+    if (Math.abs(dx) >= outerRadius || Math.abs(dz) >= outerRadius) continue;
+    const distance = Math.hypot(dx, dz);
     if (distance >= outerRadius) continue;
-    const centerElevation = Math.max(0.08, unmaskedElevation(landmark.position.x, landmark.position.z));
     if (distance <= innerRadius) result = centerElevation;
     else {
       const blend = 1 - smoothstep((distance - innerRadius) / (outerRadius - innerRadius));
@@ -139,10 +151,12 @@ function landmarkMaskedElevation(x: number, z: number, elevation: number) {
 
 function overlookMaskedElevation(x: number, z: number, elevation: number) {
   let result = elevation;
-  for (const overlook of WILDS_AUTHORED_OVERLOOKS) {
-    const distance = Math.hypot(x - overlook.position.x, z - overlook.position.z);
+  for (const { x: centerX, z: centerZ, centerElevation } of overlookMasks) {
+    const dx = x - centerX;
+    const dz = z - centerZ;
+    if (Math.abs(dx) >= 4.4 || Math.abs(dz) >= 4.4) continue;
+    const distance = Math.hypot(dx, dz);
     if (distance >= 4.4) continue;
-    const centerElevation = unmaskedElevation(overlook.position.x, overlook.position.z);
     if (distance <= 3.25) result = centerElevation;
     else result += (centerElevation - result) * (1 - smoothstep((distance - 3.25) / 1.15));
   }
