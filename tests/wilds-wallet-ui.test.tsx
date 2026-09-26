@@ -294,6 +294,28 @@ test("overview shows live inventory counts and the same creature activity as Led
   assert.match(ledger, /Creature admitted/);
 });
 
+test("assets uses live resource units when the wallet summary is unknown or stale, including zero", () => {
+  for (const resourceUnits of [1234, 0]) {
+    for (const transferableResourceCount of [null, 734]) {
+      const summary = { ...state().summary, transferableResourceCount };
+      const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, {
+        publicUsername: "explorer", state: state({ page: "assets", summary }),
+        inventoryCounts: { resourceUnits, creatureCards: 0 }, ...actions
+      }));
+      assert.match(markup, new RegExp(`<dt>Resource units</dt><dd>${resourceUnits === 1234 ? "1,234" : "0"}</dd>`));
+    }
+  }
+});
+
+test("assets preserves unknown and available summary counts without live inventory", () => {
+  for (const [transferableResourceCount, expected] of [[null, "—"], [734, "734"]] as const) {
+    const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, {
+      publicUsername: "explorer", state: state({ page: "assets", summary: { ...state().summary, transferableResourceCount } }), ...actions
+    }));
+    assert.match(markup, new RegExp(`<dt>Resource units</dt><dd>${expected}</dd>`));
+  }
+});
+
 test("send review provides an escape from locked transfer details", () => {
   const base = state();
   const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, {

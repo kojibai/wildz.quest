@@ -18,9 +18,10 @@ import { totalWildsStewardPhiMicro } from "./wilds-wallet-inventory";
 type AssetFilter = "all" | "creatures" | "timber" | "stone" | "resources";
 const PAGE_SIZE = 24;
 
-export function WildsWalletAssets({ cards, cardConditions, materialLots, resourceLots, stewardPhiAwards, onOpenVaultCard, onPrepareCard, onListCard, onSendCard, onSendMaterial, onSendResource, state }: {
+export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, materialLots, resourceLots, stewardPhiAwards, onOpenVaultCard, onPrepareCard, onListCard, onSendCard, onSendMaterial, onSendResource, state }: {
   cards: readonly PortableCardAsset[];
   cardConditions: Readonly<Record<string, AdventureCardCondition>>;
+  inventoryCounts?: { resourceUnits: number; creatureCards: number };
   resourceLots: readonly WildsResourceLotV1[];
   materialLots: readonly WildsMaterialLotV1[];
   stewardPhiAwards: readonly WildsStewardPhiAwardV1[];
@@ -149,7 +150,7 @@ export function WildsWalletAssets({ cards, cardConditions, materialLots, resourc
     {state.summary ? <dl className="wilds-wallet-asset-register">
       <div><dt>{state.balanceBasis === "current" ? (state.status === "offline-verified" ? "Last known PHI" : "Available PHI") : "PHI balance"}</dt><dd><PhiNetworkAmount value={formatWildsPhiExact(state.summary.admittedPhiMicro)} /></dd><small>{state.balanceBasis === "current" ? "Wallet balance after settled earnings, receipts, and spending." : "Last verified balance."}</small></div>
       <div><dt>Stewardship earned</dt><dd><PhiNetworkAmount value={formatWildsPhiExact(sourceSettledPhiMicro)} /></dd><small>Lifetime world rewards. Settled rewards are already included in your available PHI.</small></div>
-      <div><dt>Resource units</dt><dd>{state.summary.transferableResourceCount ?? "—"}</dd><small>Your current beans, fusion sparks, and catalysts.</small></div>
+      <div><dt>Resource units</dt><dd>{(inventoryCounts?.resourceUnits ?? state.summary.transferableResourceCount)?.toLocaleString("en-US") ?? "—"}</dd><small>Your current beans, fusion sparks, catalysts, available building materials, and Living Honey units.</small></div>
       <div><dt>Creature cards</dt><dd>{cards.length}</dd><small>Verified cards in your active Wildz Vault.</small></div>
       {state.summary.reservedCardCount ? <div><dt>Unavailable to send</dt><dd>{state.summary.reservedCardCount}</dd><small>Already listed, committed, suspended, or revoked.</small></div> : null}
     </dl> : null}
