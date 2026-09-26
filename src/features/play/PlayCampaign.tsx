@@ -19,24 +19,22 @@ import { requestWildsDive } from "./wilds-vertical-traversal";
 import { resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
+import { WildsVisitedSurface } from "./WildsVisitedSurface";
 import { buildWildsRoamingPresenceUploads, projectWildsRemoteRoamingMarkers, type WildsRoamingPresenceUpload } from "./wilds-roaming-presence";
 import { createWildsPlayStateSourceAdmission, retainWildsLocalPosition, admitWildsForwardPosition } from "./wilds-play-state-source";
 import type { WildsCrewMapSource } from "./wilds-crew-map";
 import { useWildsCrewExpeditions } from "./use-wilds-crew-expeditions";
-import { WildsCrewPanel } from "./WildsCrewPanel";
 import { recordWildsCrewModeObservation } from "./wilds-crew-observations";
 import { sanitizeWildsCrewPreferences, setWildsCrewPreference } from "./wilds-crew-preferences";
 import { projectWildsEarnedPhi } from "./wilds-earned-phi";
 import { useWildsJourney } from "./useWildsJourney";
 import { useWildsPlaytest } from "./useWildsPlaytest";
-import { WildsPlaytestPanel } from "./WildsPlaytestPanel";
 import { WildsHomeLife } from "./WildsHomeLife";
 import { projectWildsHomeLife, type WildsHomeAction } from "./wilds-home-life";
 import { WildsDiscoveryStory } from "./WildsDiscoveryStory";
 import { projectWildsCompanionChapter } from "./wilds-companion-chapter";
 import { WildsCompanionChapter } from "./WildsCompanionChapter";
 import { projectWildsDiscoveryStory } from "./wilds-discovery-story";
-import { WildsJourneyPanel } from "./WildsJourneyPanel";
 import { projectWildsNextStep, type WildsNextStepAction } from "./wilds-next-step";
 import { nextReachableWildsSite, wildsDiscoveryImpression, wildsTrailDirection } from "./wilds-journey-discovery";
 import { Icons } from "@/components/icons";
@@ -57,7 +55,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
 import { sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
-import { WildsInventory } from "@/features/play/WildsInventory";
 import { WildsBattle } from "@/features/play/WildsBattle";
 import { WildsTransformation } from "@/features/play/WildsTransformation";
 import { WildsChildCeremony } from "@/features/play/WildsChildCeremony";
@@ -87,7 +84,6 @@ import { projectWildsBiome } from "@/features/play/wilds-biome";
 import type { WildsSettlementDistrictId } from "@/features/play/wilds-settlements";
 import { projectWorldProgression } from "@/features/play/world-progression";
 import type { WildsCommandItem, WildsCommandKey } from "@/features/play/WildsCommandDock";
-import { WildsCommandCenter } from "@/features/play/command-center/WildsCommandCenter";
 import { projectWildsCommandCenter, type WildsCommandAction } from "@/features/play/command-center/director";
 import { kaiUPulseToISOString, millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
 import { createWildsKaiRuntimeClock, observeWildsKaiUPulse, resolveWildsRuntimeKaiMoment } from "@/features/play/wilds-kai-runtime";
@@ -125,7 +121,6 @@ import type {
   WildzPlayerContinuity
 } from "@/features/identity/wildz-restore";
 import { bossAudioCue, ecologyAudioCue, normalizeWildsAudioSettings, settlementAudioCue } from "@/features/play/wilds-audio";
-import { WildsSagaPanel } from "@/features/play/WildsSagaPanel";
 import { wildsSagaFramework } from "@/features/play/wilds-saga-content";
 import { projectWildsSaga } from "@/features/play/wilds-saga-director";
 import { projectMissionGraph, type WildsMissionContribution } from "@/features/play/wilds-saga-missions";
@@ -212,12 +207,18 @@ import { WILDS_WORLD_CAPABILITY_REGISTRY, type WildsWorldCapabilityFamily } from
 import { applyWildsCapabilityCost } from "@/features/play/wilds-capability-runtime";
 import { beginWildsCurrentRide } from "@/features/play/wilds-environment-capabilities";
 import { constructionSourcesNear, projectWildsStewardCraft, projectWildsStewardPlacement, type WildsStewardBlueprintId, type WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
-import { WildsStewardCraftPanel } from "@/features/play/WildsStewardCraftPanel";
 import { WildsStewardPlacementHud } from "@/features/play/WildsStewardPlacementHud";
 import { useWildsContinuousBuilder } from "./use-wilds-continuous-builder";
 import { WildsContinuousBuilderPanel } from "./WildsContinuousBuilderPanel";
 import type { WildsConstructionSiteV1 } from "@/features/play/wilds-construction-site";
 
+const WildsInventory = dynamic(() => import("@/features/play/WildsInventory").then((mod) => mod.WildsInventory), { ssr: false });
+const WildsCrewPanel = dynamic(() => import("./WildsCrewPanel").then((mod) => mod.WildsCrewPanel), { ssr: false });
+const WildsCommandCenter = dynamic(() => import("@/features/play/command-center/WildsCommandCenter").then((mod) => mod.WildsCommandCenter), { ssr: false });
+const WildsSagaPanel = dynamic(() => import("@/features/play/WildsSagaPanel").then((mod) => mod.WildsSagaPanel), { ssr: false });
+const WildsStewardCraftPanel = dynamic(() => import("@/features/play/WildsStewardCraftPanel").then((mod) => mod.WildsStewardCraftPanel), { ssr: false });
+const WildsJourneyPanel = dynamic(() => import("./WildsJourneyPanel").then((mod) => mod.WildsJourneyPanel), { ssr: false });
+const WildsPlaytestPanel = dynamic(() => import("./WildsPlaytestPanel").then((mod) => mod.WildsPlaytestPanel), { ssr: false });
 const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
 const WildsSettlementExperience = dynamic(() => import("@/features/play/WildsSettlementExperience").then((mod) => mod.WildsSettlementExperience), { ssr: false });
@@ -3096,6 +3097,7 @@ export function PlayCampaign({
         bossKnowledge={state.bossKnowledge}
         trainers={sagaTrainers}
       /> : null}
+      <WildsVisitedSurface active={exclusiveOwner === "landmark"}>
       <WildsLandmarkExperience
         access={activeLandmarkId && activeLandmarkId !== "wayfinder-hollow" ? evaluateLandmarkAccess(WILDS_FLAGSHIP_LANDMARKS.find((item) => item.id === activeLandmarkId)!, landmarkProgress) : null}
         card={activeAsset}
@@ -3118,6 +3120,7 @@ export function PlayCampaign({
         }))}
         worldMode={settlementWorldMode}
       />
+      </WildsVisitedSurface>
       {exclusiveOwner === "trainer" && activeTrainer && activeAsset && trainerEncounter ? <WildsTrainerEncounter
         activeCard={activeAsset}
         encounter={trainerEncounter}
@@ -3172,6 +3175,7 @@ export function PlayCampaign({
         }}
         onUnlock={(unlockId) => setState((current) => ({ ...current, achievements: Array.from(new Set([...current.achievements, unlockId])).slice(0, 64) }))}
       /> : null}
+      <WildsVisitedSurface active={exclusiveOwner === "settlement"}>
       <WildsSettlementExperience
         actorId={civicActorId}
         card={activeAsset}
@@ -3188,6 +3192,8 @@ export function PlayCampaign({
         remotePlayers={multiplayer.remotePlayers}
         worldMode={settlementWorldMode}
       />
+      </WildsVisitedSurface>
+      <WildsVisitedSurface active={exclusiveOwner === "ecology"}>
       <WildsEcologyExperience
         card={activeAsset}
         onExit={() => {
@@ -3220,6 +3226,7 @@ export function PlayCampaign({
         site={activeEcologySite}
         worldMode={settlementWorldMode}
       />
+      </WildsVisitedSurface>
       {activeGrove ? <WildsRegenerativeGroveExperience
         open={exclusiveOwner === "ecology" && Boolean(activeGrove)}
         grove={activeGrove}
@@ -3266,6 +3273,7 @@ export function PlayCampaign({
           setGroveBusyAction(null);
         }}
       /> : null}
+      <WildsVisitedSurface active={exclusiveOwner === "raid"}>
       <WildsRaidExperience
         boss={activeRaidBoss}
         busyIntent={raidBusyIntent}
@@ -3336,6 +3344,7 @@ export function PlayCampaign({
         raid={activeRaidRound}
         role={activeRaidRoles?.primary ?? "steward"}
       />
+      </WildsVisitedSurface>
       {exclusiveOwner === "reward" ? <WildsCaptureReward asset={captureRewardAsset} onClose={() => {
         releasePlayModalOwner("reward");
         dispatch({ type: "dismiss-reveal" });

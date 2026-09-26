@@ -68,6 +68,8 @@ const structuredData = {
 export default function HomePage() {
   return (
     <>
+      <link rel="preload" href="/wilds-forest-floor.webp" as="fetch" crossOrigin="anonymous" />
+      <link rel="preload" href="/textures/wilds-limestone.webp" as="image" />
       <section className="sr-only" aria-labelledby="wildz-search-title">
         <h1 id="wildz-search-title">Wildz living creature adventure game</h1>
         <p>Catch one-of-one living creatures shaped by their discovery moment. Explore an endless browser world, talk with intelligent companions, train, bond, evolve, breed, battle, trade, and carry each verified creature card across devices.</p>

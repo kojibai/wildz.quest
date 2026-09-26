@@ -74,25 +74,37 @@ function unmaskedElevation(x: number, z: number) {
   return clamp(continental + regional + ridges + local, TERRAIN_MIN, TERRAIN_MAX);
 }
 
-function nearestPointOnSegment(point: Point, start: Point, end: Point): RouteProjection {
+// The authored routes are immutable. Compute segment invariants once instead of
+// allocating a point and projection for every segment of every terrain sample.
+const routeSegments = WILDS_MAJOR_ROUTES.flatMap(route => route.points.slice(1).map((end, index) => {
+  const start = route.points[index]!;
   const dx = end.x - start.x;
   const dz = end.z - start.z;
-  const lengthSquared = dx * dx + dz * dz;
-  const amount = lengthSquared === 0 ? 0 : clamp(((point.x - start.x) * dx + (point.z - start.z) * dz) / lengthSquared, 0, 1);
-  const x = start.x + dx * amount;
-  const z = start.z + dz * amount;
-  return { x, z, distance: Math.hypot(point.x - x, point.z - z) };
-}
+  return { x: start.x, z: start.z, dx, dz, lengthSquared: dx * dx + dz * dz };
+}));
 
 function nearestRouteProjection(x: number, z: number): RouteProjection {
-  let nearest: RouteProjection = { x, z, distance: Number.POSITIVE_INFINITY };
-  for (const route of WILDS_MAJOR_ROUTES) {
-    for (let index = 1; index < route.points.length; index += 1) {
-      const projected = nearestPointOnSegment({ x, z }, route.points[index - 1]!, route.points[index]!);
-      if (projected.distance < nearest.distance) nearest = projected;
+  let nearestX = x;
+  let nearestZ = z;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  for (const segment of routeSegments) {
+    const amount = segment.lengthSquared === 0 ? 0
+      : clamp(((x - segment.x) * segment.dx + (z - segment.z) * segment.dz) / segment.lengthSquared, 0, 1);
+    const projectedX = segment.x + segment.dx * amount;
+    const projectedZ = segment.z + segment.dz * amount;
+    const deltaX = x - projectedX;
+    const deltaZ = z - projectedZ;
+    // An axis alone outside the current radius cannot be a nearer segment.
+    // Keep Math.hypot for candidates to preserve the original rounding/ties.
+    if (Math.abs(deltaX) > nearestDistance || Math.abs(deltaZ) > nearestDistance) continue;
+    const distance = Math.hypot(deltaX, deltaZ);
+    if (distance < nearestDistance) {
+      nearestX = projectedX;
+      nearestZ = projectedZ;
+      nearestDistance = distance;
     }
   }
-  return nearest;
+  return { x: nearestX, z: nearestZ, distance: nearestDistance };
 }
 
 export function distanceToWildsMajorRoute(x: number, z: number) {

@@ -44,19 +44,17 @@ export function createWildsGroundTexture(color: string) {
 /** Update the existing sampler: no material recompile, extra map, or render callback. */
 export function hydrateWildsGroundTexture(texture: THREE.DataTexture, color: string) {
   let cancelled = false;
-  const timer = setTimeout(() => {
-    void loadSurface().then(pixels => {
-      if (cancelled || !pixels) return;
-      const tint = new THREE.Color(color).convertLinearToSRGB();
-      const data = texture.image.data;
-      if (!data) return;
-      for (let index = 0; index < pixels.length; index += 4) {
-        data[index] = pixels[index] * (.55 + tint.r * .45);
-        data[index + 1] = pixels[index + 1] * (.55 + tint.g * .45);
-        data[index + 2] = pixels[index + 2] * (.55 + tint.b * .45);
-      }
-      texture.needsUpdate = true;
-    });
-  }, 1200);
-  return () => { cancelled = true; clearTimeout(timer); };
+  void loadSurface().then(pixels => {
+    if (cancelled || !pixels) return;
+    const tint = new THREE.Color(color).convertLinearToSRGB();
+    const data = texture.image.data;
+    if (!data) return;
+    for (let index = 0; index < pixels.length; index += 4) {
+      data[index] = pixels[index] * (.55 + tint.r * .45);
+      data[index + 1] = pixels[index + 1] * (.55 + tint.g * .45);
+      data[index + 2] = pixels[index + 2] * (.55 + tint.b * .45);
+    }
+    texture.needsUpdate = true;
+  });
+  return () => { cancelled = true; };
 }
