@@ -24,6 +24,7 @@ export type WildsVerticalTraversalStep = {
   liftPotential?: number;
   stamina: number;
   powered?: boolean;
+  assistedGlide?: boolean;
   obstacleTopY?: number;
   ceilingY?: number;
   initialOffset?: number;
@@ -35,10 +36,13 @@ const AIR_GROUND_CLEARANCE = .35;
 const AIR_OBSTACLE_CLEARANCE = .35;
 const AIR_CEILING_CLEARANCE = .45;
 export const WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE = 6;
+export const WILDS_GLIDE_CRUISE_CLEARANCE = 5.25;
 const POWERED_TAKEOFF_SPEED = 2.15;
 const POWERED_ASCENT_BASE_SPEED = 1.2;
 const POWERED_ASCENT_LIFT_SPEED = .7;
 const POWERED_DESCENT_SPEED = 1.05;
+const GLIDE_TAKEOFF_SPEED = 2.0;
+const GLIDE_ASCENT_SPEED = 1.0;
 
 function bounded(value: number, minimum: number, maximum: number) {
   return Math.max(minimum, Math.min(maximum, value));
@@ -122,7 +126,8 @@ export function writeWildsVerticalTraversalStep(
     ? input.obstacleTopY! - input.terrainElevation + AIR_OBSTACLE_CLEARANCE
     : AIR_GROUND_CLEARANCE;
   const aboveObstacle = priorLayer === "air" && state.offset >= obstacleFloor - .000001;
-  const baseLiftCeiling = input.powered === true ? 10 + lift * 10 : 2 + lift * 10;
+  const assistedGlide = input.assistedGlide === true && input.powered !== true && input.stamina > 0;
+  const baseLiftCeiling = input.powered === true ? 10 + lift * 10 : assistedGlide ? 6 + lift * 2 : 2 + lift * 10;
   const liftCeiling = input.powered !== true && priorLayer === "air"
     ? Math.max(baseLiftCeiling, state.offset)
     : baseLiftCeiling;
@@ -141,13 +146,14 @@ export function writeWildsVerticalTraversalStep(
   }
   const continuousCeiling = priorLayer === "air" ? Math.max(admittedCeiling, state.offset) : admittedCeiling;
   const poweredCruiseActive = input.powered === true && input.stamina > 0;
-  const poweredCruiseTarget = poweredCruiseActive
-    ? Math.min(WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE, admittedCeiling)
+  const assistedCruiseActive = assistedGlide || poweredCruiseActive;
+  const cruiseTarget = assistedCruiseActive
+    ? Math.min(poweredCruiseActive ? WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE : WILDS_GLIDE_CRUISE_CLEARANCE, admittedCeiling)
     : AIR_GROUND_CLEARANCE;
-  const reachedPoweredCruise = poweredCruiseActive
+  const reachedCruise = assistedCruiseActive
     && priorLayer === "air"
-    && state.offset >= poweredCruiseTarget - .000001;
-  const flightFloor = reachedPoweredCruise ? poweredCruiseTarget : AIR_GROUND_CLEARANCE;
+    && state.offset >= cruiseTarget - .000001;
+  const flightFloor = poweredCruiseActive && reachedCruise ? cruiseTarget : AIR_GROUND_CLEARANCE;
   state.safeMax = quantize(continuousCeiling);
   state.safeMin = quantize(Math.min(
     state.safeMax,
@@ -158,29 +164,32 @@ export function writeWildsVerticalTraversalStep(
   } else {
     state.offset = quantize(bounded(state.offset, state.safeMin, state.safeMax));
   }
-  const canClimb = input.powered === true && input.stamina > 0;
+  const canClimb = (input.powered === true || input.assistedGlide === true) && input.stamina > 0;
   const actorFootY = input.terrainElevation + state.offset;
   const blockedBelowObstacle = Number.isFinite(input.obstacleTopY)
     && actorFootY < input.obstacleTopY! + AIR_OBSTACLE_CLEARANCE - .000001;
-  const risingToPoweredCruise = canClimb && state.offset < poweredCruiseTarget - .000001;
-  const direction = canClimb
-    ? (input.intent > 0 || risingToPoweredCruise) && blockedBelowObstacle
+  const risingToCruise = canClimb && state.offset < cruiseTarget - .000001 && (input.powered === true || input.intent >= 0);
+  const aboveGlideCeiling = assistedGlide && state.offset > baseLiftCeiling + .000001;
+  const direction = aboveGlideCeiling
+    ? -1
+    : canClimb
+    ? (input.intent > 0 || risingToCruise) && blockedBelowObstacle
       ? 0
-      : risingToPoweredCruise
+      : risingToCruise
         ? 1
         : input.intent
     : -1;
   const speed = direction > 0
-    ? risingToPoweredCruise
-      ? POWERED_TAKEOFF_SPEED
-      : POWERED_ASCENT_BASE_SPEED + lift * POWERED_ASCENT_LIFT_SPEED
+    ? risingToCruise
+      ? input.powered === true ? POWERED_TAKEOFF_SPEED : GLIDE_TAKEOFF_SPEED
+      : input.powered === true ? POWERED_ASCENT_BASE_SPEED + lift * POWERED_ASCENT_LIFT_SPEED : GLIDE_ASCENT_SPEED + lift * .35
     : direction < 0
       ? input.powered === true ? POWERED_DESCENT_SPEED : 1.25
       : 0;
-  const poweredCruiseCeiling = risingToPoweredCruise
-    ? poweredCruiseTarget
+  const cruiseCeiling = risingToCruise
+    ? cruiseTarget
     : state.safeMax;
-  state.offset = quantize(bounded(state.offset + direction * speed * delta, state.safeMin, poweredCruiseCeiling));
+  state.offset = quantize(bounded(state.offset + direction * speed * delta, state.safeMin, cruiseCeiling));
   state.worldY = quantize(input.terrainElevation + state.offset);
   return state;
 }

@@ -18,7 +18,7 @@ export type WildsAerialTraversalState = {
 
 export type WildsAerialTraversalResult = Readonly<{
   state: WildsAerialTraversalState;
-  reason: "flight-required" | "glide-required" | "launch-height-required" | "flight-recharging" | "flight-energy-low" | "flight-exhausted" | "protected-airspace" | "landed" | null;
+  reason: "flight-required" | "glide-required" | "flight-recharging" | "glide-recharging" | "flight-energy-low" | "flight-exhausted" | "protected-airspace" | "landed" | null;
   horizontalAllowed: boolean;
 }>;
 
@@ -41,6 +41,24 @@ export type WildsAerialRuntimeStep = {
   verticalOffset: number;
   protectedAirspace?: boolean;
 };
+
+export type WildsAerialTogglePlan =
+  | Readonly<{ kind: "land" }>
+  | Readonly<{ kind: "takeoff"; mode: "flight" | "glide" }>
+  | Readonly<{ kind: "switch"; mode: "flight" | "glide" }>
+  | Readonly<{ kind: "needs-capability" }>;
+
+export function planWildsAerialToggle(
+  mode: WildsAerialMode,
+  requestedMode: "flight" | "glide",
+  capabilities: readonly WildsTraversalCapability[]
+): WildsAerialTogglePlan {
+  if (mode === requestedMode) return { kind: "land" };
+  if (!capabilities.includes(requestedMode)) return { kind: "needs-capability" };
+  return mode === "ground"
+    ? { kind: "takeoff", mode: requestedMode }
+    : { kind: "switch", mode: requestedMode };
+}
 
 export function createWildsAerialRuntimeResult(): MutableWildsAerialRuntimeResult {
   return {
@@ -117,20 +135,24 @@ export function writeWildsAerialRuntimeStep(
     return output;
   }
 
-  state.stamina = quantize(Math.max(0, state.stamina - delta * (.8 + distance * .35) * weatherCost));
-  if (state.stamina <= 0 || input.verticalOffset <= AIR_GROUND_CLEARANCE) {
+  state.stamina = quantize(Math.max(0, state.stamina - delta * (GLIDE_ENERGY_DRAIN_PER_SECOND + distance * 1.2) * weatherCost));
+  if (input.verticalOffset <= AIR_GROUND_CLEARANCE) {
     const reason = state.stamina <= 0 ? "flight-exhausted" : "landed";
     requestWildsAerialLanding(state, reason);
     output.reason = reason;
     output.horizontalAllowed = false;
+  } else if (state.stamina <= 0) {
+    output.reason = "flight-exhausted";
   }
   return output;
 }
 
 const AIR_GROUND_CLEARANCE = .35;
+const GLIDE_TAKEOFF_CLEARANCE = .4;
 
-const GLIDE_LAUNCH_HEIGHT = 2;
 export const WILDS_FLIGHT_RELAUNCH_ENERGY = 20;
+export const WILDS_GLIDE_RELAUNCH_ENERGY = 30;
+const GLIDE_ENERGY_DRAIN_PER_SECOND = 9;
 const FLIGHT_LOW_ENERGY = 25;
 const GROUND_ENERGY_RECOVERY_PER_SECOND = 24;
 
@@ -174,26 +196,22 @@ export function beginWildsAerialTraversal(
   input: {
     kind: "glide" | "flight";
     capabilities: readonly WildsTraversalCapability[];
-    launchHeight?: number;
   }
 ): WildsAerialTraversalResult {
   const capabilities = new Set(input.capabilities);
   if (input.kind === "flight" && !capabilities.has("flight")) return { state, reason: "flight-required", horizontalAllowed: false };
   if (input.kind === "flight" && state.stamina < WILDS_FLIGHT_RELAUNCH_ENERGY) return { state, reason: "flight-recharging", horizontalAllowed: false };
   if (input.kind === "glide" && !capabilities.has("glide")) return { state, reason: "glide-required", horizontalAllowed: false };
-  const launchHeight = input.launchHeight ?? Math.max(0, state.altitude - state.safeAnchor.elevation);
-  if (input.kind === "glide" && launchHeight < GLIDE_LAUNCH_HEIGHT) {
-    return { state, reason: "launch-height-required", horizontalAllowed: false };
-  }
+  if (input.kind === "glide" && state.mode === "ground" && state.stamina < WILDS_GLIDE_RELAUNCH_ENERGY) return { state, reason: "glide-recharging", horizontalAllowed: false };
   const altitude = input.kind === "flight"
     ? Math.max(state.altitude, state.safeAnchor.elevation + 0.35)
-    : state.safeAnchor.elevation + launchHeight;
+    : Math.max(state.altitude, state.safeAnchor.elevation + GLIDE_TAKEOFF_CLEARANCE);
   return {
     state: {
       ...state,
       mode: input.kind,
       altitude: quantize(altitude),
-      verticalVelocity: input.kind === "flight" ? 2.2 : -0.72,
+      verticalVelocity: input.kind === "flight" ? 2.2 : 2.0,
       landingRequired: false,
       landingReason: null
     },

@@ -61,6 +61,7 @@ test("caps warmed candidates per family without changing deterministic order", (
 test("projects guidance, ready, active, and recovering without mutating inputs", () => {
   const track = projectWildsCapabilityContext(input({ controls: Object.freeze([control("track")]) })).get("track")!;
   const light = projectWildsCapabilityContext(input({ controls: Object.freeze([control("light")]) })).get("light")!;
+  const glide = projectWildsCapabilityContext(input({ controls: Object.freeze([control("glide")]) })).get("glide")!;
   const activeLight = projectWildsCapabilityContext(input({ controls: Object.freeze([control("light")]), activeFamilies: Object.freeze(["light"]) })).get("light")!;
   const recovering = projectWildsCapabilityContext(input({ controls: Object.freeze([control("flight", false)]) })).get("flight")!;
 
@@ -68,6 +69,8 @@ test("projects guidance, ready, active, and recovering without mutating inputs",
   assert.equal(track.intent.kind, "highlight-route");
   assert.equal(light.state, "ready");
   assert.equal(light.intent.kind, "toggle");
+  assert.equal(glide.state, "ready");
+  assert.equal(glide.intent.kind, "execute");
   assert.equal(activeLight.state, "active");
   assert.equal(activeLight.intent.kind, "toggle");
   assert.equal(recovering.state, "recovering");
@@ -83,4 +86,3 @@ test("reuses the exact immutable projection for an unchanged warmed input", () =
   assert.equal(Object.isFrozen(first.get("track")), true);
   assert.equal(Object.isFrozen(first.get("track")!.candidateIds), true);
 });
-

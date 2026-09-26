@@ -6,7 +6,6 @@ import { useWildsCharacterTexture } from "./wilds-character-material";
 import { useWildsNaturalTexture } from "./wilds-natural-material";
 import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
-import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { PlayState } from "@/features/play/game-state";
@@ -29,6 +28,39 @@ const palette = {
   leather: "#8d623e",
   gold: "#f0c75e"
 };
+
+let packBadgeTexture: THREE.Texture | null = null;
+let packBadgeLoading: Promise<void> | null = null;
+
+function getPackBadgeTexture() {
+  if (packBadgeTexture) return packBadgeTexture;
+  const canvas = typeof document === "undefined" ? null : document.createElement("canvas");
+  if (canvas) {
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext("2d");
+    if (context) {
+      context.fillStyle = "#10231d";
+      context.fillRect(0, 0, 1, 1);
+    }
+  }
+  const texture = new THREE.Texture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  if (canvas) texture.needsUpdate = true;
+  packBadgeTexture = texture;
+  return texture;
+}
+
+async function loadPackBadgeTexture(target: THREE.Texture) {
+  let loaded: THREE.Texture | undefined;
+  try {
+    loaded = await new THREE.TextureLoader().loadAsync("/brand/explorer-pack-badge.svg");
+    target.dispose();
+    target.image = loaded.image;
+    target.needsUpdate = true;
+  } catch { /* A badge request must never hold the world behind Suspense. */ }
+  finally { loaded?.dispose(); }
+}
 
 function LimbSegment({
   color,
@@ -110,7 +142,8 @@ function ExplorerBackpack({
   rightWingRef: React.RefObject<THREE.Mesh | null>;
 }) {
   const leather = useWildsCharacterTexture("leather");
-  const badge = useTexture("/brand/explorer-pack-badge.svg");
+  const badge = getPackBadgeTexture();
+  useEffect(() => { packBadgeLoading ??= loadPackBadgeTexture(badge); }, [badge]);
   const shellGeometry = useMemo(mergedBackpackGeometry, []);
   const hardwareGeometry = useMemo(mergedBackpackHardwareGeometry, []);
   const wingShape = useMemo(() => {
@@ -126,8 +159,6 @@ function ExplorerBackpack({
     shellGeometry.dispose();
     hardwareGeometry.dispose();
   }, [hardwareGeometry, shellGeometry]);
-  badge.colorSpace = THREE.SRGBColorSpace;
-  badge.anisotropy = 4;
   return (
     <group name="trail-pack" position={[0, 0.24, 0.2]} ref={backpackRef} rotation={[0.03, 0, 0]}>
       <mesh castShadow geometry={shellGeometry}>

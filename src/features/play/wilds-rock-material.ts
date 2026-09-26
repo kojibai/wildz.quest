@@ -1,25 +1,48 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import * as THREE from "three";
 
 // One mipmapped asset for the entire world. Loading never suspends gameplay.
 let rockTexture: THREE.Texture | null = null;
-let loading: Promise<THREE.Texture | null> | null = null;
+let loading: Promise<void> | null = null;
+
+function getRockTexture() {
+  if (rockTexture) return rockTexture;
+  const canvas = typeof document === "undefined" ? null : document.createElement("canvas");
+  if (canvas) {
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext("2d");
+    if (context) {
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, 1, 1);
+    }
+  }
+  const texture = new THREE.Texture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.anisotropy = 2;
+  if (canvas) texture.needsUpdate = true;
+  rockTexture = texture;
+  return texture;
+}
+
+async function loadRockTexture(target: THREE.Texture) {
+  let loaded: THREE.Texture | undefined;
+  try {
+    loaded = await new THREE.TextureLoader().loadAsync("/textures/wilds-limestone.webp");
+    target.dispose();
+    target.image = loaded.image;
+    target.needsUpdate = true;
+  } catch { /* The neutral mapped fallback remains usable offline. */ }
+  finally { loaded?.dispose(); }
+}
+
 export function useWildsRockTexture() {
-  const [texture, setTexture] = useState(rockTexture);
+  const texture = getRockTexture();
   useEffect(() => {
-    let active = true;
-    loading ??= new THREE.TextureLoader().loadAsync("/textures/wilds-limestone.webp").then(map => {
-      map.colorSpace = THREE.SRGBColorSpace;
-      map.wrapS = map.wrapT = THREE.RepeatWrapping;
-      map.anisotropy = 2;
-      rockTexture = map;
-      return map;
-    }).catch(() => null);
-    void loading.then(map => { if (active) setTexture(map); });
-    return () => { active = false; };
-  }, []);
+    loading ??= loadRockTexture(texture);
+  }, [texture]);
   return texture;
 }
 

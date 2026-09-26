@@ -5,11 +5,36 @@ import { distanceToWildsMajorRoute, WILDS_TERRAIN_TILE_SIZE } from "../src/featu
 import { WILDS_MAJOR_ROUTES } from "../src/features/play/wilds-world-geography";
 import {
   buildWildsObstacleIndex,
+  clearWildsTerrainObstacleCache,
   projectWildsObstaclePlacement,
   queryWildsObstacles,
+  wildsTerrainObstacleCacheDiagnostics,
   wildsTerrainObstaclesForTile,
   type WildsTerrainObstacle
 } from "../src/features/play/wilds-terrain-obstacles";
+
+test("canonical obstacle tiles reuse immutable records and evict at a fixed bound", () => {
+  clearWildsTerrainObstacleCache();
+  const first = wildsTerrainObstaclesForTile(-20, -20);
+  assert.ok(first.length > 0);
+  assert.equal(wildsTerrainObstaclesForTile(-20.8, -20.2), first);
+  assert.ok(Object.isFrozen(first));
+  assert.ok(Object.isFrozen(first[0]));
+  assert.ok(Object.isFrozen(first[0]!.position));
+  assert.ok(Object.isFrozen(first[0]!.shape));
+  assert.throws(() => { first[0]!.position.x = 999; }, TypeError);
+  assert.equal(wildsTerrainObstaclesForTile(-20, -20)[0]!.position.x, first[0]!.position.x);
+
+  const limit = wildsTerrainObstacleCacheDiagnostics().maxEntries;
+  for (let index = 1; index <= limit; index += 1) wildsTerrainObstaclesForTile(-20 + index, -20);
+  const before = wildsTerrainObstacleCacheDiagnostics();
+  assert.equal(before.entries, limit);
+  assert.ok(before.hits >= 2);
+  const replay = wildsTerrainObstaclesForTile(-20, -20);
+  assert.notEqual(replay, first);
+  assert.deepEqual(replay, first);
+  assert.equal(wildsTerrainObstacleCacheDiagnostics().misses, before.misses + 1);
+});
 
 function obstacle(id: string, x: number, z: number, radius: number): WildsTerrainObstacle {
   return {

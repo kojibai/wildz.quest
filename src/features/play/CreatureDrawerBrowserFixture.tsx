@@ -102,7 +102,6 @@ function WorldControlsFocusRecoveryFixture() {
       dismissSignal={0}
       exclusiveOwner={exclusiveOwner}
       gestureCancelSignal={0}
-      glideLaunchAvailable={false}
       movementMode="walk"
       nearbyCards={fixtureAssets}
       newRosterAssetId={null}

@@ -29,6 +29,35 @@ test("renders only supplied proof controls with stable state and capacity semant
   assert.doesNotMatch(markup, /Swim/);
 });
 
+test("names a feather ability as Glide even when its proof has a custom ability name", () => {
+  const markup = renderToStaticMarkup(createElement(WildsCapabilityControls, {
+    controls: [control("glide", "Wind Ribbon", 100)],
+    contexts: new Map([["glide", context("glide", "ready", "Glide is ready to lift off.")]] as const),
+    enabled: true,
+    onRequest() {}
+  }));
+
+  assert.match(markup, /aria-label="Glide\. Wind Ribbon\. Glide is ready to lift off\. Capacity 100 percent"/);
+  assert.match(markup, /title="Glide\. Wind Ribbon · 100%"/);
+  assert.doesNotMatch(markup, /disabled=""/);
+});
+
+test("shows both aerial buttons and marks only the active mode as a landing control", () => {
+  const markup = renderToStaticMarkup(createElement(WildsCapabilityControls, {
+    controls: [control("flight", "Flight", 100), control("glide", "Glide", 100)],
+    contexts: new Map([
+      ["flight", context("flight", "ready", "Flight is ready.")],
+      ["glide", context("glide", "ready", "Glide is ready.")]
+    ] as const),
+    activeAerialMode: "glide",
+    enabled: true,
+    onRequest() {}
+  }));
+  assert.match(markup, /aria-label="Flight\. Flight is ready\. Capacity 100 percent" aria-pressed="false"/);
+  assert.match(markup, /aria-label="Glide\. Tap to land\. Capacity 100 percent" aria-pressed="true"/);
+  assert.equal((markup.match(/class="wilds-capability-control /g) ?? []).length, 2);
+});
+
 test("capability layout keeps app-grade touch targets and responsive upward wrapping", () => {
   const css = readFileSync("app/globals.css", "utf8");
   assert.match(css, /\.wilds-capability-control\s*\{[\s\S]*?min-width:\s*44px/);
@@ -36,4 +65,3 @@ test("capability layout keeps app-grade touch targets and responsive upward wrap
   assert.match(css, /\.wilds-capability-controls\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2/);
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?wilds-capability-control/);
 });
-

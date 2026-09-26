@@ -5,6 +5,7 @@ import { Icons } from "@/components/icons";
 import type { WildsProjectedCapabilityControl } from "./wilds-world-capability-controls";
 import type { WildsCapabilityContext } from "./wilds-world-capability-context";
 import type { WildsCapabilityIconKey, WildsWorldCapabilityFamily } from "./wilds-world-capability-registry";
+import type { WildsAerialMode } from "./wilds-aerial-traversal";
 
 const CAPABILITY_ICONS = {
   flight: Icons.flight,
@@ -39,11 +40,13 @@ function fallbackContext(control: WildsProjectedCapabilityControl): WildsCapabil
 }
 
 export function WildsCapabilityControls({
+  activeAerialMode = "ground",
   controls,
   contexts,
   enabled,
   onRequest
 }: Readonly<{
+  activeAerialMode?: WildsAerialMode;
   controls: readonly WildsProjectedCapabilityControl[];
   contexts?: ReadonlyMap<WildsWorldCapabilityFamily, WildsCapabilityContext>;
   enabled: boolean;
@@ -54,14 +57,18 @@ export function WildsCapabilityControls({
       const context = contexts?.get(control.family) ?? fallbackContext(control);
       const Icon = CAPABILITY_ICONS[control.icon];
       const explanation = context.explanation.replace(/[.!?]+$/, "");
+      const label = control.family === "glide" && control.label !== "Glide" ? `Glide. ${control.label}` : control.label;
+      const aerialControl = control.family === "flight" || control.family === "glide";
+      const aerialActive = aerialControl && activeAerialMode === control.family;
       return <button
-        aria-label={`${control.label}. ${explanation}. Capacity ${control.capacity} percent`}
-        className={`wilds-capability-control is-${context.state}`}
+        aria-label={`${label}. ${aerialActive ? "Tap to land" : explanation}. Capacity ${control.capacity} percent`}
+        aria-pressed={aerialControl ? aerialActive : undefined}
+        className={`wilds-capability-control is-${aerialActive ? "active" : context.state}`}
         disabled={!enabled}
         key={control.family}
         onClick={() => onRequest(control.family)}
         style={{ "--wilds-capability-capacity": `${control.capacity}%` } as CSSProperties}
-        title={`${control.label} · ${control.capacity}%`}
+        title={`${label} · ${control.capacity}%`}
         type="button"
       >
         <Icon aria-hidden="true" size={19} />

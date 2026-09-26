@@ -35,19 +35,27 @@ const ROUTE_GUIDES = WILDS_MAJOR_ROUTES.flatMap((route, routeIndex) => route.poi
     };
   });
 }));
+// The authored guide list is fixed for this module. Sample each guide's exact
+// world elevation only when it first comes within the player's guide radius.
+const routeGuideElevations: (number | undefined)[] = new Array(ROUTE_GUIDES.length);
 
 export function projectWildsRouteGuides(player: WorldPoint, radius = 30): readonly WildsRouteGuide[] {
   const boundedRadius = Number.isFinite(radius) ? Math.max(0, Math.min(42, radius)) : 0;
-  return ROUTE_GUIDES.map((guide): WildsRouteGuide => {
+  const nearby: WildsRouteGuide[] = [];
+  for (let index = 0; index < ROUTE_GUIDES.length; index += 1) {
+    const guide = ROUTE_GUIDES[index]!;
     const relative = { x: quantize(guide.world.x - player.x), z: quantize(guide.world.z - player.z) };
-    return {
+    const distance = quantize(Math.hypot(relative.x, relative.z));
+    if (distance > boundedRadius) continue;
+    const elevation = routeGuideElevations[index] ?? (routeGuideElevations[index] = sampleWildsTerrain(guide.world.x, guide.world.z).elevation);
+    nearby.push({
       ...guide,
       relative,
-      elevation: sampleWildsTerrain(guide.world.x, guide.world.z).elevation,
-      distance: quantize(Math.hypot(relative.x, relative.z))
-    };
-  })
-    .filter((guide) => guide.distance <= boundedRadius)
+      elevation,
+      distance
+    });
+  }
+  return nearby
     .sort((left, right) => left.distance - right.distance || left.id.localeCompare(right.id))
     .slice(0, 18);
 }

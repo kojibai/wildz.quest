@@ -27,17 +27,24 @@ test("active proof projects only its deduplicated Level-1 capability controls", 
   assert.equal(controls.every((entry) => entry.assetId === winged.id), true);
 });
 
-test("powered flight keeps the plane and removes the feather glide duplicate", () => {
-  const winged = card("voltray-1", "capability-controls:single-flight-control");
+test("a card proving both aerial skills keeps separate Flight and Glide controls", () => {
+  const winged = card("voltray-1", "capability-controls:dual-aerial-controls");
   const controls = projectWildsCapabilityControls(winged, emptyAdventureCondition(winged.id));
-  const projectQuick = (capabilityControlModule as unknown as {
-    projectWildsQuickCapabilityControls?: (entries: typeof controls, traversal: readonly string[]) => typeof controls;
-  }).projectWildsQuickCapabilityControls;
-
-  assert.equal(typeof projectQuick, "function");
-  const quick = projectQuick!(controls, ["flight", "glide"]);
+  const quick = capabilityControlModule.projectWildsQuickCapabilityControls(controls);
   assert.equal(quick.some((entry) => entry.family === "flight"), true);
-  assert.equal(quick.some((entry) => entry.family === "glide"), false);
+  assert.equal(quick.some((entry) => entry.family === "glide"), true);
+  assert.equal(quick.find((entry) => entry.family === "flight")?.icon, "flight");
+  assert.equal(quick.find((entry) => entry.family === "glide")?.icon, "glide");
+  assert.equal(quick.filter((entry) => entry.family === "flight" || entry.family === "glide").length, 2);
+});
+
+test("the quick dock never manufactures an aerial skill absent from the card", () => {
+  const winged = card("voltray-1", "capability-controls:single-aerial-control");
+  const controls = projectWildsCapabilityControls(winged, emptyAdventureCondition(winged.id));
+  assert.deepEqual(capabilityControlModule.projectWildsQuickCapabilityControls(controls.filter(c => c.family !== "flight"))
+    .filter(c => c.family === "flight" || c.family === "glide").map(c => c.family), ["glide"]);
+  assert.deepEqual(capabilityControlModule.projectWildsQuickCapabilityControls(controls.filter(c => c.family !== "glide"))
+    .filter(c => c.family === "flight" || c.family === "glide").map(c => c.family), ["flight"]);
 });
 
 test("named proof abilities label their owning family while stable family glyphs remain unchanged", () => {
@@ -80,18 +87,18 @@ test("structurally equal inputs reuse the bounded canonical projection", () => {
 test("quick actions omit passive and presentation-only duplicates without erasing the card", () => {
   const asset = card("voltray-1", "capability-controls:unique-effects");
   const all = projectWildsCapabilityControls(asset, emptyAdventureCondition(asset.id));
-  const quick = capabilityControlModule.projectWildsQuickCapabilityControls([...all, ...all], ["flight", "glide"]);
-  const effects = quick.map(c => c.family === "flight" || c.family === "glide" ? "aerial-toggle" : c.family);
+  const quick = capabilityControlModule.projectWildsQuickCapabilityControls([...all, ...all]);
+  const effects = quick.map(c => c.family);
   assert.equal(new Set(effects).size, effects.length);
   assert.equal(quick.some(c => ["swim", "climb", "balance", "resist", "anchor", "camouflage", "break", "rescue"].includes(c.family)), false);
   assert.ok(all.length >= quick.length);
   assert.ok(quick.every(c => all.includes(c)));
 });
 
-test("a suppressed powered-flight action keeps the distinct available glide route", () => {
+test("a suppressed powered-flight skill remains visible as recovering beside available Glide", () => {
   const asset = card("voltray-1", "capability-controls:glide-fallback");
   const all = projectWildsCapabilityControls(asset, emptyAdventureCondition(asset.id)).map(c => c.family === "flight" ? { ...c, runtimeAvailable: false, capacity: 0 } : c);
-  const quick = capabilityControlModule.projectWildsQuickCapabilityControls(all, ["glide"]);
-  assert.equal(quick.some(c => c.family === "flight"), false);
+  const quick = capabilityControlModule.projectWildsQuickCapabilityControls(all);
+  assert.equal(quick.find(c => c.family === "flight")?.capacity, 0);
   assert.equal(quick.some(c => c.family === "glide"), true);
 });

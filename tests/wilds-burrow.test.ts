@@ -132,7 +132,7 @@ import { projectWildsCapabilityControls, projectWildsQuickCapabilityControls } f
 import { emptyAdventureCondition } from "../src/features/play/adventure/card-condition";
 test("a real digging card exposes exactly one Dig action and injuries suppress it", () => {
   const condition = emptyAdventureCondition(card.id);
-  const controls = projectWildsQuickCapabilityControls(projectWildsCapabilityControls(card, condition), []);
+  const controls = projectWildsQuickCapabilityControls(projectWildsCapabilityControls(card, condition));
   const dig = controls.filter(control => control.family === "burrow");
   assert.equal(dig.length, 1); assert.match(dig[0].label, /^Dig · /); assert.equal(dig[0].runtimeAvailable, true);
   const injured = { ...condition, injuries: [{ id: "limb-injury", kind: "limb" as const, severity: 2 as const, sourceEventId: "test:injury" }] };

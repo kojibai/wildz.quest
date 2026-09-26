@@ -94,7 +94,7 @@ function define(
 
 export const WILDS_WORLD_CAPABILITY_REGISTRY = Object.freeze({
   flight: define("flight", "Flight", "flight", "aerial", "open-air", 3, ["duration", "lift", "recovery"], "powered-flight", "lift-wake", "Open sky is within reach.", "Move into open sky to take flight."),
-  glide: define("glide", "Glide", "glide", "aerial", "launch", 1, ["duration", "control", "range"], "glide-spread", "glide-ribbon", "A launch edge is within reach.", "The nearest safe launch edge is marked."),
+  glide: define("glide", "Glide", "glide", "aerial", "open-air", 1, ["duration", "control", "range"], "glide-spread", "glide-ribbon", "Glide is ready to lift off.", "Lead with this glider to lift off."),
   swim: define("swim", "Swim", "swim", "aquatic", "deep-water", 2, ["duration", "speed", "recovery"], "aquatic-stroke", "water-column", "Deep water is within reach.", "The nearest deep-water entry is marked."),
   dive: define("dive", "Dive", "dive", "aquatic", "water-column", 3, ["depth", "duration", "pressure"], "dive-pitch", "depth-column", "The water column continues below.", "Enter deep water to dive."),
   current: define("current", "Read current", "current", "route", "water-flow", 2, ["range", "speed", "control"], "current-read", "current-ribbon", "A living current is readable here.", "The nearest readable current is marked."),
@@ -111,4 +111,3 @@ export const WILDS_WORLD_CAPABILITY_REGISTRY = Object.freeze({
   lumber: define("lumber", "Gather timber", "timber", "source", "tree", 3, ["yield", "efficiency", "recovery"], "lumber-work", "timber-chips", "A ready tree is within reach.", "The nearest ready tree is marked."),
   quarry: define("quarry", "Gather stone", "quarry", "source", "stone", 3, ["yield", "precision", "recovery"], "quarry-work", "stone-sparks", "A ready stone is within reach.", "The nearest ready stone is marked.")
 } satisfies Readonly<Record<WildsWorldCapabilityFamily, WildsCapabilityDefinition>>);
-

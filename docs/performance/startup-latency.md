@@ -101,3 +101,49 @@ one 550 ms gap, so hitch-free gameplay is not certified across runs or devices.
 The first-complete-draw callback remains the readiness gate; it does not certify
 settlement of later network and texture updates. **A cold, fully settled screen
 below 300 ms has not been achieved or guaranteed.**
+
+## Gameplay and mobile follow-up
+
+- Reuse deterministic obstacle projections in a bounded 256-tile LRU. Freeze the
+  shared obstacle records so rendering, collision, and resources see the same
+  immutable placement. Cache fixed route-guide elevations only when a guide is
+  close enough to display; reject distant guides before terrain sampling.
+- Generate construction surface textures only when a structure needs them.
+  Empty construction worlds no longer allocate three 128×128 textures.
+- Give rock, character, and explorer badge materials stable mapped fallbacks
+  from their first draw. Decoded artwork replaces the image within each texture,
+  avoiding a late map-shader variant and consumer rerender.
+- A trial split of the Market and Wallet screens delayed immediate first opens;
+  splitting roaming owner-file preparation could also delay first capture. Those
+  action paths remain in the initial module graph.
+- Apply audio settings and start ambience as soon as Web Audio unlocks. Optional
+  cue samples load afterward; muted users skip automatic first-pointer unlock.
+  Native `AudioContext` construction can still be a long first-use task on some
+  browsers and is not claimed to be hitch-free.
+- Remove page-level texture preloads after a mobile production probe showed the
+  service worker caused those assets to be requested again at scene use. The
+  world continues to load each optional image through its existing asset path.
+
+The feather control now represents short Glide flight from the ground: it can
+climb above trees, drains the aerial energy meter quickly, and stays below
+powered Flight's ceiling. Creatures lawfully possessing both capabilities show
+separate Glide and Flight controls. Takeoff and landing still obey collision,
+protected airspace, and safe-ground rules. This is a deliberate gameplay rule
+change requested after the earlier overlook-only control was diagnosed.
+
+The final production build passes with 1.39 MB of first-load JS on `/`. The full
+suite reports 2,796 passed, one skipped, and zero failures. A fresh 390×844
+Chromium profile measured 114 ms to first contentful paint and 1,279 ms until
+the existing playable-world controls became visible; one warm reload measured
+950 ms to the same marker. A real mobile-layout movement gesture changed the
+map position. The used ground, rock, cloth, leather, scales and badge assets
+each had one resource request in the fresh run, with no preload warnings or
+JavaScript page errors. Immediate first opens after the warm reveal measured
+43 ms for Wallet and 20 ms for Market in one run. These are local samples, not
+device-wide latency guarantees. The fresh local starter did not possess Glide,
+so the revised aerial path is covered by deterministic traversal, projection,
+and integration tests rather than a live Safari interaction.
+
+Neither zero latency nor a cold, fully settled screen below 300 ms is certified
+by these changes. Native first-use Web Audio construction and GPU/driver work
+remain browser-dependent.

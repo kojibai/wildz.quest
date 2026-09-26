@@ -14,7 +14,7 @@ import { WildzCreatureDrawer } from "./WildzCreatureDrawer";
 import { WildzDpad } from "./WildzDpad";
 import type { WildsMovementMode } from "./wilds-movement";
 import type { WorldOverlayEvent, WorldOverlayOwner, WorldOverlayState } from "./world-overlay-state";
-import { WILDS_FLIGHT_RELAUNCH_ENERGY, type WildsAerialMode } from "./wilds-aerial-traversal";
+import { WILDS_FLIGHT_RELAUNCH_ENERGY, WILDS_GLIDE_RELAUNCH_ENERGY, type WildsAerialMode } from "./wilds-aerial-traversal";
 import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
 import type { WildsAquaticPresentation } from "./wilds-aquatic-presentation";
 import { projectCreatureCapabilityIdentity } from "./creature-capability-identity";
@@ -74,7 +74,6 @@ export function WildzWorldControls({
   verticalIntentRef: suppliedVerticalIntentRef,
   verticalReadout = DEFAULT_VERTICAL_READOUT,
   traversalCapabilities,
-  glideLaunchAvailable,
   onAerialToggle: _onAerialToggle
 }: {
   onBeginConstruction?:()=>void;
@@ -112,7 +111,6 @@ export function WildzWorldControls({
   verticalIntentRef?: MutableRefObject<WildsVerticalTraversalIntent>;
   verticalReadout?: Readonly<{ layer: WildsVerticalTraversalState["layer"]; value: number; safeMin: number; safeMax: number; blockerId: string | null }>;
   traversalCapabilities: readonly WildsTraversalCapability[];
-  glideLaunchAvailable: boolean;
   onAerialToggle: () => void;
 }) {
   const changeCardOrder = useStableEvent(onCardOrderChange);
@@ -137,19 +135,26 @@ export function WildzWorldControls({
   const companionHomeBlocked = exclusiveOwner !== "none" || panelOpen;
   const controlledDrawerSnap = worldHomesEnabled ? overlayState.drawerSnap : "closed";
   const hasFlight = traversalCapabilities.includes("flight");
-  const flightStatus = !hasFlight
-    ? null
-    : aerialMode === "flight" && aerialEnergy <= 25
-      ? `Flight energy low · ${aerialEnergy}%`
-      : aerialMode === "glide" && aerialEnergy === 0
-        ? "Flight exhausted · land to recharge"
+  const hasGlide = traversalCapabilities.includes("glide");
+  const flightStatus = aerialMode === "glide"
+    ? aerialEnergy <= 0
+      ? "Glide energy spent · descending to land"
+      : `Glide energy · ${aerialEnergy}%`
+    : hasFlight
+      ? aerialMode === "flight" && aerialEnergy <= 25
+        ? `Flight energy low · ${aerialEnergy}%`
         : aerialMode === "ground" && aerialEnergy < 100
           ? aerialEnergy < WILDS_FLIGHT_RELAUNCH_ENERGY
             ? `Recharge on the ground · ${aerialEnergy}%`
             : `Flight ready · ${aerialEnergy}%`
           : aerialMode === "flight"
             ? `Flight energy · ${aerialEnergy}%`
-            : null;
+            : null
+      : hasGlide && aerialEnergy < 100
+        ? aerialEnergy < WILDS_GLIDE_RELAUNCH_ENERGY
+          ? `Glide recharging · ${aerialEnergy}%`
+          : `Glide ready · ${aerialEnergy}%`
+        : null;
   const handleInput = useCallback((input: WildsInput) => {
     if (worldHomesEnabled) forwardInput(input);
   }, [forwardInput, worldHomesEnabled]);
@@ -208,7 +213,7 @@ export function WildzWorldControls({
   const handleMovementModeChange = useCallback(() => {
     if (worldHomesEnabled) changeMovementMode(movementMode === "walk" ? "run" : "walk");
   }, [changeMovementMode, movementMode, worldHomesEnabled]);
-  const verticalControlsVisible = aerialMode === "flight" || aquaticPresentation?.mode === "swim";
+  const verticalControlsVisible = aerialMode === "flight" || aerialMode === "glide" || aquaticPresentation?.mode === "swim";
   const stopVerticalIntent = useCallback(() => {
     verticalIntentRef.current = 0;
   }, [verticalIntentRef]);
@@ -239,10 +244,9 @@ export function WildzWorldControls({
   }), [activeCard?.id, cardConditions, companionProgress, nearbyCards, newRosterAssetId]);
   const capabilityControls = useMemo(() => suppliedCapabilityControls ?? (activeCard
     ? projectWildsQuickCapabilityControls(
-        projectWildsCapabilityControls(activeCard, cardConditions[activeCard.id] ?? emptyAdventureCondition(activeCard.id)),
-        traversalCapabilities
+        projectWildsCapabilityControls(activeCard, cardConditions[activeCard.id] ?? emptyAdventureCondition(activeCard.id))
       )
-    : []), [suppliedCapabilityControls, activeCard, cardConditions, traversalCapabilities]);
+    : []), [suppliedCapabilityControls, activeCard, cardConditions]);
   const activeEntry = companionRoster.find((entry) => entry.active) ?? null;
   const swimSpecialty = useMemo(() => {
     if (!activeCard) return "aquatic movement";
@@ -279,6 +283,8 @@ export function WildzWorldControls({
       ? `${verticalReadout.value.toFixed(1)} m altitude · ${flightObstruction.label} · ${flightObstruction.guidance}`
       : clearAirClimb !== null
         ? `${verticalReadout.value.toFixed(1)} m altitude · clear-air climb ${clearAirClimb}%`
+      : aerialMode === "glide"
+        ? `${verticalReadout.value.toFixed(1)} m altitude · Glide ceiling ${verticalReadout.safeMax.toFixed(1)} m`
       : `${verticalReadout.value.toFixed(1)} m altitude · open sky to ${verticalReadout.safeMax.toFixed(1)} m`
     : verticalReadout.layer === "water" && aquaticPresentation
       ? `${verticalReadout.value.toFixed(1)} m deep · safe ${(aquaticPresentation.waterDepth - verticalReadout.safeMax).toFixed(1)}–${(aquaticPresentation.waterDepth - verticalReadout.safeMin).toFixed(1)} m`
@@ -308,6 +314,7 @@ export function WildzWorldControls({
             {movementMode === "walk" ? <Icons.walk size={21} /> : <Icons.run size={21} />}
           </button>
           <WildsCapabilityControls
+            activeAerialMode={aerialMode}
             contexts={capabilityContexts}
             controls={capabilityControls}
             enabled={worldHomesEnabled}

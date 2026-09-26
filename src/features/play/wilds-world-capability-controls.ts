@@ -95,22 +95,19 @@ export function projectWildsCapabilityControls(
   return boundedCache(key, Object.freeze(controls));
 }
 
-/** Only distinct, implemented action effects belong in the quick-action dock.
- * Passive traversal and guidance-only specialties remain part of the card identity. */
+/** Only implemented action effects belong in the quick-action dock.
+ * Flight and Glide remain separate choices when the card proves both skills. */
 const QUICK_EFFECTS: Partial<Record<WildsWorldCapabilityFamily, string>> = {
-  flight: "aerial-toggle", glide: "aerial-toggle", dive: "descend-water", current: "ride-current",
+  flight: "flight-toggle", glide: "glide-toggle", dive: "descend-water", current: "ride-current",
   burrow: "excavate", light: "illuminate", track: "search-traces", lumber: "harvest-timber", quarry: "harvest-stone"
 };
 export function projectWildsQuickCapabilityControls(
-  controls: readonly WildsProjectedCapabilityControl[],
-  traversalCapabilities: readonly string[]
+  controls: readonly WildsProjectedCapabilityControl[]
 ): readonly WildsProjectedCapabilityControl[] {
-  const preferredAerial = traversalCapabilities.includes("flight") && controls.some(c => c.family === "flight" && c.runtimeAvailable)
-    ? "flight" : controls.some(c => c.family === "glide") ? "glide" : "flight";
   const seen = new Set<string>();
   const unique = controls.filter(control => {
     const effect = QUICK_EFFECTS[control.family];
-    if (!effect || (effect === "aerial-toggle" && control.family !== preferredAerial) || seen.has(effect)) return false;
+    if (!effect || seen.has(effect)) return false;
     seen.add(effect); return true;
   });
   return unique.length === controls.length ? controls : Object.freeze(unique);

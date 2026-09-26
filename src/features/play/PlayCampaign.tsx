@@ -173,6 +173,7 @@ import {
   beginWildsAerialTraversal,
   completeWildsAerialLanding,
   createGroundedWildsAerialState,
+  planWildsAerialToggle,
   projectWildsFlightEndurancePotential,
   requestWildsAerialLanding,
   type WildsAerialLandingReason,
@@ -608,7 +609,7 @@ export function PlayCampaign({
       state.adventureConditions[activeAsset.id] ?? emptyAdventureCondition(activeAsset.id)
     ).capabilities
     : [], [activeAsset, state.adventureConditions]);
-  const quickCapabilityControls = useMemo(() => projectWildsQuickCapabilityControls(activeCapabilityControls, activeTraversalCapabilities), [activeCapabilityControls, activeTraversalCapabilities]);
+  const quickCapabilityControls = useMemo(() => projectWildsQuickCapabilityControls(activeCapabilityControls), [activeCapabilityControls]);
   const traversalPotentials = useMemo(() => {
     if (!activeAsset) return { flightEndurance: 0, lift: 0, pressure: 0 };
     const identity = projectCreatureCapabilityIdentity(activeAsset);
@@ -1917,41 +1918,48 @@ export function PlayCampaign({
       };
     });
   };
-  const toggleAerialTraversal = () => {
+  const toggleAerialTraversal = (requestedKind: "flight" | "glide" = activeTraversalCapabilities.includes("flight") ? "flight" : "glide") => {
     if (!canUseWorldStage()) return;
     const groundElevation = Number.isFinite(state.siteSpace?.position.y)
       ? state.siteSpace.position.y
       : aquaticPresentation.terrainElevation;
-    const liveAerialMode = aerialStateRef.current.mode;
-    if (liveAerialMode !== "ground") {
+    const plan = planWildsAerialToggle(aerialStateRef.current.mode, requestedKind, activeTraversalCapabilities);
+    if (plan.kind === "land") {
       requestWildsAerialLanding(aerialStateRef.current, "landed");
       consumePendingAerialLanding("landed");
       return;
     }
-    const kind = activeTraversalCapabilities.includes("flight")
-      ? "flight"
-      : activeTraversalCapabilities.includes("glide") && nearbyOverlook
-        ? "glide"
-        : null;
-    if (!kind) return;
+    if (plan.kind === "needs-capability") {
+      showWorldFeedback("Lead with a creature that can fly or glide to use this control.");
+      return;
+    }
+    const kind = plan.mode;
     const begun = beginWildsAerialTraversal(aerialStateRef.current, {
       kind,
-      capabilities: activeTraversalCapabilities,
-      launchHeight: kind === "glide" ? 4 : undefined
+      capabilities: activeTraversalCapabilities
     });
+    if (begun.reason) {
+      showWorldFeedback(begun.reason === "flight-recharging"
+        ? "Flight energy is recharging on the ground. Take off when it reaches 20%."
+        : begun.reason === "glide-recharging"
+          ? "Glide energy is recharging on the ground. Take off when it reaches 30%."
+          : "This companion cannot take off right now.");
+      return;
+    }
     aerialStateRef.current = begun.state;
     writeWildsVerticalTraversalStep(verticalTraversalRef.current, {
       deltaSeconds: 0,
-      initialOffset: Math.max(.35, begun.state.altitude - groundElevation),
+      initialOffset: Math.max(kind === "glide" ? .4 : .35, begun.state.altitude - groundElevation),
       intent: 0,
       layer: begun.state.mode === "ground" ? "ground" : "air",
       liftPotential: traversalPotentials.lift,
       powered: kind === "flight",
+      assistedGlide: kind === "glide",
       stamina: begun.state.stamina,
       terrainElevation: groundElevation
     });
     setAerialMode(begun.state.mode);
-    setState(current => withLocalActivity(current, current, "Takeoff", `${kind} started`));
+    setState(current => withLocalActivity(current, current, plan.kind === "switch" ? "Aerial mode" : "Takeoff", `${kind} started`));
     if (activeVistaId) setActiveVistaId(null);
   };
   const spendWorldCapability = (family: WildsWorldCapabilityFamily) => {
@@ -1982,13 +1990,13 @@ export function PlayCampaign({
     if (!activeAsset) return;
     const control = quickCapabilityControls.find(candidate => candidate.family === family);
     if (!control) return;
-    const ending = (family === "light" && activeWorldCapability === "light") || ((family === "flight" || family === "glide") && aerialStateRef.current.mode !== "ground");
+    const ending = (family === "light" && activeWorldCapability === "light") || ((family === "flight" || family === "glide") && aerialStateRef.current.mode === family);
     if (!ending && (!control.runtimeAvailable || control.capacity <= 0)) { showWorldFeedback(`${control.label} needs recovery before it can be used.`, true); return; }
     beginWorldActionFeedback();
     switch (family) {
       case "flight":
       case "glide":
-        toggleAerialTraversal();
+        toggleAerialTraversal(family);
         return;
       case "lumber":
       case "quarry":
@@ -3031,7 +3039,6 @@ export function PlayCampaign({
               dismissSignal={commandDismissSignal}
               exclusiveOwner={exclusiveOwner}
               gestureCancelSignal={gestureCancelSignal}
-              glideLaunchAvailable={Boolean(nearbyOverlook && activeTraversalCapabilities.includes("glide"))}
               newRosterAssetId={newRosterAssetId}
               movementMode={movementMode}
               onAerialToggle={toggleAerialTraversal}

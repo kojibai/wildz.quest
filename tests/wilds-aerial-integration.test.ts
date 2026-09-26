@@ -34,7 +34,8 @@ describe("Wildz aerial and vista integration", () => {
     ]);
 
     assert.match(registry, /flight: define\("flight"/);
-    assert.match(campaign, /case "flight":[\s\S]*toggleAerialTraversal\(\)/);
+    assert.match(registry, /glide: define\("glide"[\s\S]*?"open-air"/);
+    assert.match(campaign, /case "flight":[\s\S]*toggleAerialTraversal\(family\)/);
     assert.match(controls, /Flight energy/);
     assert.match(controls, /Recharge on the ground/);
     assert.match(campaign, /requestWildsAerialLanding/);
@@ -45,12 +46,26 @@ describe("Wildz aerial and vista integration", () => {
     assert.match(canvas, /runtime\.current\.mode !== "ground"/);
   });
 
-  it("seeds the one vertical authority before a flight or overlook glide enters the frame loop", async () => {
+  it("routes the feather tap directly to ground takeoff and reports rejected takeoff", async () => {
+    const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+    const toggle = campaign.slice(campaign.indexOf("const toggleAerialTraversal ="), campaign.indexOf("const spendWorldCapability ="));
+
+    assert.match(toggle, /planWildsAerialToggle\(aerialStateRef\.current\.mode, requestedKind, activeTraversalCapabilities\)/);
+    assert.match(toggle, /beginWildsAerialTraversal\([\s\S]*kind,[\s\S]*capabilities: activeTraversalCapabilities/);
+    assert.match(toggle, /assistedGlide: kind === "glide"/);
+    assert.doesNotMatch(toggle, /find-launch|nearestWildsOverlook|launchHeight/);
+    assert.ok(toggle.indexOf("if (begun.reason)") < toggle.indexOf("aerialStateRef.current = begun.state"));
+    assert.ok(toggle.indexOf("if (begun.reason)") < toggle.indexOf('"Takeoff"'));
+    assert.match(campaign, /aerialStateRef\.current\.mode === family/);
+    assert.match(campaign, /toggleAerialTraversal\(family\)/);
+  });
+
+  it("seeds the one vertical authority before a flight or ground glide enters the frame loop", async () => {
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
     assert.match(campaign, /beginWildsAerialTraversal\([\s\S]*writeWildsVerticalTraversalStep\(verticalTraversalRef\.current/);
   });
 
-  it("wires explicit mobile ascend and descend intents only for swimming or flight", async () => {
+  it("wires explicit mobile ascend and descend intents for swimming, Flight, and Glide", async () => {
     const [campaign, controls, canvas] = await Promise.all([
       readFile("src/features/play/PlayCampaign.tsx", "utf8"),
       readFile("src/features/play/WildzWorldControls.tsx", "utf8"),
@@ -60,8 +75,9 @@ describe("Wildz aerial and vista integration", () => {
     assert.match(campaign, /verticalTraversalRef\s*=\s*useRef/);
     assert.match(controls, /Ascend/);
     assert.match(controls, /Descend/);
-    assert.match(controls, /aerialMode === "flight"|aquaticPresentation\?\.mode === "swim"/);
+    assert.match(controls, /aerialMode === "flight" \|\| aerialMode === "glide" \|\| aquaticPresentation\?\.mode === "swim"/);
     assert.match(canvas, /writeWildsVerticalTraversalStep/);
+    assert.match(canvas, /verticalInput\.assistedGlide = runtime\.current\.mode === "glide"/);
     assert.match(canvas, /verticalIntentRef\.current/);
     assert.doesNotMatch(canvas, /useFrame\([\s\S]{0,1200}setVertical/);
   });

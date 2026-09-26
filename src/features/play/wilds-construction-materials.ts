@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { WildsConstructionKind } from "./wilds-world-construction";
 
 type Surface = "timber" | "stone" | "roof";
-/** Small shared repeat textures; generated once, never in the frame loop. */
+/** Small shared repeat textures; generated on first use, never in the frame loop. */
 function surfaceTexture(surface: Surface) {
   const size = 128;
   const data = new Uint8Array(size * size * 4);
@@ -32,7 +32,7 @@ function surfaceTexture(surface: Surface) {
   return texture;
 }
 export function createWildsConstructionMaterials() {
-  const textures = { timber: surfaceTexture("timber"), stone: surfaceTexture("stone"), roof: surfaceTexture("roof") };
+  const textures = new Map<Surface, THREE.DataTexture>();
   const materials = new Map<string, THREE.MeshStandardMaterial>();
   const geometries = new Map<string, THREE.BoxGeometry>();
   return {
@@ -41,7 +41,12 @@ export function createWildsConstructionMaterials() {
       const key = `${surface}:${stage}`;
       let material = materials.get(key);
       if (!material) {
-        material = new THREE.MeshStandardMaterial({ map: textures[surface], bumpMap: textures[surface], bumpScale: surface === "stone" ? .035 : .018,
+        let texture = textures.get(surface);
+        if (!texture) {
+          texture = surfaceTexture(surface);
+          textures.set(surface, texture);
+        }
+        material = new THREE.MeshStandardMaterial({ map: texture, bumpMap: texture, bumpScale: surface === "stone" ? .035 : .018,
           color: stage === "framed" ? "#c6bbae" : stage === "finished" ? "#ffffff" : "#e0d9cd", roughness: stage === "finished" && surface === "timber" ? .7 : .91, metalness: 0 });
         material.name = `construction:${key}`; materials.set(key, material);
       }
@@ -59,6 +64,6 @@ export function createWildsConstructionMaterials() {
       }
       return geometry;
     },
-    dispose() { for (const material of materials.values()) material.dispose(); for (const geometry of geometries.values()) geometry.dispose(); for (const texture of Object.values(textures)) texture.dispose(); }
+    dispose() { for (const material of materials.values()) material.dispose(); for (const geometry of geometries.values()) geometry.dispose(); for (const texture of textures.values()) texture.dispose(); }
   };
 }

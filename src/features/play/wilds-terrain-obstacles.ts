@@ -256,9 +256,33 @@ export function projectWildsObstaclePlacement(obstacle: WildsTerrainObstacle) {
   };
 }
 
+const MAX_CACHED_OBSTACLE_TILES = 256;
+const obstacleTileProjections = new Map<string, readonly WildsTerrainObstacle[]>();
+let obstacleTileCacheHits = 0;
+let obstacleTileCacheMisses = 0;
+
+export function wildsTerrainObstacleCacheDiagnostics() {
+  return Object.freeze({ entries: obstacleTileProjections.size, maxEntries: MAX_CACHED_OBSTACLE_TILES, hits: obstacleTileCacheHits, misses: obstacleTileCacheMisses });
+}
+
+export function clearWildsTerrainObstacleCache() {
+  obstacleTileProjections.clear();
+  obstacleTileCacheHits = 0;
+  obstacleTileCacheMisses = 0;
+}
+
 export function wildsTerrainObstaclesForTile(tileX: number, tileZ: number): readonly WildsTerrainObstacle[] {
   const safeTileX = Number.isFinite(tileX) ? Math.trunc(tileX) : 0;
   const safeTileZ = Number.isFinite(tileZ) ? Math.trunc(tileZ) : 0;
+  const key = `${safeTileX}:${safeTileZ}`;
+  const cached = obstacleTileProjections.get(key);
+  if (cached) {
+    obstacleTileCacheHits += 1;
+    obstacleTileProjections.delete(key);
+    obstacleTileProjections.set(key, cached);
+    return cached;
+  }
+  obstacleTileCacheMisses += 1;
   const biome = projectWildsBiome(safeTileX, safeTileZ, 0, 0);
   const obstacles: WildsTerrainObstacle[] = [];
   for (let slot = 0; slot < biome.ecology.treeCount; slot += 1) {
@@ -269,7 +293,22 @@ export function wildsTerrainObstaclesForTile(tileX: number, tileZ: number): read
     const obstacle = obstacleForCandidate(safeTileX, safeTileZ, biome.seed, slot, "rock");
     if (obstacle) obstacles.push(obstacle);
   }
-  return obstacles.sort((left, right) => left.id.localeCompare(right.id));
+  obstacles.sort((left, right) => left.id.localeCompare(right.id));
+  // Callers share these canonical records across rendering, resources, and
+  // collision. Freeze nested coordinates as well as the list so one consumer
+  // cannot change another consumer's terrain authority.
+  const projection = Object.freeze(obstacles.map((obstacle) => Object.freeze({
+    ...obstacle,
+    position: Object.freeze(obstacle.position),
+    shape: Object.freeze(obstacle.shape)
+  })));
+  obstacleTileProjections.set(key, projection);
+  while (obstacleTileProjections.size > MAX_CACHED_OBSTACLE_TILES) {
+    const oldestKey = obstacleTileProjections.keys().next().value;
+    if (oldestKey === undefined) break;
+    obstacleTileProjections.delete(oldestKey);
+  }
+  return projection;
 }
 
 function cellKey(x: number, z: number) {

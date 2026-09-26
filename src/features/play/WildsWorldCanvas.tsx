@@ -579,7 +579,7 @@ function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, child
     horizontalDistance: 0, positionX: 0, positionZ: 0, verticalOffset: 0
   });
   const verticalStep = useRef<WildsVerticalTraversalStep>({
-    deltaSeconds: 0, initialOffset: 0, intent: 0, layer: "ground", liftPotential: 0,
+    deltaSeconds: 0, initialOffset: 0, intent: 0, layer: "ground", liftPotential: 0, assistedGlide: false,
     obstacleTopY: undefined, powered: false, pressurePotential: 0, stamina: 100,
     terrainElevation: 0, waterSurfaceY: 0
   });
@@ -657,6 +657,7 @@ function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, child
     verticalInput.ceilingY = collisionSample.ceilingY;
     verticalInput.obstacleTopY = collisionSample.obstacleTopY;
     verticalInput.powered = runtime.current.mode === "flight";
+    verticalInput.assistedGlide = runtime.current.mode === "glide";
     verticalInput.pressurePotential = pressurePotential;
     verticalInput.stamina = layer === "water" ? swimStamina : runtime.current.stamina;
     verticalInput.terrainElevation = activeGroundElevation;

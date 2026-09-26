@@ -14,7 +14,7 @@ export function passiveControlsMarkup(capabilities: ComponentProps<typeof WildzW
     overlayDispatch={noop} gestureCancelSignal={0} newRosterAssetId={null}
     onCardOrderChange={noop} onInput={noop} onMovementModeChange={noop} onSelectCard={noop} onRest={noop}
     aerialEnergy={100} aerialMode="ground" traversalCapabilities={capabilities}
-    glideLaunchAvailable={false} onAerialToggle={noop}
+    onAerialToggle={noop}
     capabilityControls={[{ assetId: "fixture", family: "quarry", label: "Mine rock", action: "Mine rock",
       icon: "quarry", unlockLevel: 1, capacity: 85, currentPower: 85, runtimeAvailable: true }]}
   />);

@@ -55,6 +55,7 @@ export function useWildsPresentation({
   const [audioReady, setAudioReady] = useState(false);
   const [visualEvents, setVisualEvents] = useState<WildsVisualEvent[]>([]);
   const runtimeRef = useRef<ReturnType<typeof createWildsAudioRuntime> | null>(null);
+  const audioSettingsRef = useRef(audioSettings);
   const previousEncounter = useRef<WildsEncounterAudioState>({
     phase: encounter.phase,
     proximity: encounter.proximity
@@ -76,28 +77,31 @@ export function useWildsPresentation({
     if (!runtime) return;
     try {
       await runtime.unlock();
-      await runtime.preload([
+      if (runtimeRef.current !== runtime) return;
+      runtime.setSettings(audioSettingsRef.current);
+      runtime.startAmbience();
+      setAudioReady(true);
+      void runtime.preload([
         "receiz-kai-turah-signature",
         "ui-confirm",
         "ui-error",
         "strike-slice",
         "door-open",
         "proof-latch"
-      ]);
-      runtime.setSettings(audioSettings);
-      runtime.startAmbience();
-      setAudioReady(true);
+      ]).catch(() => {
+        // Sample loading is optional; cues can use their synthesized voices.
+      });
     } catch {
-      setAudioReady(false);
+      if (runtimeRef.current === runtime) setAudioReady(false);
     }
-  }, [audioSettings]);
+  }, []);
 
   useEffect(() => {
-    if (!enabled || audioReady) return;
+    if (!enabled || audioReady || audioSettings.muted) return;
     const unlock = () => { void unlockAudio(); };
     window.addEventListener("pointerdown", unlock, { once: true });
     return () => window.removeEventListener("pointerdown", unlock);
-  }, [audioReady, enabled, unlockAudio]);
+  }, [audioReady, audioSettings.muted, enabled, unlockAudio]);
 
   useEffect(() => {
     const runtime = runtimeRef.current;
@@ -133,7 +137,9 @@ export function useWildsPresentation({
   }, [encounter.phase, encounter.proximity]);
 
   const setAudioSettings = useCallback((next: WildsAudioSettings) => {
-    setAudioSettingsState(normalizeWildsAudioSettings(next));
+    const normalized = normalizeWildsAudioSettings(next);
+    audioSettingsRef.current = normalized;
+    setAudioSettingsState(normalized);
   }, []);
 
   const playCue = useCallback((cue: WildsAudioCue) => {

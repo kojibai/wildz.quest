@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   createWildsVerticalTraversalState,
   requestWildsDive,
+  WILDS_GLIDE_CRUISE_CLEARANCE,
   WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE,
   WILDS_SWIM_SURFACE_CLEARANCE,
   writeWildsVerticalTraversalStep
@@ -305,6 +306,26 @@ describe("Wildz bounded vertical traversal", () => {
     assert.equal(state.offset, 19.875);
   });
 
+  it("descends a high Flight-to-Glide switch smoothly to the lower Glide ceiling", () => {
+    const state = createWildsVerticalTraversalState();
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: 0, initialOffset: 12, intent: 0, layer: "air",
+      liftPotential: 1, powered: true, stamina: 100, terrainElevation: 0
+    });
+    writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: .1, intent: 1, layer: "air", liftPotential: 1,
+      assistedGlide: true, obstacleTopY: 4.5, stamina: 100, terrainElevation: 0
+    });
+    assert.equal(state.offset, 11.875);
+    for (let index = 0; index < 40; index += 1) writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: .1, intent: 1, layer: "air", liftPotential: 1,
+      assistedGlide: true, obstacleTopY: 4.5, stamina: 100, terrainElevation: 0
+    });
+    assert.equal(state.offset, 8);
+    assert.equal(state.safeMax, 8);
+    assert.ok(state.safeMin >= 4.85);
+  });
+
   it("lets a real ceiling outrank cruise height without snapping an airborne actor", () => {
     const belowCeiling = createWildsVerticalTraversalState();
     writeWildsVerticalTraversalStep(belowCeiling, {
@@ -398,6 +419,45 @@ describe("Wildz bounded vertical traversal", () => {
       terrainElevation: 0
     });
     assert.ok(state.offset < before);
+  });
+
+  it("lets an assisted ground glide clear trees below the powered Flight ceiling", () => {
+    const state = createWildsVerticalTraversalState();
+    const step = (deltaSeconds: number, intent: -1 | 0 | 1, obstacleTopY?: number, stamina = 100) =>
+      writeWildsVerticalTraversalStep(state, {
+        deltaSeconds, initialOffset: .4, intent, layer: "air", liftPotential: 1,
+        assistedGlide: true, obstacleTopY, stamina, terrainElevation: 0
+      });
+
+    step(0, 0, 4.5);
+    step(.1, 1, 4.5);
+    assert.equal(state.offset, .4, "a canopy still blocks ascent at contact");
+    for (let index = 0; index < 30; index += 1) step(.1, 0);
+    assert.equal(state.offset, WILDS_GLIDE_CRUISE_CLEARANCE);
+    assert.ok(state.offset > 4.5 + .35);
+    step(.1, 0, 4.5);
+    assert.equal(state.safeMin, 4.85);
+
+    for (let index = 0; index < 30; index += 1) step(.1, 1);
+    assert.equal(state.offset, 8);
+    assert.equal(state.safeMax, 8);
+    assert.ok(state.safeMax < 10, "Glide stays below the weakest powered Flight ceiling");
+    step(.1, -1);
+    assert.ok(state.offset < 8, "manual descend responds during assisted Glide");
+    const beforeExhaustion = state.offset;
+    step(.1, 1, undefined, 0);
+    assert.ok(state.offset < beforeExhaustion, "spent Glide descends despite held ascend");
+  });
+
+  it("keeps assisted Glide below a real roof even when its cruise target is higher", () => {
+    const state = createWildsVerticalTraversalState();
+    for (let index = 0; index < 40; index += 1) writeWildsVerticalTraversalStep(state, {
+      deltaSeconds: .1, initialOffset: .4, intent: 1, layer: "air", liftPotential: 1,
+      assistedGlide: true, ceilingY: 5, stamina: 100, terrainElevation: 0
+    });
+    assert.equal(state.safeMax, 3);
+    assert.equal(state.offset, 3);
+    assert.ok(state.worldY + WILDS_PLAYER_BODY_HEIGHT < 5);
   });
 
   it("preserves absolute world height while horizontal travel changes terrain elevation", () => {
