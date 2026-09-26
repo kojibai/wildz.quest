@@ -1,3 +1,5 @@
+import { parseWildsWorldAddress as parseWildsWorldAddressV11 } from "./wilds-world-address";
+import { generateWildsRegionV11 } from "./wilds-region-generator-v11";
 import { WILDS_FLAGSHIP_LANDMARKS } from "./wilds-landmarks";
 import { WILDS_AUTHORED_OVERLOOKS, WILDS_MAJOR_ROUTES, WILDS_NAMED_REGIONS } from "./wilds-world-geography";
 
@@ -237,5 +239,36 @@ export function sampleWildsTerrain(x: number, z: number): WildsTerrainSample {
     regionId: regionIdFor(safeX, safeZ),
     materialId: `wildz.terrain.material.${surface}.v1`,
     traversal
+  };
+}
+
+/** V11 samples a bounded local patch; neighboring regions share corner heights. */
+export function sampleWildsTerrainV11(addressValue: import("./wilds-world-address").WildsWorldAddress) {
+  const address = parseWildsWorldAddressV11(addressValue);
+  const region = generateWildsRegionV11(address.regionX, address.regionZ);
+  const tx = address.localX / 24_000_000;
+  const tz = address.localZ / 24_000_000;
+  const [northWest, northEast, southWest, southEast] = region.terrainCorners;
+  const elevation = (northWest! * (1 - tx) + northEast! * tx) * (1 - tz)
+    + (southWest! * (1 - tx) + southEast! * tx) * tz;
+  const riseX = ((northEast! - northWest!) * (1 - tz) + (southEast! - southWest!) * tz) / 24;
+  const riseZ = ((southWest! - northWest!) * (1 - tx) + (southEast! - northEast!) * tx) / 24;
+  const normalLength = Math.hypot(riseX, 1, riseZ);
+  const slope = Math.hypot(riseX, riseZ);
+  const surface: WildsTerrainSurface = elevation < -2 ? "deep-water"
+    : elevation < 0 ? "shallow-water"
+      : elevation > 10 || slope > 0.7 ? "rock"
+        : elevation < 1 ? "sand" : "grass";
+  return {
+    version: "wildz.terrain.v11" as const,
+    elevation: quantize(elevation),
+    normal: { x: quantize(-riseX / normalLength), y: quantize(1 / normalLength), z: quantize(-riseZ / normalLength) },
+    slope: quantize(slope),
+    surface,
+    waterDepth: quantize(Math.max(0, -elevation)),
+    regionId: `wildz.region.v11:${address.regionX}:${address.regionZ}`,
+    materialId: `wildz.terrain.material.${surface}.v11`,
+    traversal: surface === "deep-water" ? [{ kind: "swim" as const }]
+      : surface === "rock" && slope > 0.7 ? [{ kind: "climb" as const }] : []
   };
 }

@@ -1,3 +1,4 @@
+import { generateWildsRegionV11 } from "./wilds-region-generator-v11";
 import { wildsCaveExteriorSolids } from "./wilds-cave-exterior";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
 import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
@@ -980,4 +981,18 @@ export function wildsDiscoveryPhysicalCacheSize() {
 
 export function wildsDiscoverySiteDiagnostics() {
   return Object.freeze({ regionsBuilt, neighborhoodsBuilt, physicalNeighborhoodsBuilt, surfaceIndexesBuilt, terrainSamples });
+}
+
+/** V11 site positions are region-local and remain exact at unbounded addresses. */
+export function wildsDiscoverySitesForRegionV11(regionX: string, regionZ: string) {
+  const region = generateWildsRegionV11(regionX, regionZ);
+  const families = ["cave", "mountain-pass", "hidden-valley", "canyon", "submerged-grotto", "reef", "trench", "ruin", "canopy-route", "spring", "cavern", "sky-island"] as const;
+  return region.encounterSites.map(site => Object.freeze({
+    version: "wildz.discovery-site.v11" as const,
+    key: `wildz.discovery-site.v11:${region.regionX}:${region.regionZ}:${site.slot}`,
+    address: { worldVersion: 11 as const, regionX: region.regionX, regionZ: region.regionZ, localX: site.localX, localZ: site.localZ },
+    slot: site.slot,
+    family: families[Number.parseInt(site.seed.slice(7, 9), 16) % families.length]!,
+    generatorSeed: site.seed
+  }));
 }

@@ -6,7 +6,7 @@ import {
   type WildsLayeredEncounterProjection
 } from "./wilds-layered-encounters";
 import { sampleWildsTerrain, type WildsTerrainSurface } from "./wilds-terrain-authority";
-import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition, wildsMountainSurfaceAt } from "./wilds-discovery-sites";
+import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition, wildsMountainSurfaceAt, wildsDiscoverySitesForRegionV11 } from "./wilds-discovery-sites";
 
 export const ENCOUNTER_REGION_SIZE = 24;
 const HOTSPOTS_PER_REGION = 6;
@@ -232,4 +232,20 @@ export function searchHiddenHotspots(
       z: (closest.hotspot.position.z - point.z) / magnitude
     }
   };
+}
+
+/** The v11 encounter layer exposes six exact-address candidates per eligible region. */
+export function hotspotsForRegionV11(regionX: string, regionZ: string) {
+  return wildsDiscoverySitesForRegionV11(regionX, regionZ).map(site => Object.freeze({
+    version: "wildz.hotspot.v11" as const,
+    id: `hotspot:v11:${regionX}:${regionZ}:${site.slot}`,
+    address: site.address,
+    slot: site.slot,
+    siteKey: site.key,
+    habitat: site.family,
+    cover: coverForHabitat(site.family, site.slot),
+    generatorSeed: site.generatorSeed,
+    hitRadius: HOTSPOT_HIT_RADIUS,
+    hintRadius: 4.5
+  }));
 }
