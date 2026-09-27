@@ -1,6 +1,6 @@
 import { creatureForm, type CreatureForm } from "./creature-catalog";
 import type { PortableCardAsset } from "./portable-card";
-import { WILDS_V11_LOCAL_CARD_SCHEMA, type WildsV11LocalCard } from "./wilds-portable-card-v11";
+import { isAdmittedWildsV11LocalCard, WILDS_V11_LOCAL_CARD_SCHEMA, type WildsV11LocalCard } from "./wilds-portable-card-v11";
 
 /** Shared gameplay fields; progression and exchange eligibility are separate from a birth form. */
 export type CreatureFormLike = Pick<CreatureForm,
@@ -23,6 +23,7 @@ function title(value: string) {
 /** Consume only cards admitted at their respective verifier boundary. No global form cache is needed. */
 export function resolveCardForm(card: PortableCardAsset | WildsV11LocalCard): CreatureFormLike | null {
   if ("schema" in card && card.schema === WILDS_V11_LOCAL_CARD_SCHEMA) {
+    if (!isAdmittedWildsV11LocalCard(card)) return null;
     const birth = card.birth.birth;
     const seed = birth.generationDigest.slice(7);
     const name = `${NAME_START[Number.parseInt(seed.slice(0, 2), 16) % NAME_START.length]}${NAME_END[Number.parseInt(seed.slice(2, 4), 16) % NAME_END.length]}`;

@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import { creatureForm } from "../src/features/play/creature-catalog";
 import { sealCollectedCard } from "../src/features/play/portable-card";
 import { sealWildsV11Birth } from "../src/features/play/wilds-card-proof-v11";
-import { sealLocalWildsV11Card } from "../src/features/play/wilds-portable-card-v11";
+import { admitVerifiedWildsV11LocalCard, sealLocalWildsV11Card } from "../src/features/play/wilds-portable-card-v11";
 import { resolveCardForm } from "../src/features/play/wilds-card-form-resolution";
 import { signWildsV11Encounter } from "../src/lib/receiz/wilds-v11-encounter-signer";
 
@@ -38,5 +38,10 @@ describe("card-scoped form resolution", () => {
     assert.deepEqual(form?.palette, { primary: birth.birth.surface.primary,
       accent: birth.birth.surface.accent, glow: birth.birth.surface.glow });
     assert.equal(creatureForm(card.id), null);
+    const restored = JSON.parse(JSON.stringify(card));
+    assert.equal(resolveCardForm(restored), null, "raw restored bytes do not become playable traits");
+    const admitted = await admitVerifiedWildsV11LocalCard(restored, pinned);
+    assert.deepEqual(resolveCardForm(admitted), form);
+    assert.equal(Object.isFrozen(admitted.birth.birth.stats), true);
   });
 });
