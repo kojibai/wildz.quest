@@ -159,9 +159,9 @@ V121 exposes direct bearer transfer preview, instrument issue, inspection, claim
 
 ## Release status
 
-**v10.1.0 — Continuity and Control** advances the v10 Living World with faster world work, distinct Glide and Flight controls, stronger identity and Vault saves, canonical offline recovery, and wallet fixes. Application and installed-PWA versions are `10.1.0` and `v10.1.0-r1`; the coordinated Receiz toolchain remains exact `127.0.0`.
+**v11.0.0 — The Open Wilds** adds exact-address regions, distance-aware creature rarity, signed one-of-one births, and a public World, Creatures, and Rarity & Proof guide. Existing cards keep their original canonical proof and living history. Application and installed-PWA versions are `11.0.0` and `v11.0.0-r1`; the coordinated Receiz toolchain remains exact `127.0.0`.
 
-Read the [v10.1.0 release notes and complete post-v10.0.0 commit ledger](docs/release/v10.1.0.md), [v10.0.0 release recap](docs/release/v10.0.0.md), [v127 integration evidence](docs/release/receiz-v127-integration.md), [game-image verification boundaries](docs/game-image-export-verification.md), and [changelog](CHANGELOG.md).
+Read the [v11.0.0 release notes](docs/release/v11.0.0.md), [complete source ledger since v10.0.0](docs/release/v11.0.0-source-ledger.md), [v127 integration evidence](docs/release/receiz-v127-integration.md), [game-image verification boundaries](docs/game-image-export-verification.md), and [changelog](CHANGELOG.md).
 
 ## Build your own Receiz-native product
 

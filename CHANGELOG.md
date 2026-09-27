@@ -2,6 +2,16 @@
 
 All notable changes to Wildz are documented here. Wildz uses semantic versioning for public releases.
 
+## [11.0.0] - 2026-09-27
+
+**The Open Wilds.** See the [release notes](docs/release/v11.0.0.md) and [source ledger from the first v10.0.0 release](docs/release/v11.0.0-source-ledger.md).
+
+- Add exact-address outer regions, sparse exploration, deterministic terrain, and region-local site discovery without a fixed content-grid edge.
+- Publish distance-band rarity odds, one-of-one creature generation, and offline proof inspection on the World, Creatures, and Rarity & Proof pages. Frontier Rare is 1 in 1,000, Mythic 1 in 100,000, and Eternal 1 in 1,000,000.
+- Connect signed site encounters to the existing battle, full ball capture, portable card, living history, PNG export/import, restore, and homecoming paths.
+- Preserve old-card proof bytes, catalog forms, rarity, ownership verification, history, and save continuity. New starters begin at Trail rarity.
+- Keep Receiz SDK, MCP server, and AI skills on exact public version 127.0.0. Live encounter signing and remote admission require production credentials and have a separate deployment qualification boundary.
+
 ## [10.1.0] - 2026-09-26
 
 **Continuity and Control.** See the [complete release notes](docs/release/v10.1.0.md) for the full change ledger since v10.0.0 and qualification limits.
