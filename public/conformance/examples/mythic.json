@@ -1,0 +1,21 @@
+{
+  "schema": "wildz.encounter-proof.v11",
+  "input": {
+    "schema": "wildz.encounter-input.v11",
+    "keyId": "wildz-v11-conformance-only-2026-09",
+    "law": "wildz.rarity.v11",
+    "actorId": "conformance.example",
+    "site": {
+      "worldVersion": 11,
+      "regionX": "59374",
+      "regionZ": "0",
+      "localX": 0,
+      "localZ": 0
+    },
+    "slot": 0
+  },
+  "signatureB64u": "vvQyX3QoDuLoN0uxritO0uFKti2zIlu2PL_GKyos8lzNPcZMn7_kraI3PExZHruEAYlav2ASoLPW1FHDGRpNAA",
+  "draw": 103,
+  "className": "mythic",
+  "creatureSeed": "sha256:d55b10118e926e101e5a463acb10e7bf691ab9b092985e109df3198731c1646b"
+}

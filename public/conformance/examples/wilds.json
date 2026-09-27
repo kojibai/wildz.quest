@@ -1,0 +1,21 @@
+{
+  "schema": "wildz.encounter-proof.v11",
+  "input": {
+    "schema": "wildz.encounter-input.v11",
+    "keyId": "wildz-v11-conformance-only-2026-09",
+    "law": "wildz.rarity.v11",
+    "actorId": "conformance.example",
+    "site": {
+      "worldVersion": 11,
+      "regionX": "25",
+      "regionZ": "0",
+      "localX": 0,
+      "localZ": 0
+    },
+    "slot": 0
+  },
+  "signatureB64u": "zgSWbarArlwgxkrZMGEaP-wn43OntCYcwEYcbzJJKdv-Gur5nXWGrb9gZsr-XmBmZ8ha725F6uJ0gE_qu-_TAg",
+  "draw": 2373962,
+  "className": "trail",
+  "creatureSeed": "sha256:70bc6f0451954d77ce09fce38050734340bdd247a47b179c9fb5415122913a0e"
+}

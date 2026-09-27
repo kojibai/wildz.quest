@@ -29,11 +29,11 @@ export default function ProofChecker() {
       const valid = await verifyEncounterResultV11(result, example ? WILDS_V11_CONFORMANCE_PUBLIC_KEYS : WILDS_V11_ENCOUNTER_PUBLIC_KEYS);
       setCheck(valid
         ? { kind: "valid", message: example
-          ? "Synthetic example verified: signature, law, draw, class and seed agree. This is not an admitted player encounter."
-          : "Admitted encounter key, signature, rarity draw, class, creature seed and site address all agree.", result }
-        : { kind: "invalid", message: "This result does not verify under the published v11 law and release key." });
+          ? "Example verified. Its signature, odds, class, and creature seed agree. This example is not a player discovery."
+          : "Verified. The signed site, rarity draw, class, and creature seed all agree.", result }
+        : { kind: "invalid", message: "This result could not be verified. It may be incomplete or changed." });
     } catch {
-      setCheck({ kind: "error", message: "Choose a v11 encounter-result JSON file." });
+      setCheck({ kind: "error", message: "Choose a saved encounter result in JSON format." });
     } finally {
       setBusy(false);
       event.target.value = "";
@@ -42,9 +42,9 @@ export default function ProofChecker() {
 
   return <div className={styles.checker}>
     <label className={styles.filePicker}>
-      <span><strong>Check an encounter result</strong><small>Select a saved v11 JSON result. The file stays in this browser.</small></span>
+      <span><strong>Check an encounter result</strong><small>Select a saved encounter file. It stays in this browser.</small></span>
       <span className={styles.fileButton}>Choose JSON</span>
-      <input accept=".json,application/json" aria-label="Choose v11 encounter result JSON" onChange={onFile} type="file" />
+      <input accept=".json,application/json" aria-label="Choose encounter result JSON" onChange={onFile} type="file" />
     </label>
     <p aria-live="polite" className={check ? `${styles.checkResult} ${styles[check.kind]}` : styles.checkResult} role="status">
       {busy ? "Verifying locally…" : check?.message ?? "Verification runs offline after this page has loaded."}
@@ -53,8 +53,7 @@ export default function ProofChecker() {
       <div><dt>Class</dt><dd>{check.result.className}</dd></div>
       <div><dt>Rarity draw</dt><dd>{check.result.draw.toLocaleString("en-US")} / 10,000,000</dd></div>
       <div><dt>Site region</dt><dd>({check.result.input.site.regionX}, {check.result.input.site.regionZ})</dd></div>
-      <div><dt>Slot</dt><dd>{check.result.input.slot}</dd></div>
-      <div><dt>Key</dt><dd>{check.result.input.keyId}</dd></div>
+      <div><dt>Site number</dt><dd>{check.result.input.slot + 1}</dd></div>
     </dl>}
   </div>;
 }
