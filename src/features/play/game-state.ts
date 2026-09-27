@@ -67,6 +67,7 @@ import {
   type WildsExplorationAtlas
 } from "./wilds-exploration-atlas";
 import { offsetWildsWorldAddress, parseWildsWorldAddress, v10PositionToWildsAddress, type WildsWorldAddress } from "./wilds-world-address";
+import { projectV10CardContinuityV11, type WildsV10CardContinuityV11 } from "./wilds-card-continuity-v11";
 import { admitWildsDiscoveryPhysicalNeighborhood, isCanonicalWildsDiscoverySiteKey, normalizeWildsSiteSpaceState, type WildsSiteSpaceState } from "./wilds-discovery-sites";
 import { enterWildsSiteRuntime, exitWildsSiteRuntime, forceExitWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeMovement, type WildsSiteDiscoveryOutput, type WildsSiteMovementOutput, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import {
@@ -239,6 +240,7 @@ export type PlayState = {
   worldAddress?: WildsWorldAddress;
   worldCoordinateMode?: "legacy" | "region-local";
   explorationAtlasV11?: WildsExplorationAtlasV11;
+  cardContinuityV11?: Record<string, WildsV10CardContinuityV11>;
   explorationAtlas: WildsExplorationAtlas;
   siteSpace: WildsSiteSpaceState;
   pendingSyncAssetIds: string[];
@@ -516,17 +518,24 @@ export function serializePlayState(state: PlayState) {
     validateV11PlayerCoordinates(state);
     normalizeWildsExplorationAtlasV11(state.explorationAtlasV11);
   }
-  return JSON.stringify({ schema: v11 ? PLAY_SAVE_SCHEMA_V11 : PLAY_SAVE_SCHEMA, state: { ...state, journeyJournal: sanitizeWildsJourneyJournal(state.journeyJournal, state.journeyJournal?.ownerId) } });
+  return JSON.stringify({ schema: v11 ? PLAY_SAVE_SCHEMA_V11 : PLAY_SAVE_SCHEMA, state: {
+    ...state,
+    ...(v11 ? { cardContinuityV11: projectV10CardContinuityV11(state.inventory) } : {}),
+    journeyJournal: sanitizeWildsJourneyJournal(state.journeyJournal, state.journeyJournal?.ownerId)
+  } });
 }
 
 /** Explicit, idempotent v10 continuity upgrade. It never reseals or rerolls inventory. */
 export function upgradeV10PlayStateToV11(state: PlayState): PlayState {
-  if (state.worldAddress) return state;
+  if (state.worldAddress) return state.cardContinuityV11 ? state : {
+    ...state, cardContinuityV11: projectV10CardContinuityV11(state.inventory)
+  };
   return {
     ...state,
     worldAddress: v10PositionToWildsAddress(state.player.x, state.player.z),
     worldCoordinateMode: "legacy",
-    explorationAtlasV11: createInitialWildsExplorationAtlasV11()
+    explorationAtlasV11: createInitialWildsExplorationAtlasV11(),
+    cardContinuityV11: projectV10CardContinuityV11(state.inventory)
   };
 }
 
@@ -791,6 +800,7 @@ export function restorePlayState(
       worldAddress: restoredWorldAddress,
       worldCoordinateMode: v11Envelope ? saved.worldCoordinateMode : undefined,
       explorationAtlasV11: restoredAtlasV11,
+      cardContinuityV11: v11Envelope ? projectV10CardContinuityV11(migratedInventory) : undefined,
       siteSpace: restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
       explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, v11Envelope ? { x: 0, z: 0 } : restoredPlayer),
       ownedWorldAdditions: restoredWorldAdditions,
