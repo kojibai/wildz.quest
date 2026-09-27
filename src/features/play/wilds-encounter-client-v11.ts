@@ -29,19 +29,6 @@ async function postEncounterAction(fetcher: EncounterFetch, body: object) {
   return payload;
 }
 
-/** Seed the authenticated player's origin before ordinary movement can reach a site. */
-export async function admitWildsV11Origin(actorId: string, fetcher: EncounterFetch = fetch): Promise<void> {
-  if (!/^[a-z0-9:._-]{3,180}$/i.test(actorId)) throw new Error("wilds_v11_actor_invalid");
-  const travel = await postEncounterAction(fetcher, { action: "travel", address: WILDS_V11_ORIGIN });
-  const head = travel.head as { actorId?: unknown; address?: unknown } | undefined;
-  let admittedAddress: WildsWorldAddress;
-  try { admittedAddress = parseWildsWorldAddress(head?.address); }
-  catch { throw new Error("wilds_v11_travel_reply_invalid"); }
-  if (head?.actorId !== actorId || !sameAddress(admittedAddress, WILDS_V11_ORIGIN)) {
-    throw new Error("wilds_v11_travel_reply_invalid");
-  }
-}
-
 /** Network is visited only on a discovered site action; proof checking stays in this browser. */
 export async function admitWildsV11EncounterFromSite(input: {
   actorId: string;

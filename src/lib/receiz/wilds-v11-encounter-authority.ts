@@ -11,6 +11,7 @@ const ENCOUNTER_SCHEMA = "wildz.encounter-head.v11" as const;
 const ISSUE_RATE_SCHEMA = "wildz.encounter-issue-rate.v11" as const;
 const REGION_MICRO = 24_000_000n;
 const MAX_SPEED_MICRO_PER_MS = 12_000n;
+const MAX_REPORTED_STEP_MS = 30_000;
 const SITE_REACH_MICRO = 3_000_000n;
 const ISSUE_WINDOW_MS = 60_000;
 const MAX_NEW_ISSUES_PER_WINDOW = 12;
@@ -111,7 +112,9 @@ export async function admitWildsV11Travel(store: ReceizAdmissionStore, actorId: 
   if (previous) {
     const elapsed = observedAtMs - previous.observedAtMs;
     if (elapsed < 0) throw new Error("wilds_v11_travel_time_regressed");
-    if (!withinReach(address, previous.address, BigInt(elapsed) * MAX_SPEED_MICRO_PER_MS)) {
+    // Idle wall time does not attest continuous movement. One report may only
+    // claim a bounded step; farther travel needs a sequence of admissions.
+    if (!withinReach(address, previous.address, BigInt(Math.min(elapsed, MAX_REPORTED_STEP_MS)) * MAX_SPEED_MICRO_PER_MS)) {
       throw new Error("wilds_v11_travel_speed_exceeded");
     }
   }

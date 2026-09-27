@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { describe, it } from "node:test";
-import { admitWildsV11EncounterFromSite, admitWildsV11Origin, WILDS_V11_ORIGIN } from "../src/features/play/wilds-encounter-client-v11";
+import { admitWildsV11EncounterFromSite } from "../src/features/play/wilds-encounter-client-v11";
 import { verifyWildsV11Birth } from "../src/features/play/wilds-card-proof-v11";
 import { generateWildsRegionV11 } from "../src/features/play/wilds-region-generator-v11";
 import { signWildsV11Encounter } from "../src/lib/receiz/wilds-v11-encounter-signer";
@@ -27,13 +27,6 @@ function transport(replies: object[]) {
 const travel = { ok: true, head: { actorId, address: site } };
 
 describe("browser encounter admission boundary", () => {
-  it("seeds only the authenticated origin and checks the returned actor and address", async () => {
-    const accepted = transport([{ ok: true, head: { actorId, address: WILDS_V11_ORIGIN } }]);
-    await admitWildsV11Origin(actorId, accepted.fetcher);
-    assert.deepEqual(accepted.calls.map(call => call.body), [{ action: "travel", address: WILDS_V11_ORIGIN }]);
-    const mismatched = transport([{ ok: true, head: { actorId: "other.player", address: WILDS_V11_ORIGIN } }]);
-    await assert.rejects(admitWildsV11Origin(actorId, mismatched.fetcher), /travel_reply_invalid/);
-  });
   it("admits travel before the site and verifies a one-of-one birth locally", async () => {
     const { calls, fetcher } = transport([travel, { ok: true, result }]);
     const birth = await admitWildsV11EncounterFromSite({ actorId, playerAddress: site, site, slot: 0, fetcher, pinnedKeys });

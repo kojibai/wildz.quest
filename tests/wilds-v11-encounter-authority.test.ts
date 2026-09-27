@@ -40,6 +40,14 @@ describe("durable v11 encounter admission", () => {
     await admitWildsV11Travel(store, actorId, { ...origin, localX: 12_000 }, 1_001);
   });
 
+  it("does not turn a long idle period into an arbitrary frontier jump", async () => {
+    const store = createReceizInMemoryAdmissionStore();
+    await admitWildsV11Travel(store, actorId, origin, 1_000);
+    await assert.rejects(admitWildsV11Travel(store, actorId, { ...origin, regionX: "100" },
+      3_601_000), /speed_exceeded/);
+    await admitWildsV11Travel(store, actorId, { ...origin, localX: 20_000_000 }, 3_601_000);
+  });
+
   it("serializes simultaneous travel branches under one actor head", async () => {
     const store = createReceizInMemoryAdmissionStore();
     await admitWildsV11Travel(store, actorId, origin, 1_000);
