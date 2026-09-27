@@ -1,10 +1,10 @@
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 import type { PvpCard } from "./pvp-battle-engine";
 
 export function pvpCardFromAsset(asset: PortableCardAsset): PvpCard {
   if (!verifyAnyWildsCard(asset).ok) throw new Error("wilds_multiplayer_card_verification_failed");
-  const form = creatureForm(asset.manifest.formId);
+  const form = resolveCardForm(asset);
   if (!form) throw new Error("wilds_multiplayer_card_form_missing");
   return {
     assetId: asset.id,

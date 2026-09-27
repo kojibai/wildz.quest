@@ -38,19 +38,11 @@ export async function admitWildsV11EncounterFromSite(input: {
   fetcher?: EncounterFetch;
   pinnedKeys?: Readonly<Record<string, string>>;
 }): Promise<WildsV11CreatureCard> {
-  const playerAddress = parseWildsWorldAddress(input.playerAddress);
+  parseWildsWorldAddress(input.playerAddress);
   const site = parseWildsWorldAddress(input.site);
   if (!/^[a-z0-9:._-]{3,180}$/i.test(input.actorId) || !Number.isInteger(input.slot)
     || input.slot < 0 || input.slot > 5) throw new Error("wilds_v11_encounter_input_invalid");
   const fetcher = input.fetcher ?? fetch;
-  const travel = await postEncounterAction(fetcher, { action: "travel", address: playerAddress });
-  const head = travel.head as { actorId?: unknown; address?: unknown } | undefined;
-  let admittedAddress: WildsWorldAddress;
-  try { admittedAddress = parseWildsWorldAddress(head?.address); }
-  catch { throw new Error("wilds_v11_travel_reply_invalid"); }
-  if (head?.actorId !== input.actorId || !sameAddress(admittedAddress, playerAddress)) {
-    throw new Error("wilds_v11_travel_reply_invalid");
-  }
   const reply = await postEncounterAction(fetcher, { action: "encounter", site, slot: input.slot });
   const result = reply.result as WildsV11EncounterResult | undefined;
   let returnedSite: WildsWorldAddress;

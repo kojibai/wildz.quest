@@ -4,10 +4,11 @@ import { parseWildsWorldAddress, v10PositionToWildsAddress, WILDS_REGION_MICRO_U
 import type { WildsV10CardContinuityV11 } from "./wilds-card-continuity-v11";
 
 export type WildsHomecomingChoice = "rest" | "follow" | "investigate";
+export type WildsHomecomingMeeting = Readonly<{ x: number; z: number }> | WildsWorldAddress;
 export type WildsHomecomingOffer = Readonly<{
   eventId: string;
   assetId: string;
-  meeting: Readonly<{ x: number; z: number }>;
+  meeting: WildsHomecomingMeeting;
   title: string;
   response: string;
   choices: readonly Readonly<{ id: WildsHomecomingChoice; label: string; response: string }>[];
@@ -16,17 +17,23 @@ export type WildsHomecomingOffer = Readonly<{
 const NEAR_MICRO = 4_000_000n;
 const REGION_MICRO = BigInt(WILDS_REGION_MICRO_UNITS);
 
-export function wildsHomecomingEventId(assetId: string, meeting: Readonly<{ x: number; z: number }>) {
+export function wildsHomecomingEventId(assetId: string, meeting: WildsHomecomingMeeting) {
   return `homecoming:${sha256PortableBasis(canonicalPortableCardJson({ assetId, meeting })).slice(7, 39)}`;
 }
 
-export function isWildsHomecomingNearMeeting(playerValue: WildsWorldAddress, meeting: Readonly<{ x: number; z: number }>) {
+export function isWildsHomecomingNearMeeting(playerValue: WildsWorldAddress, meeting: WildsHomecomingMeeting) {
   const player = parseWildsWorldAddress(playerValue);
-  const site = v10PositionToWildsAddress(meeting.x, meeting.z);
+  const site = "worldVersion" in meeting ? parseWildsWorldAddress(meeting) : v10PositionToWildsAddress(meeting.x, meeting.z);
   const dx = (BigInt(player.regionX) - BigInt(site.regionX)) * REGION_MICRO + BigInt(player.localX - site.localX);
   if (dx < -NEAR_MICRO || dx > NEAR_MICRO) return false;
   const dz = (BigInt(player.regionZ) - BigInt(site.regionZ)) * REGION_MICRO + BigInt(player.localZ - site.localZ);
   return dz >= -NEAR_MICRO && dz <= NEAR_MICRO && dx * dx + dz * dz <= NEAR_MICRO * NEAR_MICRO;
+}
+
+export function firstWildsMeetingForCard(card: PortableCardAsset, continuity: WildsV10CardContinuityV11 | undefined): WildsHomecomingMeeting | null {
+  if (card.manifest.birthV11) return card.manifest.birthV11.birth.identity.site;
+  return continuity?.assetId === card.id && continuity.sourceProofDigest === card.proof.digest
+    ? continuity.firstMeeting : null;
 }
 
 /** Pure, cheap per-selected-companion projection. The continuity envelope was verified at restore. */
@@ -38,22 +45,24 @@ export function projectWildsHomecomingOffer(input: {
   completed: boolean;
 }): WildsHomecomingOffer | null {
   const { card, continuity, playerAddress } = input;
-  if (!input.present || input.completed || !playerAddress || !continuity?.firstMeeting
-    || continuity.assetId !== card.id || continuity.sourceProofDigest !== card.proof.digest) return null;
+  const meeting = firstWildsMeetingForCard(card, continuity);
+  if (!input.present || input.completed || !playerAddress || !meeting) return null;
   if (isLivingCardAsset(card) && (card.manifest.revisions.at(-1)?.growth.life?.retired || (card.manifest.revisions.at(-1)?.growth.life?.vitality ?? 1) <= 0)) return null;
   try {
-    if (!isWildsHomecomingNearMeeting(playerAddress, continuity.firstMeeting)) return null;
+    if (!isWildsHomecomingNearMeeting(playerAddress, meeting)) return null;
   } catch {
     return null;
   }
   const identity = card.manifest.variant.generatorVersion === 3 ? card.manifest.variant.traits.identity : null;
-  const eventId = wildsHomecomingEventId(card.id, continuity.firstMeeting);
+  const eventId = wildsHomecomingEventId(card.id, meeting);
   return {
     eventId,
     assetId: card.id,
-    meeting: continuity.firstMeeting,
+    meeting,
     title: `${card.manifest.name} remembers this place`,
-    response: identity
+    response: card.manifest.birthV11
+      ? `${card.manifest.name} recognizes the exact place you first met. Their ${card.manifest.birthV11.birth.temperament} nature and familiar ${card.manifest.birthV11.birth.body.gait} return with you.`
+      : identity
       ? `${card.manifest.name} slows where you first met. Their ${identity.personality.temperament} gaze follows a familiar trace, then they offer a ${identity.motion.bondingGesture}.`
       : `${card.manifest.name} slows at the place recorded in their first encounter. They recognize the path you shared.`,
     choices: identity ? [

@@ -31,6 +31,7 @@ function meetingFromOldHotspot(card: PortableCardAsset) {
 
 /** A verified presentation binding beside the old card, never a rewritten birth. */
 export function upgradeVerifiedV10Card(card: PortableCardAsset): WildsV10CardContinuityV11 {
+  if (card.manifest.birthV11) throw new Error("wilds_v10_card_expected");
   if (!verifyAnyWildsCard(card).ok) throw new Error("wilds_v10_card_unverified");
   const meeting = card.manifest.variant.generatorVersion === 3
     ? card.manifest.variant.traits.identity.discovery.location : meetingFromOldHotspot(card);
@@ -58,7 +59,8 @@ export function verifyV10CardContinuityV11(card: PortableCardAsset, continuity: 
 export function projectV10CardContinuityV11(cards: readonly PortableCardAsset[]): Record<string, WildsV10CardContinuityV11> {
   const cached = continuityByInventory.get(cards);
   if (cached) return cached;
-  const projected = Object.fromEntries(cards.map(card => [card.id, upgradeVerifiedV10Card(card)]));
+  const projected = Object.fromEntries(cards.filter(card => !card.manifest.birthV11)
+    .map(card => [card.id, upgradeVerifiedV10Card(card)]));
   continuityByInventory.set(cards, projected);
   return projected;
 }

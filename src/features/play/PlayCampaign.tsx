@@ -59,6 +59,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
 import { sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
 import { WILDS_V11_ORIGIN } from "@/features/play/wilds-encounter-client-v11";
+import { flushOneWildsV11Site, isWildsV11SiteNearPlayer } from "@/features/play/wilds-encounter-outbox-v11";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
 import { advanceCaptureVisualTime, capturePhaseDelayMs } from "@/features/play/wilds-capture-sequence";
 import { WildsBattle } from "@/features/play/WildsBattle";
@@ -118,7 +119,8 @@ import { nextCreatureContinuityDueAt } from "@/features/play/creature-continuity
 import { WildzReferenceHud } from "@/features/play/WildzReferenceHud";
 import { WildzWorldControls } from "@/features/play/WildzWorldControls";
 import { WildsCreatureThumbnail } from "@/features/play/WildsCreatureThumbnail";
-import { creatureFamilies, creatureForm } from "@/features/play/creature-catalog";
+import { creatureFamilies } from "@/features/play/creature-catalog";
+import { resolveCardForm } from "@/features/play/wilds-card-form-resolution";
 import { createWildsPlayerVault, type WildsPlayerVaultPayload, type WildzCardOrder } from "@/features/play/wilds-player-vault";
 import type { WildzPreparedIdentityOwnedCard } from "@/lib/receiz/wildz-identity-adapter";
 import { normalizeWildsVisualSettings, type WildsVisualSettings } from "@/features/play/wilds-night-visibility";
@@ -341,6 +343,54 @@ export function PlayCampaign({
   const admittedSourceStateRef = useRef(initialState);
   const [sourceAdmission] = useState(createWildsPlayStateSourceAdmission);
   const [saveRestored, setSaveRestored] = useState(false);
+  const [encounterRetry, setEncounterRetry] = useState(0);
+  const encounterAdmissionInFlight = useRef(false);
+  const encounterAdmissionNextAt = useRef(0);
+  const encounterRetryTimer = useRef<number | null>(null);
+  const encounterAdmissionMounted = useRef(true);
+  useEffect(() => {
+    encounterAdmissionMounted.current = true;
+    const retry = () => setEncounterRetry(value => value + 1);
+    window.addEventListener("online", retry);
+    return () => {
+      encounterAdmissionMounted.current = false;
+      window.removeEventListener("online", retry);
+      if (encounterRetryTimer.current !== null) window.clearTimeout(encounterRetryTimer.current);
+    };
+  }, []);
+  useEffect(() => {
+    const outbox = state.pendingEncounterSitesV11;
+    const address = state.worldAddress;
+    if (!saveRestored || !address || state.worldCoordinateMode !== "region-local"
+      || state.encounter.phase !== "idle" || state.battle || !outbox?.pending.length
+      || encounterAdmissionInFlight.current || navigator.onLine === false) return;
+    if (!outbox.pending.some(item => item.actorId === ownerReceizId
+      && isWildsV11SiteNearPlayer(address, item.site))) return;
+    const delay = encounterAdmissionNextAt.current - Date.now();
+    if (delay > 0) {
+      if (encounterRetryTimer.current === null) encounterRetryTimer.current = window.setTimeout(() => {
+        encounterRetryTimer.current = null;
+        setEncounterRetry(value => value + 1);
+      }, delay);
+      return;
+    }
+    encounterAdmissionInFlight.current = true;
+    void flushOneWildsV11Site({ outbox, actorId: ownerReceizId, playerAddress: address })
+      .then(result => {
+        if (!encounterAdmissionMounted.current) return;
+        if (result.kind === "admitted" && result.birth) {
+          setState(current => applyWildsInput(current, { type: "admit-v11-birth", birth: result.birth!,
+            ownerReceizId, admittedAt: new Date().toISOString() }));
+        } else if (result.kind === "pending") {
+          encounterAdmissionNextAt.current = Date.now() + 4_000;
+          if (encounterRetryTimer.current === null) encounterRetryTimer.current = window.setTimeout(() => {
+            encounterRetryTimer.current = null;
+            setEncounterRetry(value => value + 1);
+          }, 4_000);
+        }
+      }).finally(() => { encounterAdmissionInFlight.current = false; });
+  }, [encounterRetry, ownerReceizId, saveRestored, state.battle, state.encounter.phase,
+    state.pendingEncounterSitesV11, state.worldAddress, state.worldCoordinateMode]);
   const onPlayStateChangeRef = useRef(onPlayStateChange);
   const playStatePublisherRef = useRef<WildzGameplayPublisher<{
     state: PlayState;
@@ -2698,7 +2748,7 @@ export function PlayCampaign({
             {trailPack.map((card, index) => {
               const progress = exactCompanionProgress(state, card);
               const mastery = projectWildsCardMastery(card);
-              const element = creatureForm(card.manifest.formId)?.element ?? card.manifest.species;
+              const element = resolveCardForm(card)?.element ?? card.manifest.species;
               const mood = index === 0 ? heartbeatMood : progress.bond >= 60 ? "Devoted" : progress.bond >= 25 ? "Steady" : "Listening";
               return <article className={index === 0 ? "is-leader" : "is-support"} key={card.id}>
                 <WildsCreatureThumbnail asset={card} />

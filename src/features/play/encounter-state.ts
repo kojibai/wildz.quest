@@ -1,6 +1,7 @@
 import type { HotspotCover, HotspotSearchResult } from "./hidden-hotspots";
 import type { LivingCreatureIdentityV3 } from "./living-taxonomy";
 import type { WildsLayeredEncounterProjection } from "./wilds-layered-encounters";
+import type { WildsV11CreatureCard } from "./wilds-card-proof-v11";
 
 export type EncounterPhase = "idle" | "searching" | "hint" | "battle_intro" | "player_turn" | "capture_ready" | "fled" | "defeated" | "emerging" | "capsule" | "sealed" | "revealed";
 export type SearchProximity = "cold" | "warm" | "hot";
@@ -23,6 +24,7 @@ export type ActiveEncounterState = {
   trend: SearchTrend;
   assetId?: string;
   discoveryIdentity?: LivingCreatureIdentityV3;
+  birthV11?: WildsV11CreatureCard;
   placement?: WildsLayeredEncounterProjection;
   siteContext?: Readonly<{ siteKey: string; spaceId: string }>;
 };

@@ -18,7 +18,7 @@ import { admitWildsRaidParticipant, createWildsRaidRound, renewWildsRaidLease, r
 import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse, kaiUPulseToISOString, KAI_N_DAY_MICRO, KAI_PULSE_DURATION_MS } from "./kai-klok-moment";
 import type { KaiTemporalRoot } from "./kai-temporal-root";
 import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "./portable-card";
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import { reverifyWildsCreatureMandate, type WildsCreatureMandateV1 } from "./wilds-creature-mandate";
 import type { WildsResourceSource } from "./wilds-resource-authority";
 import {
@@ -644,7 +644,7 @@ export class WildsWorldService {
       } else if (command.mandate || command.cardProofDigest) {
         throw new Error("wilds_world_resource_mandate_invalid");
       }
-      const element = authority.card ? creatureForm(authority.card.manifest.formId)?.element ?? "" : "";
+      const element = authority.card ? resolveCardForm(authority.card)?.element ?? "" : "";
       const current = this.projection.harvestedSources[command.source.sourceId] ?? initialWildsHarvestedSourceState(command.source);
       if (current.head !== command.sourceHead) throw new Error("wilds_world_resource_source_stale");
       const equippedToolId = this.projection.equippedStewardTools[authority.actorId];

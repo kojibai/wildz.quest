@@ -1,8 +1,11 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
+import * as ed25519 from "@noble/ed25519";
+import { sha512 } from "@noble/hashes/sha2.js";
 import { deriveUniformRarityDraw, rarityBand, rarityClass, WILDS_RARITY_LAW_V11 } from "./wilds-rarity-law-v11";
 import { parseWildsWorldAddress, type WildsWorldAddress } from "./wilds-world-address";
 
 export const WILDS_ENCOUNTER_PROOF_V11 = "wildz.encounter-proof.v11" as const;
+ed25519.hashes.sha512 = sha512;
 export type WildsEncounterInputV11 = Readonly<{
   schema: "wildz.encounter-input.v11";
   keyId: string;
@@ -70,6 +73,20 @@ export async function verifyEncounterResultV11(result: WildsV11EncounterResult, 
     const key = await crypto.subtle.importKey("raw", publicKeyBytes(pinned).slice().buffer, { name: "Ed25519" }, false, ["verify"]);
     return await crypto.subtle.verify({ name: "Ed25519" }, key, signatureBytes(result.signatureB64u).slice().buffer,
       new TextEncoder().encode(exact));
+  } catch {
+    return false;
+  }
+}
+
+/** Synchronous local verification for restore and inventory admission. */
+export function verifyEncounterResultV11Sync(result: WildsV11EncounterResult, pinnedKeys: Readonly<Record<string, string>>): boolean {
+  try {
+    if (result.schema !== WILDS_ENCOUNTER_PROOF_V11) return false;
+    const exact = canonicalEncounterInputV11(result.input);
+    const expected = projectEncounterResultV11(result.input, result.signatureB64u);
+    if (canonicalPortableCardJson(result) !== canonicalPortableCardJson(expected)) return false;
+    const pinned = pinnedKeys[result.input.keyId];
+    return !!pinned && ed25519.verify(signatureBytes(result.signatureB64u), new TextEncoder().encode(exact), publicKeyBytes(pinned), { zip215: false });
   } catch {
     return false;
   }

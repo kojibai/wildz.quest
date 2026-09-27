@@ -6,28 +6,18 @@ import { parseWildsWorldAddress, type WildsWorldAddress } from "@/features/play/
 import { verifyEncounterResultV11, type WildsV11EncounterResult } from "@/features/play/wilds-encounter-proof-v11";
 import { signWildsV11Encounter } from "./wilds-v11-encounter-signer";
 
-const TRAVEL_SCHEMA = "wildz.travel-head.v11" as const;
 const ENCOUNTER_SCHEMA = "wildz.encounter-head.v11" as const;
 const ISSUE_RATE_SCHEMA = "wildz.encounter-issue-rate.v11" as const;
 const REGION_MICRO = 24_000_000n;
-const MAX_SPEED_MICRO_PER_MS = 12_000n;
-const MAX_REPORTED_STEP_MS = 30_000;
 const SITE_REACH_MICRO = 3_000_000n;
 const ISSUE_WINDOW_MS = 60_000;
 const MAX_NEW_ISSUES_PER_WINDOW = 12;
-const START: WildsWorldAddress = { worldVersion: 11, regionX: "0", regionZ: "0", localX: 0, localZ: 0 };
-
-type TravelHead = Readonly<{ schema: typeof TRAVEL_SCHEMA; actorId: string; address: WildsWorldAddress; observedAtMs: number }>;
 type EncounterHead = Readonly<{ schema: typeof ENCOUNTER_SCHEMA; actorId: string; result: WildsV11EncounterResult }>;
 type IssueRateHead = Readonly<{ schema: typeof ISSUE_RATE_SCHEMA; actorId: string;
   recent: readonly Readonly<{ siteKey: string; issuedAtMs: number }>[] }>;
 
-function actorKey(actorId: string) {
-  if (!/^[a-z0-9:._-]{3,180}$/i.test(actorId)) throw new Error("wilds_v11_actor_invalid");
-  return `wildz11:travel:${sha256PortableBasis(actorId)}`;
-}
-
 function issueRateKey(actorId: string) {
+  if (!/^[a-z0-9:._-]{3,180}$/i.test(actorId)) throw new Error("wilds_v11_actor_invalid");
   return `wildz11:issue-rate:${sha256PortableBasis(actorId)}`;
 }
 
@@ -41,14 +31,6 @@ function exactDeltaMicro(left: WildsWorldAddress, right: WildsWorldAddress) {
 function withinReach(left: WildsWorldAddress, right: WildsWorldAddress, reachMicro: bigint) {
   const { x, z } = exactDeltaMicro(left, right);
   return x * x + z * z <= reachMicro * reachMicro;
-}
-
-function travelHead(value: unknown, actorId: string): TravelHead | null {
-  if (!value || typeof value !== "object") return null;
-  const head = value as Partial<TravelHead>;
-  if (head.schema !== TRAVEL_SCHEMA || head.actorId !== actorId || !Number.isSafeInteger(head.observedAtMs)) return null;
-  try { return { schema: TRAVEL_SCHEMA, actorId, address: parseWildsWorldAddress(head.address), observedAtMs: head.observedAtMs! }; }
-  catch { return null; }
 }
 
 function admissionUnit(aggregateId: string, revision: number, previousDigest: string | null, command: object, nextState: object): ReceizAdmissionUnitOfWork {
@@ -100,31 +82,6 @@ async function reserveWildsV11Issue(store: ReceizAdmissionStore, actorId: string
   throw new Error("wilds_v11_issue_rate_conflict");
 }
 
-/** Server-only movement admission. This never reads the ephemeral presence feed. */
-export async function admitWildsV11Travel(store: ReceizAdmissionStore, actorId: string, addressValue: WildsWorldAddress, observedAtMs = Date.now()) {
-  const address = parseWildsWorldAddress(addressValue);
-  const key = actorKey(actorId);
-  if (!Number.isSafeInteger(observedAtMs) || observedAtMs < 0) throw new Error("wilds_v11_travel_time_invalid");
-  const prior = await store.readAggregate(key);
-  const previous = prior ? travelHead(prior.state, actorId) : null;
-  if (prior && !previous) throw new Error("wilds_v11_travel_head_invalid");
-  if (!previous && !withinReach(address, START, 0n)) throw new Error("wilds_v11_origin_required");
-  if (previous) {
-    const elapsed = observedAtMs - previous.observedAtMs;
-    if (elapsed < 0) throw new Error("wilds_v11_travel_time_regressed");
-    // Idle wall time does not attest continuous movement. One report may only
-    // claim a bounded step; farther travel needs a sequence of admissions.
-    if (!withinReach(address, previous.address, BigInt(Math.min(elapsed, MAX_REPORTED_STEP_MS)) * MAX_SPEED_MICRO_PER_MS)) {
-      throw new Error("wilds_v11_travel_speed_exceeded");
-    }
-  }
-  const nextState: TravelHead = { schema: TRAVEL_SCHEMA, actorId, address, observedAtMs };
-  const outcome = await store.commit(admissionUnit(key, prior?.revision ?? 0, prior?.headDigest ?? null,
-    { type: "wildz.travel.v11", actorId, address, observedAtMs }, nextState));
-  if (outcome.status !== "committed" && outcome.status !== "idempotent") throw new Error(`wilds_v11_travel_${outcome.status}`);
-  return nextState;
-}
-
 function siteSlotAddress(site: WildsWorldAddress, slot: number): WildsWorldAddress {
   if (!Number.isInteger(slot) || slot < 0 || slot > 5) throw new Error("wilds_v11_site_slot_invalid");
   const generated = generateWildsRegionV11(site.regionX, site.regionZ).encounterSites[slot]!;
@@ -135,6 +92,8 @@ function siteSlotAddress(site: WildsWorldAddress, slot: number): WildsWorldAddre
 export async function issueWildsV11Encounter(input: {
   store: ReceizAdmissionStore;
   actorId: string;
+  /** Read from the authenticated player's private Receiz state by the route. */
+  playerAddress: WildsWorldAddress;
   site: WildsWorldAddress;
   slot: number;
   keyId: string;
@@ -145,9 +104,8 @@ export async function issueWildsV11Encounter(input: {
   const site = parseWildsWorldAddress(input.site);
   const target = siteSlotAddress(site, input.slot);
   if (!withinReach(site, target, 0n)) throw new Error("wilds_v11_site_not_generated");
-  const travel = await input.store.readAggregate(actorKey(input.actorId));
-  const admitted = travelHead(travel?.state, input.actorId);
-  if (!admitted || !withinReach(admitted.address, site, SITE_REACH_MICRO)) throw new Error("wilds_v11_site_not_reached");
+  const playerAddress = parseWildsWorldAddress(input.playerAddress);
+  if (!withinReach(playerAddress, site, SITE_REACH_MICRO)) throw new Error("wilds_v11_site_not_reached");
   const key = `wildz11:encounter:${sha256PortableBasis(canonicalPortableCardJson([input.actorId, site, input.slot]))}`;
   const existing = await input.store.readAggregate(key);
   if (existing) {

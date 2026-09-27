@@ -1,7 +1,7 @@
-import { deriveBirthGenome } from "./heartbound-genome";
+import { projectWildsCardGenome } from "./wilds-card-artwork";
 import { emptyAdventureCondition } from "./adventure/card-condition";
 import { isLivingCardAsset } from "./living-card-types";
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import { currentCreatureHistoryProjection, currentLivingGenome } from "./living-card-proof";
 import { verifyAnyWildsCard, sha256PortableBasis, type PortableCardAsset } from "./portable-card";
 import { canWildsCrewTravel } from "./wilds-crew-physical-navigation";
@@ -18,12 +18,12 @@ export type WildsCrewDisposition = Readonly<{
 }>;
 export function prepareWildsCrewDisposition(card: PortableCardAsset): WildsCrewDisposition | null {
   if (!verifyAnyWildsCard(card).ok) return null;
-  const genome = isLivingCardAsset(card) ? currentLivingGenome(card) : deriveBirthGenome({formId:card.manifest.formId,proofDigest:card.proof.digest,variant:card.manifest.variant.traits});
+  const genome = projectWildsCardGenome(card);
   const expression = genome.face.expressionSet;
   return Object.freeze({
     assetId: card.id, proofDigest: card.proof.digest, identityAnchor: genome.identityAnchor,
     temperament: genome.behavior.temperament,
-    workFamilies: projectWildsCreatureWorkFamilies(creatureForm(card.manifest.formId)?.element ?? ""),
+    workFamilies: projectWildsCreatureWorkFamilies(resolveCardForm(card)?.element ?? ""),
     riskTolerance: expression === "brave" ? 30 : expression === "curious" ? 22 : expression === "mischievous" ? 18 : 12,
     restAtFatigue: Math.min(75, 55 + Math.floor(card.manifest.stats.health / 10)),
     preferenceSeed: Number.parseInt(sha256PortableBasis(genome.identityAnchor).replace(/^sha256:/, "").slice(0, 8), 16)

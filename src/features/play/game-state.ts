@@ -13,6 +13,7 @@ import {
   evolvePortableCard,
   canonicalPortableCardJson,
   sealDiscoveredCard,
+  sealWildsV11Card,
   sealCollectedCard,
   sha256PortableBasis,
   verifyPortableCard,
@@ -29,7 +30,7 @@ import {
   type AdmittedWildsInventory
 } from "./admitted-inventory";
 import { encounterFromSearch, idleEncounterState, isCapturableEncounter, type EncounterState } from "./encounter-state";
-import { hotspotsForRegion, nearbyHiddenHotspots, searchHiddenHotspots } from "./hidden-hotspots";
+import { coverForHabitat, hotspotsForRegion, nearbyHiddenHotspots, searchHiddenHotspots } from "./hidden-hotspots";
 import { applyKaiAffinityToHotspot } from "./kai-encounter-affinity";
 import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse, kaiUPulseToISOString } from "./kai-klok-moment";
 import { rootWildsInputInKai } from "./wilds-input-temporal-root";
@@ -68,10 +69,13 @@ import {
 } from "./wilds-exploration-atlas";
 import { offsetWildsWorldAddress, parseWildsWorldAddress, v10PositionToWildsAddress, type WildsWorldAddress } from "./wilds-world-address";
 import { observationPointV11, observeWildsSiteV11 } from "./wilds-site-search-v11";
-import { emptyWildsV11EncounterOutbox, enqueueWildsV11Site, restoreWildsV11EncounterOutbox,
+import { emptyWildsV11EncounterOutbox, enqueueWildsV11Site, isWildsV11SiteNearPlayer, restoreWildsV11EncounterOutbox,
   type WildsV11EncounterOutbox } from "./wilds-encounter-outbox-v11";
+import { verifyWildsV11BirthSync, type WildsV11CreatureCard } from "./wilds-card-proof-v11";
+import { WILDS_V11_ENCOUNTER_PUBLIC_KEYS } from "./wilds-v11-release-keys";
 import { projectV10CardContinuityV11, type WildsV10CardContinuityV11 } from "./wilds-card-continuity-v11";
-import { isWildsHomecomingNearMeeting, projectWildsHomecomingOffer, type WildsHomecomingChoice } from "./wilds-creature-homecoming";
+import { projectVerifiedBirthFormV11, resolveCardForm } from "./wilds-card-form-resolution";
+import { firstWildsMeetingForCard, isWildsHomecomingNearMeeting, projectWildsHomecomingOffer, type WildsHomecomingChoice } from "./wilds-creature-homecoming";
 import { admitWildsDiscoveryPhysicalNeighborhood, isCanonicalWildsDiscoverySiteKey, normalizeWildsSiteSpaceState, type WildsSiteSpaceState } from "./wilds-discovery-sites";
 import { enterWildsSiteRuntime, exitWildsSiteRuntime, forceExitWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeMovement, type WildsSiteDiscoveryOutput, type WildsSiteMovementOutput, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import {
@@ -133,6 +137,7 @@ export type WildsInput = (
   | { type: "discover" }
   | { type: "capture"; encounterId: string; capturedAt: string; ownerReceizId: string }
   | { type: "search-point"; x: number; z: number; surfaceWorldY?: number; searchedAt: string; ownerReceizId: string; verticalLayer?: WildsEncounterInteractionLayer; verticalWorldY?: number; verticalMinWorldY?: number; verticalMaxWorldY?: number; traversalCapabilities?: readonly WildsTraversalCapability[]; siteKey?: string | null; siteSpaceId?: string }
+  | { type: "admit-v11-birth"; birth: WildsV11CreatureCard; ownerReceizId: string; admittedAt: string }
   | { type: "advance-encounter"; at: string }
   | { type: "complete-homecoming"; assetId: string; ownerReceizId: string; choice: WildsHomecomingChoice; at: string }
   | { type: "start-battle"; at: string }
@@ -541,7 +546,7 @@ export function upgradeV10PlayStateToV11(state: PlayState): PlayState {
     const continuity = state.cardContinuityV11 ?? projectV10CardContinuityV11(state.inventory);
     return state.cardContinuityV11 && state.homecomingDepartedAssetIds ? state : {
       ...state, cardContinuityV11: continuity,
-      homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, continuity, state.worldAddress)
+      homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, continuity, state.worldAddress, state.inventory)
     };
   }
   const address = v10PositionToWildsAddress(state.player.x, state.player.z);
@@ -552,16 +557,20 @@ export function upgradeV10PlayStateToV11(state: PlayState): PlayState {
     worldCoordinateMode: "legacy",
     explorationAtlasV11: createInitialWildsExplorationAtlasV11(),
     cardContinuityV11: continuity,
-    homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, continuity, address)
+    homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, continuity, address, state.inventory)
   };
 }
 
-function departedHomecomingIds(existing: readonly string[] | undefined, continuity: Record<string, WildsV10CardContinuityV11>, address: WildsWorldAddress): string[] {
+function departedHomecomingIds(existing: readonly string[] | undefined, continuity: Record<string, WildsV10CardContinuityV11>, address: WildsWorldAddress,
+  cards: readonly PortableCardAsset[]): string[] {
   const departed = new Set(existing ?? []);
-  for (const [id, entry] of Object.entries(continuity)) {
-    if (entry.firstMeeting && !isWildsHomecomingNearMeeting(address, entry.firstMeeting)) departed.add(id);
+  const activeIds = new Set<string>();
+  for (const card of cards) {
+    activeIds.add(card.id);
+    const meeting = firstWildsMeetingForCard(card, continuity[card.id]);
+    if (meeting && !isWildsHomecomingNearMeeting(address, meeting)) departed.add(card.id);
   }
-  return [...departed].filter((id) => id in continuity);
+  return [...departed].filter((id) => activeIds.has(id));
 }
 
 /** Normalize runtime state without serializing or reverifying exact admitted cards.
@@ -736,6 +745,8 @@ export function restorePlayState(
       return [...assets, sealed];
     }, ownerScopedInventory);
     const migratedInventory = sameSessionInventory ?? admitLocallySealedWildsInventory(admitAndMergeInventory(inventoryWithMigrations));
+    const admittedDiscoveredCardIds = Array.from(new Set([...discoveredCardIds,
+      ...migratedInventory.filter(asset => Boolean(asset.manifest.birthV11)).map(asset => asset.manifest.familyId)]));
     const restoredHearttreeReceipts = Array.isArray(saved.hearttreeReceipts)
       ? saved.hearttreeReceipts.filter((receipt): receipt is HearttreeReceipt => Boolean(receipt) && verifyHearttreeReceipt(receipt as HearttreeReceipt).ok).slice(-512)
       : [];
@@ -818,7 +829,7 @@ export function restorePlayState(
     const restoredDepartures = restoredContinuity && restoredWorldAddress
       ? departedHomecomingIds((Array.isArray(saved.homecomingDepartedAssetIds) ? saved.homecomingDepartedAssetIds : [])
         .filter((id): id is string => typeof id === "string" && id.length <= 256)
-        .map((id) => migratedAssetIds.get(id) ?? id), restoredContinuity, restoredWorldAddress)
+        .map((id) => migratedAssetIds.get(id) ?? id), restoredContinuity, restoredWorldAddress, migratedInventory)
       : [];
     return withWorldProgress({
       ...fallback,
@@ -843,7 +854,7 @@ export function restorePlayState(
       completedMissionIds: Array.isArray(saved.completedMissionIds)
         ? Array.from(new Set(saved.completedMissionIds.filter((id): id is string => typeof id === "string" && id.length > 0))).slice(-2_048)
         : [],
-      discoveredCardIds,
+      discoveredCardIds: admittedDiscoveredCardIds,
       inventory: migratedInventory,
       ...(quarantinedInventory.length ? { quarantinedInventory } : {}),
       selectedAssetId: restoredSelectedAssetId,
@@ -1034,6 +1045,19 @@ function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = n
   const placement = restoredEncounterPlacement(candidate);
   const siteContext = restoredEncounterSiteContext(candidate, placement);
   if (candidate.siteContext !== undefined && !siteContext) return idleEncounterState;
+  if (candidate.birthV11 !== undefined) {
+    const birthV11 = candidate.birthV11 as WildsV11CreatureCard;
+    if (!verifyWildsV11BirthSync(birthV11, WILDS_V11_ENCOUNTER_PUBLIC_KEYS)
+      || birthV11.birth.identity.actorId !== candidate.ownerReceizId) return idleEncounterState;
+    const formId = `wildz:form:v11:${birthV11.birth.generationDigest.slice(7)}`;
+    const form = projectVerifiedBirthFormV11(birthV11.birth, formId);
+    const hotspotId = `wildz:v11:${birthV11.proofDigest.slice(7)}`;
+    if (candidate.formId !== formId || candidate.familyId !== form.familyId
+      || candidate.hotspotId !== hotspotId) return idleEncounterState;
+    return { ...candidate, birthV11, searchPoint, proximity, trend,
+      formId, familyId: form.familyId, hotspotId, discoveryIdentity: undefined,
+      ...(placement ? { placement } : {}), siteContext } as EncounterState;
+  }
   if (!discoveryIdentity && visibleIdentityPhases.has(String(candidate.phase))) {
     discoveryIdentity = reconstructEncounterDiscoveryIdentity({
       hotspotId: typeof candidate.hotspotId === "string" ? candidate.hotspotId : undefined,
@@ -1058,6 +1082,13 @@ function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = n
 
 export function selectedCard(state: PlayState) {
   const asset = selectedAsset(state);
+  if (asset?.manifest.birthV11) {
+    const form = resolveCardForm(asset)!;
+    return { id: form.familyId, name: asset.manifest.name, species: form.species,
+      role: form.role, power: form.stats.power, rarity: form.rarity,
+      color: form.palette.primary, accent: form.palette.accent,
+      position: [0, 0, 0] as Vec3, businessLogic: "" } satisfies CreatureCard;
+  }
   return creatureCards.find((card) => card.id === (asset?.manifest.familyId ?? state.selectedCardId)) ?? creatureCards[0];
 }
 
@@ -1365,7 +1396,8 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       return { ...state, inventory, cardContinuityV11: projectV10CardContinuityV11(inventory),
         journeyJournal: { ...journal, memories: rememberWildsJourney(journal.memories, {
           kind: "homecoming", subjectId: offer.eventId, companionId: asset.id,
-          companionName: asset.manifest.name, label: choice.response, position: offer.meeting
+          companionName: asset.manifest.name, label: choice.response,
+          position: "worldVersion" in offer.meeting ? state.player : offer.meeting
         }, Date.parse(input.at)) },
         pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, updated.id])),
         lastEvent: choice.response };
@@ -1518,7 +1550,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
   if (input.type === "use-field-ability") {
     const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
     if (!asset || !isPlayableAsset(state, asset.id) || !Number.isInteger(input.abilityIndex) || !Number.isFinite(Date.parse(input.usedAt))) return state;
-    const form = creatureForm(asset.manifest.formId);
+    const form = resolveCardForm(asset);
     const ability = form?.abilities[input.abilityIndex];
     if (!ability) return state;
     const familyId = asset.manifest.familyId;
@@ -1902,7 +1934,9 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
 
   if (input.type === "start-battle") {
     if (state.encounter.phase !== "battle_intro" || !state.encounter.formId || !state.encounter.hotspotId) return state;
-    const wild = creatureForm(state.encounter.formId);
+    const wild = state.encounter.birthV11
+      ? projectVerifiedBirthFormV11(state.encounter.birthV11.birth, state.encounter.formId)
+      : creatureForm(state.encounter.formId);
     const playerAsset = selectedAsset(state);
     if (!wild || !playerAsset || !isPlayableAsset(state, playerAsset.id)) return { ...state, encounter: { ...state.encounter, phase: "defeated" }, lastEvent: "No verified playable card was available for battle." };
     const wildName = state.encounter.discoveryIdentity?.name.display ?? wild.name;
@@ -1912,7 +1946,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       player: {
         assetId: playerAsset.id,
         name: playerAsset.manifest.name,
-        element: creatureForm(playerAsset.manifest.formId)?.element,
+        element: resolveCardForm(playerAsset)?.element,
         ...playerAsset.manifest.stats,
         health: persistentLife?.maxVitality ?? playerAsset.manifest.stats.health * 2,
         currentHealth: persistentLife?.vitality
@@ -1958,7 +1992,9 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     if (battle.phase === "captured") return resolved;
     const asset = state.inventory.find((candidate) => candidate.id === battle.player.id);
     if (!asset) return resolved;
-    const wild = state.encounter.formId ? creatureForm(state.encounter.formId) : null;
+    const wild = state.encounter.birthV11 && state.encounter.formId
+      ? projectVerifiedBirthFormV11(state.encounter.birthV11.birth, state.encounter.formId)
+      : state.encounter.formId ? creatureForm(state.encounter.formId) : null;
     const occurredAt = state.encounter.searchedAt;
     const awards = battleGrowthAwards(state.battle, battle, { boss: wild?.rarity === "mythic" || wild?.rarity === "eternal" });
     const progressed = applyRecordedGrowthEvents(resolved, asset, awards.map((award) => ({
@@ -1970,6 +2006,32 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     return awards.some((award) => award.kind === "battle_win")
       ? awardWorldMastery(advanceLivingMission({ ...progressed, lastEvent: last }, 3), "battle")
       : { ...progressed, lastEvent: last };
+  }
+
+  if (input.type === "admit-v11-birth") {
+    if (state.worldCoordinateMode !== "region-local" || !state.worldAddress
+      || state.encounter.phase !== "idle" || state.battle
+      || !Number.isFinite(Date.parse(input.admittedAt))
+      || input.ownerReceizId !== input.birth?.birth?.identity?.actorId
+      || !verifyWildsV11BirthSync(input.birth, WILDS_V11_ENCOUNTER_PUBLIC_KEYS)) return state;
+    const identity = input.birth.birth.identity;
+    const pending = restoreWildsV11EncounterOutbox(state.pendingEncounterSitesV11, input.ownerReceizId);
+    const match = pending.pending.find(item => item.slot === identity.slot
+      && canonicalPortableCardJson(item.site) === canonicalPortableCardJson(identity.site));
+    if (!match || !isWildsV11SiteNearPlayer(state.worldAddress, identity.site)) return state;
+    const nextOutbox = { ...pending, pending: pending.pending.filter(item => item !== match) };
+    const encounterId = `wildz:v11:${input.birth.proofDigest.slice(7)}`;
+    const alreadyCaptured = state.inventory.find(asset => asset.manifest.encounterId === encounterId);
+    if (alreadyCaptured) return { ...state, pendingEncounterSitesV11: nextOutbox,
+      lastEvent: `${alreadyCaptured.manifest.name} is already with you.` };
+    const formId = `wildz:form:v11:${input.birth.birth.generationDigest.slice(7)}`;
+    const form = projectVerifiedBirthFormV11(input.birth.birth, formId);
+    return { ...state, pendingEncounterSitesV11: nextOutbox, activeAction: "explore",
+      encounter: { phase: "battle_intro", searchedAt: input.admittedAt,
+        searchPoint: { x: state.player.x, z: state.player.z }, ownerReceizId: input.ownerReceizId,
+        hotspotId: encounterId, familyId: form.familyId, formId, cover: coverForHabitat(form.habitat, identity.slot),
+        proximity: "hot", trend: null, birthV11: input.birth },
+      lastEvent: `${form.name} emerged at this living site.` };
   }
 
   if (input.type === "search-point") {
@@ -2106,54 +2168,66 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       };
     }
     let sealed: PortableCardAsset;
-    const restoredIdentity = encounter.discoveryIdentity;
-    const restoredForm = restoredIdentity ? discoveredFormForIdentity(restoredIdentity) : undefined;
-    const discoveryIdentity = restoredIdentity && restoredForm
-      ? restoredIdentity
-      : reconstructEncounterDiscoveryIdentity(
-          {
-            ...encounter,
-            location: encounter.placement
-              ? { x: encounter.placement.x, z: encounter.placement.z }
-              : encounter.searchPoint
-          },
-          new Set(state.inventory.map((asset) => asset.manifest.name.toLowerCase()))
-        );
-    if (!discoveryIdentity) {
-      return { ...state, lastEvent: "Capture remains locked while its permanent identity is recovered." };
-    }
-    const discoveredForm = restoredForm ?? discoveredFormForIdentity(discoveryIdentity);
-    if (!discoveredForm) {
-      return { ...state, lastEvent: `Capture remains locked. ${discoveryIdentity.name.display}'s discovered form is still being recovered.` };
-    }
-    const normalizedEncounter = {
-      ...encounter,
-      ownerReceizId: discoveryIdentity.discovery.ownerScope,
-      familyId: discoveryIdentity.family.id,
-      formId: discoveredForm.id,
-      discoveryIdentity
-    };
-    const capturedAt = new Date(Math.max(Date.parse(input.at), Date.parse(discoveryIdentity.discoveredAt))).toISOString();
-    try {
-      sealed = sealDiscoveredCard({
-        identity: discoveryIdentity,
-        formId: discoveredForm.id,
+    let normalizedEncounter = encounter;
+    let capturedName: string;
+    if (encounter.birthV11) {
+      const form = projectVerifiedBirthFormV11(encounter.birthV11.birth, encounter.formId);
+      capturedName = form.name;
+      try {
+        sealed = sealWildsV11Card({ birth: encounter.birthV11,
+          ownerReceizId: encounter.ownerReceizId, capturedAt: input.at,
+          battleTranscriptDigest: state.battle ? battleTranscriptDigest(state.battle) : undefined });
+      } catch {
+        return { ...state, lastEvent: `Capture remains locked. ${capturedName} is still here while verification completes.` };
+      }
+    } else {
+      const restoredIdentity = encounter.discoveryIdentity;
+      const restoredForm = restoredIdentity ? discoveredFormForIdentity(restoredIdentity) : undefined;
+      const discoveryIdentity = restoredIdentity && restoredForm
+        ? restoredIdentity
+        : reconstructEncounterDiscoveryIdentity(
+            {
+              ...encounter,
+              location: encounter.placement
+                ? { x: encounter.placement.x, z: encounter.placement.z }
+                : encounter.searchPoint
+            },
+            new Set(state.inventory.map((asset) => asset.manifest.name.toLowerCase()))
+          );
+      if (!discoveryIdentity) {
+        return { ...state, lastEvent: "Capture remains locked while its permanent identity is recovered." };
+      }
+      const discoveredForm = restoredForm ?? discoveredFormForIdentity(discoveryIdentity);
+      if (!discoveredForm) {
+        return { ...state, lastEvent: `Capture remains locked. ${discoveryIdentity.name.display}'s discovered form is still being recovered.` };
+      }
+      normalizedEncounter = {
+        ...encounter,
         ownerReceizId: discoveryIdentity.discovery.ownerScope,
-        capturedAt,
-        battleTranscriptDigest: state.battle ? battleTranscriptDigest(state.battle) : undefined
-      });
-    } catch {
-      return {
-        ...state,
-        encounter: normalizedEncounter,
-        lastEvent: `Capture remains locked. ${discoveryIdentity.name.display} is still here while verification completes.`
+        familyId: discoveryIdentity.family.id,
+        formId: discoveredForm.id,
+        discoveryIdentity
       };
+      capturedName = discoveryIdentity.name.display;
+      const capturedAt = new Date(Math.max(Date.parse(input.at), Date.parse(discoveryIdentity.discoveredAt))).toISOString();
+      try {
+        sealed = sealDiscoveredCard({
+          identity: discoveryIdentity,
+          formId: discoveredForm.id,
+          ownerReceizId: discoveryIdentity.discovery.ownerScope,
+          capturedAt,
+          battleTranscriptDigest: state.battle ? battleTranscriptDigest(state.battle) : undefined
+        });
+      } catch {
+        return { ...state, encounter: normalizedEncounter,
+          lastEvent: `Capture remains locked. ${capturedName} is still here while verification completes.` };
+      }
     }
     if (!verifyPortableCard(sealed).ok) {
       return {
         ...state,
         encounter: normalizedEncounter,
-        lastEvent: `Capture remains locked. ${discoveryIdentity.name.display} is still here while verification completes.`
+        lastEvent: `Capture remains locked. ${capturedName} is still here while verification completes.`
       };
     }
     const nextDiscovered = Array.from(new Set([...state.discoveredCardIds, sealed.manifest.familyId]));
@@ -2250,7 +2324,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       player,
       worldAddress: address,
       encounter: idleEncounterState,
-      homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, state.cardContinuityV11 ?? {}, address),
+      homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, state.cardContinuityV11 ?? {}, address, state.inventory),
       worldCoordinateMode: "region-local",
       explorationAtlasV11: atlas,
       siteSpace: normalizeWildsSiteSpaceState(undefined, { x: player.x, y: sampleWildsTerrainV11(address).elevation, z: player.z }),
@@ -2381,7 +2455,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
         ? `${nearest.card.name} is within discovery range.`
         : "Explore the wilds and look for companion signals.";
 
-    const meeting = leader && state.cardContinuityV11?.[leader.id]?.firstMeeting;
+    const meeting = leader && firstWildsMeetingForCard(leader, state.cardContinuityV11?.[leader.id]);
     const homecomingDepartedAssetIds = leader && meeting && nextAddress
       && !state.homecomingDepartedAssetIds?.includes(leader.id)
       && !isWildsHomecomingNearMeeting(nextAddress, meeting)

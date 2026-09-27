@@ -1,11 +1,10 @@
 import { creatureForm, type CreatureForm } from "./creature-catalog";
+import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsV11CreatureBirth } from "./wilds-creature-generator-v11";
 
 /** Shared gameplay fields; progression and exchange eligibility are separate from a birth form. */
-export type CreatureFormLike = Pick<CreatureForm,
-  "id" | "familyId" | "stage" | "name" | "species" | "habitat" | "element" | "temperament" |
-  "role" | "rarity" | "foil" | "stats" | "abilities" | "palette" | "anatomy">;
+export type CreatureFormLike = CreatureForm;
 
 const NAME_START = ["Ari", "Bela", "Cala", "Dori", "Elya", "Fira", "Galo", "Hela",
   "Iri", "Jora", "Kira", "Luma", "Mira", "Nori", "Ona", "Pera"] as const;
@@ -15,6 +14,7 @@ const BODY_SPECIES = { round: "sprig", long: "runner", armored: "guardian", wing
   serpentine: "serpent" } as const;
 const AURA_ELEMENT = { leaf: "Grove", spark: "Spark", tide: "Tide", ember: "Ember",
   prism: "Prism", stone: "Stone" } as const;
+const resolvedProceduralForms = new WeakMap<PortableCardAsset, CreatureForm>();
 
 function title(value: string) {
   return value[0]!.toUpperCase() + value.slice(1);
@@ -22,6 +22,16 @@ function title(value: string) {
 
 /** Consume only cards admitted at their respective verifier boundary. No global form cache is needed. */
 export function resolveCardForm(card: PortableCardAsset): CreatureFormLike | null {
+  if (card.manifest.birthV11) {
+    const cached = resolvedProceduralForms.get(card);
+    if (cached) return cached;
+    const formId = isLivingCardAsset(card) ? card.manifest.revisions[card.manifest.currentRevision]?.formId
+      : card.manifest.formId;
+    if (formId !== card.manifest.birthV11.birth.generationDigest.replace(/^sha256:/, "wildz:form:v11:")) return null;
+    const form = projectVerifiedBirthFormV11(card.manifest.birthV11.birth, formId);
+    if (Object.isFrozen(card)) resolvedProceduralForms.set(card, form);
+    return form;
+  }
   return creatureForm(card.manifest.formId);
 }
 
@@ -36,11 +46,13 @@ export function projectVerifiedBirthFormV11(birth: WildsV11CreatureBirth, id: st
     id,
     familyId: birth.lineage.regionFamily,
     stage: 1,
+    evolvesFromId: null,
     name,
     species: `${title(birth.habitat)} ${BODY_SPECIES[birth.body.body]}`,
     habitat: title(birth.habitat),
     element: AURA_ELEMENT[birth.body.aura],
     temperament: birth.temperament,
+    lore: `${name} was first met at an exact place in the open Wilds.`,
     role: `A ${birth.temperament} companion with its own journey.`,
     rarity: birth.rarity,
     foil: birth.rarity === "eternal" ? "eternal" : birth.rarity === "mythic" ? "prism"
@@ -48,6 +60,10 @@ export function projectVerifiedBirthFormV11(birth: WildsV11CreatureBirth, id: st
     stats: birth.stats,
     abilities: [ability(birth.abilities[0]), ability(birth.abilities[1])],
     palette: { primary: birth.surface.primary, accent: birth.surface.accent, glow: birth.surface.glow },
-    anatomy: { body: birth.body.body, detail: birth.body.detail, aura: birth.body.aura }
+    anatomy: { body: birth.body.body, detail: birth.body.detail, aura: birth.body.aura },
+    cardNumber: birth.generationDigest.slice(7, 19),
+    positionSeed: Number.parseInt(seed.slice(4, 12), 16),
+    evolution: { level: 0, bond: 0, item: null },
+    exchangeEligible: true
   };
 }

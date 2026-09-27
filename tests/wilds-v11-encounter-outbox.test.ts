@@ -47,12 +47,11 @@ describe("offline encounter observations", () => {
     const fetcher = (async (_url: string | URL | Request, init?: RequestInit) => {
       const action = JSON.parse(String(init?.body)).action as string;
       actions.push(action);
-      return new Response(JSON.stringify(action === "travel"
-        ? { ok: true, head: { actorId, address: site } }
-        : { ok: true, result }), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, result }),
+        { status: 200, headers: { "content-type": "application/json" } });
     }) as typeof fetch;
     const admitted = await flushOneWildsV11Site({ outbox, actorId, playerAddress: site, fetcher, pinnedKeys });
-    assert.deepEqual(actions, ["travel", "encounter"]);
+    assert.deepEqual(actions, ["encounter"]);
     assert.equal(admitted.kind, "admitted");
     assert.equal(admitted.birth?.birth.identity.actorId, actorId);
     assert.equal(admitted.outbox.pending.length, 0);

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { memo, useEffect, useMemo, useRef } from "react";
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import { wildsCardArtwork } from "./wilds-card-artwork";
 import { currentCreatureHistoryProjection } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
@@ -14,7 +14,7 @@ import { projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities }
 
 export const WildsCard = memo(function WildsCard({ asset, compact = false, condition, speaking = false, interactive = true }: { asset: PortableCardAsset; compact?: boolean; condition?: AdventureCardCondition | null; speaking?: boolean; interactive?: boolean }) {
   const card = useRef<HTMLElement>(null);
-  const form = creatureForm(asset.manifest.formId);
+  const form = resolveCardForm(asset);
   const variant = asset.manifest.variant.traits;
   const creatureSvg = useMemo(() => wildsCardArtwork(asset), [asset]);
   const death = cardDeathRecord(asset, condition);

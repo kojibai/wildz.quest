@@ -66,7 +66,7 @@ export function enqueueWildsV11Site(outbox: WildsV11EncounterOutbox, value: Pend
   return { ...current, pending: [...current.pending, site] };
 }
 
-function nearSite(a: WildsWorldAddress, b: WildsWorldAddress) {
+export function isWildsV11SiteNearPlayer(a: WildsWorldAddress, b: WildsWorldAddress) {
   const region = BigInt(WILDS_REGION_MICRO_UNITS);
   const dx = (BigInt(a.regionX) - BigInt(b.regionX)) * region + BigInt(a.localX - b.localX);
   const dz = (BigInt(a.regionZ) - BigInt(b.regionZ)) * region + BigInt(a.localZ - b.localZ);
@@ -84,7 +84,7 @@ export async function flushOneWildsV11Site(input: {
   birth?: WildsV11CreatureCard; error?: string }> {
   const playerAddress = parseWildsWorldAddress(input.playerAddress);
   const outbox = restoreWildsV11EncounterOutbox(input.outbox, input.actorId);
-  const item = outbox.pending.find(candidate => nearSite(playerAddress, candidate.site));
+  const item = outbox.pending.find(candidate => isWildsV11SiteNearPlayer(playerAddress, candidate.site));
   if (!item) return { kind: "no-nearby", outbox };
   try {
     const birth = await admitWildsV11EncounterFromSite({ actorId: input.actorId, playerAddress,

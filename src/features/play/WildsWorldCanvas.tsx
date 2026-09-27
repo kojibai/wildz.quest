@@ -28,6 +28,7 @@ import {
   type PlayState
 } from "@/features/play/game-state";
 import { creatureForm } from "@/features/play/creature-catalog";
+import { resolveCardForm } from "@/features/play/wilds-card-form-resolution";
 import type { BattleFighter } from "@/features/play/battle-engine";
 import type { HotspotCover } from "@/features/play/hidden-hotspots";
 import type { WildsPresence } from "@/features/play/multiplayer-core";
@@ -39,7 +40,10 @@ import { WildsExplorer } from "@/features/play/WildsExplorer";
 import { WildsAtmosphere } from "@/features/play/WildsAtmosphere";
 import { WildsUnderwaterAtmosphere } from "@/features/play/WildsUnderwaterAtmosphere";
 import { WildsCreatureActor, type WildsCreaturePose } from "@/features/play/WildsCreatureActor";
-import { projectEncounterCreatureVisualIdentity } from "@/features/play/creature-visual-identity";
+import { projectEncounterCreatureVisualIdentity, projectLivingGenomeCreatureVisualIdentity } from "@/features/play/creature-visual-identity";
+import { projectWildsV11BirthGenome } from "@/features/play/wilds-card-artwork";
+import { projectVerifiedBirthFormV11 } from "@/features/play/wilds-card-form-resolution";
+import type { WildsV11CreatureCard } from "@/features/play/wilds-card-proof-v11";
 import { projectWorldProgression } from "@/features/play/world-progression";
 import {
   rendererBudgetStatus,
@@ -499,7 +503,7 @@ function WildsScene({
         <WildsStewardEnvironment
           activeWorkSource={activeWorkSource}
           placementPreview={stewardPlacementPreview}
-          companionWorkFamilies={activeAsset ? projectWildsCreatureWorkFamilies(creatureForm(activeAsset.manifest.formId)?.element ?? "") : []}
+          companionWorkFamilies={activeAsset ? projectWildsCreatureWorkFamilies(resolveCardForm(activeAsset)?.element ?? "") : []}
           kaiUPulse={kaiMoment.uPulse}
           livingWorld={livingWorld}
           onInteractSource={onInteractResource}
@@ -1520,19 +1524,24 @@ function Creature({
   formId = `${card.id}-1`,
   pose = "idle",
   identity,
+  birthV11,
   layer = "ground"
 }: {
   card: CreatureCard;
   formId?: string;
   pose?: WildsCreaturePose;
   identity?: Exclude<PlayState["encounter"], { phase: "idle" }>["discoveryIdentity"];
+  birthV11?: WildsV11CreatureCard;
   layer?: WildsEncounterLayer;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const readability = useWildsReadability();
   const appearance = useMemo(
-    () => identity ? projectEncounterCreatureVisualIdentity({ identity, formId }) : null,
-    [formId, identity]
+    () => birthV11
+      ? projectLivingGenomeCreatureVisualIdentity(projectWildsV11BirthGenome(birthV11, formId), formId,
+        { fingerprint: birthV11.birth.generationDigest, cadenceMs: birthV11.birth.voice.pulseMs })
+      : identity ? projectEncounterCreatureVisualIdentity({ identity, formId }) : null,
+    [formId, identity, birthV11]
   );
 
   useFrame(() => {
@@ -1605,7 +1614,14 @@ function EncounterSequence({ state, terrainElevation, siteRuntime, siteSpace, on
       </>
     );
   }
-  const card = creatureCards.find((candidate) => candidate.id === encounter.familyId);
+  const birthForm = encounter.birthV11 && encounter.formId
+    ? projectVerifiedBirthFormV11(encounter.birthV11.birth, encounter.formId) : null;
+  const card = birthForm
+    ? { id: birthForm.familyId, name: birthForm.name, species: birthForm.species,
+      role: birthForm.role, power: birthForm.stats.power, rarity: birthForm.rarity,
+      color: birthForm.palette.primary, accent: birthForm.palette.accent,
+      position: [0, 0, 0] as const, businessLogic: "" }
+    : creatureCards.find((candidate) => candidate.id === encounter.familyId);
   if (!card || !encounter.cover) return null;
   const localCard: CreatureCard = { ...card, position: [0, 0, 0] };
   const lastBattleAction = state.battle?.transcript.at(-1)?.action;
@@ -1635,7 +1651,8 @@ function EncounterSequence({ state, terrainElevation, siteRuntime, siteSpace, on
       <SearchPulse hint position={[0, 0, 0]} />
       <HabitatCover cover={encounter.cover} open={encounter.phase !== "emerging"} />
       <CaptureCreature phase={encounter.phase} reducedMotion={reducedMotion}>
-        <Creature card={localCard} formId={encounter.formId} identity={encounter.discoveryIdentity} layer={placement?.layer} pose={pose} />
+        <Creature card={localCard} formId={encounter.formId} identity={encounter.discoveryIdentity}
+          birthV11={encounter.birthV11} layer={placement?.layer} pose={pose} />
       </CaptureCreature>
       {state.battle && isBattleTelemetryPhase(state.encounter.phase) ? (
         <BattleWorldTelemetry

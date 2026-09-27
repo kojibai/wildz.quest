@@ -1,4 +1,4 @@
-import { creatureForm } from "./creature-catalog";
+import { creatureForm, type CreatureForm } from "./creature-catalog";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import type { CardVariantTraits, CardVariantTraitsV2, CardVariantTraitsV3 } from "./card-variant";
 import type { KaiCreatureBirthProfile } from "./kai-creature-birth";
@@ -24,8 +24,8 @@ function bounded(value: number, min = 0.65, max = 1.45) {
   return Number(Math.max(min, Math.min(max, value)).toFixed(3));
 }
 
-export function deriveBirthGenome(input: { formId: string; proofDigest: string; variant: CardVariantTraits | CardVariantTraitsV2 | CardVariantTraitsV3 }, options: { generatorVersion?: 1 | 2 | 3 } = {}): LivingCardGenome {
-  const form = creatureForm(input.formId);
+export function deriveBirthGenome(input: { formId: string; proofDigest: string; variant: CardVariantTraits | CardVariantTraitsV2 | CardVariantTraitsV3 }, options: { generatorVersion?: 1 | 2 | 3; verifiedForm?: CreatureForm } = {}): LivingCardGenome {
+  const form = options.verifiedForm ?? creatureForm(input.formId);
   if (!form || !/^sha256:[a-f0-9]{64}$/.test(input.proofDigest)) throw new Error("wilds_genome_birth_invalid");
   const seed = sha256PortableBasis(canonicalPortableCardJson({ generator: "heartbound.v1", ...input }));
   const locomotion = form.anatomy.body === "serpentine" ? "serpentine" : form.anatomy.body === "winged" ? "flying" : form.anatomy.body === "long" ? "quadruped" : "biped";

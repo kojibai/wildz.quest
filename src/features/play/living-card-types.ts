@@ -2,6 +2,7 @@ import type { CardVariantTraits, CardVariantTraitsV2, CardVariantTraitsV3 } from
 import type { CreatureFoil, CreatureRarity, CreatureStage, CreatureStats } from "./creature-catalog";
 import type { HeartboundPresentationV3 } from "./heartbound-anime-types";
 import type { CreatureHistoryChain } from "./creature-history-types";
+import type { WildsV11CreatureCard } from "./wilds-card-proof-v11";
 
 export type GrowthPath = "bond" | "battle" | "exploration" | "legacy" | "community" | "character";
 export type TraitSource = "birth" | "parent_a" | "parent_b" | "blended" | "mutation" | "ascension";
@@ -193,7 +194,8 @@ export type LivingLineage = {
 
 export type LivingCardManifest = {
   schema: "receiz.wilds_living_card_manifest.v2";
-  catalogVersion: "receiz.wilds.catalog.v1";
+  catalogVersion: "receiz.wilds.catalog.v1" | "wildz.procedural.catalog.v11";
+  birthV11?: WildsV11CreatureCard;
   assetId: string;
   formId: string;
   familyId: string;

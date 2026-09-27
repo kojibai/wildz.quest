@@ -1,4 +1,4 @@
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import {
   createCreatureObserverMemoryTurn,
   MAX_CREATURE_OBSERVER_REPLY_TEXT,
@@ -162,7 +162,7 @@ function compactText(value: string, maximum: number) {
 }
 
 function brainUnsigned(asset: PortableCardAsset) {
-  const form = creatureForm(asset.manifest.formId);
+  const form = resolveCardForm(asset);
   if (!form) throw new Error("creature_observer_form_unknown");
   const dossier = projectLivingCardDossier(asset, "https://wildz.quest");
   const living = isLivingCardAsset(asset) ? asset : null;

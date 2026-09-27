@@ -24,15 +24,12 @@ function transport(replies: object[]) {
   return { calls, fetcher };
 }
 
-const travel = { ok: true, head: { actorId, address: site } };
-
 describe("browser encounter admission boundary", () => {
-  it("admits travel before the site and verifies a one-of-one birth locally", async () => {
-    const { calls, fetcher } = transport([travel, { ok: true, result }]);
+  it("verifies a one-of-one birth returned for the authenticated player's site", async () => {
+    const { calls, fetcher } = transport([{ ok: true, result }]);
     const birth = await admitWildsV11EncounterFromSite({ actorId, playerAddress: site, site, slot: 0, fetcher, pinnedKeys });
-    assert.deepEqual(calls.map(call => call.action), ["travel", "encounter"]);
-    assert.deepEqual(calls[0]!.body.address, site);
-    assert.deepEqual(calls[1]!.body.site, site);
+    assert.deepEqual(calls.map(call => call.action), ["encounter"]);
+    assert.deepEqual(calls[0]!.body.site, site);
     assert.equal(await verifyWildsV11Birth(birth, pinnedKeys), true);
     assert.equal(birth.birth.identity.actorId, actorId);
   });
@@ -44,17 +41,13 @@ describe("browser encounter admission boundary", () => {
       { ...result, input: { ...result.input, site: { ...site, localX: site.localX + 1 } } },
       altered
     ]) {
-      const { fetcher } = transport([travel, { ok: true, result: reply }]);
+      const { fetcher } = transport([{ ok: true, result: reply }]);
       await assert.rejects(admitWildsV11EncounterFromSite({ actorId, playerAddress: site, site, slot: 0,
         fetcher, pinnedKeys }), /wilds_v11_/);
     }
   });
 
-  it("stops before revealing a result when travel is unconfirmed or the connection fails", async () => {
-    const badHead = transport([{ ok: true, head: { actorId, address: { ...site, localX: site.localX + 1 } } }]);
-    await assert.rejects(admitWildsV11EncounterFromSite({ actorId, playerAddress: site, site, slot: 0,
-      fetcher: badHead.fetcher, pinnedKeys }), /travel_reply_invalid/);
-    assert.deepEqual(badHead.calls.map(call => call.action), ["travel"]);
+  it("keeps the site pending when the connection fails", async () => {
     const offline = (async () => { throw new Error("offline"); }) as typeof fetch;
     await assert.rejects(admitWildsV11EncounterFromSite({ actorId, playerAddress: site, site, slot: 0,
       fetcher: offline, pinnedKeys }), /connection_pending/);
