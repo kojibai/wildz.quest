@@ -4,6 +4,7 @@ import { authorizeRiftTravelV11, isLocallyAdmittedRiftDestinationV11, validateRi
 import { roomKeyForAddressV11, validatePresenceMoveV11 } from "../src/features/play/multiplayer-core";
 import { parseWildsRoomKey } from "../src/lib/receiz/wilds-multiplayer-server";
 import { applyWildsInput, initialPlayState, restorePlayState, serializePlayState, upgradeV10PlayStateToV11 } from "../src/features/play/game-state";
+import { sampleWildsTerrainV11 } from "../src/features/play/wilds-terrain-authority";
 
 const origin = { worldVersion: 11, regionX: "0", regionZ: "0", localX: 0, localZ: 0 } as const;
 const far = { worldVersion: 11, regionX: "9007199254740993", regionZ: "-9007199254740993", localX: 7_000_000, localZ: 19_000_000 } as const;
@@ -34,7 +35,7 @@ describe("v11 exact-address travel", () => {
   });
 
   it("crosses an enormous region boundary by walking and restores the exact neighbor", () => {
-    const destination = { ...far, regionZ: "0", localX: 23_900_000, localZ: 12_000_000 };
+    const destination = { ...far, regionZ: "-17", localX: 23_900_000, localZ: 12_000_000 };
     const result = authorizeRiftTravelV11({ idempotencyKey: "travel-v11-edge", source: origin, destination }, authority);
     assert.equal(result.ok, true);
     if (!result.ok) return;
@@ -44,6 +45,7 @@ describe("v11 exact-address travel", () => {
     const walked = applyWildsInput(landed, { type: "move", direction: "east" });
     assert.equal(walked.worldAddress?.regionX, "9007199254740994");
     assert.equal(walked.player.x, 0.95);
+    assert.equal(walked.siteSpace?.position.y, sampleWildsTerrainV11(walked.worldAddress!).elevation);
     assert.deepEqual(restorePlayState(serializePlayState(walked)).worldAddress, walked.worldAddress);
   });
 
