@@ -24,20 +24,20 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as Record<string, unknown>;
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("wilds_v11_request_invalid");
-    const actor = await resolveWildsMultiplayerActor(request, undefined, { resolveConnectProfile: false });
+    const actor = await resolveWildsMultiplayerActor(request);
     if (actor.practice) throw new Error("wilds_v11_verified_identity_required");
-    const serviceToken = process.env.RECEIZ_CONNECT_ACCESS_TOKEN;
-    if (!serviceToken) throw new Error("wilds_v11_authority_unavailable");
-    const store = createReceizRemoteAdmissionStore({ namespace: "wildz-v11-encounters", accessToken: serviceToken,
+    const admissionToken = actor.accessToken ?? process.env.RECEIZ_CONNECT_ACCESS_TOKEN;
+    if (!admissionToken) throw new Error("wilds_v11_authority_unavailable");
+    const store = createReceizRemoteAdmissionStore({ namespace: "wildz-v11-encounters", accessToken: admissionToken,
       baseUrl: process.env.RECEIZ_BASE_URL ?? "https://receiz.com" });
     if (body.action === "travel") {
       const address = parseWildsWorldAddress(body.address);
-      const head = await admitWildsV11Travel(store, actor.playerId, address);
+      const head = await admitWildsV11Travel(store, actor.handle, address);
       return NextResponse.json({ ok: true, head }, { headers: { "cache-control": "no-store" } });
     }
     if (body.action === "encounter") {
       const site = parseWildsWorldAddress(body.site);
-      const result = await issueWildsV11Encounter({ store, actorId: actor.playerId, site, slot: Number(body.slot),
+      const result = await issueWildsV11Encounter({ store, actorId: actor.handle, site, slot: Number(body.slot),
         keyId: WILDS_V11_ENCOUNTER_KEY_ID, privateKeyPem: signingKeyPem(), pinnedKeys: WILDS_V11_ENCOUNTER_PUBLIC_KEYS });
       return NextResponse.json({ ok: true, result }, { headers: { "cache-control": "no-store" } });
     }

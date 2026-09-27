@@ -28,6 +28,14 @@ describe("offline encounter observations", () => {
     assert.throws(() => enqueueWildsV11Site(twice, { ...item, site: { ...site, localX: site.localX + 1 } }), /invalid/);
   });
 
+  it("restores a historical owner handle under its canonical profile coordinate", () => {
+    const old = enqueueWildsV11Site(emptyWildsV11EncounterOutbox(), { ...item, actorId: "keeper" });
+    const restored = restoreWildsV11EncounterOutbox(JSON.parse(JSON.stringify(old)), "keeper.receiz.id");
+    assert.equal(restored.pending.length, 1);
+    assert.equal(restored.pending[0]?.actorId, "keeper.receiz.id");
+    assert.equal(restoreWildsV11EncounterOutbox(old, "other.receiz.id").pending.length, 0);
+  });
+
   it("does not query distant sites or turn an offline observation into a rarity", async () => {
     const outbox = enqueueWildsV11Site(emptyWildsV11EncounterOutbox(), item);
     const fetcher = (async () => { throw new Error("offline"); }) as typeof fetch;

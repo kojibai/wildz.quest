@@ -2,6 +2,7 @@ import { admitWildsV11EncounterFromSite } from "./wilds-encounter-client-v11";
 import type { WildsV11CreatureCard } from "./wilds-card-proof-v11";
 import { generateWildsRegionV11 } from "./wilds-region-generator-v11";
 import { parseWildsWorldAddress, WILDS_REGION_MICRO_UNITS, type WildsWorldAddress } from "./wilds-world-address";
+import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 
 export const WILDS_V11_ENCOUNTER_OUTBOX_SCHEMA = "wildz.encounter-outbox.v11" as const;
 const MAX_PENDING = 64;
@@ -51,8 +52,10 @@ export function restoreWildsV11EncounterOutbox(value: unknown, actorId: string):
   for (const entry of entries.slice(0, MAX_PENDING)) {
     try {
       const site = canonicalPending(entry);
-      const key = pendingKey(site);
-      if (site.actorId === actorId && !seen.has(key)) { pending.push(site); seen.add(key); }
+      if (site.actorId !== actorId && !sameWildzPlayerCoordinate(site.actorId, actorId)) continue;
+      const normalized = { ...site, actorId };
+      const key = pendingKey(normalized);
+      if (!seen.has(key)) { pending.push(normalized); seen.add(key); }
     } catch { /* Untrusted observation discarded. */ }
   }
   return { schema: WILDS_V11_ENCOUNTER_OUTBOX_SCHEMA, pending };

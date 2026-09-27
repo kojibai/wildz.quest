@@ -14,19 +14,24 @@ const keys = generateKeyPairSync("ed25519");
 const keyId = "test-battle-v11";
 const pinnedKeys = { [keyId]: keys.publicKey.export({ format: "jwk" }).x! };
 
-async function fixture(regionX = "1") {
+async function fixture(regionX = "1", owner = actorId, playerOwner = owner) {
   const encounter = signWildsV11Encounter({ schema: "wildz.encounter-input.v11", keyId,
-    law: "wildz.rarity.v11", actorId, slot: 0,
+    law: "wildz.rarity.v11", actorId: owner, slot: 0,
     site: { worldVersion: 11, regionX, regionZ: "0", localX: 4_000_000, localZ: 8_000_000 }
   }, keys.privateKey.export({ format: "pem", type: "pkcs8" }).toString());
   const birth = await sealWildsV11Birth(encounter, pinnedKeys);
-  const player = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: actorId,
+  const player = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: playerOwner,
     encounterId: "starter:test", capturedAt: "2026-09-27T12:00:00.000Z" });
   admitLocallySealedWildsInventory([player]);
   return { birth, player };
 }
 
 describe("signed procedural encounter battle", () => {
+  it("accepts the same verified explorer under the existing handle and profile coordinate", async () => {
+    const { birth, player } = await fixture("1", "keeper.receiz.id", "keeper");
+    const session = await startWildsV11BattleSession({ birth, player, ownerId: "keeper.receiz.id", pinnedKeys });
+    assert.equal(session.playerAssetId, player.id);
+  });
   it("enters with verified birth and admitted player, and cannot be spoofed from JSON", async () => {
     const { birth, player } = await fixture();
     const started = await startWildsV11BattleSession({ birth, player, ownerId: actorId, pinnedKeys });

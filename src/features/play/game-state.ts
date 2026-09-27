@@ -729,7 +729,7 @@ export function restorePlayState(
         && value.schema === WILDS_V11_LOCAL_CARD_SCHEMA
         && typeof value.id === "string" && value.id.startsWith("wildz:creature:")
         && typeof value.proofDigest === "string" && value.proofDigest.startsWith("sha256:")
-        && (!ownerReceizId || value.ownerId === ownerReceizId))
+        && (!ownerReceizId || sameOwnedWorldActor(value.ownerId, ownerReceizId)))
       : [];
     const ownerScopedInventory = ownerReceizId && !sameSessionInventory
       ? restoredInventory.map((asset) => reissuePlaceholderAsset(asset, ownerReceizId))

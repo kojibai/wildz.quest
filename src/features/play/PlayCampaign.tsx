@@ -69,6 +69,7 @@ import { observationPointV11, observeWildsSiteV11 } from "@/features/play/wilds-
 import { WILDS_V11_ENCOUNTER_PUBLIC_KEYS } from "@/features/play/wilds-v11-release-keys";
 import { projectVerifiedBirthFormV11, resolveCardForm } from "@/features/play/wilds-card-form-resolution";
 import { admitWildsV11Collection } from "@/features/play/wilds-v11-collection-admission";
+import { parseWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
 import type { WildsV11LocalCard } from "@/features/play/wilds-portable-card-v11";
 import { WildsTransformation } from "@/features/play/WildsTransformation";
 import { WildsChildCeremony } from "@/features/play/WildsChildCeremony";
@@ -342,6 +343,7 @@ export function PlayCampaign({
     currentPlayState: PlayState
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
+  const v11ActorId = parseWildzPlayerCoordinate(ownerReceizId)?.profileHandle ?? ownerReceizId;
   const [state, setState] = useState(() => upgradeV10PlayStateToV11(initialState));
   const [v11BattleSession, setV11BattleSession] = useState<WildsV11BattleSession | null>(null);
   const [v11EncounterPending, setV11EncounterPending] = useState(false);
@@ -386,13 +388,13 @@ export function PlayCampaign({
   }, [initialState, sourceAdmission]);
   useEffect(() => {
     const controller = new AbortController();
-    void admitWildsV11Collection({ evidence: state.proceduralCardEvidenceV11 ?? [], ownerId: ownerReceizId,
+    void admitWildsV11Collection({ evidence: state.proceduralCardEvidenceV11 ?? [], ownerId: v11ActorId,
       pinnedKeys: WILDS_V11_ENCOUNTER_PUBLIC_KEYS, signal: controller.signal,
       yieldToFrame: () => new Promise<void>((resolve) => { window.setTimeout(resolve, 0); }) })
       .then((result) => { if (!controller.signal.aborted) setAdmittedV11Cards(result.cards); })
       .catch(() => { if (!controller.signal.aborted) setAdmittedV11Cards([]); });
     return () => controller.abort();
-  }, [state.proceduralCardEvidenceV11, ownerReceizId]);
+  }, [state.proceduralCardEvidenceV11, v11ActorId]);
   const [memorialAssetId, setMemorialAssetId] = useState<string | null>(null);
   const gameplaySurfaceRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -1966,7 +1968,7 @@ export function PlayCampaign({
       type: "search-point",
       ...searchPoint,
       searchedAt: new Date().toISOString(),
-      ownerReceizId,
+      ownerReceizId: state.worldCoordinateMode === "region-local" ? v11ActorId : ownerReceizId,
       verticalLayer: layer,
       verticalWorldY: worldY,
       verticalMinWorldY: minWorldY,
@@ -1984,14 +1986,14 @@ export function PlayCampaign({
     let outbox;
     try {
       outbox = enqueueWildsV11Site(
-        restoreWildsV11EncounterOutbox(state.pendingEncounterSitesV11, ownerReceizId),
-        { actorId: ownerReceizId, site: observation.site, slot: observation.slot }
+        restoreWildsV11EncounterOutbox(state.pendingEncounterSitesV11, v11ActorId),
+        { actorId: v11ActorId, site: observation.site, slot: observation.slot }
       );
     } catch { return; }
     const requestedAddress = state.worldAddress;
     v11EncounterInFlight.current = true;
     setV11EncounterPending(true);
-    void resolveWildsV11EncounterSession({ outbox, actorId: ownerReceizId,
+    void resolveWildsV11EncounterSession({ outbox, actorId: v11ActorId,
       playerAddress: requestedAddress, target: { site: observation.site, slot: observation.slot },
       leader, pinnedKeys: WILDS_V11_ENCOUNTER_PUBLIC_KEYS })
       .then((result) => {

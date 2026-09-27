@@ -1,4 +1,5 @@
 import { admitVerifiedWildsV11LocalCard, type WildsV11LocalCard } from "./wilds-portable-card-v11";
+import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 
 export type WildsV11CollectionAdmission = Readonly<{
   cards: readonly WildsV11LocalCard[];
@@ -18,7 +19,7 @@ export async function admitWildsV11Collection(input: {
   for (let index = 0; index < input.evidence.length; index += 1) {
     if (input.signal?.aborted) throw new Error("wilds_v11_collection_aborted");
     const value = input.evidence[index]!;
-    if (value.ownerId !== input.ownerId) { rejected.push(index); continue; }
+    if (value.ownerId !== input.ownerId && !sameWildzPlayerCoordinate(value.ownerId, input.ownerId)) { rejected.push(index); continue; }
     try {
       const card = await admitVerifiedWildsV11LocalCard(value, input.pinnedKeys);
       const previous = selected.get(card.id);

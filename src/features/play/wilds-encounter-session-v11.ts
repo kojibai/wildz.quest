@@ -3,6 +3,7 @@ import { startWildsV11BattleSession, type WildsV11BattleSession } from "./wilds-
 import { flushOneWildsV11Site, type WildsV11EncounterOutbox } from "./wilds-encounter-outbox-v11";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsWorldAddress } from "./wilds-world-address";
+import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 
 export type WildsV11EncounterSessionResult =
   | Readonly<{ kind: "ready"; outbox: WildsV11EncounterOutbox; session: WildsV11BattleSession }>
@@ -18,7 +19,8 @@ export async function resolveWildsV11EncounterSession(input: {
   fetcher?: typeof fetch;
   pinnedKeys: Readonly<Record<string, string>>;
 }): Promise<WildsV11EncounterSessionResult> {
-  if (!isAdmittedWildsCard(input.leader) || input.leader.manifest.ownerReceizId !== input.actorId) {
+  if (!isAdmittedWildsCard(input.leader) || (input.leader.manifest.ownerReceizId !== input.actorId
+    && !sameWildzPlayerCoordinate(input.leader.manifest.ownerReceizId, input.actorId))) {
     throw new Error("wilds_v11_encounter_leader_unadmitted");
   }
   const result = await flushOneWildsV11Site(input);

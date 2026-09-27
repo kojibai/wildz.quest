@@ -4,6 +4,7 @@ import { resolveCardForm, projectVerifiedBirthFormV11 } from "./wilds-card-form-
 import { verifyWildsV11Birth, type WildsV11CreatureCard } from "./wilds-card-proof-v11";
 import { sealLocalWildsV11Card, type WildsV11LocalCard } from "./wilds-portable-card-v11";
 import type { PortableCardAsset } from "./portable-card";
+import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 
 export type WildsV11BattleSession = Readonly<{
   birth: WildsV11CreatureCard;
@@ -28,7 +29,8 @@ export async function startWildsV11BattleSession(input: {
   ownerId: string;
   pinnedKeys: Readonly<Record<string, string>>;
 }): Promise<WildsV11BattleSession> {
-  if (!isAdmittedWildsCard(input.player) || input.player.manifest.ownerReceizId !== input.ownerId
+  if (!isAdmittedWildsCard(input.player) || (input.player.manifest.ownerReceizId !== input.ownerId
+    && !sameWildzPlayerCoordinate(input.player.manifest.ownerReceizId, input.ownerId))
     || input.birth.encounter.input.actorId !== input.ownerId
     || !await verifyWildsV11Birth(input.birth, input.pinnedKeys)) {
     throw new Error("wilds_v11_battle_proof_required");
