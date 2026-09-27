@@ -50,4 +50,30 @@ describe("durable v11 encounter admission", () => {
     assert.equal(branches.filter(branch => branch.status === "fulfilled").length, 1);
     assert.equal(branches.filter(branch => branch.status === "rejected").length, 1);
   });
+
+  it("bounds new site issuances per actor while allowing identical retries", async () => {
+    const store = createReceizInMemoryAdmissionStore();
+    const signed = signer();
+    const start = 100_000;
+    await admitWildsV11Travel(store, actorId, origin, start);
+    const sites = ["0", "1", "2"].flatMap(regionX => generateWildsRegionV11(regionX, "0").encounterSites
+      .map((candidate, index) => ({ site: { ...origin, regionX, localX: candidate.localX, localZ: candidate.localZ }, slot: index })));
+    const results = [];
+    for (let index = 0; index < 12; index += 1) {
+      const candidate = sites[index]!;
+      const at = start + (index + 1) * 4_000;
+      await admitWildsV11Travel(store, actorId, candidate.site, at);
+      results.push(await issueWildsV11Encounter({ store, actorId, ...candidate, ...signed, issuedAtMs: at }));
+    }
+    const thirteenth = sites[12]!;
+    await admitWildsV11Travel(store, actorId, thirteenth.site, start + 13 * 4_000);
+    await assert.rejects(issueWildsV11Encounter({ store, actorId, ...thirteenth, ...signed,
+      issuedAtMs: start + 13 * 4_000 }), /rate_limited/);
+    await admitWildsV11Travel(store, actorId, sites[0]!.site, start + 56_000);
+    assert.deepEqual(await issueWildsV11Encounter({ store, actorId, ...sites[0]!, ...signed,
+      issuedAtMs: start + 56_000 }), results[0]);
+    await admitWildsV11Travel(store, actorId, thirteenth.site, start + 70_000);
+    assert.ok(await issueWildsV11Encounter({ store, actorId, ...thirteenth, ...signed,
+      issuedAtMs: start + 70_000 }));
+  });
 });

@@ -8,17 +8,26 @@ import { signWildsV11Encounter } from "./wilds-v11-encounter-signer";
 
 const TRAVEL_SCHEMA = "wildz.travel-head.v11" as const;
 const ENCOUNTER_SCHEMA = "wildz.encounter-head.v11" as const;
+const ISSUE_RATE_SCHEMA = "wildz.encounter-issue-rate.v11" as const;
 const REGION_MICRO = 24_000_000n;
 const MAX_SPEED_MICRO_PER_MS = 12_000n;
 const SITE_REACH_MICRO = 3_000_000n;
+const ISSUE_WINDOW_MS = 60_000;
+const MAX_NEW_ISSUES_PER_WINDOW = 12;
 const START: WildsWorldAddress = { worldVersion: 11, regionX: "0", regionZ: "0", localX: 0, localZ: 0 };
 
 type TravelHead = Readonly<{ schema: typeof TRAVEL_SCHEMA; actorId: string; address: WildsWorldAddress; observedAtMs: number }>;
 type EncounterHead = Readonly<{ schema: typeof ENCOUNTER_SCHEMA; actorId: string; result: WildsV11EncounterResult }>;
+type IssueRateHead = Readonly<{ schema: typeof ISSUE_RATE_SCHEMA; actorId: string;
+  recent: readonly Readonly<{ siteKey: string; issuedAtMs: number }>[] }>;
 
 function actorKey(actorId: string) {
   if (!/^[a-z0-9:._-]{3,180}$/i.test(actorId)) throw new Error("wilds_v11_actor_invalid");
   return `wildz11:travel:${sha256PortableBasis(actorId)}`;
+}
+
+function issueRateKey(actorId: string) {
+  return `wildz11:issue-rate:${sha256PortableBasis(actorId)}`;
 }
 
 function exactDeltaMicro(left: WildsWorldAddress, right: WildsWorldAddress) {
@@ -62,6 +71,34 @@ function admissionUnit(aggregateId: string, revision: number, previousDigest: st
   } as ReceizAdmissionUnitOfWork;
 }
 
+/** A bounded actor-level reservation serializes distinct-site issuance across server instances. */
+async function reserveWildsV11Issue(store: ReceizAdmissionStore, actorId: string, siteKey: string, issuedAtMs: number) {
+  if (!Number.isSafeInteger(issuedAtMs) || issuedAtMs < 0) throw new Error("wilds_v11_issue_time_invalid");
+  const key = issueRateKey(actorId);
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const prior = await store.readAggregate(key);
+    const head = prior?.state as Partial<IssueRateHead> | undefined;
+    if (prior && (head?.schema !== ISSUE_RATE_SCHEMA || head.actorId !== actorId || !Array.isArray(head.recent)
+      || head.recent.length > MAX_NEW_ISSUES_PER_WINDOW || head.recent.some(entry => !entry || typeof entry.siteKey !== "string"
+        || !Number.isSafeInteger(entry.issuedAtMs) || entry.issuedAtMs < 0))) {
+      throw new Error("wilds_v11_issue_rate_head_invalid");
+    }
+    const recent = (head?.recent ?? []).filter(entry => {
+      if (entry.issuedAtMs > issuedAtMs) throw new Error("wilds_v11_issue_time_regressed");
+      return issuedAtMs - entry.issuedAtMs < ISSUE_WINDOW_MS;
+    });
+    if (recent.some(entry => entry.siteKey === siteKey)) return;
+    if (recent.length >= MAX_NEW_ISSUES_PER_WINDOW) throw new Error("wilds_v11_issue_rate_limited");
+    const nextState: IssueRateHead = { schema: ISSUE_RATE_SCHEMA, actorId,
+      recent: [...recent, { siteKey, issuedAtMs }] };
+    const outcome = await store.commit(admissionUnit(key, prior?.revision ?? 0, prior?.headDigest ?? null,
+      { type: "wildz.encounter-issue-reserve.v11", actorId, siteKey, issuedAtMs }, nextState));
+    if (outcome.status === "committed" || outcome.status === "idempotent") return;
+    if (outcome.status !== "conflict") throw new Error(`wilds_v11_issue_rate_${outcome.status}`);
+  }
+  throw new Error("wilds_v11_issue_rate_conflict");
+}
+
 /** Server-only movement admission. This never reads the ephemeral presence feed. */
 export async function admitWildsV11Travel(store: ReceizAdmissionStore, actorId: string, addressValue: WildsWorldAddress, observedAtMs = Date.now()) {
   const address = parseWildsWorldAddress(addressValue);
@@ -100,6 +137,7 @@ export async function issueWildsV11Encounter(input: {
   keyId: string;
   privateKeyPem: string;
   pinnedKeys: Readonly<Record<string, string>>;
+  issuedAtMs?: number;
 }) {
   const site = parseWildsWorldAddress(input.site);
   const target = siteSlotAddress(site, input.slot);
@@ -115,6 +153,8 @@ export async function issueWildsV11Encounter(input: {
       || !await verifyEncounterResultV11(head.result, input.pinnedKeys)) throw new Error("wilds_v11_encounter_head_invalid");
     return head.result;
   }
+  await reserveWildsV11Issue(input.store, input.actorId,
+    sha256PortableBasis(canonicalPortableCardJson([site, input.slot])), input.issuedAtMs ?? Date.now());
   const result = signWildsV11Encounter({ schema: "wildz.encounter-input.v11", keyId: input.keyId,
     law: WILDS_RARITY_LAW_V11, actorId: input.actorId, site, slot: input.slot }, input.privateKeyPem);
   if (!await verifyEncounterResultV11(result, input.pinnedKeys)) throw new Error("wilds_v11_signing_key_unpinned");
