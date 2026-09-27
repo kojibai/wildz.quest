@@ -108,7 +108,10 @@ import { createWildsGroveResourceLot } from "@/features/play/wilds-resource-lot"
 import type { WildsGroveExperienceAction } from "@/features/play/WildsRegenerativeGroveExperience";
 import { landmarkAtPosition, WILDS_FLAGSHIP_LANDMARKS, type WildsLandmarkId } from "@/features/play/wilds-landmarks";
 import { evaluateLandmarkAccess, type WildsLandmarkProgress } from "@/features/play/wilds-landmark-access";
-import { authorizeRiftTravel, type RiftTravelGrant } from "@/features/play/wilds-rift-travel";
+import { authorizeRiftTravel, authorizeRiftTravelV11, type RiftTravelGrant } from "@/features/play/wilds-rift-travel";
+import { sampleWildsTerrainV11 } from "@/features/play/wilds-terrain-authority";
+import { type WildsWorldAddress } from "@/features/play/wilds-world-address";
+import { admitWildsV11Origin, WILDS_V11_ORIGIN } from "@/features/play/wilds-encounter-client-v11";
 import { projectWildzHud } from "@/features/play/wildz-gameplay-hud";
 import { shouldRunWildzOffHotPathWork } from "@/features/play/wilds-network-status";
 import { nextCreatureContinuityDueAt } from "@/features/play/creature-continuity";
@@ -572,6 +575,15 @@ export function PlayCampaign({
   useEffect(() => () => {
     if (worldFeedbackTimerRef.current !== null) window.clearTimeout(worldFeedbackTimerRef.current);
   }, []);
+  useEffect(() => {
+    const address = state.worldAddress;
+    if (!networkEnabled || state.worldCoordinateMode !== "region-local" || !address
+      || address.regionX !== WILDS_V11_ORIGIN.regionX || address.regionZ !== WILDS_V11_ORIGIN.regionZ
+      || address.localX !== WILDS_V11_ORIGIN.localX || address.localZ !== WILDS_V11_ORIGIN.localZ) return;
+    void admitWildsV11Origin(ownerReceizId).catch(() => {
+      showWorldFeedback("Your trail is saved here. Creature encounters will connect when admission is available.");
+    });
+  }, [networkEnabled, ownerReceizId, showWorldFeedback, state.worldCoordinateMode, state.worldAddress]);
   const [constructionFocus, setConstructionFocus] = useState<"tools" | "storage" | null>(null);
   const [stewardPlacementMode, setStewardPlacementMode] = useState<WildsStewardBlueprintId | null>(null);
   const [stewardPlacementPreview, setStewardPlacementPreview] = useState<WildsStewardPlacement | null>(null);
@@ -2464,6 +2476,22 @@ export function PlayCampaign({
       showWorldFeedback(error instanceof Error ? error.message : "wilds_rift_failed");
     }
   };
+  const enterOuterWilds = () => {
+    if (state.worldCoordinateMode === "region-local" || !state.worldAddress || modalOwner !== "map") return;
+    const origin: WildsWorldAddress = WILDS_V11_ORIGIN;
+    const result = authorizeRiftTravelV11({
+      source: state.worldAddress,
+      destination: origin,
+      idempotencyKey: `rift:${crypto.randomUUID()}`
+    }, { playerId: multiplayer.selfId, coordinationPulse: String(kaiMoment.uPulse), locked: false });
+    if (!result.ok) { showWorldFeedback(result.error); return; }
+    dispatch({ type: "apply-rift-grant-v11", grant: result.grant, playerId: result.grant.playerId });
+    resetTransientTraversal({ x: 0, z: 0 }, sampleWildsTerrainV11(origin).elevation);
+    multiplayer.selectPlayer(null);
+    setActiveLandmarkId(null);
+    releasePlayModalOwner("map");
+    setMapOpen(false);
+  };
   const handleCrewModeChange = async (assetId: string, mode: "follow" | "roam") => {
     const card = state.inventory.find(asset => asset.id === assetId && canOperateWildzCrewCard(asset, ownerReceizId, crewCustody));
     if (!card) return;
@@ -3154,6 +3182,7 @@ export function PlayCampaign({
           setMapOpen(false);
         }}
         onRift={riftTo}
+        onExploreBeyond={state.worldCoordinateMode === "legacy" ? enterOuterWilds : undefined}
         open={exclusiveOwner === "map" && mapOpen}
         qualityProfile={qualityProfile}
         reducedMotion={reducedMotion}

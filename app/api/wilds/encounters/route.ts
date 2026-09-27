@@ -24,11 +24,10 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as Record<string, unknown>;
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("wilds_v11_request_invalid");
-    const actor = await resolveWildsMultiplayerActor(request, undefined, { resolveConnectProfile: false });
+    const actor = await resolveWildsMultiplayerActor(request);
     if (actor.practice) throw new Error("wilds_v11_verified_identity_required");
-    const serviceToken = process.env.RECEIZ_CONNECT_ACCESS_TOKEN;
-    if (!serviceToken) throw new Error("wilds_v11_authority_unavailable");
-    const store = createReceizRemoteAdmissionStore({ namespace: "wildz-v11-encounters", accessToken: serviceToken,
+    if (!actor.accessToken) throw new Error("wilds_v11_authority_unavailable");
+    const store = createReceizRemoteAdmissionStore({ namespace: "wildz-v11-encounters", accessToken: actor.accessToken,
       baseUrl: process.env.RECEIZ_BASE_URL ?? "https://receiz.com" });
     if (body.action === "travel") {
       const address = parseWildsWorldAddress(body.address);

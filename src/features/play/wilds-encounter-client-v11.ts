@@ -4,6 +4,8 @@ import { WILDS_V11_ENCOUNTER_PUBLIC_KEYS } from "./wilds-v11-release-keys";
 import { parseWildsWorldAddress, type WildsWorldAddress } from "./wilds-world-address";
 
 type EncounterFetch = typeof fetch;
+export const WILDS_V11_ORIGIN: WildsWorldAddress = Object.freeze({ worldVersion: 11,
+  regionX: "0", regionZ: "0", localX: 0, localZ: 0 });
 
 function sameAddress(left: WildsWorldAddress, right: WildsWorldAddress) {
   return left.regionX === right.regionX && left.regionZ === right.regionZ
@@ -25,6 +27,19 @@ async function postEncounterAction(fetcher: EncounterFetch, body: object) {
     throw new Error(code);
   }
   return payload;
+}
+
+/** Seed the authenticated player's origin before ordinary movement can reach a site. */
+export async function admitWildsV11Origin(actorId: string, fetcher: EncounterFetch = fetch): Promise<void> {
+  if (!/^[a-z0-9:._-]{3,180}$/i.test(actorId)) throw new Error("wilds_v11_actor_invalid");
+  const travel = await postEncounterAction(fetcher, { action: "travel", address: WILDS_V11_ORIGIN });
+  const head = travel.head as { actorId?: unknown; address?: unknown } | undefined;
+  let admittedAddress: WildsWorldAddress;
+  try { admittedAddress = parseWildsWorldAddress(head?.address); }
+  catch { throw new Error("wilds_v11_travel_reply_invalid"); }
+  if (head?.actorId !== actorId || !sameAddress(admittedAddress, WILDS_V11_ORIGIN)) {
+    throw new Error("wilds_v11_travel_reply_invalid");
+  }
 }
 
 /** Network is visited only on a discovered site action; proof checking stays in this browser. */

@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { authorizeRiftTravelV11, isLocallyAdmittedRiftDestinationV11, validateRiftGrantV11 } from "../src/features/play/wilds-rift-travel";
 import { roomKeyForAddressV11, validatePresenceMoveV11 } from "../src/features/play/multiplayer-core";
 import { parseWildsRoomKey } from "../src/lib/receiz/wilds-multiplayer-server";
-import { applyWildsInput, initialPlayState, restorePlayState, serializePlayState, upgradeV10PlayStateToV11 } from "../src/features/play/game-state";
+import { applyWildsInput, createOwnerBoundInitialPlayState, initialPlayState, restorePlayState, serializePlayState, upgradeV10PlayStateToV11 } from "../src/features/play/game-state";
 import { sampleWildsTerrainV11 } from "../src/features/play/wilds-terrain-authority";
 
 const origin = { worldVersion: 11, regionX: "0", regionZ: "0", localX: 0, localZ: 0 } as const;
@@ -32,6 +32,25 @@ describe("v11 exact-address travel", () => {
     assert.deepEqual(landed.worldAddress, far);
     assert.deepEqual(landed.player, { x: 7, z: 19 });
     assert.ok(landed.explorationAtlasV11?.regions.includes(`${far.regionX}:${far.regionZ}`));
+  });
+
+  it("lets an upgraded player enter at origin without rewriting the existing companion", () => {
+    const prior = upgradeV10PlayStateToV11(createOwnerBoundInitialPlayState(authority.playerId));
+    const cardBytes = JSON.stringify(prior.inventory[0]);
+    const result = authorizeRiftTravelV11({ idempotencyKey: "travel-world-entry",
+      source: prior.worldAddress!, destination: origin }, authority);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const entered = applyWildsInput(prior, { type: "apply-rift-grant-v11",
+      grant: result.grant, playerId: authority.playerId });
+    assert.equal(entered.worldCoordinateMode, "region-local");
+    assert.deepEqual(entered.worldAddress, origin);
+    assert.deepEqual(entered.player, { x: 0, z: 0 });
+    assert.equal(JSON.stringify(entered.inventory[0]), cardBytes);
+    const restored = restorePlayState(serializePlayState(entered), authority.playerId);
+    assert.equal(restored.worldCoordinateMode, "region-local");
+    assert.deepEqual(restored.worldAddress, origin);
+    assert.equal(restored.inventory[0]?.proof.digest, prior.inventory[0]?.proof.digest);
   });
 
   it("crosses an enormous region boundary by walking and restores the exact neighbor", () => {
