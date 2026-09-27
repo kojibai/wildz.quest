@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import { publicRarityTableV11 } from "../src/features/play/wilds-v11-conformance";
 import { verifyEncounterResultV11, type WildsV11EncounterResult } from "../src/features/play/wilds-encounter-proof-v11";
+import { verifyWildsV11Birth, type WildsV11CreatureCard } from "../src/features/play/wilds-card-proof-v11";
 import { WILDS_V11_ENCOUNTER_PUBLIC_KEYS } from "../src/features/play/wilds-v11-release-keys";
 import { WILDS_V11_CONFORMANCE_PUBLIC_KEYS } from "../src/features/play/wilds-v11-conformance-keys";
 
@@ -34,5 +35,13 @@ describe("published v11 rarity law", () => {
       if (["rare", "mythic", "eternal"].includes(name)) assert.equal(result.className, name);
       assert.equal(await verifyEncounterResultV11({ ...result, draw: (result.draw + 1) % 10_000_000 }, WILDS_V11_CONFORMANCE_PUBLIC_KEYS), false);
     }
+  });
+
+  it("replays the published complete creature proof and rejects changed traits", async () => {
+    const card = JSON.parse(readFileSync("public/conformance/examples/creature-proof.json", "utf8")) as WildsV11CreatureCard;
+    assert.equal(await verifyWildsV11Birth(card, WILDS_V11_CONFORMANCE_PUBLIC_KEYS), true);
+    assert.equal(await verifyWildsV11Birth(card, WILDS_V11_ENCOUNTER_PUBLIC_KEYS), false);
+    assert.equal(await verifyWildsV11Birth({ ...card, birth: { ...card.birth,
+      temperament: card.birth.temperament === "bold" ? "calm" : "bold" } }, WILDS_V11_CONFORMANCE_PUBLIC_KEYS), false);
   });
 });
