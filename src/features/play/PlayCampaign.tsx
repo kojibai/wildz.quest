@@ -57,7 +57,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
 import { sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
-import { capturePhaseDelayMs } from "@/features/play/wilds-capture-sequence";
+import { advanceCaptureVisualTime, capturePhaseDelayMs } from "@/features/play/wilds-capture-sequence";
 import { WildsBattle } from "@/features/play/WildsBattle";
 import { WildsTransformation } from "@/features/play/WildsTransformation";
 import { WildsChildCeremony } from "@/features/play/WildsChildCeremony";
@@ -1362,19 +1362,31 @@ export function PlayCampaign({
     }
     const delay = capturePhaseDelayMs(state.encounter.phase, reducedMotion);
     if (delay === null) return;
-    let timer: number | null = null;
+    let frame: number | null = null;
+    let elapsedMs = 0;
+    let previousFrameAt = 0;
     const advance = () => {
       const uPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
       setState((current) => applyWildsInput(current, rootWildsInputInKai({ type: "advance-encounter", at: kaiUPulseToISOString(uPulse) }, uPulse)));
     };
     const scheduleVisibleCapture = () => {
-      if (timer !== null) window.clearTimeout(timer);
-      timer = document.visibilityState === "visible" ? window.setTimeout(advance, delay) : null;
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      frame = null;
+      elapsedMs = 0;
+      previousFrameAt = 0;
+      if (document.visibilityState !== "visible") return;
+      const tick = (now: number) => {
+        if (previousFrameAt !== 0) elapsedMs = advanceCaptureVisualTime(elapsedMs, now - previousFrameAt);
+        previousFrameAt = now;
+        if (elapsedMs >= delay) advance();
+        else frame = window.requestAnimationFrame(tick);
+      };
+      frame = window.requestAnimationFrame(tick);
     };
     document.addEventListener("visibilitychange", scheduleVisibleCapture);
     scheduleVisibleCapture();
     return () => {
-      if (timer !== null) window.clearTimeout(timer);
+      if (frame !== null) window.cancelAnimationFrame(frame);
       document.removeEventListener("visibilitychange", scheduleVisibleCapture);
     };
   }, [state.encounter.phase, reducedMotion]);

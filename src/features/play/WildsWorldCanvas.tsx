@@ -115,7 +115,7 @@ import type { WildsWorldCapabilityFamily } from "@/features/play/wilds-world-cap
 import { projectWildsCapabilityPresentation } from "@/features/play/wilds-capability-presentation";
 import { projectWildsDiscoveryHint } from "@/features/play/wilds-discovery-hint";
 import { creatureContinuityProjection } from "@/features/play/creature-continuity";
-import { projectCaptureMoment, WILDS_CAPSULE_CAPTURE_MS } from "@/features/play/wilds-capture-sequence";
+import { advanceCaptureVisualTime, projectCaptureMoment, WILDS_CAPSULE_CAPTURE_MS } from "@/features/play/wilds-capture-sequence";
 import { readWildsCrewCondition } from "./wilds-crew-policy";
 import { canWildsCrewTravel, createWildsCrewPhysicalSampler } from "./wilds-crew-physical-navigation";
 import { createWildsCrewPathStepState, planWildsCrewPathNearTarget, wildsCrewRouteNeedsReplan, writeWildsCrewAlongsideTarget, writeWildsCrewTransportPosition, writeWildsCrewFollowingStep, type WildsCrewNavigationPoint, type WildsCrewNavigationAuthority } from "./wilds-crew-navigation";
@@ -1768,22 +1768,22 @@ function HabitatCover({ cover, open }: { cover: HotspotCover; open: boolean }) {
 
 function CaptureCreature({ children, phase, reducedMotion }: { children: ReactNode; phase: string; reducedMotion: boolean }) {
   const ref = useRef<THREE.Group>(null);
-  const startedAt = useRef(0);
+  const elapsedMs = useRef(0);
   const previousPhase = useRef(phase);
   useEffect(() => {
-    const resetOnReturn = () => { if (document.visibilityState === "visible") startedAt.current = performance.now(); };
+    const resetOnReturn = () => { if (document.visibilityState === "visible") elapsedMs.current = 0; };
     document.addEventListener("visibilitychange", resetOnReturn);
     return () => document.removeEventListener("visibilitychange", resetOnReturn);
   }, []);
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!ref.current) return;
-    const now = performance.now();
-    if (previousPhase.current !== phase || startedAt.current === 0) {
+    if (previousPhase.current !== phase) {
       previousPhase.current = phase;
-      startedAt.current = now;
+      elapsedMs.current = 0;
     }
+    elapsedMs.current = advanceCaptureVisualTime(elapsedMs.current, delta * 1_000);
     const visualPhase = phase === "capsule" || phase === "sealed" || phase === "revealed" ? phase : "emerging";
-    const moment = projectCaptureMoment(visualPhase, reducedMotion ? WILDS_CAPSULE_CAPTURE_MS : now - startedAt.current);
+    const moment = projectCaptureMoment(visualPhase, reducedMotion ? WILDS_CAPSULE_CAPTURE_MS : elapsedMs.current);
     ref.current.scale.setScalar(moment.creatureScale);
     ref.current.position.y = moment.creatureLift;
   });
@@ -1792,23 +1792,23 @@ function CaptureCreature({ children, phase, reducedMotion }: { children: ReactNo
 
 function CaptureCapsule({ phase, reducedMotion }: { phase: "capsule" | "sealed" | "revealed"; reducedMotion: boolean }) {
   const ref = useRef<THREE.Group>(null);
-  const startedAt = useRef(0);
+  const elapsedMs = useRef(0);
   const previousPhase = useRef(phase);
   const sealed = phase !== "capsule";
   useEffect(() => {
-    const resetOnReturn = () => { if (document.visibilityState === "visible") startedAt.current = performance.now(); };
+    const resetOnReturn = () => { if (document.visibilityState === "visible") elapsedMs.current = 0; };
     document.addEventListener("visibilitychange", resetOnReturn);
     return () => document.removeEventListener("visibilitychange", resetOnReturn);
   }, []);
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!ref.current) return;
-    const now = performance.now();
-    if (previousPhase.current !== phase || startedAt.current === 0) {
+    if (previousPhase.current !== phase) {
       previousPhase.current = phase;
-      startedAt.current = now;
+      elapsedMs.current = 0;
     }
-    const moment = projectCaptureMoment(phase, reducedMotion ? WILDS_CAPSULE_CAPTURE_MS : now - startedAt.current);
-    const elapsed = now / 1_000;
+    elapsedMs.current = advanceCaptureVisualTime(elapsedMs.current, delta * 1_000);
+    const moment = projectCaptureMoment(phase, reducedMotion ? WILDS_CAPSULE_CAPTURE_MS : elapsedMs.current);
+    const elapsed = elapsedMs.current / 1_000;
     ref.current.rotation.y = reducedMotion ? 0 : elapsed * (sealed ? 0.7 : 2.4);
     ref.current.position.y = 0.7 + moment.ballLift + (reducedMotion ? 0 : Math.sin(elapsed * 3) * (sealed ? 0.04 : 0.1));
     ref.current.position.z = moment.ballTravel;

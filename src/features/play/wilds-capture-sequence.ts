@@ -4,6 +4,12 @@ export const WILDS_CAPTURE_EMERGE_MS = 1_050;
 
 export type WildsCaptureVisualPhase = "emerging" | "capsule" | "sealed" | "revealed";
 
+/** A stalled frame must not jump the ball straight to its final pose. */
+export const WILDS_CAPTURE_MAX_FRAME_MS = 50;
+export function advanceCaptureVisualTime(elapsedMs: number, frameDeltaMs: number): number {
+  return elapsedMs + Math.max(0, Math.min(WILDS_CAPTURE_MAX_FRAME_MS, Number.isFinite(frameDeltaMs) ? frameDeltaMs : 0));
+}
+
 /** The reward opens only after the in-world ball has drawn in and sealed the creature. */
 export function capturePhaseDelayMs(phase: string, reducedMotion: boolean): number | null {
   if (phase === "emerging") return reducedMotion ? 0 : WILDS_CAPTURE_EMERGE_MS;

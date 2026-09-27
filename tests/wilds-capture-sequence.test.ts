@@ -1,12 +1,18 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  advanceCaptureVisualTime,
   capturePhaseDelayMs,
   projectCaptureMoment,
   WILDS_CAPSULE_CAPTURE_MS
 } from "../src/features/play/wilds-capture-sequence.js";
 
 describe("complete capture moment before reward", () => {
+  it("bounds a stalled frame so motion resumes without skipping the draw-in", () => {
+    assert.equal(advanceCaptureVisualTime(300, 700), 350);
+    assert.equal(advanceCaptureVisualTime(350, 16), 366);
+    assert.equal(advanceCaptureVisualTime(366, -20), 366);
+  });
   it("holds the world capture through creature draw-in, ball lock, and a visible seal", () => {
     assert.ok(capturePhaseDelayMs("emerging", false)! > 0);
     assert.equal(capturePhaseDelayMs("capsule", false), WILDS_CAPSULE_CAPTURE_MS);

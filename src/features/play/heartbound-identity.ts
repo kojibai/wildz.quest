@@ -26,7 +26,10 @@ function pick<T>(values: readonly T[], source: number) {
 }
 
 function scale(source: number, min: number, max: number, precision = 3) {
-  return Number((min + (source / 255) * (max - min)).toFixed(precision));
+  const rounded = Number((min + (source / 255) * (max - min)).toFixed(precision));
+  // JSON has one zero. Negative zero would make a generated card differ from
+  // the same card after its portable JSON round trip.
+  return Object.is(rounded, -0) ? 0 : rounded;
 }
 
 function structuralSignature(label: string, values: unknown) {

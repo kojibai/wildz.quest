@@ -6,7 +6,7 @@ export const metadata = publicPageMetadata("How to Play Wildz — Creature Colle
 
 export default function GuidePage() {
   return <main className={styles.page}>
-    <nav aria-label="Site navigation"><Link prefetch={false} href="/">Wildz</Link><Link prefetch={false} href="/about">About the game</Link><Link prefetch={false} href="/laws">World law</Link></nav>
+    <nav aria-label="Site navigation"><Link prefetch={false} href="/">Wildz</Link><Link prefetch={false} href="/about">About the game</Link><Link prefetch={false} href="/world">World</Link><Link prefetch={false} href="/creatures">Creatures</Link><Link prefetch={false} href="/conformance">Conformance</Link><Link prefetch={false} href="/laws">World law</Link></nav>
     <header><p className={styles.eyebrow}>THE EXPLORER’S FIELD GUIDE</p><h1>A world to explore.<br />A companion to remember.</h1><p>Wildz is a free creature-collecting adventure you play in your browser. Explore the world, meet living companions, and make a place of your own.</p><Link prefetch={false} className={styles.play} href="/">Play Wildz →</Link></header>
     <section aria-labelledby="first-steps"><h2 id="first-steps">Your first adventure</h2><ol>
       <li><h3>Explore and follow a signal</h3><p>Use the movement controls to travel. Watch the world map, mission panel, and nearby discoveries for places to investigate. On mobile, hold and drag the movement pad; on desktop, use the movement controls shown in the game.</p></li>
@@ -22,6 +22,6 @@ export default function GuidePage() {
       <details><summary>Is this a virtual pet game or a building game?</summary><p>Wildz combines creature collecting and companionship with exploration, resource gathering, and building. You can focus on your companions, a home, or your next discovery.</p></details>
       <details><summary>Does the whole game work offline?</summary><p>The live world and online actions need a connection. Cached public cards and profiles may remain readable offline. Save your Identity Seal before switching devices.</p></details>
     </section>
-    <footer><Link prefetch={false} href="/">Enter the world</Link><Link prefetch={false} href="/about">About Wildz</Link><Link prefetch={false} href="/laws">Read the world law</Link></footer>
+    <footer><Link prefetch={false} href="/">Enter the world</Link><Link prefetch={false} href="/about">About Wildz</Link><Link prefetch={false} href="/world">World</Link><Link prefetch={false} href="/creatures">Creatures</Link><Link prefetch={false} href="/conformance">Conformance</Link><Link prefetch={false} href="/laws">Read the world law</Link></footer>
   </main>;
 }
