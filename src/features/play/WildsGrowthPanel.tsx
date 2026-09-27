@@ -9,7 +9,7 @@ const PATH_LABELS: Record<GrowthPath, string> = {
   bond: "Bond",
   battle: "Battle",
   exploration: "Explore",
-  legacy: "Legacy",
+  legacy: "History",
   community: "Community",
   character: "Character"
 };
@@ -36,7 +36,7 @@ export function WildsGrowthPanel({
   onAscend: () => void;
 }) {
   if (!isLivingCardAsset(asset) || !progress) {
-    return <p className="wilds-growth-legacy">This verified legacy card becomes living when its next earned action is sealed.</p>;
+    return <p className="wilds-growth-legacy">Your companion’s growth story begins with its next earned action.</p>;
   }
 
   const projection = currentLivingProjection(asset);
@@ -47,7 +47,7 @@ export function WildsGrowthPanel({
   return (
     <section className="wilds-growth-panel" aria-label="Living card growth">
       <header>
-        <div><span>Living card · Revision {projection.revision}</span><strong>Stage {projection.stage}{projection.ascensionRank ? ` · Ascension ${projection.ascensionRank}` : ""}</strong></div>
+        <div><span>Living journey</span><strong>Stage {projection.stage}{projection.ascensionRank ? ` · Ascension ${projection.ascensionRank}` : ""}</strong></div>
         <b>{progress.bond} bond</b>
       </header>
       <div className="wilds-growth-paths">
@@ -69,12 +69,12 @@ export function WildsGrowthPanel({
         </button>
       ) : null}
       <details>
-        <summary>Revision history <span>{asset.manifest.revisions.length} sealed moments</span></summary>
+        <summary>Creature history <span>{asset.manifest.revisions.length} remembered moments</span></summary>
         <ol>{[...asset.manifest.revisions].reverse().map((entry) => (
-          <li key={entry.digest}><b>R{entry.revision}</b><span>{entry.reason.label}</span><time dateTime={entry.sealedAt}>{new Date(entry.sealedAt).toLocaleDateString()}</time></li>
+          <li key={entry.digest}><b>#{entry.revision}</b><span>{entry.reason.label}</span><time dateTime={entry.sealedAt}>{new Date(entry.sealedAt).toLocaleDateString()}</time></li>
         ))}</ol>
       </details>
-      <small className="wilds-growth-proof">Append-only proof · {revision.digest.slice(0, 14)}…</small>
+      <small className="wilds-growth-proof">Verified history · {revision.digest.slice(0, 14)}…</small>
     </section>
   );
 }
