@@ -242,7 +242,7 @@ export function WildsInventory({
         }
       } catch {
         if (active) {
-          setPublicLinkStatus("Could not confirm the latest public card revision. Retrying automatically…");
+          setPublicLinkStatus("Could not confirm the latest public card. Retrying automatically…");
           retry = setTimeout(() => void prepare(), 30_000);
         }
       } finally {

@@ -61,7 +61,7 @@ export function WildsCrewTravelJournal({ assetId, name, readHistory }: {
             {row.actualPosition ? <div className="wilds-journal-coordinate">Trail coordinates {row.actualPosition.x.toFixed(1)}, {row.actualPosition.z.toFixed(1)}</div> : null}
             {row.kind === "returned" ? <div className="wilds-journal-reward">{row.totalObserved??row.visitedPointIds.length} locations observed</div> : null}
             {row.blocker ? <div>{row.blocker}</div> : null}
-            <details className="wilds-journal-record"><summary>Record {row.revision}</summary><small>Kai order {row.causalKaiUPulse}</small></details>
+            <details className="wilds-journal-record"><summary>Journey detail {row.revision}</summary><small>Kai order {row.causalKaiUPulse}</small></details>
           </li>)}
         </ol> : <p className="wilds-expedition-empty">A story waiting to unfold.<br /><small>Send this companion exploring to begin its journal.</small></p>}
       {!busy && !error && page?.incomplete ? <p>Earlier records are not stored on this device. Your available travel memories are shown above.</p> : null}
