@@ -68,6 +68,8 @@ import {
 } from "./wilds-exploration-atlas";
 import { offsetWildsWorldAddress, parseWildsWorldAddress, v10PositionToWildsAddress, type WildsWorldAddress } from "./wilds-world-address";
 import { observationPointV11, observeWildsSiteV11 } from "./wilds-site-search-v11";
+import { emptyWildsV11EncounterOutbox, enqueueWildsV11Site, restoreWildsV11EncounterOutbox,
+  type WildsV11EncounterOutbox } from "./wilds-encounter-outbox-v11";
 import { projectV10CardContinuityV11, type WildsV10CardContinuityV11 } from "./wilds-card-continuity-v11";
 import { isWildsHomecomingNearMeeting, projectWildsHomecomingOffer, type WildsHomecomingChoice } from "./wilds-creature-homecoming";
 import { admitWildsDiscoveryPhysicalNeighborhood, isCanonicalWildsDiscoverySiteKey, normalizeWildsSiteSpaceState, type WildsSiteSpaceState } from "./wilds-discovery-sites";
@@ -244,6 +246,7 @@ export type PlayState = {
   worldAddress?: WildsWorldAddress;
   worldCoordinateMode?: "legacy" | "region-local";
   explorationAtlasV11?: WildsExplorationAtlasV11;
+  pendingEncounterSitesV11?: WildsV11EncounterOutbox;
   cardContinuityV11?: Record<string, WildsV10CardContinuityV11>;
   explorationAtlas: WildsExplorationAtlas;
   siteSpace: WildsSiteSpaceState;
@@ -423,6 +426,7 @@ export const initialPlayState: PlayState = {
   discoveredCardIds: ["mintcub"],
   energy: 84,
   encounter: idleEncounterState,
+  pendingEncounterSitesV11: emptyWildsV11EncounterOutbox(),
   inventory: admitLocallySealedWildsInventory([{ ...starterCardAsset, status: "verified", synchronizedAt: "2026-06-29T12:00:00.000Z" }]),
   lastEvent: "SealCub joined your deck. Walk near another wild companion.",
   level: 7,
@@ -827,6 +831,7 @@ export function restorePlayState(
       worldAddress: restoredWorldAddress,
       worldCoordinateMode: v11Envelope ? saved.worldCoordinateMode : undefined,
       explorationAtlasV11: restoredAtlasV11,
+      pendingEncounterSitesV11: restoreWildsV11EncounterOutbox(saved.pendingEncounterSitesV11, ownerReceizId ?? ""),
       cardContinuityV11: restoredContinuity,
       homecomingDepartedAssetIds: restoredDepartures,
       siteSpace: restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
@@ -1984,7 +1989,21 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
         : observation.kind === "near"
           ? `Living signal ${direction} · ${Math.round(Number(observation.distanceMicro) / 100_000) / 10} world units away.`
           : "Signal cold. Keep exploring this region.";
+      let pendingEncounterSitesV11 = state.pendingEncounterSitesV11;
+      if (observation.kind === "site" && observation.site && observation.slot !== undefined) {
+        try {
+          pendingEncounterSitesV11 = enqueueWildsV11Site(
+            restoreWildsV11EncounterOutbox(state.pendingEncounterSitesV11, input.ownerReceizId),
+            { actorId: input.ownerReceizId, site: observation.site, slot: observation.slot }
+          );
+        } catch (error) {
+          return { ...state, lastEvent: error instanceof Error && error.message === "wilds_v11_encounter_outbox_full"
+            ? "Your pending site journal is full. Reconnect nearby before recording another site."
+            : "This living site could not be recorded yet. Try scanning again nearby." };
+        }
+      }
       return { ...state, activeAction: "explore", encounter: idleEncounterState, lastEvent,
+        pendingEncounterSitesV11,
         lastSearchPoint: { x: input.x, z: input.z } };
     }
     const point = {
