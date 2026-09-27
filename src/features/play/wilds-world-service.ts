@@ -1,3 +1,4 @@
+import { parseWildsWorldAddress as parseWildsWorldAddressV11 } from "./wilds-world-address";
 import { projectWildsConstructionWeather, resolveWildsMaintenance, type WildsMaintenanceCommand } from "./wilds-construction-weather";
 import type { CommunityRequest } from "./wilds-community";
 import { settleWildsConstructionWork } from "./wilds-construction-work-reward";
@@ -1065,4 +1066,15 @@ function projectionTeam(team: WildsSocialTeam, previous: import("./wilds-team-le
 
 function requireConstructionReach(actor: { x: number; z: number }, target: { x: number; z: number }) {
   if (![actor.x, actor.z, target.x, target.z].every(Number.isFinite) || Math.hypot(actor.x - target.x, actor.z - target.z) > 6) throw new Error("wilds_construction_unreachable");
+}
+
+/** Versioned region identity for v11 world commands; numeric v10 commands stay intact. */
+export function wildsWorldRegionForAddressV11(value: import("./wilds-world-address").WildsWorldAddress) {
+  const address = parseWildsWorldAddressV11(value);
+  return Object.freeze({
+    worldVersion: 11 as const,
+    regionX: address.regionX,
+    regionZ: address.regionZ,
+    key: `wildz.region.v11:${address.regionX}:${address.regionZ}`
+  });
 }

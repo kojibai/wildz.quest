@@ -60,8 +60,12 @@ import {
   discoverWildsExplorationSite,
   normalizeWildsExplorationAtlas,
   revealWildsExplorationAt,
+  createInitialWildsExplorationAtlasV11,
+  normalizeWildsExplorationAtlasV11,
+  type WildsExplorationAtlasV11,
   type WildsExplorationAtlas
 } from "./wilds-exploration-atlas";
+import { parseWildsWorldAddress, v10PositionToWildsAddress, type WildsWorldAddress } from "./wilds-world-address";
 import { admitWildsDiscoveryPhysicalNeighborhood, isCanonicalWildsDiscoverySiteKey, normalizeWildsSiteSpaceState, type WildsSiteSpaceState } from "./wilds-discovery-sites";
 import { enterWildsSiteRuntime, exitWildsSiteRuntime, forceExitWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeMovement, type WildsSiteDiscoveryOutput, type WildsSiteMovementOutput, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import {
@@ -229,6 +233,9 @@ export type PlayState = {
     x: number;
     z: number;
   };
+  /** Exact persistent position for v11 saves; player is a bounded local projection. */
+  worldAddress?: WildsWorldAddress;
+  explorationAtlasV11?: WildsExplorationAtlasV11;
   explorationAtlas: WildsExplorationAtlas;
   siteSpace: WildsSiteSpaceState;
   pendingSyncAssetIds: string[];
@@ -476,10 +483,26 @@ export function createOwnerBoundInitialPlayState(ownerReceizId: string, createdA
 }
 
 const PLAY_SAVE_SCHEMA = "receiz.wilds.save.v9";
+const PLAY_SAVE_SCHEMA_V11 = "receiz.wilds.save.v11";
 const LEGACY_PLAY_SAVE_SCHEMAS = new Set(["receiz.wilds.save.v2", "receiz.wilds.save.v3", "receiz.wilds.save.v4", "receiz.wilds.save.v5", "receiz.wilds.save.v6", "receiz.wilds.save.v7", "receiz.wilds.save.v8"]);
 
 export function serializePlayState(state: PlayState) {
-  return JSON.stringify({ schema: PLAY_SAVE_SCHEMA, state: { ...state, journeyJournal: sanitizeWildsJourneyJournal(state.journeyJournal, state.journeyJournal?.ownerId) } });
+  const v11 = state.worldAddress !== undefined;
+  if (v11) {
+    parseWildsWorldAddress(state.worldAddress);
+    normalizeWildsExplorationAtlasV11(state.explorationAtlasV11);
+  }
+  return JSON.stringify({ schema: v11 ? PLAY_SAVE_SCHEMA_V11 : PLAY_SAVE_SCHEMA, state: { ...state, journeyJournal: sanitizeWildsJourneyJournal(state.journeyJournal, state.journeyJournal?.ownerId) } });
+}
+
+/** Explicit, idempotent v10 continuity upgrade. It never reseals or rerolls inventory. */
+export function upgradeV10PlayStateToV11(state: PlayState): PlayState {
+  if (state.worldAddress) return state;
+  return {
+    ...state,
+    worldAddress: v10PositionToWildsAddress(state.player.x, state.player.z),
+    explorationAtlasV11: createInitialWildsExplorationAtlasV11()
+  };
 }
 
 /** Normalize runtime state without serializing or reverifying exact admitted cards.
@@ -614,12 +637,16 @@ export function restorePlayState(
   admittedInventory?: AdmittedWildsInventory
 ): PlayState {
   let recovery: PlayState | undefined;
+  let v11Envelope = false;
   const recover = () => recovery ?? (recovery = fallbackPlayState(ownerReceizId));
   if (!value) return recover();
   try {
     const parsed = JSON.parse(value) as { schema?: unknown; state?: unknown };
-    if ((parsed.schema !== PLAY_SAVE_SCHEMA && !LEGACY_PLAY_SAVE_SCHEMAS.has(String(parsed.schema))) || !parsed.state || typeof parsed.state !== "object") return recover();
+    v11Envelope = parsed.schema === PLAY_SAVE_SCHEMA_V11;
+    if ((parsed.schema !== PLAY_SAVE_SCHEMA && !v11Envelope && !LEGACY_PLAY_SAVE_SCHEMAS.has(String(parsed.schema))) || !parsed.state || typeof parsed.state !== "object") return recover();
     const saved = parsed.state as Partial<PlayState>;
+    const restoredWorldAddress = v11Envelope ? parseWildsWorldAddress(saved.worldAddress) : undefined;
+    const restoredAtlasV11 = v11Envelope ? normalizeWildsExplorationAtlasV11(saved.explorationAtlasV11) : undefined;
     if (!saved.player || typeof saved.player.x !== "number" || typeof saved.player.z !== "number") return recover();
     // Complete saves overwrite every owner-specific default. Only incomplete legacy
     // envelopes need a newly issued fallback starter for their missing defaults.
@@ -736,8 +763,10 @@ export function restorePlayState(
       partyTravelRevision: Number.isSafeInteger(saved.partyTravelRevision) && saved.partyTravelRevision! >= 0 ? saved.partyTravelRevision : 0,
       actionHistory: normalizeWildsActivityHistory(saved.actionHistory),
       player: restoredPlayer,
+      worldAddress: restoredWorldAddress,
+      explorationAtlasV11: restoredAtlasV11,
       siteSpace: restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
-      explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, restoredPlayer),
+      explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, v11Envelope ? { x: 0, z: 0 } : restoredPlayer),
       ownedWorldAdditions: restoredWorldAdditions,
       missionProgress: typeof saved.missionProgress === "number" && Number.isFinite(saved.missionProgress)
         ? Math.max(0, Math.min(99, Math.floor(saved.missionProgress)))
@@ -836,7 +865,8 @@ export function restorePlayState(
       hearttreeReceipts: restoredHearttreeReceipts,
       hearttreeSquadAssetIds: hearttreeSquadAssetIds.length ? hearttreeSquadAssetIds : livingInventory[0] ? [livingInventory[0].id] : []
     });
-  } catch {
+  } catch (error) {
+    if (v11Envelope) throw new Error("wilds_v11_save_address_or_state_invalid", { cause: error });
     return recover();
   }
 }

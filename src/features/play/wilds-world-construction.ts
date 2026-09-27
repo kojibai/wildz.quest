@@ -1,3 +1,4 @@
+import { parseWildsWorldAddress as parseWildsWorldAddressV11 } from "./wilds-world-address";
 import { architecturalSnap } from "./wilds-architectural-snap";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 
@@ -601,4 +602,16 @@ export function previewWildsStructureTransition(input: Readonly<{
   const salvageCandidateCapacity = Math.min(structure.materialStrength, Math.floor(structure.materialStrength / 4));
   if (salvageCandidateCapacity <= 0) return result(false, "nothing-salvageable");
   return result(true, null, 0, salvageCandidateCapacity);
+}
+
+/** Portable v11 anchor stores its full address; the short digest is only a label. */
+export function createWildsBlueprintAnchorV11(kind: AnchorKind, value: import("./wilds-world-address").WildsWorldAddress) {
+  const address = parseWildsWorldAddressV11(value);
+  return Object.freeze({
+    version: "wildz.blueprint-anchor.v11" as const,
+    id: `wildz.anchor.v11:${sha256PortableBasis(canonicalPortableCardJson({ kind, address })).slice(7, 31)}`,
+    kind,
+    address,
+    localPosition: Object.freeze({ x: address.localX / 1_000_000, z: address.localZ / 1_000_000 })
+  });
 }
