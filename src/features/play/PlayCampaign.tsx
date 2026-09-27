@@ -58,6 +58,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
 import { sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
+import { WILDS_V11_ORIGIN } from "@/features/play/wilds-encounter-client-v11";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
 import { advanceCaptureVisualTime, capturePhaseDelayMs } from "@/features/play/wilds-capture-sequence";
 import { WildsBattle } from "@/features/play/WildsBattle";
@@ -111,7 +112,6 @@ import { evaluateLandmarkAccess, type WildsLandmarkProgress } from "@/features/p
 import { authorizeRiftTravel, authorizeRiftTravelV11, type RiftTravelGrant } from "@/features/play/wilds-rift-travel";
 import { sampleWildsTerrainV11 } from "@/features/play/wilds-terrain-authority";
 import { type WildsWorldAddress } from "@/features/play/wilds-world-address";
-import { admitWildsV11Origin, WILDS_V11_ORIGIN } from "@/features/play/wilds-encounter-client-v11";
 import { projectWildzHud } from "@/features/play/wildz-gameplay-hud";
 import { shouldRunWildzOffHotPathWork } from "@/features/play/wilds-network-status";
 import { nextCreatureContinuityDueAt } from "@/features/play/creature-continuity";
@@ -575,15 +575,6 @@ export function PlayCampaign({
   useEffect(() => () => {
     if (worldFeedbackTimerRef.current !== null) window.clearTimeout(worldFeedbackTimerRef.current);
   }, []);
-  useEffect(() => {
-    const address = state.worldAddress;
-    if (!networkEnabled || state.worldCoordinateMode !== "region-local" || !address
-      || address.regionX !== WILDS_V11_ORIGIN.regionX || address.regionZ !== WILDS_V11_ORIGIN.regionZ
-      || address.localX !== WILDS_V11_ORIGIN.localX || address.localZ !== WILDS_V11_ORIGIN.localZ) return;
-    void admitWildsV11Origin(ownerReceizId).catch(() => {
-      showWorldFeedback("Your trail is saved here. Creature encounters will connect when admission is available.");
-    });
-  }, [networkEnabled, ownerReceizId, showWorldFeedback, state.worldCoordinateMode, state.worldAddress]);
   const [constructionFocus, setConstructionFocus] = useState<"tools" | "storage" | null>(null);
   const [stewardPlacementMode, setStewardPlacementMode] = useState<WildsStewardBlueprintId | null>(null);
   const [stewardPlacementPreview, setStewardPlacementPreview] = useState<WildsStewardPlacement | null>(null);
