@@ -1,3 +1,4 @@
+import { parseWildsWorldAddress, type WildsWorldAddress } from "./wilds-world-address";
 import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import type { WildsRoamingEncounterNotice } from "./wilds-roaming-encounter";
 import { sanitizeWildsRoamingPresence, type WildsRoamingCreaturePresence } from "./wilds-roaming-presence";
@@ -12,6 +13,8 @@ import {
   expirePresence,
   presenceDistance,
   regionForPosition,
+  roomKeyForAddressV11,
+  validatePresenceMoveV11,
   sanitizeWildsMessage,
   validatePresenceMove,
   WILDS_INTERACTION_DISTANCE,
@@ -144,7 +147,7 @@ export function getWildsAtlasPresence(input: {
     }
   }
   const players = [...newestByPlayer.values()]
-    .filter((player) => player.playerId !== input.actorId)
+    .filter((player) => !player.worldAddress && player.playerId !== input.actorId)
     .sort((left, right) => presenceDistance(left, input.center) - presenceDistance(right, input.center));
   // Public atlas consumers need complete presence records so the main live
   // roster can show players outside the current room. Private players remain
@@ -207,6 +210,7 @@ export function heartbeatWildsPresence(input: {
   style: "female" | "male";
   x: number;
   z: number;
+  address?: WildsWorldAddress;
   heading: number;
   practice: boolean;
   activeCard: PvpCard;
@@ -216,7 +220,19 @@ export function heartbeatWildsPresence(input: {
   const now = input.now ?? new Date().toISOString();
   const room = getWildsMultiplayerSnapshot(input.roomKey, now);
   const previous = room.players.find((player) => player.playerId === input.playerId);
-  const movement = validatePresenceMove(previous ? { x: previous.x, z: previous.z, at: previous.lastSeenAt } : null, { x: input.x, z: input.z, at: now });
+  const address = input.address ? parseWildsWorldAddress(input.address) : undefined;
+  if (address) {
+    if (input.roomKey !== roomKeyForAddressV11("platform", address)
+      || input.x !== address.localX / 1_000_000 || input.z !== address.localZ / 1_000_000) {
+      throw new Error("wilds_presence_address_room_mismatch");
+    }
+  } else if (input.roomKey.startsWith("wilds11:")) {
+    throw new Error("wilds_presence_address_required");
+  }
+  if (previous && Boolean(previous.worldAddress) !== Boolean(address)) throw new Error("wilds_presence_address_mode_mismatch");
+  const movement = address
+    ? validatePresenceMoveV11(previous?.worldAddress ? { address: previous.worldAddress, at: previous.lastSeenAt } : null, { address, at: now })
+    : validatePresenceMove(previous ? { x: previous.x, z: previous.z, at: previous.lastSeenAt } : null, { x: input.x, z: input.z, at: now });
   if (!movement.ok) throw new Error(movement.error);
   const presence: WildsPresence = {
     playerId: input.playerId,
@@ -224,6 +240,7 @@ export function heartbeatWildsPresence(input: {
     style: input.style,
     x: input.x,
     z: input.z,
+    ...(address ? { worldAddress: address } : {}),
     heading: Number.isFinite(input.heading) ? input.heading : 0,
     status: room.battles.some((battle) => battle.phase === "active" && battle.players[input.playerId]) ? "busy" : "available",
     lastSeenAt: now,
@@ -359,4 +376,56 @@ export function announceWildsRoamingEncounter(notice: WildsRoamingEncounterNotic
   const room: WildsMultiplayerRoom = rooms().get(notice.roomKey) ?? emptyRoom(notice.roomKey, now);
   const notices = [...(room.roamingEncounters ?? []).filter(item => item.id !== notice.id), notice].slice(-24);
   return snapshot(save({ ...room, roamingEncounters: notices }, now));
+}
+
+/** Nine nearby exact-address rooms at most; distant coordinates never become Numbers. */
+export function getWildsAtlasPresenceV11(input: {
+  actorId: string;
+  center: WildsWorldAddress;
+  now?: number;
+  maxClusters?: number;
+}) {
+  const center = parseWildsWorldAddress(input.center);
+  const now = input.now ?? Date.now();
+  const nowIso = new Date(now).toISOString();
+  const newestByPlayer = new Map<string, WildsPresence>();
+  for (let dx = -1n; dx <= 1n; dx += 1n) {
+    for (let dz = -1n; dz <= 1n; dz += 1n) {
+      const address = {
+        ...center,
+        regionX: (BigInt(center.regionX) + dx).toString(),
+        regionZ: (BigInt(center.regionZ) + dz).toString()
+      };
+      const room = rooms().get(roomKeyForAddressV11("platform", address));
+      if (!room) continue;
+      for (const player of cleanRoom(room, nowIso).players) {
+        if (!player.worldAddress || player.playerId === input.actorId) continue;
+        const current = newestByPlayer.get(player.playerId);
+        if (!current || Date.parse(player.lastSeenAt) > Date.parse(current.lastSeenAt)) newestByPlayer.set(player.playerId, player);
+      }
+    }
+  }
+  const players: WildsPresence[] = [];
+  const privateClusters = new Map<string, { id: string; regionX: number; regionZ: number; count: number; position: { x: number; z: number } }>();
+  for (const player of newestByPlayer.values()) {
+    const address = parseWildsWorldAddress(player.worldAddress);
+    const dx = BigInt(address.regionX) - BigInt(center.regionX);
+    const dz = BigInt(address.regionZ) - BigInt(center.regionZ);
+    if (dx < -1n || dx > 1n || dz < -1n || dz > 1n) continue;
+    const regionX = Number(dx);
+    const regionZ = Number(dz);
+    if (player.status === "private") {
+      const id = `cluster:v11:${regionX}:${regionZ}`;
+      const cluster = privateClusters.get(id);
+      if (cluster) cluster.count += 1;
+      else privateClusters.set(id, { id, regionX, regionZ, count: 1,
+        position: { x: regionX * 24 + 12, z: regionZ * 24 + 12 } });
+      continue;
+    }
+    players.push({ ...player, x: regionX * 24 + address.localX / 1_000_000, z: regionZ * 24 + address.localZ / 1_000_000,
+      roamingCreatures: publicRoamingCreatures(player) });
+  }
+  players.sort((left, right) => presenceDistance(left, { x: center.localX / 1_000_000, z: center.localZ / 1_000_000 })
+    - presenceDistance(right, { x: center.localX / 1_000_000, z: center.localZ / 1_000_000 }));
+  return { players: players.slice(0, 24), clusters: [...privateClusters.values()].slice(0, Math.max(1, Math.min(64, input.maxClusters ?? 64))) };
 }

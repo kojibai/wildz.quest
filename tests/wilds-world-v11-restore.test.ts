@@ -26,7 +26,7 @@ describe("v11 world save continuity", () => {
 
   it("round-trips a distant exact address without losing its sparse atlas", () => {
     const upgraded = upgradeV10PlayStateToV11(initialPlayState);
-    const state = { ...upgraded, worldAddress: far, player: { x: 7, z: 19 }, explorationAtlasV11: revealWildsExplorationAtV11(upgraded.explorationAtlasV11!, far) };
+    const state = { ...upgraded, worldAddress: far, worldCoordinateMode: "region-local" as const, player: { x: 7, z: 19 }, explorationAtlasV11: revealWildsExplorationAtV11(upgraded.explorationAtlasV11!, far) };
     const restored = restorePlayState(serializePlayState(state));
     assert.deepEqual(restored.worldAddress, far);
     assert.equal(restored.player.x, 7);
@@ -45,7 +45,7 @@ describe("v11 world save continuity", () => {
 
   it("keeps construction, resource, and excavation anchors on the restored exact region", () => {
     const state = restorePlayState(serializePlayState({
-      ...upgradeV10PlayStateToV11(initialPlayState), worldAddress: far, player: { x: 7, z: 19 }
+      ...upgradeV10PlayStateToV11(initialPlayState), worldAddress: far, worldCoordinateMode: "region-local" as const, player: { x: 7, z: 19 }
     }));
     const address = state.worldAddress!;
     assert.equal(wildsWorldRegionForAddressV11(address).key, `wildz.region.v11:${far.regionX}:${far.regionZ}`);

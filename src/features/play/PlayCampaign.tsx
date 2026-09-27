@@ -690,6 +690,8 @@ export function PlayCampaign({
     surfaceOpen: multiplayerRosterOpen,
     style: explorerStyle,
     position: state.player,
+    worldAddress: state.worldAddress,
+    worldCoordinateMode: state.worldCoordinateMode,
     activeCard: activeAsset,
     cardAdmission,
     readRoamingCreatures: () => roamingPresenceReader.current()

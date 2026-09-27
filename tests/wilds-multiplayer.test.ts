@@ -6,6 +6,7 @@ import {
   createInviteRoom,
   expirePresence,
   regionForPosition,
+  roomKeyForAddressV11,
   sanitizeWildsMessage,
   validatePresenceMove,
   visiblePresence
@@ -21,7 +22,7 @@ import {
   submitPvpIntent,
   type PvpCard
 } from "../src/features/play/pvp-battle-engine.js";
-import { applyAuthorizedRiftPresence, getWildsAtlasPresence, heartbeatWildsPresence } from "../src/features/play/multiplayer-ledger.js";
+import { applyAuthorizedRiftPresence, getWildsAtlasPresence, getWildsAtlasPresenceV11, heartbeatWildsPresence } from "../src/features/play/multiplayer-ledger.js";
 import { initialPlayState } from "../src/features/play/game-state.js";
 import { buildWildsMultiplayerHeartbeatBody } from "../src/features/play/use-wilds-multiplayer.js";
 
@@ -65,6 +66,18 @@ it("sends a verified active card once and keeps later movement heartbeats card-f
   });
   assert.equal("card" in movement, false);
   assert.equal("cardAdmission" in movement, false);
+});
+
+it("binds v11 heartbeat presence to its exact-address room", () => {
+  const address = { worldVersion: 11 as const, regionX: "9007199254740993", regionZ: "-2", localX: 7_000_000, localZ: 19_000_000 };
+  const roomKey = roomKeyForAddressV11("platform", address);
+  const first = heartbeatWildsPresence({ roomKey, playerId: "v11-player", handle: "Far Walker", style: "female", x: 7, z: 19,
+    address, heading: 0, practice: false, activeCard: card("v11-card"), now: "2026-09-26T12:00:00.000Z" });
+  assert.deepEqual(first.self.worldAddress, address);
+  const atlas = getWildsAtlasPresenceV11({ actorId: "another-v11-player", center: address, now: Date.parse("2026-09-26T12:00:01.000Z") });
+  assert.equal(atlas.players.find(player => player.playerId === "v11-player")?.x, 7);
+  assert.throws(() => heartbeatWildsPresence({ roomKey: "wilds:platform:0:0", playerId: "v11-player", handle: "Far Walker", style: "female",
+    x: 7, z: 19, address, heading: 0, practice: false, activeCard: card("v11-card"), now: "2026-09-26T12:00:01.000Z" }), /room|address/i);
 });
 
 it("keeps the Receiz response token server-side when returning the live actor", () => {

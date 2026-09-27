@@ -51,7 +51,7 @@ import { deriveAscensionGenome } from "./heartbound-genome";
 import { isLivingCardAsset, type GrowthPath, type LivingGrowthSnapshot } from "./living-card-types";
 import { createLivingChildTransaction, lineageEligibility } from "./living-lineage";
 import { worldMasteryAward, type WorldMasteryVerb } from "./world-progression";
-import { validateRiftGrant, type RiftTravelGrant } from "./wilds-rift-travel";
+import { validateRiftGrant, validateRiftGrantV11, type RiftTravelGrant, type RiftTravelGrantV11 } from "./wilds-rift-travel";
 import { movementScale, type WildsMovementMode } from "./wilds-movement";
 import { resolveWildsGroundMovement } from "./wilds-grounded-movement";
 import { regionForPosition } from "./multiplayer-core";
@@ -62,10 +62,11 @@ import {
   revealWildsExplorationAt,
   createInitialWildsExplorationAtlasV11,
   normalizeWildsExplorationAtlasV11,
+  revealWildsExplorationAtV11,
   type WildsExplorationAtlasV11,
   type WildsExplorationAtlas
 } from "./wilds-exploration-atlas";
-import { parseWildsWorldAddress, v10PositionToWildsAddress, type WildsWorldAddress } from "./wilds-world-address";
+import { offsetWildsWorldAddress, parseWildsWorldAddress, v10PositionToWildsAddress, type WildsWorldAddress } from "./wilds-world-address";
 import { admitWildsDiscoveryPhysicalNeighborhood, isCanonicalWildsDiscoverySiteKey, normalizeWildsSiteSpaceState, type WildsSiteSpaceState } from "./wilds-discovery-sites";
 import { enterWildsSiteRuntime, exitWildsSiteRuntime, forceExitWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeMovement, type WildsSiteDiscoveryOutput, type WildsSiteMovementOutput, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import {
@@ -73,7 +74,7 @@ import {
   type WildsTraversalCapability
 } from "./wilds-traversal-capabilities";
 import type { WildsEncounterInteractionLayer } from "./wilds-layered-encounters";
-import { wildsTerrainElevation } from "./wilds-terrain-authority";
+import { sampleWildsTerrainV11, wildsTerrainElevation } from "./wilds-terrain-authority";
 import type { WildsStructureSupport } from "./wilds-structure-support";
 import type { WildsTerrainObstacle } from "./wilds-terrain-obstacles";
 import { projectWildsCivicHistory, type WildsCivicEvent } from "./wilds-civic-history";
@@ -122,6 +123,7 @@ export type WildsInput = (
   | { type: "move-vector"; x: number; z: number; mode?: WildsMovementMode; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number; structureSupports?: readonly WildsStructureSupport[]; additionalObstacles?: readonly WildsTerrainObstacle[]; siteRuntime?: WildsSiteRuntimeProjection; siteMovementOutput?: WildsSiteMovementOutput; siteDiscoveryOutput?: WildsSiteDiscoveryOutput }
   | { type: "site-portal"; direction: "enter" | "exit"; siteKey: string; siteRuntime: WildsSiteRuntimeProjection }
   | { type: "apply-rift-grant"; grant: RiftTravelGrant; playerId: string }
+  | { type: "apply-rift-grant-v11"; grant: RiftTravelGrantV11; playerId: string }
   | { type: "record-world-activity"; activity: WildsActivityEntry }
   | { type: "discover" }
   | { type: "capture"; encounterId: string; capturedAt: string; ownerReceizId: string }
@@ -235,6 +237,7 @@ export type PlayState = {
   };
   /** Exact persistent position for v11 saves; player is a bounded local projection. */
   worldAddress?: WildsWorldAddress;
+  worldCoordinateMode?: "legacy" | "region-local";
   explorationAtlasV11?: WildsExplorationAtlasV11;
   explorationAtlas: WildsExplorationAtlas;
   siteSpace: WildsSiteSpaceState;
@@ -486,10 +489,28 @@ const PLAY_SAVE_SCHEMA = "receiz.wilds.save.v9";
 const PLAY_SAVE_SCHEMA_V11 = "receiz.wilds.save.v11";
 const LEGACY_PLAY_SAVE_SCHEMAS = new Set(["receiz.wilds.save.v2", "receiz.wilds.save.v3", "receiz.wilds.save.v4", "receiz.wilds.save.v5", "receiz.wilds.save.v6", "receiz.wilds.save.v7", "receiz.wilds.save.v8"]);
 
+function validateV11PlayerCoordinates(state: PlayState): WildsWorldAddress {
+  const address = parseWildsWorldAddress(state.worldAddress);
+  if (state.worldCoordinateMode === "legacy") {
+    const converted = v10PositionToWildsAddress(state.player.x, state.player.z);
+    if (converted.regionX !== address.regionX || converted.regionZ !== address.regionZ
+      || converted.localX !== address.localX || converted.localZ !== address.localZ) {
+      throw new RangeError("V11 legacy player address mismatch");
+    }
+  } else if (state.worldCoordinateMode === "region-local") {
+    if (state.player.x !== address.localX / 1_000_000 || state.player.z !== address.localZ / 1_000_000) {
+      throw new RangeError("V11 local player address mismatch");
+    }
+  } else {
+    throw new RangeError("V11 player coordinate mode invalid");
+  }
+  return address;
+}
+
 export function serializePlayState(state: PlayState) {
   const v11 = state.worldAddress !== undefined;
   if (v11) {
-    parseWildsWorldAddress(state.worldAddress);
+    validateV11PlayerCoordinates(state);
     normalizeWildsExplorationAtlasV11(state.explorationAtlasV11);
   }
   return JSON.stringify({ schema: v11 ? PLAY_SAVE_SCHEMA_V11 : PLAY_SAVE_SCHEMA, state: { ...state, journeyJournal: sanitizeWildsJourneyJournal(state.journeyJournal, state.journeyJournal?.ownerId) } });
@@ -501,6 +522,7 @@ export function upgradeV10PlayStateToV11(state: PlayState): PlayState {
   return {
     ...state,
     worldAddress: v10PositionToWildsAddress(state.player.x, state.player.z),
+    worldCoordinateMode: "legacy",
     explorationAtlasV11: createInitialWildsExplorationAtlasV11()
   };
 }
@@ -645,7 +667,7 @@ export function restorePlayState(
     v11Envelope = parsed.schema === PLAY_SAVE_SCHEMA_V11;
     if ((parsed.schema !== PLAY_SAVE_SCHEMA && !v11Envelope && !LEGACY_PLAY_SAVE_SCHEMAS.has(String(parsed.schema))) || !parsed.state || typeof parsed.state !== "object") return recover();
     const saved = parsed.state as Partial<PlayState>;
-    const restoredWorldAddress = v11Envelope ? parseWildsWorldAddress(saved.worldAddress) : undefined;
+    const restoredWorldAddress = v11Envelope ? validateV11PlayerCoordinates(saved as PlayState) : undefined;
     const restoredAtlasV11 = v11Envelope ? normalizeWildsExplorationAtlasV11(saved.explorationAtlasV11) : undefined;
     if (!saved.player || typeof saved.player.x !== "number" || typeof saved.player.z !== "number") return recover();
     // Complete saves overwrite every owner-specific default. Only incomplete legacy
@@ -764,6 +786,7 @@ export function restorePlayState(
       actionHistory: normalizeWildsActivityHistory(saved.actionHistory),
       player: restoredPlayer,
       worldAddress: restoredWorldAddress,
+      worldCoordinateMode: v11Envelope ? saved.worldCoordinateMode : undefined,
       explorationAtlasV11: restoredAtlasV11,
       siteSpace: restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
       explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, v11Envelope ? { x: 0, z: 0 } : restoredPlayer),
@@ -2098,6 +2121,24 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     };
   }
 
+  if (input.type === "apply-rift-grant-v11") {
+    if (!validateRiftGrantV11(input.grant, { playerId: input.playerId }).ok) return state;
+    const address = parseWildsWorldAddress(input.grant.destination);
+    const player = { x: address.localX / 1_000_000, z: address.localZ / 1_000_000 };
+    const atlas = revealWildsExplorationAtV11(state.explorationAtlasV11 ?? createInitialWildsExplorationAtlasV11(), address);
+    return {
+      ...state,
+      activeAction: "explore",
+      partyTravelRevision: nextWildsPartyTravelRevision(state.partyTravelRevision),
+      player,
+      worldAddress: address,
+      worldCoordinateMode: "region-local",
+      explorationAtlasV11: atlas,
+      siteSpace: normalizeWildsSiteSpaceState(undefined, { x: player.x, y: sampleWildsTerrainV11(address).elevation, z: player.z }),
+      lastEvent: "Rift complete. Explore the surrounding region to find its living sites."
+    };
+  }
+
   if (input.type === "apply-rift-grant") {
     if (!validateRiftGrant(input.grant, { playerId: input.playerId }).ok) return state;
     const player = { ...input.grant.destination };
@@ -2180,12 +2221,25 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       const builtFloor = wildsStructureSupportAt({ x: siteMovement.x, z: siteMovement.z }, input.structureSupports, 0, currentSpace.position.y);
       if (builtFloor && builtFloor.deckY >= siteMovement.floorY && builtFloor.deckY + 1.55 <= siteMovement.ceilingY) siteMovement.floorY = builtFloor.deckY;
     }
-    const nextPlayer = siteMovement ? { x: siteMovement.x, z: siteMovement.z } : movement.position;
+    const rawNextPlayer = siteMovement ? { x: siteMovement.x, z: siteMovement.z } : movement.position;
+    const nextAddress = state.worldCoordinateMode === "region-local" && state.worldAddress
+      ? offsetWildsWorldAddress(state.worldAddress,
+        BigInt(Math.round((rawNextPlayer.x - state.player.x) * 1_000_000)),
+        BigInt(Math.round((rawNextPlayer.z - state.player.z) * 1_000_000)))
+      : state.worldCoordinateMode === "legacy" && state.worldAddress
+        ? v10PositionToWildsAddress(rawNextPlayer.x, rawNextPlayer.z)
+        : undefined;
+    const nextPlayer = nextAddress && state.worldCoordinateMode === "region-local"
+      ? { x: nextAddress.localX / 1_000_000, z: nextAddress.localZ / 1_000_000 }
+      : rawNextPlayer;
     const previousRegion = regionForPosition(state.player);
     const nextRegion = regionForPosition(nextPlayer);
-    let explorationAtlas = previousRegion.x === nextRegion.x && previousRegion.z === nextRegion.z
+    let explorationAtlas = state.worldCoordinateMode === "region-local" || (previousRegion.x === nextRegion.x && previousRegion.z === nextRegion.z)
       ? state.explorationAtlas
       : revealWildsExplorationAt(state.explorationAtlas, nextPlayer);
+    const explorationAtlasV11 = nextAddress && state.explorationAtlasV11
+      ? revealWildsExplorationAtV11(state.explorationAtlasV11, nextAddress)
+      : state.explorationAtlasV11;
     if (input.siteRuntime) {
       const discovery = writeWildsSiteRuntimeDiscovery(input.siteDiscoveryOutput ?? { siteKey: null }, input.siteRuntime, currentSpace.spaceId, nextPlayer.x, siteMovement?.floorY ?? movement.elevation, nextPlayer.z);
       if (discovery.siteKey) explorationAtlas = discoverWildsExplorationSite(explorationAtlas, discovery.siteKey);
@@ -2210,6 +2264,8 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       activeAction: "explore",
       energy: Math.max(0, state.energy - 1),
       explorationAtlas,
+      worldAddress: nextAddress,
+      explorationAtlasV11,
       siteSpace: currentSpace.spaceId === "wildz.space.outer.v1" ? {
         version: "wildz.site-space-state.v1",
         spaceId: "wildz.space.outer.v1",

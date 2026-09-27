@@ -1,3 +1,4 @@
+import { parseWildsWorldAddress } from "@/features/play/wilds-world-address";
 import { NextRequest, NextResponse } from "next/server";
 import { heartbeatWildsPresence } from "@/features/play/multiplayer-ledger";
 import { authorizeWildsMultiplayerHeartbeatCard, authorizeWildsRoamingPresence, hydrateWildsRoomFromReceiz, parseWildsRoomKey, publishWildsPresenceToReceiz, resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
@@ -16,6 +17,7 @@ export async function POST(request: NextRequest) {
     const x = Number(body?.x);
     const z = Number(body?.z);
     const heading = Number(body?.heading ?? 0);
+    const address = body?.address === undefined ? undefined : parseWildsWorldAddress(body.address);
     await hydrateWildsRoomFromReceiz(request, roomKey);
     const activeCard = authorizeWildsMultiplayerHeartbeatCard(
       actor,
@@ -31,6 +33,7 @@ export async function POST(request: NextRequest) {
       style,
       x,
       z,
+      address,
       heading,
       practice: actor.practice,
       activeCard,
