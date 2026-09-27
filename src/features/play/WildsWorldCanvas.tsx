@@ -34,6 +34,7 @@ import type { WildsPresence } from "@/features/play/multiplayer-core";
 import { createWildsKaiWeatherSample, writeWildsKaiWeather } from "./wilds-kai-wind";
 import { writeWildsWeatherExposure } from "./wilds-weather-exposure";
 import { WildsEnvironment } from "@/features/play/WildsEnvironment";
+import { WildsV11Environment } from "@/features/play/WildsV11Environment";
 import { WildsExplorer } from "@/features/play/WildsExplorer";
 import { WildsAtmosphere } from "@/features/play/WildsAtmosphere";
 import { WildsUnderwaterAtmosphere } from "@/features/play/WildsUnderwaterAtmosphere";
@@ -102,7 +103,8 @@ import {
 } from "@/features/play/wilds-grounded-movement";
 import type { WildsTerrainObstacle } from "@/features/play/wilds-terrain-obstacles";
 import { WILDS_PLAYER_BODY_HEIGHT, WILDS_PLAYER_BODY_RADIUS } from "@/features/play/wilds-player-body";
-import { WILDS_TERRAIN_TILE_SIZE, wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
+import { WILDS_TERRAIN_TILE_SIZE, sampleWildsTerrainV11, wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
+import { offsetWildsWorldAddress, type WildsWorldAddress } from "@/features/play/wilds-world-address";
 import type { WildsSiteSpaceState } from "@/features/play/wilds-discovery-sites";
 import { wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeEncounter, type WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
 import { createWildsFlightCameraControlState, writeWildsFlightCameraControlState } from "@/features/play/wilds-flight-camera";
@@ -422,9 +424,11 @@ function WildsScene({
   const activeAppearance = useMemo(() => activeAsset ? projectCardKaiAppearance(activeAsset) : null, [activeAsset]);
   const swimming = (siteSpace.spaceId === "wildz.space.outer.v1" ? aquaticPresentation.mode === "swim" : siteSpace.flooded)
     && aerialCapabilities.includes("swim");
-  const outdoorFloorY = useMemo(() => siteSpace.spaceId === "wildz.space.outer.v1"
-    ? Math.max(wildsTerrainElevation(state.player.x, state.player.z), wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, state.player.x, state.player.z, wildsTerrainElevation(state.player.x, state.player.z)))
-    : siteSpace.position.y, [siteRuntime, siteSpace.spaceId, siteSpace.position.y, state.player.x, state.player.z]);
+  const regionLocalAddress = state.worldCoordinateMode === "region-local" ? state.worldAddress : undefined;
+  const outdoorFloorY = useMemo(() => siteSpace.spaceId !== "wildz.space.outer.v1" ? siteSpace.position.y
+    : regionLocalAddress ? sampleWildsTerrainV11(regionLocalAddress).elevation
+      : Math.max(wildsTerrainElevation(state.player.x, state.player.z), wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, state.player.x, state.player.z, wildsTerrainElevation(state.player.x, state.player.z))),
+  [siteRuntime, siteSpace.spaceId, siteSpace.position.y, state.player.x, state.player.z, regionLocalAddress]);
   // Restored/stale floor coordinates cannot place the outdoor terrain above feet.
   // Retain elevated construction supports and the separate interior coordinate.
   const activeFloorY = Math.max(siteSpace.position.y, outdoorFloorY);
@@ -477,6 +481,7 @@ function WildsScene({
           onSearchPoint={onSearchPoint}
           onSelectOverlook={onSelectOverlook}
           player={state.player}
+          worldAddress={regionLocalAddress}
           terrainElevation={activeFloorY}
           qualityProfile={qualityProfile}
           worldMastery={state.worldMastery}
@@ -1419,6 +1424,7 @@ function SearchableTerrain({
   activeWorkSource,
   kaiUPulse,
   player,
+  worldAddress,
   enabled,
   missionProgress,
   qualityProfile,
@@ -1435,6 +1441,7 @@ function SearchableTerrain({
   activeWorkSource?: WildsActiveWorkSource | null;
   kaiUPulse: number;
   player: PlayState["player"];
+  worldAddress?: WildsWorldAddress;
   enabled: boolean;
   missionProgress: number;
   qualityProfile: WildsQualityProfile;
@@ -1458,11 +1465,15 @@ function SearchableTerrain({
           siteRuntime,
           siteSpace.spaceId,
           point,
-          siteSpace.spaceId === "wildz.space.outer.v1" ? wildsTerrainElevation(point.x, point.z) : siteSpace.position.y
+          siteSpace.spaceId !== "wildz.space.outer.v1" ? siteSpace.position.y
+            : worldAddress ? sampleWildsTerrainV11(offsetWildsWorldAddress(worldAddress,
+              BigInt(Math.round((point.x - player.x) * 1_000_000)),
+              BigInt(Math.round((point.z - player.z) * 1_000_000)))).elevation
+              : wildsTerrainElevation(point.x, point.z)
         ));
       }}
     >
-      <StreamedTerrain activeWorkSource={activeWorkSource} kaiUPulse={kaiUPulse} missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />
+      <StreamedTerrain activeWorkSource={activeWorkSource} kaiUPulse={kaiUPulse} missionProgress={missionProgress} player={player} worldAddress={worldAddress} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />
     </group>
   );
 }
@@ -1472,6 +1483,7 @@ function StreamedTerrain({
   kaiUPulse,
   missionProgress,
   player,
+  worldAddress,
   qualityProfile,
   terrainElevation,
   worldMastery,
@@ -1486,6 +1498,7 @@ function StreamedTerrain({
   kaiUPulse: number;
   missionProgress: number;
   player: PlayState["player"];
+  worldAddress?: WildsWorldAddress;
   qualityProfile: WildsQualityProfile;
   terrainElevation: number;
   worldMastery: number;
@@ -1496,6 +1509,9 @@ function StreamedTerrain({
   siteSpace: WildsSiteSpaceState;
   onSitePortal: (siteKey: string, direction: "enter" | "exit") => void;
 }) {
+  if (worldAddress && siteSpace.spaceId === "wildz.space.outer.v1") {
+    return <WildsV11Environment address={worldAddress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} />;
+  }
   return <WildsEnvironment activeWorkSource={activeWorkSource} kaiUPulse={kaiUPulse} missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />;
 }
 
