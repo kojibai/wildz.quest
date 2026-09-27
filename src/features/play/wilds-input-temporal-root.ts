@@ -18,6 +18,7 @@ export function rootWildsInputInKai<T extends WildsInput>(input: T, kaiUPulse: n
     case "mark-synced":
     case "mark-listed": normalized = { ...rooted, synchronizedAt: at }; break;
     case "advance-encounter":
+    case "complete-homecoming":
     case "start-battle":
     case "ascend-card":
     case "train":

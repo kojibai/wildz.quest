@@ -1793,24 +1793,28 @@ function CaptureCreature({ children, phase, reducedMotion }: { children: ReactNo
 function CaptureCapsule({ phase, reducedMotion }: { phase: "capsule" | "sealed" | "revealed"; reducedMotion: boolean }) {
   const ref = useRef<THREE.Group>(null);
   const elapsedMs = useRef(0);
+  const sealElapsedMs = useRef(0);
   const previousPhase = useRef(phase);
   const sealed = phase !== "capsule";
   useEffect(() => {
-    const resetOnReturn = () => { if (document.visibilityState === "visible") elapsedMs.current = 0; };
+    const resetOnReturn = () => { if (document.visibilityState === "visible" && phase === "capsule") elapsedMs.current = 0; };
     document.addEventListener("visibilitychange", resetOnReturn);
     return () => document.removeEventListener("visibilitychange", resetOnReturn);
-  }, []);
+  }, [phase]);
   useFrame((_, delta) => {
     if (!ref.current) return;
     if (previousPhase.current !== phase) {
       previousPhase.current = phase;
-      elapsedMs.current = 0;
+      if (phase === "sealed") sealElapsedMs.current = 0;
     }
-    elapsedMs.current = advanceCaptureVisualTime(elapsedMs.current, delta * 1_000);
+    const stepMs = advanceCaptureVisualTime(0, delta * 1_000);
+    elapsedMs.current += stepMs;
+    if (sealed) sealElapsedMs.current += stepMs;
     const moment = projectCaptureMoment(phase, reducedMotion ? WILDS_CAPSULE_CAPTURE_MS : elapsedMs.current);
     const elapsed = elapsedMs.current / 1_000;
-    ref.current.rotation.y = reducedMotion ? 0 : elapsed * (sealed ? 0.7 : 2.4);
-    ref.current.position.y = 0.7 + moment.ballLift + (reducedMotion ? 0 : Math.sin(elapsed * 3) * (sealed ? 0.04 : 0.1));
+    const sealBlend = sealed ? Math.min(1, sealElapsedMs.current / 250) : 0;
+    if (!reducedMotion) ref.current.rotation.y = (ref.current.rotation.y + stepMs / 1_000 * (2.4 - sealBlend * 1.7)) % (Math.PI * 2);
+    ref.current.position.y = 0.7 + moment.ballLift + (reducedMotion ? 0 : Math.sin(elapsed * 3) * (0.1 - sealBlend * 0.06));
     ref.current.position.z = moment.ballTravel;
     ref.current.scale.setScalar(moment.ballScale * (reducedMotion ? 1 : 1 + moment.lockPulse * Math.sin(elapsed * 12) * 0.035));
   });

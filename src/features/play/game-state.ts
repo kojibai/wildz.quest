@@ -2,7 +2,7 @@ import { nextWildsPartyTravelRevision } from "./wilds-party-transport";
 import { sanitizeWildsCrewPreferences, type WildsCrewPreferences } from "./wilds-crew-preferences";
 import { verifyWildsConstructionFunctionSource, type WildsConstructionFunctionSource } from "./wilds-construction-function";
 import { applyWildsFlightWind, createWildsKaiWeatherSample, writeWildsKaiWeather } from "./wilds-kai-wind";
-import { sanitizeWildsJourneyJournal, type WildsJourneyJournal } from "./wilds-journey";
+import { rememberWildsJourney, sanitizeWildsJourneyJournal, type WildsJourneyJournal } from "./wilds-journey";
 import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
 import { restoreWildsBurrowSpace } from "./wilds-burrow";
 import { wildsStructureSupportAt } from "./wilds-structure-support";
@@ -68,6 +68,7 @@ import {
 } from "./wilds-exploration-atlas";
 import { offsetWildsWorldAddress, parseWildsWorldAddress, v10PositionToWildsAddress, type WildsWorldAddress } from "./wilds-world-address";
 import { projectV10CardContinuityV11, type WildsV10CardContinuityV11 } from "./wilds-card-continuity-v11";
+import { projectWildsHomecomingOffer, type WildsHomecomingChoice } from "./wilds-creature-homecoming";
 import { admitWildsDiscoveryPhysicalNeighborhood, isCanonicalWildsDiscoverySiteKey, normalizeWildsSiteSpaceState, type WildsSiteSpaceState } from "./wilds-discovery-sites";
 import { enterWildsSiteRuntime, exitWildsSiteRuntime, forceExitWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeMovement, type WildsSiteDiscoveryOutput, type WildsSiteMovementOutput, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import {
@@ -130,6 +131,7 @@ export type WildsInput = (
   | { type: "capture"; encounterId: string; capturedAt: string; ownerReceizId: string }
   | { type: "search-point"; x: number; z: number; surfaceWorldY?: number; searchedAt: string; ownerReceizId: string; verticalLayer?: WildsEncounterInteractionLayer; verticalWorldY?: number; verticalMinWorldY?: number; verticalMaxWorldY?: number; traversalCapabilities?: readonly WildsTraversalCapability[]; siteKey?: string | null; siteSpaceId?: string }
   | { type: "advance-encounter"; at: string }
+  | { type: "complete-homecoming"; assetId: string; ownerReceizId: string; choice: WildsHomecomingChoice; at: string }
   | { type: "start-battle"; at: string }
   | { type: "battle-action"; action: BattleAction; at?: string }
   | { type: "dismiss-reveal" }
@@ -1300,6 +1302,44 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
   if (input.type === "reset") {
     const owner = selectedAsset(state)?.manifest.ownerReceizId ?? state.inventory[0]?.manifest.ownerReceizId;
     return owner ? createOwnerBoundInitialPlayState(owner) : initialPlayState;
+  }
+
+  if (input.type === "complete-homecoming") {
+    const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
+    if (!asset || state.selectedAssetId !== asset.id || asset.manifest.ownerReceizId !== input.ownerReceizId
+      || !state.worldAddress || state.encounter.phase !== "idle" || state.battle
+      || state.siteSpace.spaceId !== "wildz.space.outer.v1") return state;
+    const continuity = state.cardContinuityV11?.[asset.id];
+    const priorHistory = isLivingCardAsset(asset) ? asset.manifest.history?.events ?? [] : [];
+    const offer = projectWildsHomecomingOffer({
+      card: asset, continuity, playerAddress: state.worldAddress, present: isPlayableAsset(state, asset.id),
+      completed: false
+    });
+    if (!offer || !offer.choices.some((choice) => choice.id === input.choice)
+      || priorHistory.some((event) => event.eventId === offer.eventId)
+      || state.journeyJournal?.memories.some((memory) => memory.kind === "homecoming" && memory.subjectId === offer.eventId)) return state;
+    const choice = offer.choices.find((candidate) => candidate.id === input.choice)!;
+    try {
+      const living = isLivingCardAsset(asset) ? asset : admitLegacyCard(asset, input.at);
+      const updated = appendLivingCardHistory({ asset: living, event: {
+        eventId: offer.eventId, rulesetVersion: "wildz.homecoming.v11", occurredAt: input.at,
+        source: { mode: "world", activityId: offer.eventId, actorId: input.ownerReceizId, authority: "local" },
+        evidence: {},
+        effects: [{ kind: "record", counters: {}, achievementIds: [offer.eventId], relationshipIds: [], scarIds: [], upgradeIds: [] }]
+      } });
+      const inventory = admitLocallySealedWildsInventory(state.inventory.map((candidate) => candidate.id === updated.id ? updated : candidate));
+      const journal = state.journeyJournal?.ownerId === input.ownerReceizId
+        ? state.journeyJournal : { version: 1 as const, ownerId: input.ownerReceizId, memories: [] };
+      return { ...state, inventory, cardContinuityV11: projectV10CardContinuityV11(inventory),
+        journeyJournal: { ...journal, memories: rememberWildsJourney(journal.memories, {
+          kind: "homecoming", subjectId: offer.eventId, companionId: asset.id,
+          companionName: asset.manifest.name, label: choice.response, position: offer.meeting
+        }, Date.parse(input.at)) },
+        pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, updated.id])),
+        lastEvent: choice.response };
+    } catch {
+      return state;
+    }
   }
 
   if (input.type === "record-steward-work") {

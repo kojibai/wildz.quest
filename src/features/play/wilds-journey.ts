@@ -1,6 +1,6 @@
 /** Personal recollections only: this journal never grants resources, ownership, or growth. */
 export const WILDS_JOURNEY_LIMIT = 80;
-export type WildsJourneyKind = "met" | "harvest" | "built" | "discovered" | "home";
+export type WildsJourneyKind = "met" | "harvest" | "built" | "discovered" | "home" | "homecoming";
 export type WildsJourneyInput = {
   kind: WildsJourneyKind;
   subjectId: string;
@@ -10,7 +10,7 @@ export type WildsJourneyInput = {
   position: { x: number; z: number };
 };
 export type WildsJourneyMemory = WildsJourneyInput & { id: string; timestamp: number };
-const kinds = new Set<WildsJourneyKind>(["met", "harvest", "built", "discovered", "home"]);
+const kinds = new Set<WildsJourneyKind>(["met", "harvest", "built", "discovered", "home", "homecoming"]);
 const shortString = (value: unknown, limit: number): string | undefined =>
   typeof value === "string" && value.trim() ? value.trim().slice(0, limit) : undefined;
 
@@ -105,7 +105,7 @@ export function recallWildsJourney(
   const action: Record<WildsJourneyKind, string> = {
     met: "you first met this companion", harvest: "you gathered resources with this companion",
     built: "you completed construction with this companion", discovered: "you discovered a place with this companion",
-    home: "you rested at home with this companion"
+    home: "you rested at home with this companion", homecoming: "you returned together to your first meeting place"
   };
   const here = position && Math.hypot(memory.position.x - position.x, memory.position.z - position.z) <= 8;
   return `Your explorer journal remembers that ${action[memory.kind]} near (${Math.round(memory.position.x)}, ${Math.round(memory.position.z)}).${here ? " You are back near that shared place." : ""}`;

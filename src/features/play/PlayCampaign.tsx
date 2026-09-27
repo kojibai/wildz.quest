@@ -29,6 +29,8 @@ import { recordWildsCrewModeObservation } from "./wilds-crew-observations";
 import { sanitizeWildsCrewPreferences, setWildsCrewPreference } from "./wilds-crew-preferences";
 import { projectWildsEarnedPhi } from "./wilds-earned-phi";
 import { useWildsJourney } from "./useWildsJourney";
+import { projectWildsHomecomingOffer } from "./wilds-creature-homecoming";
+import { isLivingCardAsset } from "./living-card-types";
 import { useWildsPlaytest } from "./useWildsPlaytest";
 import { WildsHomeLife } from "./WildsHomeLife";
 import { projectWildsHomeLife, type WildsHomeAction } from "./wilds-home-life";
@@ -781,6 +783,17 @@ export function PlayCampaign({
   } = useWorldOverlayDirector({ dismissSignal: commandDismissSignal, exclusiveOwner: modalOwner });
   const commandPanelOpen = modalOwner === "none" && worldOverlayState.panelKey !== null;
   const exclusiveOwner = commandPanelOpen ? "command" : modalOwner;
+  const homecomingOffer = useMemo(() => activeAsset && state.worldAddress && exclusiveOwner === "none"
+    && state.encounter.phase === "idle" && !state.battle && state.siteSpace.spaceId === "wildz.space.outer.v1"
+    ? projectWildsHomecomingOffer({
+      card: activeAsset, continuity: state.cardContinuityV11?.[activeAsset.id], playerAddress: state.worldAddress,
+      present: homeCompanions.some((card) => card.id === activeAsset.id),
+      completed: Boolean(state.journeyJournal?.memories.some((memory) => memory.kind === "homecoming"
+        && memory.companionId === activeAsset.id))
+        || Boolean(isLivingCardAsset(activeAsset) && activeAsset.manifest.history?.events.some((event) => event.rulesetVersion === "wildz.homecoming.v11"))
+    }) : null,
+  [activeAsset, state.worldAddress, state.cardContinuityV11, state.journeyJournal, state.encounter.phase,
+    state.battle, state.siteSpace.spaceId, homeCompanions, exclusiveOwner]);
   useEffect(() => {
     if (exclusiveOwner === "none") return;
     setStewardPlacementMode(null);
@@ -3105,6 +3118,14 @@ export function PlayCampaign({
               <button aria-label="Show tracked destination on map" onClick={openWorldMap} type="button"><Icons.map size={16} /></button>
               <button aria-label="Clear tracked destination" onClick={() => setTrackedDestination(null)} type="button"><Icons.close size={16} /></button>
             </div> : null}
+            {homecomingOffer ? <section className="wilds-homecoming-offer" aria-label="Companion homecoming">
+              <small>FIRST MEETING PLACE</small>
+              <strong>{homecomingOffer.title}</strong>
+              <p>{homecomingOffer.response}</p>
+              <div>{homecomingOffer.choices.map((choice) => <button key={choice.id} type="button"
+                onClick={() => dispatch({ type: "complete-homecoming", assetId: homecomingOffer.assetId,
+                  ownerReceizId, choice: choice.id, at: new Date().toISOString() })}>{choice.label}</button>)}</div>
+            </section> : null}
             <div className={`wilds-event-toast${captureToastActive ? " is-capture" : ""}`} aria-live="polite">
               {captureToastActive ? <Icons.seal aria-hidden="true" size={19} /> : null}
               <span key={worldFeedbackRevision}>{riftError || (activeLandmarkId ? `${currentLandmark?.name ?? "Landmark"} entrance awakened.` : state.lastEvent)}</span>
