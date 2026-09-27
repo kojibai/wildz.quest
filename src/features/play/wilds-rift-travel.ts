@@ -156,3 +156,10 @@ export function validateRiftGrantV11(
   if (grant.playerId !== authority.playerId) return { ok: false, error: "wilds_rift_actor_mismatch" };
   return { ok: true };
 }
+
+/** Temporary local transport boundary until cross-region admission is verified. */
+export function isLocallyAdmittedRiftDestinationV11(sourceValue: WildsWorldAddress, destinationValue: WildsWorldAddress): boolean {
+  const source = parseWildsWorldAddress(sourceValue);
+  const destination = parseWildsWorldAddress(destinationValue);
+  return source.regionX === destination.regionX && source.regionZ === destination.regionZ;
+}

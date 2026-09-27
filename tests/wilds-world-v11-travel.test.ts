@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { authorizeRiftTravelV11, validateRiftGrantV11 } from "../src/features/play/wilds-rift-travel";
+import { authorizeRiftTravelV11, isLocallyAdmittedRiftDestinationV11, validateRiftGrantV11 } from "../src/features/play/wilds-rift-travel";
 import { roomKeyForAddressV11, validatePresenceMoveV11 } from "../src/features/play/multiplayer-core";
 import { parseWildsRoomKey } from "../src/lib/receiz/wilds-multiplayer-server";
 import { applyWildsInput, initialPlayState, serializePlayState, upgradeV10PlayStateToV11 } from "../src/features/play/game-state";
@@ -15,6 +15,8 @@ describe("v11 exact-address travel", () => {
     assert.equal(result.ok, true);
     if (!result.ok) return;
     assert.deepEqual(result.grant.destination, far);
+    assert.equal(isLocallyAdmittedRiftDestinationV11(origin, far), false);
+    assert.equal(isLocallyAdmittedRiftDestinationV11(far, { ...far, localX: 8_000_000 }), true);
     assert.deepEqual(validateRiftGrantV11(result.grant, { playerId: "traveler" }), { ok: true });
     assert.deepEqual(authorizeRiftTravelV11({ idempotencyKey: "travel-v11-1", source: origin, destination: far }, authority), result);
   });

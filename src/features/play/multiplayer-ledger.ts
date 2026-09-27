@@ -429,3 +429,40 @@ export function getWildsAtlasPresenceV11(input: {
     - presenceDistance(right, { x: center.localX / 1_000_000, z: center.localZ / 1_000_000 }));
   return { players: players.slice(0, 24), clusters: [...privateClusters.values()].slice(0, Math.max(1, Math.min(64, input.maxClusters ?? 64))) };
 }
+
+/** Server-authorized v11 Rift transports presence between bounded region rooms. */
+export function applyAuthorizedRiftPresenceV11(input: {
+  roomKey: string;
+  playerId: string;
+  destination: WildsWorldAddress;
+  kaiPulse: string;
+  now?: string;
+}) {
+  if (!/^\d{1,32}$/.test(input.kaiPulse)) throw new Error("wilds_rift_grant_invalid");
+  const destination = parseWildsWorldAddress(input.destination);
+  const now = input.now ?? new Date().toISOString();
+  const sourceRoom = getWildsMultiplayerSnapshot(input.roomKey, now);
+  const current = sourceRoom.players.find(player => player.playerId === input.playerId);
+  if (!current?.worldAddress || input.roomKey !== roomKeyForAddressV11("platform", current.worldAddress)) {
+    throw new Error("wilds_rift_source_mismatch");
+  }
+  const destinationKey = roomKeyForAddressV11("platform", destination);
+  const updated: WildsPresence = {
+    ...current,
+    x: destination.localX / 1_000_000,
+    z: destination.localZ / 1_000_000,
+    worldAddress: destination,
+    lastSeenAt: now
+  };
+  if (destinationKey === input.roomKey) {
+    const room = snapshot(save({ ...sourceRoom, players: sourceRoom.players.map(player => player.playerId === input.playerId ? updated : player),
+      capabilities: undefined } as unknown as WildsMultiplayerRoom, now));
+    return { source: room, destination: room };
+  }
+  const destinationRoom = getWildsMultiplayerSnapshot(destinationKey, now);
+  const source = snapshot(save({ ...sourceRoom, players: sourceRoom.players.filter(player => player.playerId !== input.playerId),
+    capabilities: undefined } as unknown as WildsMultiplayerRoom, now));
+  const arrived = snapshot(save({ ...destinationRoom, players: [...destinationRoom.players.filter(player => player.playerId !== input.playerId), updated],
+    capabilities: undefined } as unknown as WildsMultiplayerRoom, now));
+  return { source, destination: arrived };
+}

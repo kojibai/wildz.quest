@@ -140,8 +140,10 @@ export function useWildsMultiplayer(input: {
     return () => document.removeEventListener("visibilitychange", updateVisibility);
   }, []);
 
-  const roomKey = roomOverride ?? (input.worldCoordinateMode === "region-local" && input.worldAddress
-    ? roomKeyForAddressV11("platform", input.worldAddress) : roomKeyForPosition("platform", input.position));
+  const v11RoomKey = useMemo(() => input.worldCoordinateMode === "region-local" && input.worldAddress
+    ? roomKeyForAddressV11("platform", input.worldAddress) : null,
+    [input.worldCoordinateMode, input.worldAddress?.regionX, input.worldAddress?.regionZ]);
+  const roomKey = roomOverride ?? v11RoomKey ?? roomKeyForPosition("platform", input.position);
 
   const heartbeat = useCallback(async () => {
     const current = latest.current;
