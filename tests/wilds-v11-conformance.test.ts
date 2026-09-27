@@ -26,7 +26,7 @@ describe("published v11 rarity law", () => {
     assert.equal(rows.find(row => row.band === "origin" && row.className === "eternal")?.exactProbability, "1/10000000");
   });
 
-  it("replays every downloadable signed example under the pinned release key", async () => {
+  it("replays examples under the separate conformance key and rejects them under the release key", async () => {
     for (const name of ["origin", "wilds", "deep-wilds", "frontier", "rare", "mythic", "eternal"]) {
       const result = JSON.parse(readFileSync(`public/conformance/v11/${name}.json`, "utf8")) as WildsV11EncounterResult;
       assert.equal(await verifyEncounterResultV11(result, WILDS_V11_CONFORMANCE_PUBLIC_KEYS), true, name);
