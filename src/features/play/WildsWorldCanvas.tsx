@@ -28,6 +28,8 @@ import {
   type PlayState
 } from "@/features/play/game-state";
 import { creatureForm } from "@/features/play/creature-catalog";
+import { projectVerifiedBirthFormV11 } from "@/features/play/wilds-card-form-resolution";
+import type { WildsV11BattleSession } from "@/features/play/wilds-battle-session-v11";
 import type { BattleFighter } from "@/features/play/battle-engine";
 import type { HotspotCover } from "@/features/play/hidden-hotspots";
 import type { WildsPresence } from "@/features/play/multiplayer-core";
@@ -122,6 +124,8 @@ import { createWildsCrewPathStepState, planWildsCrewPathNearTarget, wildsCrewRou
 import { WILDS_RENDERED_PHYSICAL_OBSTACLES } from "./wilds-terrain-obstacles";
 
 export type WildsCrewModes = Readonly<Record<string, "follow" | "roam">>;
+type WildsV11SceneEncounter = Readonly<{ session: WildsV11BattleSession;
+  phase: "player_turn" | "capture_ready" | "emerging" | "capsule" | "sealed" | "revealed" }>;
 
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 const EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD = Object.freeze({ tileX: 0, tileZ: 0, obstacles: Object.freeze([]) }) as WildsAerialObstacleNeighborhood;
@@ -139,6 +143,7 @@ export function WildsWorldCanvas({
   activeConstructionId,
   explorerIdentityKey,
   state,
+  v11Encounter,
   character,
   remotePlayers,
   qualityProfile,
@@ -194,6 +199,7 @@ export function WildsWorldCanvas({
   explorerIdentityKey?:string;
   onDragConstruction?: import("./WildsContinuousConstruction").WildsConstructionDragHandler;
   state: PlayState;
+  v11Encounter?: WildsV11SceneEncounter | null;
   character: WildzCharacterGenesis;
   remotePlayers: WildsPresence[];
   qualityProfile: WildsQualityProfile;
@@ -263,7 +269,7 @@ export function WildsWorldCanvas({
         <Suspense fallback={null}>
           <WildsFirstFrame onReady={onWorldReady} />
           <WildsShaderPrewarm />
-          <WildsScene suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
+          <WildsScene suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} v11Encounter={v11Encounter} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>
     </div>
@@ -289,6 +295,7 @@ function WildsScene({
   activeConstructionId,
   explorerIdentityKey,
   state,
+  v11Encounter,
   character,
   remotePlayers,
   qualityProfile,
@@ -342,6 +349,7 @@ function WildsScene({
   explorerIdentityKey?:string;
   onDragConstruction?: import("./WildsContinuousConstruction").WildsConstructionDragHandler;
   state: PlayState;
+  v11Encounter?: WildsV11SceneEncounter | null;
   character: WildzCharacterGenesis;
   remotePlayers: WildsPresence[];
   qualityProfile: WildsQualityProfile;
@@ -512,6 +520,7 @@ function WildsScene({
         />
         <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} terrainElevation={activeFloorY} />
         <EncounterSequence onSearchPoint={onSearchPoint} reducedMotion={qualityProfile.reducedMotion} state={state} terrainElevation={activeFloorY} siteRuntime={siteRuntime} siteSpace={siteSpace} />
+        {v11Encounter ? <ProceduralEncounterSequence encounter={v11Encounter} playerAddress={state.worldAddress} terrainElevation={activeFloorY} reducedMotion={qualityProfile.reducedMotion} /> : null}
         {visibleRemotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />)}
         {trainers.map((trainer, index) => (
           index < 10 && Math.hypot(trainer.position[0] - state.player.x, trainer.position[2] - state.player.z) <= 28
@@ -1650,6 +1659,48 @@ function EncounterSequence({ state, terrainElevation, siteRuntime, siteSpace, on
       ) : null}
     </group>
   );
+}
+
+/** A signed birth renders directly from its admitted anatomy, without entering the fixed historical catalog. */
+function ProceduralEncounterSequence({ encounter, playerAddress, terrainElevation, reducedMotion }: {
+  encounter: WildsV11SceneEncounter;
+  playerAddress?: WildsWorldAddress;
+  terrainElevation: number;
+  reducedMotion: boolean;
+}) {
+  if (!playerAddress) return null;
+  const birth = encounter.session.birth.birth;
+  const site = birth.identity.site;
+  const regionMicro = 24_000_000n;
+  const dx = (BigInt(site.regionX) - BigInt(playerAddress.regionX)) * regionMicro
+    + BigInt(site.localX - playerAddress.localX);
+  const dz = (BigInt(site.regionZ) - BigInt(playerAddress.regionZ)) * regionMicro
+    + BigInt(site.localZ - playerAddress.localZ);
+  if (dx > 8_000_000n || dx < -8_000_000n || dz > 8_000_000n || dz < -8_000_000n) return null;
+  const form = projectVerifiedBirthFormV11(birth, encounter.session.birth.proofDigest);
+  const phase = encounter.phase;
+  const lastAction = encounter.session.battle.transcript.at(-1)?.action;
+  const pose: WildsCreaturePose = phase === "capture_ready" ? "capture"
+    : encounter.session.battle.wild.hpRatio <= .3 ? "weakened"
+      : lastAction === "ability" ? "impact" : "curious";
+  const locomotion = birth.body.gait === "glide" ? "air" : birth.body.gait === "swim" ? "swim" : "ground";
+  const siteElevation = sampleWildsTerrainV11(site).elevation;
+  return <group name="signed-living-encounter" position={[Number(dx) / 1_000_000,
+    siteElevation - terrainElevation, Number(dz) / 1_000_000]}>
+    <SearchPulse hint position={[0, 0, 0]} />
+    <CaptureCreature phase={phase} reducedMotion={reducedMotion}>
+      <WildsCreatureActor formId={form.id} familyId={form.familyId} identityToken={birth.generationDigest}
+        renderRecipe={form.anatomy} morphology={{ head: birth.body.scale, torso: birth.body.scale,
+          limb: birth.body.scale, symmetry: birth.body.scale / 8 }}
+        primary={form.palette.primary} secondary={form.palette.accent} accent={form.palette.accent}
+        glow={form.palette.glow} locomotion={locomotion} grounded={locomotion === "ground"} pose={pose} />
+    </CaptureCreature>
+    {(phase === "player_turn" || phase === "capture_ready")
+      ? <BattleWorldTelemetry fighter={encounter.session.battle.wild} position={[0, 2.15, 0]} side="wild"
+        captureReady={phase === "capture_ready"} /> : null}
+    {phase === "capsule" || phase === "sealed" || phase === "revealed"
+      ? <CaptureCapsule phase={phase} reducedMotion={reducedMotion} /> : null}
+  </group>;
 }
 
 function RustlingClue({

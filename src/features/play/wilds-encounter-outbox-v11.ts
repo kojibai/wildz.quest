@@ -78,13 +78,16 @@ export async function flushOneWildsV11Site(input: {
   outbox: WildsV11EncounterOutbox;
   actorId: string;
   playerAddress: WildsWorldAddress;
+  target?: Readonly<{ site: WildsWorldAddress; slot: number }>;
   fetcher?: typeof fetch;
   pinnedKeys?: Readonly<Record<string, string>>;
 }): Promise<{ kind: "no-nearby" | "pending" | "admitted"; outbox: WildsV11EncounterOutbox;
   birth?: WildsV11CreatureCard; error?: string }> {
   const playerAddress = parseWildsWorldAddress(input.playerAddress);
   const outbox = restoreWildsV11EncounterOutbox(input.outbox, input.actorId);
-  const item = outbox.pending.find(candidate => nearSite(playerAddress, candidate.site));
+  const target = input.target ? canonicalPending({ actorId: input.actorId, ...input.target }) : null;
+  const item = outbox.pending.find(candidate => (!target || pendingKey(candidate) === pendingKey(target))
+    && nearSite(playerAddress, candidate.site));
   if (!item) return { kind: "no-nearby", outbox };
   try {
     const birth = await admitWildsV11EncounterFromSite({ actorId: input.actorId, playerAddress,

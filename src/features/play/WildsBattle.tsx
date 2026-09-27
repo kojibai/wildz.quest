@@ -11,6 +11,8 @@ export function WildsBattle({
   encounterPhase,
   encounterPlacement,
   inventory,
+  allowSwitch = true,
+  captureAuthority = "receiz",
   onAction,
   onDismiss
 }: {
@@ -18,6 +20,8 @@ export function WildsBattle({
   encounterPhase: string;
   encounterPlacement?: WildsLayeredEncounterProjection;
   inventory: PortableCardAsset[];
+  allowSwitch?: boolean;
+  captureAuthority?: "receiz" | "local";
   onAction: (action: BattleAction) => void;
   onDismiss: () => void;
 }) {
@@ -82,9 +86,11 @@ export function WildsBattle({
           <button className="wilds-battle-primary" onClick={onDismiss} type="button">Return to discovery</button>
         ) : captureTransitioning ? (
           <div aria-live="assertive" className="wilds-battle-capture-transition" data-capture-phase={encounterPhase} role="status">
-            <small>{encounterPhase === "battle_intro" ? "Encounter admission" : "Receiz capture sequence"}</small>
+            <small>{encounterPhase === "battle_intro" ? "Encounter admission" : captureAuthority === "local" ? "Living capture sequence" : "Receiz capture sequence"}</small>
             <strong>{encounterPhase === "battle_intro" ? "Entering the encounter" : encounterPhase === "emerging" ? "Capture locked" : encounterPhase === "capsule" ? "Sealing portable card" : "Verifying captured companion"}</strong>
-            <span>{encounterPhase === "battle_intro" ? "Reading the wild creature's intent…" : "Identity, stats, and custody are being sealed into the portable card."}</span>
+            <span>{encounterPhase === "battle_intro" ? "Reading the wild creature's intent…"
+              : captureAuthority === "local" ? "Its signed birth and local first meeting are being preserved."
+                : "Identity, stats, and custody are being sealed into the portable card."}</span>
             {encounterPhase !== "battle_intro" ? <div aria-label="Capture proof progress" className="wilds-battle-capture-progress">
               <i className="is-complete"><b>1</b><span>Locked</span></i>
               <i className={encounterPhase === "capsule" || encounterPhase === "sealed" ? "is-complete" : ""}><b>2</b><span>Sealed</span></i>
@@ -108,7 +114,7 @@ export function WildsBattle({
             </div>
             <div className="wilds-battle-meta">
               <span>{battle.player.energy}/50 energy · {battle.player.combo}x combo · {effectiveness}</span>
-              <label>
+              {allowSwitch ? <label>
                 <span>Switch active card</span>
                 <select
                   aria-label="Switch active card"
@@ -123,7 +129,7 @@ export function WildsBattle({
                   <option value="">Choose verified card…</option>
                   {inventory.filter((asset) => asset.id !== battle.player.id).map((asset) => <option key={asset.id} value={asset.id}>{asset.manifest.name} · Stage {asset.manifest.stage}</option>)}
                 </select>
-              </label>
+              </label> : null}
             </div>
           </>
         )}

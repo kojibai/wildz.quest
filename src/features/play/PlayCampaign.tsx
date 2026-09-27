@@ -61,6 +61,15 @@ import { sha256PortableBasis, type PortableCardAsset } from "@/features/play/por
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
 import { advanceCaptureVisualTime, capturePhaseDelayMs } from "@/features/play/wilds-capture-sequence";
 import { WildsBattle } from "@/features/play/WildsBattle";
+import { advanceWildsV11BattleSession, sealCapturedWildsV11BattleSession,
+  type WildsV11BattleSession } from "@/features/play/wilds-battle-session-v11";
+import { resolveWildsV11EncounterSession } from "@/features/play/wilds-encounter-session-v11";
+import { enqueueWildsV11Site, restoreWildsV11EncounterOutbox } from "@/features/play/wilds-encounter-outbox-v11";
+import { observationPointV11, observeWildsSiteV11 } from "@/features/play/wilds-site-search-v11";
+import { WILDS_V11_ENCOUNTER_PUBLIC_KEYS } from "@/features/play/wilds-v11-release-keys";
+import { projectVerifiedBirthFormV11, resolveCardForm } from "@/features/play/wilds-card-form-resolution";
+import { admitWildsV11Collection } from "@/features/play/wilds-v11-collection-admission";
+import type { WildsV11LocalCard } from "@/features/play/wilds-portable-card-v11";
 import { WildsTransformation } from "@/features/play/WildsTransformation";
 import { WildsChildCeremony } from "@/features/play/WildsChildCeremony";
 import { useWildsMultiplayer } from "@/features/play/use-wilds-multiplayer";
@@ -334,6 +343,15 @@ export function PlayCampaign({
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
   const [state, setState] = useState(() => upgradeV10PlayStateToV11(initialState));
+  const [v11BattleSession, setV11BattleSession] = useState<WildsV11BattleSession | null>(null);
+  const [v11EncounterPending, setV11EncounterPending] = useState(false);
+  const [v11CapturePhase, setV11CapturePhase] = useState<"none" | "emerging" | "capsule" | "sealed" | "revealed">("none");
+  const [v11CapturedCard, setV11CapturedCard] = useState<WildsV11LocalCard | null>(null);
+  const [v11CaptureError, setV11CaptureError] = useState<string | null>(null);
+  const [admittedV11Cards, setAdmittedV11Cards] = useState<readonly WildsV11LocalCard[]>([]);
+  const v11EncounterInFlight = useRef(false);
+  const v11CurrentStateRef = useRef(state);
+  v11CurrentStateRef.current = state;
   const crewPreferences = useMemo(() => sanitizeWildsCrewPreferences(state.crewPreferences, state.inventory, ownerReceizId, crewCustody), [state.crewPreferences, state.inventory, ownerReceizId, crewCustody]);
   const admittedSourceStateRef = useRef(initialState);
   const [sourceAdmission] = useState(createWildsPlayStateSourceAdmission);
@@ -366,6 +384,15 @@ export function PlayCampaign({
     // live gameplay without remounting Canvas or replaying local input.
     setState(current => admitWildsForwardPosition(upgradeV10PlayStateToV11(initialState), current));
   }, [initialState, sourceAdmission]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void admitWildsV11Collection({ evidence: state.proceduralCardEvidenceV11 ?? [], ownerId: ownerReceizId,
+      pinnedKeys: WILDS_V11_ENCOUNTER_PUBLIC_KEYS, signal: controller.signal,
+      yieldToFrame: () => new Promise<void>((resolve) => { window.setTimeout(resolve, 0); }) })
+      .then((result) => { if (!controller.signal.aborted) setAdmittedV11Cards(result.cards); })
+      .catch(() => { if (!controller.signal.aborted) setAdmittedV11Cards([]); });
+    return () => controller.abort();
+  }, [state.proceduralCardEvidenceV11, ownerReceizId]);
   const [memorialAssetId, setMemorialAssetId] = useState<string | null>(null);
   const gameplaySurfaceRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -750,7 +777,7 @@ export function PlayCampaign({
   }, [captureRewardAsset, state.encounter, rememberJourney, ownerReceizId]);
   const combatSurface = projectPlayCombatSurface({
     trainer: Boolean(activeTrainer && activeAsset && trainerEncounter?.phase === "combat"),
-    wild: isWildBattleModalOwner(state.encounter.phase, Boolean(state.battle)),
+    wild: isWildBattleModalOwner(state.encounter.phase, Boolean(state.battle)) || Boolean(v11BattleSession) || v11EncounterPending,
     pvp: Boolean(multiplayer.activeBattle)
   });
   const modalOwner = projectPlayShellOwner({
@@ -848,7 +875,7 @@ export function PlayCampaign({
     if (exclusiveOwner === "none" || exclusiveOwner === "command") return;
     clearIncompatibleModalState(exclusiveOwner);
   }, [clearIncompatibleModalState, exclusiveOwner]);
-  const worldInteractionEnabled = !isCapturePresentationPhase(state.encounter.phase)
+  const worldInteractionEnabled = !isCapturePresentationPhase(state.encounter.phase) && !v11BattleSession && !v11EncounterPending
     && canAcceptPlayShellInput(interactionEnabled, modalOwner, commandPanelOpen);
   const backgroundHomesBlocked = !isPlayHomeAvailable(exclusiveOwner, "status");
   const referenceHomeBlocked = !isPlayHomeAvailable(exclusiveOwner, "reference");
@@ -1124,7 +1151,7 @@ export function PlayCampaign({
     memories: livingWorld.snapshot?.story.memories ?? []
   }), [kaiMoment, livingWorld.snapshot?.story.memories]);
   const sagaPlayer = livingWorld.snapshot?.players[ownerReceizId] ?? null;
-  const wildBattleActive = isWildBattleModalOwner(state.encounter.phase, Boolean(state.battle));
+  const wildBattleActive = isWildBattleModalOwner(state.encounter.phase, Boolean(state.battle)) || Boolean(v11BattleSession);
   const { sagaMissions, sagaProgressPercent } = useMemo(() => {
     const sagaContributions: WildsMissionContribution[] = saga.chapter.missions.flatMap((mission) => mission.nodes.flatMap((node) => {
       const amount = sagaPlayer?.contributions[node.id] ?? 0;
@@ -1404,6 +1431,39 @@ export function PlayCampaign({
       document.removeEventListener("visibilitychange", scheduleVisibleCapture);
     };
   }, [state.encounter.phase, reducedMotion]);
+
+  useEffect(() => {
+    if (!v11BattleSession || v11BattleSession.battle.phase !== "captured"
+      || v11CapturePhase === "none" || v11CapturePhase === "revealed"
+      || (v11CapturePhase === "sealed" && !v11CapturedCard)) return;
+    const delay = capturePhaseDelayMs(v11CapturePhase, reducedMotion);
+    if (delay === null) return;
+    let frame: number | null = null;
+    let elapsedMs = 0;
+    let previousFrameAt = 0;
+    const advance = () => setV11CapturePhase((phase) => phase === "emerging" ? "capsule"
+      : phase === "capsule" ? "sealed" : phase === "sealed" ? "revealed" : phase);
+    const scheduleVisibleCapture = () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      frame = null;
+      elapsedMs = 0;
+      previousFrameAt = 0;
+      if (document.visibilityState !== "visible") return;
+      const tick = (now: number) => {
+        if (previousFrameAt !== 0) elapsedMs = advanceCaptureVisualTime(elapsedMs, now - previousFrameAt);
+        previousFrameAt = now;
+        if (elapsedMs >= delay) advance();
+        else frame = window.requestAnimationFrame(tick);
+      };
+      frame = window.requestAnimationFrame(tick);
+    };
+    document.addEventListener("visibilitychange", scheduleVisibleCapture);
+    scheduleVisibleCapture();
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      document.removeEventListener("visibilitychange", scheduleVisibleCapture);
+    };
+  }, [v11BattleSession, v11CapturePhase, v11CapturedCard, reducedMotion]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1915,6 +1975,49 @@ export function PlayCampaign({
       siteKey: siteEncounter.siteKey,
       siteSpaceId: siteEncounter.spaceId
     });
+    if (state.worldCoordinateMode !== "region-local" || !state.worldAddress
+      || state.siteSpace.spaceId !== "wildz.space.outer.v1" || v11EncounterInFlight.current) return;
+    const observation = observeWildsSiteV11(observationPointV11(state.worldAddress, state.player, searchPoint));
+    if (observation.kind !== "site" || !observation.site || observation.slot === undefined) return;
+    const leader = selectedAsset(state);
+    if (!leader || !isPlayableAsset(state, leader.id)) return;
+    let outbox;
+    try {
+      outbox = enqueueWildsV11Site(
+        restoreWildsV11EncounterOutbox(state.pendingEncounterSitesV11, ownerReceizId),
+        { actorId: ownerReceizId, site: observation.site, slot: observation.slot }
+      );
+    } catch { return; }
+    const requestedAddress = state.worldAddress;
+    v11EncounterInFlight.current = true;
+    setV11EncounterPending(true);
+    void resolveWildsV11EncounterSession({ outbox, actorId: ownerReceizId,
+      playerAddress: requestedAddress, target: { site: observation.site, slot: observation.slot },
+      leader, pinnedKeys: WILDS_V11_ENCOUNTER_PUBLIC_KEYS })
+      .then((result) => {
+        const latest = v11CurrentStateRef.current;
+        const currentAddress = latest.worldAddress;
+        const stillHere = currentAddress && currentAddress.regionX === requestedAddress.regionX
+          && currentAddress.regionZ === requestedAddress.regionZ && currentAddress.localX === requestedAddress.localX
+          && currentAddress.localZ === requestedAddress.localZ && selectedAsset(latest)?.id === leader.id;
+        if (!stillHere) return;
+        setState((current) => ({ ...current, pendingEncounterSitesV11: result.outbox,
+          lastEvent: result.kind === "ready"
+            ? `${projectVerifiedBirthFormV11(result.session.birth.birth, result.session.birth.proofDigest).name} emerged from a living site.`
+            : "The site is remembered. Return here when the encounter connection is ready." }));
+        if (result.kind === "ready" && admittedV11Cards.some((card) => card.birth.proofDigest === result.session.birth.proofDigest)) {
+          setState((current) => ({ ...current, lastEvent: "This creature's first meeting is already in your collection." }));
+          return;
+        }
+        if (result.kind === "ready") {
+          setV11CapturedCard(null);
+          setV11CapturePhase("none");
+          setV11BattleSession(result.session);
+        }
+      })
+      .catch(() => { setState((current) => ({ ...current,
+        lastEvent: "The site is remembered. Its encounter can be retried when the connection is ready." })); })
+      .finally(() => { v11EncounterInFlight.current = false; setV11EncounterPending(false); });
   };
   const withLocalActivity = (current: PlayState, next: PlayState, title: string, detail: string) => applyWildsInput(next, {
     type: "record-world-activity", activity: { id: `local:${kaiUPulse}:${current.actionHistory?.length ?? 0}:${title}`, kind: "activity", title, detail, uPulse: kaiUPulse, authority: "local" }
@@ -2732,6 +2835,22 @@ export function PlayCampaign({
         <div className="wilds-command-content wilds-vault-command-content">
           <WildzCommandInsight label="Collection consequence" value={activeAsset?.manifest.name ?? "Choose a leader"} detail="Vault selection becomes the active explorer companion in the drawer, Trail Pack, and battle." />
           <div className="wilds-vault-sheet-heading"><span><small>Portable card vault</small><strong>{state.inventory.length} sealed {state.inventory.length === 1 ? "card" : "cards"}</strong></span><button className="wilds-open-market" onClick={openMarketFromVault} type="button"><Icons.store size={18} /> Open Market</button></div>
+          {admittedV11Cards.length ? <section aria-label="Living creature records" className="wilds-v11-local-collection">
+            <h3>Creatures met in the living world</h3>
+            <p>Each birth and first meeting can be checked offline. These are local capture records; transfer and current ownership require separate proof.</p>
+            <ul>{admittedV11Cards.map((card) => {
+              const form = resolveCardForm(card);
+              return <li key={card.id}><span><strong>{form?.name ?? "Wild creature"}</strong><small>{form?.species} · {form?.rarity} · {form?.temperament}</small></span>
+                <button type="button" onClick={() => {
+                  const url = URL.createObjectURL(new Blob([JSON.stringify(card, null, 2)], { type: "application/json" }));
+                  const anchor = document.createElement("a");
+                  anchor.href = url;
+                  anchor.download = `${card.id.replace(/[^a-z0-9-]/gi, "-")}.json`;
+                  anchor.click();
+                  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+                }}>Save proof</button></li>;
+            })}</ul>
+          </section> : null}
           <WildsInventory
             readCrewHistory={crewExpeditions.history}
             state={state}
@@ -2822,6 +2941,10 @@ export function PlayCampaign({
               pressurePotential={traversalPotentials.pressure}
               aquaticPresentation={aquaticPresentation}
               state={state}
+              v11Encounter={v11BattleSession ? { session: v11BattleSession,
+                phase: v11CapturePhase === "none"
+                  ? v11BattleSession.battle.phase === "capture_ready" ? "capture_ready" : "player_turn"
+                  : v11CapturePhase } : null}
               character={character}
               remotePlayers={multiplayer.remotePlayers}
               qualityProfile={qualityProfile}
@@ -3098,7 +3221,70 @@ export function PlayCampaign({
               traversalCapabilities={activeTraversalCapabilities}
             />
 
-            {exclusiveOwner === "combat" && combatSurface === "wild" && wildBattleActive && state.battle ? (
+            {exclusiveOwner === "combat" && combatSurface === "wild" && v11EncounterPending ? (
+              <section aria-live="polite" className="wilds-battle wilds-v11-encounter-pending" role="status">
+                <small>LIVING SITE</small><h2>Meeting a wild creature</h2>
+                <p>Your location is being admitted. The creature stays unknown until its signed encounter is verified.</p>
+              </section>
+            ) : null}
+
+            {exclusiveOwner === "combat" && combatSurface === "wild" && v11BattleSession
+              && v11CapturePhase === "revealed" && v11CapturedCard ? (
+              <section aria-label="New creature" aria-modal="true" className="wilds-battle wilds-v11-capture-reward" role="dialog">
+                <small>ONE LIVING CREATURE</small>
+                <h2>{resolveCardForm(v11CapturedCard)?.name ?? "A new companion"}</h2>
+                <p>{resolveCardForm(v11CapturedCard)?.species} · {v11CapturedCard.birth.birth.rarity}</p>
+                <p>Its birth, traits and first meeting are replayable offline. This local capture record is saved with your Vault.</p>
+                <code>{v11CapturedCard.id}</code>
+                <button className="wilds-battle-primary" onClick={() => {
+                  setV11BattleSession(null);
+                  setV11CapturePhase("none");
+                  setV11CapturedCard(null);
+                  releasePlayModalOwner("combat");
+                }} type="button">Return to the world</button>
+              </section>
+            ) : null}
+
+            {exclusiveOwner === "combat" && combatSurface === "wild" && v11BattleSession
+              && !(v11CapturePhase === "revealed" && v11CapturedCard) ? (
+              <>
+                <WildsBattle battle={v11BattleSession.battle} allowSwitch={false} captureAuthority="local"
+                  encounterPhase={v11CapturePhase === "none"
+                    ? v11BattleSession.battle.phase === "capture_ready" ? "capture_ready" : "player_turn"
+                    : v11CapturePhase}
+                  inventory={state.inventory}
+                  onAction={(action) => {
+                    try {
+                      const next = advanceWildsV11BattleSession(v11BattleSession, action);
+                      setV11BattleSession(next);
+                      if (next.battle.phase !== "captured" || v11BattleSession.battle.phase === "captured") return;
+                      setV11CapturePhase("emerging");
+                      setV11CaptureError(null);
+                      void sealCapturedWildsV11BattleSession(next, new Date().toISOString(), WILDS_V11_ENCOUNTER_PUBLIC_KEYS)
+                        .then((card) => {
+                          setV11CapturedCard(card);
+                          setState((current) => current.proceduralCardEvidenceV11?.some((value) => value.birth.proofDigest === card.birth.proofDigest)
+                            ? current : { ...current, proceduralCardEvidenceV11: [...(current.proceduralCardEvidenceV11 ?? []), card],
+                              lastEvent: `${resolveCardForm(card)?.name ?? "A new companion"} joined your living collection.` });
+                        })
+                        .catch(() => setV11CaptureError("The local capture record could not be verified. Try sealing again."));
+                    } catch { setV11CaptureError("That battle action could not be admitted."); }
+                  }}
+                  onDismiss={() => { setV11BattleSession(null); setV11CapturePhase("none");
+                    setV11CapturedCard(null); releasePlayModalOwner("combat"); }} />
+                {v11CaptureError ? <div className="wilds-v11-capture-error" role="alert">{v11CaptureError}
+                  {v11BattleSession.battle.phase === "captured" ? <button onClick={() => {
+                    setV11CaptureError(null);
+                    void sealCapturedWildsV11BattleSession(v11BattleSession, new Date().toISOString(), WILDS_V11_ENCOUNTER_PUBLIC_KEYS)
+                      .then((card) => { setV11CapturedCard(card); setState((current) => current.proceduralCardEvidenceV11?.some((value) => value.birth.proofDigest === card.birth.proofDigest)
+                        ? current : { ...current, proceduralCardEvidenceV11: [...(current.proceduralCardEvidenceV11 ?? []), card] }); })
+                      .catch(() => setV11CaptureError("The local capture record could not be verified. Try sealing again."));
+                  }} type="button">Retry seal</button> : null}
+                </div> : null}
+              </>
+            ) : null}
+
+            {exclusiveOwner === "combat" && combatSurface === "wild" && !v11BattleSession && wildBattleActive && state.battle ? (
               <WildsBattle
                 battle={state.battle}
                 encounterPhase={state.encounter.phase}

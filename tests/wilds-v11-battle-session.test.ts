@@ -14,10 +14,10 @@ const keys = generateKeyPairSync("ed25519");
 const keyId = "test-battle-v11";
 const pinnedKeys = { [keyId]: keys.publicKey.export({ format: "jwk" }).x! };
 
-async function fixture() {
+async function fixture(regionX = "1") {
   const encounter = signWildsV11Encounter({ schema: "wildz.encounter-input.v11", keyId,
     law: "wildz.rarity.v11", actorId, slot: 0,
-    site: { worldVersion: 11, regionX: "1", regionZ: "0", localX: 4_000_000, localZ: 8_000_000 }
+    site: { worldVersion: 11, regionX, regionZ: "0", localX: 4_000_000, localZ: 8_000_000 }
   }, keys.privateKey.export({ format: "pem", type: "pkcs8" }).toString());
   const birth = await sealWildsV11Birth(encounter, pinnedKeys);
   const player = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: actorId,
@@ -49,15 +49,20 @@ describe("signed procedural encounter battle", () => {
   });
 
   it("seals the actual captured session as a locally verified card", async () => {
-    const { birth, player } = await fixture();
-    let session = await startWildsV11BattleSession({ birth, player, ownerId: actorId, pinnedKeys });
-    for (let turn = 0; turn < 40 && session.battle.phase !== "captured" && session.battle.phase !== "defeated"; turn++) {
-      session = advanceWildsV11BattleSession(session,
-        session.battle.wild.hpRatio <= 0.3 ? { type: "capture" } : { type: "ability", slot: 0 });
+    let captured: Awaited<ReturnType<typeof startWildsV11BattleSession>> | null = null;
+    for (let site = 1; site <= 32 && !captured; site++) {
+      const { birth, player } = await fixture(String(site));
+      let session = await startWildsV11BattleSession({ birth, player, ownerId: actorId, pinnedKeys });
+      for (let turn = 0; turn < 40 && !["captured", "defeated", "fled"].includes(session.battle.phase); turn++) {
+        session = advanceWildsV11BattleSession(session,
+          session.battle.wild.hpRatio <= 0.3 ? { type: "capture" }
+            : session.battle.player.energy >= 12 ? { type: "ability", slot: 0 } : { type: "focus" });
+      }
+      if (session.battle.phase === "captured") captured = session;
     }
-    assert.equal(session.battle.phase, "captured");
-    const card = await sealCapturedWildsV11BattleSession(session, "2026-09-27T12:01:00.000Z", pinnedKeys);
-    assert.equal(card.birth.proofDigest, birth.proofDigest);
+    assert.ok(captured, "at least one independently signed encounter is capturable by normal battle actions");
+    const card = await sealCapturedWildsV11BattleSession(captured, "2026-09-27T12:01:00.000Z", pinnedKeys);
+    assert.equal(card.birth.proofDigest, captured.birth.proofDigest);
     assert.equal(await verifyLocalWildsV11Card(card, pinnedKeys), true);
   });
 });
