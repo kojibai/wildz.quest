@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { authorizeRiftTravelV11, isLocallyAdmittedRiftDestinationV11, validateRiftGrantV11 } from "../src/features/play/wilds-rift-travel";
 import { roomKeyForAddressV11, validatePresenceMoveV11 } from "../src/features/play/multiplayer-core";
 import { parseWildsRoomKey } from "../src/lib/receiz/wilds-multiplayer-server";
-import { applyWildsInput, initialPlayState, serializePlayState, upgradeV10PlayStateToV11 } from "../src/features/play/game-state";
+import { applyWildsInput, initialPlayState, restorePlayState, serializePlayState, upgradeV10PlayStateToV11 } from "../src/features/play/game-state";
 
 const origin = { worldVersion: 11, regionX: "0", regionZ: "0", localX: 0, localZ: 0 } as const;
 const far = { worldVersion: 11, regionX: "9007199254740993", regionZ: "-9007199254740993", localX: 7_000_000, localZ: 19_000_000 } as const;
@@ -31,6 +31,20 @@ describe("v11 exact-address travel", () => {
     assert.deepEqual(landed.worldAddress, far);
     assert.deepEqual(landed.player, { x: 7, z: 19 });
     assert.ok(landed.explorationAtlasV11?.regions.includes(`${far.regionX}:${far.regionZ}`));
+  });
+
+  it("crosses an enormous region boundary by walking and restores the exact neighbor", () => {
+    const destination = { ...far, regionZ: "0", localX: 23_900_000, localZ: 12_000_000 };
+    const result = authorizeRiftTravelV11({ idempotencyKey: "travel-v11-edge", source: origin, destination }, authority);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const landed = applyWildsInput(upgradeV10PlayStateToV11(initialPlayState), {
+      type: "apply-rift-grant-v11", grant: result.grant, playerId: authority.playerId
+    });
+    const walked = applyWildsInput(landed, { type: "move", direction: "east" });
+    assert.equal(walked.worldAddress?.regionX, "9007199254740994");
+    assert.equal(walked.player.x, 0.95);
+    assert.deepEqual(restorePlayState(serializePlayState(walked)).worldAddress, walked.worldAddress);
   });
 
   it("keeps an upgraded v10 player synchronized through an ordinary move", () => {
