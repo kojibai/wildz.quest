@@ -67,6 +67,7 @@ import {
   type WildsExplorationAtlas
 } from "./wilds-exploration-atlas";
 import { offsetWildsWorldAddress, parseWildsWorldAddress, v10PositionToWildsAddress, type WildsWorldAddress } from "./wilds-world-address";
+import { observationPointV11, observeWildsSiteV11 } from "./wilds-site-search-v11";
 import { projectV10CardContinuityV11, type WildsV10CardContinuityV11 } from "./wilds-card-continuity-v11";
 import { isWildsHomecomingNearMeeting, projectWildsHomecomingOffer, type WildsHomecomingChoice } from "./wilds-creature-homecoming";
 import { admitWildsDiscoveryPhysicalNeighborhood, isCanonicalWildsDiscoverySiteKey, normalizeWildsSiteSpaceState, type WildsSiteSpaceState } from "./wilds-discovery-sites";
@@ -1968,6 +1969,24 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
 
   if (input.type === "search-point") {
     if (!Number.isFinite(input.x) || !Number.isFinite(input.z) || !Number.isFinite(Date.parse(input.searchedAt)) || !input.ownerReceizId.trim()) return state;
+    if (state.worldCoordinateMode === "region-local" && state.worldAddress && state.siteSpace.spaceId === "wildz.space.outer.v1") {
+      if (Math.hypot(input.x - state.player.x, input.z - state.player.z) > 8) {
+        return { ...state, lastEvent: "That signal is beyond reach. Move closer before scanning." };
+      }
+      const observation = observeWildsSiteV11(observationPointV11(state.worldAddress, state.player, input));
+      const direction = observation.direction
+        ? Math.abs(observation.direction.x) >= Math.abs(observation.direction.z)
+          ? observation.direction.x >= 0 ? "east" : "west"
+          : observation.direction.z >= 0 ? "south" : "north"
+        : "nearby";
+      const lastEvent = observation.kind === "site"
+        ? `A living site is here in region ${observation.site!.regionX}, ${observation.site!.regionZ}. Its creature remains unknown until the encounter is admitted.`
+        : observation.kind === "near"
+          ? `Living signal ${direction} · ${Math.round(Number(observation.distanceMicro) / 100_000) / 10} world units away.`
+          : "Signal cold. Keep exploring this region.";
+      return { ...state, activeAction: "explore", encounter: idleEncounterState, lastEvent,
+        lastSearchPoint: { x: input.x, z: input.z } };
+    }
     const point = {
       x: clamp(input.x, worldBounds.min, worldBounds.max),
       z: clamp(input.z, worldBounds.min, worldBounds.max),
@@ -2211,6 +2230,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       partyTravelRevision: nextWildsPartyTravelRevision(state.partyTravelRevision),
       player,
       worldAddress: address,
+      encounter: idleEncounterState,
       homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, state.cardContinuityV11 ?? {}, address),
       worldCoordinateMode: "region-local",
       explorationAtlasV11: atlas,
