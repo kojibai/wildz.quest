@@ -49,6 +49,7 @@ import {
   selectedAsset,
   selectedCard,
   exactCompanionProgress,
+  upgradeV10PlayStateToV11,
   type PlayState,
   type WildsInput
 } from "@/features/play/game-state";
@@ -329,7 +330,7 @@ export function PlayCampaign({
     currentPlayState: PlayState
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
-  const [state, setState] = useState(() => initialState);
+  const [state, setState] = useState(() => upgradeV10PlayStateToV11(initialState));
   const crewPreferences = useMemo(() => sanitizeWildsCrewPreferences(state.crewPreferences, state.inventory, ownerReceizId, crewCustody), [state.crewPreferences, state.inventory, ownerReceizId, crewCustody]);
   const admittedSourceStateRef = useRef(initialState);
   const [sourceAdmission] = useState(createWildsPlayStateSourceAdmission);
@@ -360,7 +361,7 @@ export function PlayCampaign({
     // The shell has already reconciled this state against the active Receiz ID.
     // Adopt that source directly so another authenticated browser can advance
     // live gameplay without remounting Canvas or replaying local input.
-    setState(current => admitWildsForwardPosition(initialState, current));
+    setState(current => admitWildsForwardPosition(upgradeV10PlayStateToV11(initialState), current));
   }, [initialState, sourceAdmission]);
   const [memorialAssetId, setMemorialAssetId] = useState<string | null>(null);
   const gameplaySurfaceRef = useRef<HTMLDivElement | null>(null);
@@ -2713,7 +2714,7 @@ export function PlayCampaign({
               const outcome = await onRestoreArtifact(file, confirmCardOnly, currentPlayState);
               const verifiedAssetIds = new Set(outcome.verifiedAssetIds);
               const restoredPlayState = {
-                ...outcome.playState,
+                ...upgradeV10PlayStateToV11(outcome.playState),
                 pendingSyncAssetIds: outcome.playState.pendingSyncAssetIds.filter((assetId) => !verifiedAssetIds.has(assetId))
               };
               setState(restoredPlayState);

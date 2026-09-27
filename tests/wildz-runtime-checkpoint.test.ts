@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { applyWildsInput, createOwnerBoundInitialPlayState } from "../src/features/play/game-state.js";
+import { v10PositionToWildsAddress } from "../src/features/play/wilds-world-address.js";
 import {
   readWildzRuntimeCheckpoint,
   writeWildzRuntimeCheckpoint
@@ -42,6 +43,9 @@ test("runtime checkpoints persist gameplay without serializing verified Vault ca
   assert.equal(restored.energy, 63);
   assert.equal(restored.inventory, base.inventory);
   assert.deepEqual(restored.explorationAtlas, moved.explorationAtlas);
+  assert.deepEqual(restored.worldAddress, v10PositionToWildsAddress(moved.player.x, moved.player.z));
+  assert.equal(restored.worldCoordinateMode, "legacy");
+  assert.equal(restored.inventory[0]?.proof.digest, base.inventory[0]?.proof.digest);
 });
 
 test("a runtime checkpoint cannot attach to a changed Vault", () => {

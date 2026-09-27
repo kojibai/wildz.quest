@@ -1,5 +1,5 @@
 import { hasLaterWildsPlayerLedger } from "./wilds-play-state-source";
-import { restorePlayState, serializePlayState, type PlayState } from "./game-state";
+import { restorePlayState, serializePlayState, upgradeV10PlayStateToV11, type PlayState } from "./game-state";
 import {
   createAdmittedWildsInventory,
   retainAdmittedWildsInventory,
@@ -79,7 +79,7 @@ export function prepareWildzRuntimeCheckpoint(input: {
   actorId: string;
   playState: PlayState;
 }): { key: string; checkpoint: WildzRuntimeCheckpoint } {
-  const { inventory, ...playState } = input.playState;
+  const { inventory, ...playState } = upgradeV10PlayStateToV11(input.playState);
   const checkpoint: WildzRuntimeCheckpoint = {
     schema: RUNTIME_SCHEMA,
     keyId: input.keyId,

@@ -578,7 +578,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(campaign, /type: "advance-encounter"/);
     assert.match(campaign, /WildsCaptureReward/);
     assert.match(campaign, /WildsInventory/);
-    assert.match(campaign, /useState\(\(\) => initialState\)/);
+    assert.match(campaign, /useState\(\(\) => upgradeV10PlayStateToV11\(initialState\)\)/);
     assert.match(campaign, /createWildzGameplayPublisher/);
     assert.match(campaign, /playStatePublisherRef\.current\?\.schedule\(\{ state, continuity, onChange: onPlayStateChangeRef\.current \}, sourceTruthChanged\)/);
     assert.doesNotMatch(campaign, /WILDS_SAVE_KEY|localStorage\.setItem\([^,]*wilds:save/);
