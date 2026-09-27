@@ -445,17 +445,17 @@ function WildsScene({
     shelterPosition: homeResidents.shelterPosition, player: homeResidents.shelterPosition,
     spaceId: "wildz.space.outer.v1"
   }) : []; }, [homeResidents, state.inventory, state.adventureConditions, activeAsset?.id, supportCards, crewTravelRuntime, crewTravelMembershipRevision]);
-  const homeResidentsNearby = homeResidents && siteSpace.spaceId === "wildz.space.outer.v1"
+  const homeResidentsNearby = !regionLocalAddress && homeResidents && siteSpace.spaceId === "wildz.space.outer.v1"
     && Math.hypot(homeResidents.shelterPosition.x-state.player.x,homeResidents.shelterPosition.z-state.player.z) <= 30;
   const terrainTileX = Math.floor(state.player.x / WILDS_TERRAIN_TILE_SIZE);
   const terrainTileZ = Math.floor(state.player.z / WILDS_TERRAIN_TILE_SIZE);
   const terrainObstacleNeighborhood = useMemo(
-    () => siteSpace.spaceId === "wildz.space.outer.v1" ? projectWildsAerialObstacleNeighborhood(state.player) : EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD,
+    () => siteSpace.spaceId === "wildz.space.outer.v1" && !regionLocalAddress ? projectWildsAerialObstacleNeighborhood(state.player) : EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD,
     // Player coordinates deliberately do not rebuild this immutable projection inside a tile.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [siteSpace.spaceId, terrainTileX, terrainTileZ]
+    [siteSpace.spaceId, regionLocalAddress, terrainTileX, terrainTileZ]
   );
-  const crewObstacles = useMemo(() => [...WILDS_RENDERED_PHYSICAL_OBSTACLES, ...terrainObstacleNeighborhood.obstacles, ...livingPhysicalObstacles], [terrainObstacleNeighborhood, livingPhysicalObstacles]);
+  const crewObstacles = useMemo(() => regionLocalAddress ? [] : [...WILDS_RENDERED_PHYSICAL_OBSTACLES, ...terrainObstacleNeighborhood.obstacles, ...livingPhysicalObstacles], [regionLocalAddress, terrainObstacleNeighborhood, livingPhysicalObstacles]);
   const actualCameraSubmergedRef = useRef(false);
   return (
     <WildsReadabilityProvider value={readability}>
@@ -478,7 +478,7 @@ function WildsScene({
       }} qualityProfile={qualityProfile} siteRuntime={siteRuntime} state={state} /> : null}
       <SmoothWorldFrame player={state.player} terrainElevation={activeFloorY}>
         <SearchableTerrain
-          activeWorkSource={activeWorkSource}
+          activeWorkSource={regionLocalAddress ? null : activeWorkSource}
           kaiUPulse={kaiMoment.uPulse}
           enabled={searchEnabled}
           missionProgress={state.missionProgress}
@@ -489,14 +489,15 @@ function WildsScene({
           terrainElevation={activeFloorY}
           qualityProfile={qualityProfile}
           worldMastery={state.worldMastery}
-          livingWorld={livingWorld}
+          livingWorld={regionLocalAddress ? null : livingWorld}
           worldMode={worldMode}
           siteRuntime={siteRuntime}
           siteSpace={siteSpace}
           onSitePortal={onSitePortal}
         />
-        {burrowPreview && <WildsBurrowGhost preview={burrowPreview} player={state.player} elevation={activeFloorY} />}
-        <WildsAmbientLife enabled={siteSpace.spaceId === "wildz.space.outer.v1"} player={state.player} qualityProfile={qualityProfile} siteRuntime={siteRuntime} terrainElevation={activeFloorY} />
+        {!regionLocalAddress && burrowPreview && <WildsBurrowGhost preview={burrowPreview} player={state.player} elevation={activeFloorY} />}
+        <WildsAmbientLife enabled={!regionLocalAddress && siteSpace.spaceId === "wildz.space.outer.v1"} player={state.player} qualityProfile={qualityProfile} siteRuntime={siteRuntime} terrainElevation={activeFloorY} />
+        {!regionLocalAddress && <>
         <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} worldMode={worldMode} />
         <WildsRegenerativeGroveEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} />
         <WildsContinuousConstruction spaceId={siteSpace.spaceId} world={livingWorld} player={state.player} terrainElevation={activeFloorY} preview={constructionPreview} selectable={constructionSelectionEnabled} onSelect={onSelectConstruction} onDrag={onDragConstruction} activeComponentId={activeConstructionId} />
@@ -515,15 +516,16 @@ function WildsScene({
           terrainElevation={activeFloorY}
         />
         <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} terrainElevation={activeFloorY} />
+        </>}
         <EncounterSequence onSearchPoint={onSearchPoint} reducedMotion={qualityProfile.reducedMotion} state={state} terrainElevation={activeFloorY} siteRuntime={siteRuntime} siteSpace={siteSpace} />
         {visibleRemotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />)}
-        {trainers.map((trainer, index) => (
+        {!regionLocalAddress && trainers.map((trainer, index) => (
           index < 10 && Math.hypot(trainer.position[0] - state.player.x, trainer.position[2] - state.player.z) <= 28
             ? <TrainerExplorer key={trainer.id} trainer={trainer} localPlayer={state.player} onSelect={onSelectTrainer} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />
             : null
         ))}
       </SmoothWorldFrame>
-      <AerialPlayerFrame kaiUPulse={kaiMoment.uPulse} aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} flightEndurancePotential={flightEndurancePotential} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef} siteRuntime={siteRuntime} siteSpace={siteSpace}>
+      <AerialPlayerFrame kaiUPulse={kaiMoment.uPulse} aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} flightEndurancePotential={flightEndurancePotential} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef} siteRuntime={siteRuntime} siteSpace={siteSpace} worldAddress={regionLocalAddress}>
         <WildsExplorer
           aerialPalette={{
             primary: activeAppearance?.palette.primary ?? "#c9fff0",
@@ -551,7 +553,7 @@ function WildsScene({
   );
 }
 
-function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, children, flightEndurancePotential, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, terrainObstacleNeighborhood, verticalIntentRef, verticalTraversalRef, siteRuntime, siteSpace }: {
+function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, children, flightEndurancePotential, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, terrainObstacleNeighborhood, verticalIntentRef, verticalTraversalRef, siteRuntime, siteSpace, worldAddress }: {
   aquaticPresentation: WildsAquaticPresentation;
   capabilities: readonly WildsTraversalCapability[];
   children: ReactNode;
@@ -573,6 +575,7 @@ function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, child
   verticalTraversalRef: MutableRefObject<WildsVerticalTraversalState>;
   siteRuntime: WildsSiteRuntimeProjection;
   siteSpace: WildsSiteSpaceState;
+  worldAddress?: WildsWorldAddress;
 }) {
   const group = useRef<THREE.Group>(null);
   const previousPlayer = useRef(player);
@@ -615,7 +618,11 @@ function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, child
     } else {
       sampleAerialCollision(player, currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35, livingPhysicalObstacles, collisionSample, WILDS_PLAYER_BODY_HEIGHT, WILDS_PLAYER_BODY_RADIUS, terrainObstacleNeighborhood.obstacles);
     }
-    const siteCollision = writeWildsSiteRuntimeAerialCollision(
+    const siteCollision = worldAddress && !siteInterior ? Object.assign(siteCollisionSampleRef.current, {
+      obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false, blockerId: null,
+      floorY: groundElevation, flooded: aquaticPresentation.mode === "swim" || aquaticPresentation.mode === "wade",
+      waterSurfaceY: aquaticPresentation.waterSurfaceY
+    }) : writeWildsSiteRuntimeAerialCollision(
       siteCollisionSampleRef.current,
       siteRuntime,
       siteSpace.spaceId,
@@ -1465,16 +1472,15 @@ function SearchableTerrain({
         if (!enabled) return;
         event.stopPropagation();
         const point = { x: player.x + event.point.x, z: player.z + event.point.z };
-        onSearchPoint(projectWildsInteractionSurfacePoint(
-          siteRuntime,
-          siteSpace.spaceId,
-          point,
-          siteSpace.spaceId !== "wildz.space.outer.v1" ? siteSpace.position.y
-            : worldAddress ? sampleWildsTerrainV11(offsetWildsWorldAddress(worldAddress,
-              BigInt(Math.round((point.x - player.x) * 1_000_000)),
-              BigInt(Math.round((point.z - player.z) * 1_000_000)))).elevation
-              : wildsTerrainElevation(point.x, point.z)
-        ));
+        const surfaceY = worldAddress && siteSpace.spaceId === "wildz.space.outer.v1"
+          ? sampleWildsTerrainV11(offsetWildsWorldAddress(worldAddress,
+            BigInt(Math.round((point.x - player.x) * 1_000_000)),
+            BigInt(Math.round((point.z - player.z) * 1_000_000)))).elevation
+          : siteSpace.spaceId !== "wildz.space.outer.v1" ? siteSpace.position.y : wildsTerrainElevation(point.x, point.z);
+        onSearchPoint(worldAddress && siteSpace.spaceId === "wildz.space.outer.v1"
+          ? { x: Math.round(point.x * 1_000_000) / 1_000_000, z: Math.round(point.z * 1_000_000) / 1_000_000,
+            surfaceWorldY: Math.round(surfaceY * 1_000_000) / 1_000_000 }
+          : projectWildsInteractionSurfacePoint(siteRuntime, siteSpace.spaceId, point, surfaceY));
       }}
     >
       <StreamedTerrain activeWorkSource={activeWorkSource} kaiUPulse={kaiUPulse} missionProgress={missionProgress} player={player} worldAddress={worldAddress} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />

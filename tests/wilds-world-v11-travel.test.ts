@@ -31,6 +31,9 @@ describe("v11 exact-address travel", () => {
     });
     assert.deepEqual(landed.worldAddress, far);
     assert.deepEqual(landed.player, { x: 7, z: 19 });
+    const walked = applyWildsInput(landed, { type: "move", direction: "east" });
+    assert.equal(applyWildsInput(walked, { type: "apply-rift-grant-v11", grant: result.grant,
+      playerId: authority.playerId }), walked);
     assert.ok(landed.explorationAtlasV11?.regions.includes(`${far.regionX}:${far.regionZ}`));
   });
 

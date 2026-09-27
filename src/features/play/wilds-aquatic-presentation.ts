@@ -15,7 +15,7 @@ export type WildsAquaticPresentation = Readonly<{
 }>;
 
 export type WildsAquaticPresentationInput = Readonly<{
-  terrain: WildsTerrainSample;
+  terrain: Pick<WildsTerrainSample, "surface" | "elevation">;
   canSwim: boolean;
   airborne: boolean;
 }>;

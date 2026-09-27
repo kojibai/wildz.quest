@@ -258,6 +258,7 @@ export type PlayState = {
   pendingSyncAssetIds: string[];
   pendingTravelGrowthEvents: Array<{ assetId: string; event: GrowthEvent }>;
   appliedArenaSettlementIds: string[];
+  appliedRiftGrantIdsV11?: string[];
   rewardCards: RewardCard[];
   selectedCardId: string;
   selectedAssetId: string;
@@ -914,6 +915,9 @@ export function restorePlayState(
       appliedArenaSettlementIds: Array.isArray(saved.appliedArenaSettlementIds)
         ? Array.from(new Set(saved.appliedArenaSettlementIds.filter((id): id is string => typeof id === "string" && /^arena-settlement:[a-f0-9]{24}$/.test(id)))).slice(-512)
         : [],
+      ...(saved.worldAddress ? { appliedRiftGrantIdsV11: Array.isArray(saved.appliedRiftGrantIdsV11)
+        ? Array.from(new Set(saved.appliedRiftGrantIdsV11.filter((id): id is string => typeof id === "string" && /^rift:[a-f0-9]{32}$/.test(id)))).slice(-512)
+        : [] } : {}),
       companionProgress: {
         ...initialPlayState.companionProgress,
         ...(saved.companionProgress ?? {})
@@ -2314,6 +2318,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
 
   if (input.type === "apply-rift-grant-v11") {
     if (!validateRiftGrantV11(input.grant, { playerId: input.playerId }).ok) return state;
+    if (state.appliedRiftGrantIdsV11?.includes(input.grant.grantId)) return state;
     const address = parseWildsWorldAddress(input.grant.destination);
     const player = { x: address.localX / 1_000_000, z: address.localZ / 1_000_000 };
     const atlas = revealWildsExplorationAtV11(state.explorationAtlasV11 ?? createInitialWildsExplorationAtlasV11(), address);
@@ -2326,6 +2331,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       encounter: idleEncounterState,
       homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, state.cardContinuityV11 ?? {}, address, state.inventory),
       worldCoordinateMode: "region-local",
+      appliedRiftGrantIdsV11: [...(state.appliedRiftGrantIdsV11 ?? []), input.grant.grantId].slice(-512),
       explorationAtlasV11: atlas,
       siteSpace: normalizeWildsSiteSpaceState(undefined, { x: player.x, y: sampleWildsTerrainV11(address).elevation, z: player.z }),
       lastEvent: "Rift complete. Explore the surrounding region to find its living sites."
@@ -2398,7 +2404,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
         ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles, input.kaiUPulse, movementAddress)
         : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles, input.kaiUPulse, movementAddress)
       : movePlayerInsideSite(state.player, input);
-    const siteMovement = input.siteRuntime ? writeWildsSiteRuntimeMovement(
+    const siteMovement = input.siteRuntime && !movementAddress ? writeWildsSiteRuntimeMovement(
       input.siteMovementOutput ?? { x: movement.position.x, z: movement.position.z, floorY: movement.elevation, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null, flooded: false, blocked: false, blockedByClimb: false },
       input.siteRuntime,
       currentSpace.spaceId,
@@ -2436,11 +2442,11 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       && (nextAddress.regionX !== state.worldAddress?.regionX || nextAddress.regionZ !== state.worldAddress?.regionZ)
       ? revealWildsExplorationAtV11(state.explorationAtlasV11, nextAddress)
       : state.explorationAtlasV11;
-    if (input.siteRuntime) {
+    if (input.siteRuntime && !movementAddress) {
       const discovery = writeWildsSiteRuntimeDiscovery(input.siteDiscoveryOutput ?? { siteKey: null }, input.siteRuntime, currentSpace.spaceId, nextPlayer.x, siteMovement?.floorY ?? movement.elevation, nextPlayer.z);
       if (discovery.siteKey) explorationAtlas = discoverWildsExplorationSite(explorationAtlas, discovery.siteKey);
     }
-    const nearest = nearestCreature({ player: nextPlayer });
+    const nearest = state.worldCoordinateMode === "region-local" ? undefined : nearestCreature({ player: nextPlayer });
     const nearbyText = movement.traversalBlockedBy === "swim"
       ? "Deep water ahead. Lead with an aquatic creature to swim."
       : movement.traversalBlockedBy === "climb" || siteMovement?.blockedByClimb
@@ -2549,7 +2555,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
   }
 
   if (input.type === "discover" || input.type === "capture") {
-    const nearest = nearestCreature(state);
+    const nearest = state.worldCoordinateMode === "region-local" ? undefined : nearestCreature(state);
     if (!nearest || nearest.distance > 1.25) {
       return {
         ...state,

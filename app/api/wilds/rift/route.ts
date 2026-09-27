@@ -18,11 +18,14 @@ const riftLedgerKey = Symbol.for("receiz.wilds.rift-ledger.v1");
 
 type RiftLedger = {
   grants: Map<string, RiftTravelGrant | RiftTravelGrantV11>;
+  requestsV11: Map<string, string>;
 };
 
 function riftLedger() {
   const root = globalThis as typeof globalThis & { [riftLedgerKey]?: RiftLedger };
-  return (root[riftLedgerKey] ??= { grants: new Map() });
+  const ledger = (root[riftLedgerKey] ??= { grants: new Map(), requestsV11: new Map() });
+  ledger.requestsV11 ??= new Map();
+  return ledger;
 }
 
 function position(value: unknown) {
@@ -49,12 +52,23 @@ export async function POST(request: NextRequest) {
       }
       const idempotencyKeyV11 = typeof body.idempotencyKey === "string" ? body.idempotencyKey : "";
       const cacheKeyV11 = `${actor.playerId}:v11:${idempotencyKeyV11}`;
+      const requestKeyV11 = JSON.stringify({ roomKey, source, destination });
       const ledgerV11 = riftLedger();
       const cachedV11 = ledgerV11.grants.get(cacheKeyV11);
       if (cachedV11) {
-        if (!("version" in cachedV11) || cachedV11.version !== 11 || cachedV11.destination.regionX !== destination.regionX
-          || cachedV11.destination.regionZ !== destination.regionZ || cachedV11.destination.localX !== destination.localX
-          || cachedV11.destination.localZ !== destination.localZ) throw new Error("wilds_rift_idempotency_conflict");
+        if (!("version" in cachedV11) || cachedV11.version !== 11
+          || ledgerV11.requestsV11.get(cacheKeyV11) !== requestKeyV11) throw new Error("wilds_rift_idempotency_conflict");
+        const arrivalRoomKey = roomKeyForAddressV11("platform", cachedV11.destination);
+        if (arrivalRoomKey !== roomKey) await hydrateWildsRoomFromReceiz(request, arrivalRoomKey);
+        const arrival = getWildsMultiplayerSnapshot(arrivalRoomKey);
+        const arrived = arrival.players.find(player => player.playerId === actor.playerId);
+        const address = arrived?.worldAddress;
+        const lockedAtArrival = arrival.battles.some(battle => battle.phase === "active" && Boolean(battle.players[actor.playerId]))
+          || arrival.challenges.some(challenge => ["accepted", "active"].includes(challenge.state)
+            && [challenge.challengerId, challenge.opponentId].includes(actor.playerId));
+        if (!address || address.regionX !== cachedV11.destination.regionX || address.regionZ !== cachedV11.destination.regionZ
+          || address.localX !== cachedV11.destination.localX || address.localZ !== cachedV11.destination.localZ
+          || lockedAtArrival) throw new Error("wilds_rift_grant_consumed");
         return NextResponse.json({ ok: true, grant: cachedV11, idempotent: true },
           { headers: { "cache-control": "private, no-store" } });
       }
@@ -74,7 +88,9 @@ export async function POST(request: NextRequest) {
         roomKey, playerId: actor.playerId, destination: resultV11.grant.destination, kaiPulse: resultV11.grant.kaiPulse
       });
       ledgerV11.grants.set(cacheKeyV11, resultV11.grant);
+      ledgerV11.requestsV11.set(cacheKeyV11, requestKeyV11);
       if (ledgerV11.grants.size > 512) ledgerV11.grants.delete(ledgerV11.grants.keys().next().value!);
+      if (ledgerV11.requestsV11.size > 512) ledgerV11.requestsV11.delete(ledgerV11.requestsV11.keys().next().value!);
       const publications = transported.source.roomKey === transported.destination.roomKey
         ? [await publishWildsRoomToReceiz(request, actor, transported.destination)]
         : await Promise.all([

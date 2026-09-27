@@ -19,6 +19,12 @@ export async function POST(request: NextRequest) {
     const heading = Number(body?.heading ?? 0);
     const address = body?.address === undefined ? undefined : parseWildsWorldAddress(body.address);
     await hydrateWildsRoomFromReceiz(request, roomKey);
+    const previousRoomKey = address && typeof body?.previousRoomKey === "string"
+      ? parseWildsRoomKey(body.previousRoomKey) : undefined;
+    if (previousRoomKey && previousRoomKey !== roomKey && !previousRoomKey.startsWith("wilds11:")) {
+      throw new Error("wilds_presence_address_room_mismatch");
+    }
+    if (previousRoomKey && previousRoomKey !== roomKey) await hydrateWildsRoomFromReceiz(request, previousRoomKey);
     const activeCard = authorizeWildsMultiplayerHeartbeatCard(
       actor,
       body?.card,
@@ -28,6 +34,7 @@ export async function POST(request: NextRequest) {
     const roamingCreatures = authorizeWildsRoamingPresence(actor, body?.roamingCreatures);
     const result = heartbeatWildsPresence({
       roomKey,
+      previousRoomKey,
       playerId: actor.playerId,
       handle: actor.handle,
       style,
@@ -39,7 +46,10 @@ export async function POST(request: NextRequest) {
       activeCard,
       roamingCreatures
     });
-    const publication = await publishWildsPresenceToReceiz(request, actor, result.snapshot);
+    const [publication] = await Promise.all([
+      publishWildsPresenceToReceiz(request, actor, result.snapshot),
+      ...(result.departed ? [publishWildsPresenceToReceiz(request, actor, result.departed)] : [])
+    ]);
     return NextResponse.json({
       ok: true,
       actor: { playerId: actor.playerId, handle: actor.handle, practice: actor.practice },
