@@ -2,7 +2,7 @@ import { createWildsOrderedSpatialIndex } from "./wilds-ordered-spatial-index";
 import {
   WILDS_TERRAIN_TILE_SIZE,
   sampleWildsTerrain,
-  wildsTerrainElevation,
+  type WildsTerrainSample,
   type WildsTraversalRequirement
 } from "./wilds-terrain-authority";
 import {
@@ -37,6 +37,7 @@ export function nearbyWildsMovementObstacles(obstacles: readonly WildsTerrainObs
   return nearby;
 }
 type TraversalCapability = WildsTraversalRequirement["kind"];
+type MovementTerrainSample = Pick<WildsTerrainSample, "elevation" | "surface" | "traversal">;
 
 export type WildsGroundMovementResult = {
   position: { x: number; z: number };
@@ -242,7 +243,7 @@ const EMPTY_AERIAL_OBSTACLES: readonly WildsTerrainObstacle[] = Object.freeze([]
 const obstacleTileCache = new Map<string, readonly WildsTerrainObstacle[]>();
 
 function traversalModeFor(
-  terrain: ReturnType<typeof sampleWildsTerrain>,
+  terrain: MovementTerrainSample,
   capabilities: ReadonlySet<TraversalCapability>
 ): WildsGroundMovementResult["traversalMode"] {
   if (terrain.surface === "deep-water" && capabilities.has("swim")) return "swim";
@@ -444,14 +445,16 @@ export function resolveWildsGroundMovement(
     verticalClearance?: number;
     verticalWorldY?: number;
     obstacles?: readonly WildsTerrainObstacle[];
+    terrainSampler?: (x: number, z: number) => MovementTerrainSample;
     additionalObstacles?: readonly WildsTerrainObstacle[];
     structureSupports?: readonly WildsStructureSupport[];
   } = {}
 ): WildsGroundMovementResult {
   if (!finitePoint(start) || !finitePoint(intended)) throw new Error("wilds_ground_movement_invalid");
   const capsuleRadius = options.capsuleRadius ?? DEFAULT_CAPSULE_RADIUS;
-  const startTerrain = sampleWildsTerrain(start.x, start.z);
-  const intendedTerrain = sampleWildsTerrain(intended.x, intended.z);
+  const sampleTerrain = options.terrainSampler ?? sampleWildsTerrain;
+  const startTerrain = sampleTerrain(start.x, start.z);
+  const intendedTerrain = sampleTerrain(intended.x, intended.z);
   const capabilities = new Set(options.capabilities ?? []);
   const footY = Number.isFinite(options.verticalWorldY) ? options.verticalWorldY! : startTerrain.elevation;
   const intendedSupport = wildsStructureSupportAt(intended, options.structureSupports, capsuleRadius, footY);
@@ -463,7 +466,7 @@ export function resolveWildsGroundMovement(
   };
   const targetTerrain = target.x === intended.x && target.z === intended.z
     ? intendedTerrain
-    : sampleWildsTerrain(target.x, target.z);
+    : sampleTerrain(target.x, target.z);
   const targetSupport = wildsStructureSupportAt(target, options.structureSupports, capsuleRadius, footY);
   const airborneClearance = options.aerialMode
     ? Math.max(0, Number.isFinite(options.verticalWorldY)
@@ -478,10 +481,10 @@ export function resolveWildsGroundMovement(
     const steps = Math.max(1, Math.ceil(distance / .2));
     for (let step = 1; step <= steps; step += 1) {
       const amount = step / steps;
-      const elevation = wildsTerrainElevation(
+      const elevation = sampleTerrain(
         start.x + (target.x - start.x) * amount,
         start.z + (target.z - start.z) * amount
-      );
+      ).elevation;
       if (elevation + .35 <= worldFootY + CONTACT_EPSILON) continue;
       return {
         position: { ...start },
@@ -513,7 +516,7 @@ export function resolveWildsGroundMovement(
   if (missingTraversal) {
     return {
       position: { ...start },
-      elevation: wildsTerrainElevation(start.x, start.z),
+      elevation: startTerrain.elevation,
       surface: startTerrain.surface,
       speedMultiplier,
       traversalMode: traversalModeFor(startTerrain, capabilities),
@@ -547,7 +550,7 @@ export function resolveWildsGroundMovement(
   const collision = resolveWildsObstacleMotion(start, target, obstacles, capsuleRadius);
   const resolvedTerrain = collision.position.x === target.x && collision.position.z === target.z
     ? targetTerrain
-    : sampleWildsTerrain(collision.position.x, collision.position.z);
+    : sampleTerrain(collision.position.x, collision.position.z);
   const resolvedSupport = wildsStructureSupportAt(collision.position, options.structureSupports, 0, footY);
   const pushedIntoMissingTraversal = airborneClearance !== null
     ? null
@@ -555,7 +558,7 @@ export function resolveWildsGroundMovement(
   if (pushedIntoMissingTraversal) {
     return {
       position: { ...start },
-      elevation: wildsTerrainElevation(start.x, start.z),
+      elevation: startTerrain.elevation,
       surface: startTerrain.surface,
       speedMultiplier,
       traversalMode: traversalModeFor(startTerrain, capabilities),
