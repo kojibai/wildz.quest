@@ -20,7 +20,7 @@ export function wildsHomecomingEventId(assetId: string, meeting: Readonly<{ x: n
   return `homecoming:${sha256PortableBasis(canonicalPortableCardJson({ assetId, meeting })).slice(7, 39)}`;
 }
 
-function nearMeeting(playerValue: WildsWorldAddress, meeting: Readonly<{ x: number; z: number }>) {
+export function isWildsHomecomingNearMeeting(playerValue: WildsWorldAddress, meeting: Readonly<{ x: number; z: number }>) {
   const player = parseWildsWorldAddress(playerValue);
   const site = v10PositionToWildsAddress(meeting.x, meeting.z);
   const dx = (BigInt(player.regionX) - BigInt(site.regionX)) * REGION_MICRO + BigInt(player.localX - site.localX);
@@ -43,7 +43,7 @@ export function projectWildsHomecomingOffer(input: {
     || card.manifest.variant.generatorVersion !== 3) return null;
   if (isLivingCardAsset(card) && (card.manifest.revisions.at(-1)?.growth.life?.retired || (card.manifest.revisions.at(-1)?.growth.life?.vitality ?? 1) <= 0)) return null;
   try {
-    if (!nearMeeting(playerAddress, continuity.firstMeeting)) return null;
+    if (!isWildsHomecomingNearMeeting(playerAddress, continuity.firstMeeting)) return null;
   } catch {
     return null;
   }
@@ -54,7 +54,7 @@ export function projectWildsHomecomingOffer(input: {
     assetId: card.id,
     meeting: continuity.firstMeeting,
     title: `${card.manifest.name} remembers this place`,
-    response: `${card.manifest.name} slows at the place you first met. ${identity.motion.reunion}. Their ${identity.personality.temperament} attention settles on an old trace in the ground.`,
+    response: `${card.manifest.name} slows where you first met. Their ${identity.personality.temperament} gaze follows a familiar trace, then they offer a ${identity.motion.bondingGesture}.`,
     choices: [
       { id: "rest", label: "Rest together", response: `${card.manifest.name} settles into ${identity.personality.comfortBehavior}. You remember this place together.` },
       { id: "follow", label: "Follow an old trail", response: `${card.manifest.name} leads a short path, eager for ${identity.personality.favoriteActivity}. The return becomes part of your shared history.` },

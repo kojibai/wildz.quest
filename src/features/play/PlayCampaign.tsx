@@ -788,11 +788,12 @@ export function PlayCampaign({
     ? projectWildsHomecomingOffer({
       card: activeAsset, continuity: state.cardContinuityV11?.[activeAsset.id], playerAddress: state.worldAddress,
       present: homeCompanions.some((card) => card.id === activeAsset.id),
-      completed: Boolean(state.journeyJournal?.memories.some((memory) => memory.kind === "homecoming"
+      completed: !state.homecomingDepartedAssetIds?.includes(activeAsset.id)
+        || Boolean(state.journeyJournal?.memories.some((memory) => memory.kind === "homecoming"
         && memory.companionId === activeAsset.id))
         || Boolean(isLivingCardAsset(activeAsset) && activeAsset.manifest.history?.events.some((event) => event.rulesetVersion === "wildz.homecoming.v11"))
     }) : null,
-  [activeAsset, state.worldAddress, state.cardContinuityV11, state.journeyJournal, state.encounter.phase,
+  [activeAsset, state.worldAddress, state.cardContinuityV11, state.homecomingDepartedAssetIds, state.journeyJournal, state.encounter.phase,
     state.battle, state.siteSpace.spaceId, homeCompanions, exclusiveOwner]);
   useEffect(() => {
     if (exclusiveOwner === "none") return;

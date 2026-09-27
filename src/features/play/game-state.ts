@@ -68,7 +68,7 @@ import {
 } from "./wilds-exploration-atlas";
 import { offsetWildsWorldAddress, parseWildsWorldAddress, v10PositionToWildsAddress, type WildsWorldAddress } from "./wilds-world-address";
 import { projectV10CardContinuityV11, type WildsV10CardContinuityV11 } from "./wilds-card-continuity-v11";
-import { projectWildsHomecomingOffer, type WildsHomecomingChoice } from "./wilds-creature-homecoming";
+import { isWildsHomecomingNearMeeting, projectWildsHomecomingOffer, type WildsHomecomingChoice } from "./wilds-creature-homecoming";
 import { admitWildsDiscoveryPhysicalNeighborhood, isCanonicalWildsDiscoverySiteKey, normalizeWildsSiteSpaceState, type WildsSiteSpaceState } from "./wilds-discovery-sites";
 import { enterWildsSiteRuntime, exitWildsSiteRuntime, forceExitWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeMovement, type WildsSiteDiscoveryOutput, type WildsSiteMovementOutput, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import {
@@ -213,6 +213,7 @@ export type PlayState = {
   partyTravelRevision?: number;
   crewPreferences?: WildsCrewPreferences;
   journeyJournal?: WildsJourneyJournal;
+  homecomingDepartedAssetIds?: string[];
   actionHistory: WildsActivityEntry[];
   activeAction: GameAction;
   beans: number;
@@ -417,6 +418,7 @@ export const initialPlayState: PlayState = {
   completed: false,
   completedMissionIds: [],
   capturedHotspotIds: [],
+  homecomingDepartedAssetIds: [],
   discoveredCardIds: ["mintcub"],
   energy: 84,
   encounter: idleEncounterState,
@@ -522,6 +524,7 @@ export function serializePlayState(state: PlayState) {
   }
   return JSON.stringify({ schema: v11 ? PLAY_SAVE_SCHEMA_V11 : PLAY_SAVE_SCHEMA, state: {
     ...state,
+    homecomingDepartedAssetIds: (state.homecomingDepartedAssetIds ?? []).filter((id) => state.inventory.some((card) => card.id === id)),
     ...(v11 ? { cardContinuityV11: projectV10CardContinuityV11(state.inventory) } : {}),
     journeyJournal: sanitizeWildsJourneyJournal(state.journeyJournal, state.journeyJournal?.ownerId)
   } });
@@ -529,16 +532,31 @@ export function serializePlayState(state: PlayState) {
 
 /** Explicit, idempotent v10 continuity upgrade. It never reseals or rerolls inventory. */
 export function upgradeV10PlayStateToV11(state: PlayState): PlayState {
-  if (state.worldAddress) return state.cardContinuityV11 ? state : {
-    ...state, cardContinuityV11: projectV10CardContinuityV11(state.inventory)
-  };
+  if (state.worldAddress) {
+    const continuity = state.cardContinuityV11 ?? projectV10CardContinuityV11(state.inventory);
+    return state.cardContinuityV11 && state.homecomingDepartedAssetIds ? state : {
+      ...state, cardContinuityV11: continuity,
+      homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, continuity, state.worldAddress)
+    };
+  }
+  const address = v10PositionToWildsAddress(state.player.x, state.player.z);
+  const continuity = projectV10CardContinuityV11(state.inventory);
   return {
     ...state,
-    worldAddress: v10PositionToWildsAddress(state.player.x, state.player.z),
+    worldAddress: address,
     worldCoordinateMode: "legacy",
     explorationAtlasV11: createInitialWildsExplorationAtlasV11(),
-    cardContinuityV11: projectV10CardContinuityV11(state.inventory)
+    cardContinuityV11: continuity,
+    homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, continuity, address)
   };
+}
+
+function departedHomecomingIds(existing: readonly string[] | undefined, continuity: Record<string, WildsV10CardContinuityV11>, address: WildsWorldAddress): string[] {
+  const departed = new Set(existing ?? []);
+  for (const [id, entry] of Object.entries(continuity)) {
+    if (entry.firstMeeting && !isWildsHomecomingNearMeeting(address, entry.firstMeeting)) departed.add(id);
+  }
+  return [...departed].filter((id) => id in continuity);
 }
 
 /** Normalize runtime state without serializing or reverifying exact admitted cards.
@@ -791,6 +809,12 @@ export function restorePlayState(
       z: clamp(saved.player.z, worldBounds.min, worldBounds.max)
     };
     const restoredWorldAdditions = normalizeOwnedWorldAdditions(saved.ownedWorldAdditions,ownerReceizId);
+    const restoredContinuity = v11Envelope ? projectV10CardContinuityV11(migratedInventory) : undefined;
+    const restoredDepartures = restoredContinuity && restoredWorldAddress
+      ? departedHomecomingIds((Array.isArray(saved.homecomingDepartedAssetIds) ? saved.homecomingDepartedAssetIds : [])
+        .filter((id): id is string => typeof id === "string" && id.length <= 256)
+        .map((id) => migratedAssetIds.get(id) ?? id), restoredContinuity, restoredWorldAddress)
+      : [];
     return withWorldProgress({
       ...fallback,
       ...saved,
@@ -802,7 +826,8 @@ export function restorePlayState(
       worldAddress: restoredWorldAddress,
       worldCoordinateMode: v11Envelope ? saved.worldCoordinateMode : undefined,
       explorationAtlasV11: restoredAtlasV11,
-      cardContinuityV11: v11Envelope ? projectV10CardContinuityV11(migratedInventory) : undefined,
+      cardContinuityV11: restoredContinuity,
+      homecomingDepartedAssetIds: restoredDepartures,
       siteSpace: restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
       explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, v11Envelope ? { x: 0, z: 0 } : restoredPlayer),
       ownedWorldAdditions: restoredWorldAdditions,
@@ -1308,7 +1333,8 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
     if (!asset || state.selectedAssetId !== asset.id || asset.manifest.ownerReceizId !== input.ownerReceizId
       || !state.worldAddress || state.encounter.phase !== "idle" || state.battle
-      || state.siteSpace.spaceId !== "wildz.space.outer.v1") return state;
+      || state.siteSpace.spaceId !== "wildz.space.outer.v1"
+      || !state.homecomingDepartedAssetIds?.includes(asset.id)) return state;
     const continuity = state.cardContinuityV11?.[asset.id];
     const priorHistory = isLivingCardAsset(asset) ? asset.manifest.history?.events ?? [] : [];
     const offer = projectWildsHomecomingOffer({
@@ -2185,6 +2211,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       partyTravelRevision: nextWildsPartyTravelRevision(state.partyTravelRevision),
       player,
       worldAddress: address,
+      homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, state.cardContinuityV11 ?? {}, address),
       worldCoordinateMode: "region-local",
       explorationAtlasV11: atlas,
       siteSpace: normalizeWildsSiteSpaceState(undefined, { x: player.x, y: sampleWildsTerrainV11(address).elevation, z: player.z }),
@@ -2315,12 +2342,20 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
         ? `${nearest.card.name} is within discovery range.`
         : "Explore the wilds and look for companion signals.";
 
+    const meeting = leader && state.cardContinuityV11?.[leader.id]?.firstMeeting;
+    const homecomingDepartedAssetIds = leader && meeting && nextAddress
+      && !state.homecomingDepartedAssetIds?.includes(leader.id)
+      && !isWildsHomecomingNearMeeting(nextAddress, meeting)
+      ? [...(state.homecomingDepartedAssetIds ?? []), leader.id]
+      : state.homecomingDepartedAssetIds;
+
     const moved: PlayState = {
       ...state,
       activeAction: "explore",
       energy: Math.max(0, state.energy - 1),
       explorationAtlas,
       worldAddress: nextAddress,
+      homecomingDepartedAssetIds,
       explorationAtlasV11,
       siteSpace: currentSpace.spaceId === "wildz.space.outer.v1" ? {
         version: "wildz.site-space-state.v1",

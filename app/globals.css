@@ -3651,6 +3651,22 @@ button.wildz-work-capability:focus-visible { outline: 2px solid #b8f5d9; outline
 .wilds-homecoming-offer > div { display: flex; flex-wrap: wrap; gap: 7px; }
 .wilds-homecoming-offer button { padding: 8px 10px; border: 1px solid rgba(255, 224, 153, .38); border-radius: 999px; color: #fff5d5; background: rgba(255, 224, 153, .12); font: inherit; font-size: 11px; cursor: pointer; }
 .wilds-homecoming-offer button:hover, .wilds-homecoming-offer button:focus-visible { background: rgba(255, 224, 153, .27); }
+@media (max-width: 600px) {
+  .wilds-homecoming-offer {
+    top: clamp(174px, 29%, 210px);
+    right: 10px;
+    bottom: auto;
+    left: auto;
+    width: min(230px, calc(100% - 114px));
+    max-height: min(42vh, 290px);
+    padding: 11px;
+    overflow-y: auto;
+    transform: none;
+  }
+  .wilds-homecoming-offer > strong { font-size: 14px; }
+  .wilds-homecoming-offer > p { margin: 5px 0 8px; font-size: 10px; }
+  .wilds-homecoming-offer button { padding: 6px 8px; font-size: 9px; }
+}
 
 .wilds-control-deck {
   display: grid;
