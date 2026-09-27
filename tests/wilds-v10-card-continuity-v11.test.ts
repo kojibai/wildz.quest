@@ -5,6 +5,7 @@ import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment";
 import { admitLegacyCard } from "../src/features/play/living-card-proof";
 import { discoverLivingCreature } from "../src/features/play/living-taxonomy";
 import { sealCollectedCard, sealDiscoveredCard } from "../src/features/play/portable-card";
+import { hotspotsForRegion } from "../src/features/play/hidden-hotspots";
 import { projectV10CardContinuityV11, upgradeVerifiedV10Card, verifyV10CardContinuityV11 } from "../src/features/play/wilds-card-continuity-v11";
 import { initialPlayState, restorePlayState, serializePlayState, upgradeV10PlayStateToV11 } from "../src/features/play/game-state";
 
@@ -46,6 +47,20 @@ describe("non-destructive v10 card continuity", () => {
       assert.equal(continuity.originalRarity, card.manifest.rarity);
       assert.equal(verifyV10CardContinuityV11(card, continuity), true);
     }
+  });
+
+  it("recovers an older card's meeting place from its exact canonical hotspot", () => {
+    const hotspot = hotspotsForRegion(0, 0)[0]!;
+    const card = sealCollectedCard({ formId: hotspot.formId, ownerReceizId: owner,
+      encounterId: hotspot.id, capturedAt: at });
+    const before = JSON.stringify(card);
+    const continuity = upgradeVerifiedV10Card(card);
+    assert.deepEqual(continuity.firstMeeting, hotspot.position);
+    assert.equal(JSON.stringify(card), before);
+    assert.equal(verifyV10CardContinuityV11(card, continuity), true);
+    const unrelated = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: owner,
+      encounterId: "hotspot:0:0:0:invented", capturedAt: at });
+    assert.equal(upgradeVerifiedV10Card(unrelated).firstMeeting, null);
   });
 
   it("automatically binds old cards on v11 resave and rebuilds a forged saved projection", () => {

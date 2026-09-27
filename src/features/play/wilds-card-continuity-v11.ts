@@ -1,5 +1,6 @@
 import { currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
+import { hotspotsForRegion } from "./hidden-hotspots";
 import { canonicalPortableCardJson, sha256PortableBasis, verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 
 export type WildsV10CardContinuityV11 = Readonly<{
@@ -16,11 +17,23 @@ export type WildsV10CardContinuityV11 = Readonly<{
 
 const continuityByInventory = new WeakMap<readonly PortableCardAsset[], Record<string, WildsV10CardContinuityV11>>();
 
+/** An old canonical hotspot ID can attest its generated meeting place even when the card predates v3 discovery fields. */
+function meetingFromOldHotspot(card: PortableCardAsset) {
+  const match = /^hotspot:(-?(?:0|[1-9]\d*)):(-?(?:0|[1-9]\d*)):([0-5]):[a-z0-9_-]+$/.exec(card.manifest.encounterId);
+  if (!match) return null;
+  const regionX = Number(match[1]);
+  const regionZ = Number(match[2]);
+  if (!Number.isSafeInteger(regionX) || !Number.isSafeInteger(regionZ)) return null;
+  const hotspot = hotspotsForRegion(regionX, regionZ)[Number(match[3])];
+  return hotspot?.id === card.manifest.encounterId && hotspot.formId === card.manifest.formId
+    ? { x: hotspot.position.x, z: hotspot.position.z } : null;
+}
+
 /** A verified presentation binding beside the old card, never a rewritten birth. */
 export function upgradeVerifiedV10Card(card: PortableCardAsset): WildsV10CardContinuityV11 {
   if (!verifyAnyWildsCard(card).ok) throw new Error("wilds_v10_card_unverified");
   const meeting = card.manifest.variant.generatorVersion === 3
-    ? card.manifest.variant.traits.identity.discovery.location : null;
+    ? card.manifest.variant.traits.identity.discovery.location : meetingFromOldHotspot(card);
   const basis = {
     schema: "wildz.v10-card-continuity.v11" as const,
     assetId: card.id,

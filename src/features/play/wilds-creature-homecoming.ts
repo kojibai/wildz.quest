@@ -39,26 +39,31 @@ export function projectWildsHomecomingOffer(input: {
 }): WildsHomecomingOffer | null {
   const { card, continuity, playerAddress } = input;
   if (!input.present || input.completed || !playerAddress || !continuity?.firstMeeting
-    || continuity.assetId !== card.id || continuity.sourceProofDigest !== card.proof.digest
-    || card.manifest.variant.generatorVersion !== 3) return null;
+    || continuity.assetId !== card.id || continuity.sourceProofDigest !== card.proof.digest) return null;
   if (isLivingCardAsset(card) && (card.manifest.revisions.at(-1)?.growth.life?.retired || (card.manifest.revisions.at(-1)?.growth.life?.vitality ?? 1) <= 0)) return null;
   try {
     if (!isWildsHomecomingNearMeeting(playerAddress, continuity.firstMeeting)) return null;
   } catch {
     return null;
   }
-  const identity = card.manifest.variant.traits.identity;
+  const identity = card.manifest.variant.generatorVersion === 3 ? card.manifest.variant.traits.identity : null;
   const eventId = wildsHomecomingEventId(card.id, continuity.firstMeeting);
   return {
     eventId,
     assetId: card.id,
     meeting: continuity.firstMeeting,
     title: `${card.manifest.name} remembers this place`,
-    response: `${card.manifest.name} slows where you first met. Their ${identity.personality.temperament} gaze follows a familiar trace, then they offer a ${identity.motion.bondingGesture}.`,
-    choices: [
+    response: identity
+      ? `${card.manifest.name} slows where you first met. Their ${identity.personality.temperament} gaze follows a familiar trace, then they offer a ${identity.motion.bondingGesture}.`
+      : `${card.manifest.name} slows at the place recorded in their first encounter. They recognize the path you shared.`,
+    choices: identity ? [
       { id: "rest", label: "Rest together", response: `${card.manifest.name} settles into ${identity.personality.comfortBehavior}. You remember this place together.` },
       { id: "follow", label: "Follow an old trail", response: `${card.manifest.name} leads a short path, eager for ${identity.personality.favoriteActivity}. The return becomes part of your shared history.` },
       { id: "investigate", label: "See what changed", response: `${card.manifest.name} investigates ${identity.personality.curiosity}. The familiar place has a new detail to remember.` }
+    ] : [
+      { id: "rest", label: "Rest together", response: `${card.manifest.name} settles beside you at the old meeting place.` },
+      { id: "follow", label: "Follow an old trail", response: `${card.manifest.name} leads you along a path you once shared.` },
+      { id: "investigate", label: "See what changed", response: `${card.manifest.name} studies what has changed since your first encounter.` }
     ]
   };
 }

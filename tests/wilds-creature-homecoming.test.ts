@@ -10,6 +10,7 @@ import { projectWildsHomecomingOffer } from "../src/features/play/wilds-creature
 import { applyWildsInput, initialPlayState, restorePlayState, serializePlayState, upgradeV10PlayStateToV11 } from "../src/features/play/game-state";
 import { isLivingCardAsset } from "../src/features/play/living-card-types";
 import { createInitialWildsExplorationAtlasV11 } from "../src/features/play/wilds-exploration-atlas";
+import { hotspotsForRegion } from "../src/features/play/hidden-hotspots";
 
 describe("proven first-meeting homecoming", () => {
   it("offers a return only for a present companion at its proven v10-v3 meeting place", () => {
@@ -60,5 +61,28 @@ describe("proven first-meeting homecoming", () => {
     assert.equal(applyWildsInput({ ...state, worldAddress: v10PositionToWildsAddress(50, 50) }, input).inventory[0].proof.digest, card.proof.digest);
     assert.deepEqual(upgradeV10PlayStateToV11({ ...state, worldAddress: undefined, worldCoordinateMode: undefined }).homecomingDepartedAssetIds, []);
     assert.deepEqual(upgradeV10PlayStateToV11({ ...state, player: { x: 50, z: 50 }, worldAddress: undefined, worldCoordinateMode: undefined }).homecomingDepartedAssetIds, [card.id]);
+  });
+  it("offers the existing revisit action to an older card with a provable hotspot", () => {
+    const hotspot = hotspotsForRegion(0, 0)[0]!;
+    const card = sealCollectedCard({ formId: hotspot.formId, ownerReceizId: "homecoming-owner",
+      encounterId: hotspot.id, capturedAt: "2026-07-17T12:00:00.000Z" });
+    const continuity = upgradeVerifiedV10Card(card);
+    assert.deepEqual(continuity.firstMeeting, hotspot.position);
+    const offer = projectWildsHomecomingOffer({ card, continuity,
+      playerAddress: v10PositionToWildsAddress(hotspot.position.x, hotspot.position.z),
+      present: true, completed: false });
+    assert.ok(offer);
+    assert.match(offer.response, /place recorded in their first encounter/);
+    assert.equal(offer.choices.length, 3);
+    const at = "2026-07-18T12:00:00.000Z";
+    const state = { ...initialPlayState, inventory: [card], selectedAssetId: card.id,
+      player: { ...hotspot.position }, worldAddress: v10PositionToWildsAddress(hotspot.position.x, hotspot.position.z),
+      cardContinuityV11: { [card.id]: continuity }, homecomingDepartedAssetIds: [card.id],
+      journeyJournal: { version: 1 as const, ownerId: "homecoming-owner", memories: [] } };
+    const returned = applyWildsInput(state, { type: "complete-homecoming", assetId: card.id,
+      ownerReceizId: "homecoming-owner", choice: "rest", at });
+    assert.notEqual(returned, state);
+    assert.equal(returned.journeyJournal?.memories[0]?.kind, "homecoming");
+    assert.equal(verifyAnyWildsCard(returned.inventory[0]!).ok, true);
   });
 });
