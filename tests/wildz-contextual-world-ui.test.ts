@@ -36,7 +36,7 @@ test("campaign projects one modal owner and gates underlying world input", () =>
   assert.match(campaign, /trainer: Boolean\(activeTrainer && activeAsset && trainerEncounter/);
   assert.match(campaign, /map: mapOpen/);
   assert.match(campaign, /exclusiveOwner=\{exclusiveOwner\}/);
-  assert.match(campaign, /const worldInteractionEnabled = canAcceptPlayShellInput\(interactionEnabled, modalOwner, commandPanelOpen\)/);
+  assert.match(campaign, /const worldInteractionEnabled = !isCapturePresentationPhase\(state\.encounter\.phase\)[\s\S]*&& canAcceptPlayShellInput\(interactionEnabled, modalOwner, commandPanelOpen\)/);
   assert.match(campaign, /if \(!worldInteractionEnabled\) return/);
   assert.match(campaign, /searchEnabled=\{worldInteractionEnabled && \(discoveryActive \|\| Boolean\(stewardPlacementMode\) \|\| continuousBuilder.open \|\| burrowBuilder.open\)\}/);
 });

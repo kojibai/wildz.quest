@@ -22,12 +22,15 @@ const WILD_BATTLE_OWNED_PHASES = new Set([
   "battle_intro",
   "player_turn",
   "capture_ready",
-  "emerging",
-  "capsule",
-  "sealed",
   "fled",
   "defeated"
 ]);
+
+const CAPTURE_PRESENTATION_PHASES = new Set(["emerging", "capsule", "sealed"]);
+
+export function isCapturePresentationPhase(encounterPhase: string) {
+  return CAPTURE_PRESENTATION_PHASES.has(encounterPhase);
+}
 
 export function isWildBattleModalOwner(encounterPhase: string, battlePresent: boolean) {
   return battlePresent && WILD_BATTLE_OWNED_PHASES.has(encounterPhase);

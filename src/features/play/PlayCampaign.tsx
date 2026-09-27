@@ -57,6 +57,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
 import { sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
+import { capturePhaseDelayMs } from "@/features/play/wilds-capture-sequence";
 import { WildsBattle } from "@/features/play/WildsBattle";
 import { WildsTransformation } from "@/features/play/WildsTransformation";
 import { WildsChildCeremony } from "@/features/play/WildsChildCeremony";
@@ -70,7 +71,7 @@ import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
 import { useWorldOverlayDirector } from "@/features/play/use-world-overlay-director";
 import { usePlayModalLifecycle } from "@/features/play/use-play-modal-lifecycle";
-import { canAcceptPlayShellInput, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayCombatSurface, projectPlayShellOwner } from "@/features/play/play-shell-owner";
+import { canAcceptPlayShellInput, isCapturePresentationPhase, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayCombatSurface, projectPlayShellOwner } from "@/features/play/play-shell-owner";
 import {
   beginModalAdmission,
   canCommitModalAdmission,
@@ -833,7 +834,8 @@ export function PlayCampaign({
     if (exclusiveOwner === "none" || exclusiveOwner === "command") return;
     clearIncompatibleModalState(exclusiveOwner);
   }, [clearIncompatibleModalState, exclusiveOwner]);
-  const worldInteractionEnabled = canAcceptPlayShellInput(interactionEnabled, modalOwner, commandPanelOpen);
+  const worldInteractionEnabled = !isCapturePresentationPhase(state.encounter.phase)
+    && canAcceptPlayShellInput(interactionEnabled, modalOwner, commandPanelOpen);
   const backgroundHomesBlocked = !isPlayHomeAvailable(exclusiveOwner, "status");
   const referenceHomeBlocked = !isPlayHomeAvailable(exclusiveOwner, "reference");
   const canUseWorldStage = useCallback(
@@ -1358,14 +1360,24 @@ export function PlayCampaign({
       }, 0);
       return () => window.clearTimeout(timer);
     }
-    const delay = ["emerging", "capsule", "sealed"].includes(state.encounter.phase) ? 0 : null;
+    const delay = capturePhaseDelayMs(state.encounter.phase, reducedMotion);
     if (delay === null) return;
-    const timer = window.setTimeout(() => {
+    let timer: number | null = null;
+    const advance = () => {
       const uPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
       setState((current) => applyWildsInput(current, rootWildsInputInKai({ type: "advance-encounter", at: kaiUPulseToISOString(uPulse) }, uPulse)));
-    }, delay);
-    return () => window.clearTimeout(timer);
-  }, [state.encounter.phase]);
+    };
+    const scheduleVisibleCapture = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = document.visibilityState === "visible" ? window.setTimeout(advance, delay) : null;
+    };
+    document.addEventListener("visibilitychange", scheduleVisibleCapture);
+    scheduleVisibleCapture();
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", scheduleVisibleCapture);
+    };
+  }, [state.encounter.phase, reducedMotion]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
