@@ -23,6 +23,7 @@ import {
 import { createWildsCivicEvent } from "../src/features/play/wilds-civic-history.js";
 import { sealRetirement } from "../src/features/games/lifecycle/creature-retirement.js";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment.js";
+import { creatureFamilies, creatureForm } from "../src/features/play/creature-catalog.js";
 import { wildsTerrainObstaclesForTile } from "../src/features/play/wilds-terrain-obstacles.js";
 import { wildsTraversalProjectionDiagnostics } from "../src/features/play/wilds-traversal-capabilities.js";
 import { authorizeRiftTravel } from "../src/features/play/wilds-rift-travel.js";
@@ -1028,6 +1029,36 @@ describe("Receiz Wilds game state", () => {
     assert.equal(reloaded.proof.digest, card.proof.digest);
     assert.deepEqual(currentLivingGenome(reloaded), currentLivingGenome(card));
     assert.deepEqual(reloaded.manifest, card.manifest);
+  });
+
+  it("issues only Trail starters while preserving exact owner-bound identity and old higher-rarity cards", () => {
+    const bornAt = "2026-09-27T00:00:00.000Z";
+    const starters = Array.from({ length: 80 }, (_, index) =>
+      createOwnerBoundInitialPlayState(`v11_starter_owner_${index}`, bornAt).inventory[0]!);
+    assert.equal(starters.every((card) => card.manifest.rarity === "trail"), true);
+    assert.equal(new Set(starters.map((card) => card.id)).size, starters.length);
+    assert.deepEqual(
+      createOwnerBoundInitialPlayState("v11_starter_owner_0", bornAt).inventory[0],
+      starters[0]
+    );
+
+    const highRarityBaseFormId = creatureFamilies
+      .map((family) => family.formIds[0])
+      .find((formId) => creatureForm(formId)?.rarity !== "trail")!;
+    const historical = admitLegacyCard(sealCollectedCard({
+      formId: highRarityBaseFormId,
+      ownerReceizId: "historical_owner",
+      encounterId: "historical_high_rarity_starter",
+      capturedAt: "2026-07-01T00:00:00.000Z"
+    }), "2026-07-01T00:00:00.000Z");
+    assert.notEqual(historical.manifest.rarity, "trail");
+    const oldState = createOwnerBoundInitialPlayState("historical_owner", bornAt);
+    oldState.inventory = [historical];
+    oldState.selectedAssetId = historical.id;
+    oldState.selectedCardId = historical.manifest.familyId;
+    const restored = restorePlayState(serializePlayState(oldState), "historical_owner");
+    assert.equal(restored.inventory[0]?.id, historical.id);
+    assert.equal(restored.inventory[0]?.manifest.rarity, historical.manifest.rarity);
   });
 
   it("issues starter and legacy-discovery cards to the exact active owner", () => {

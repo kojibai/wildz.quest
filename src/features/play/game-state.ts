@@ -374,6 +374,9 @@ function legacyStarterCardForOwner(ownerReceizId: string) {
   });
 }
 
+const trailStarterFamilies = creatureFamilies.filter((family) =>
+  creatureForm(family.formIds[0])?.rarity === "trail");
+
 function kaiBornStarterCardForOwner(ownerReceizId: string, createdAt: string) {
   const capturedAt = new Date(createdAt).toISOString();
   const choice = sha256PortableBasis(canonicalPortableCardJson({
@@ -381,8 +384,8 @@ function kaiBornStarterCardForOwner(ownerReceizId: string, createdAt: string) {
     ownerReceizId,
     capturedAt
   }));
-  const familyIndex = Number.parseInt(choice.slice(7, 15), 16) % creatureFamilies.length;
-  const family = creatureFamilies[familyIndex]!;
+  const familyIndex = Number.parseInt(choice.slice(7, 15), 16) % trailStarterFamilies.length;
+  const family = trailStarterFamilies[familyIndex]!;
   const form = creatureForm(family.formIds[0]);
   if (!form) throw new Error("wilds_starter_form_missing");
   const encounterId = `starter:${choice.slice(7, 31)}`;
