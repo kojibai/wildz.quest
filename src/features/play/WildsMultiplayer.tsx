@@ -151,8 +151,12 @@ export function WildsMultiplayer({
               multiplayer.createInviteLink,
               shareWildzInvite
             );
-            if (result === "shared") setNotice("Wildz invite shared — they can join this live room.");
-            if (result === "copied") setNotice("Invite link copied — anyone opening it joins this live room.");
+            if (result === "shared") setNotice(multiplayer.roomKey.startsWith("wilds11:")
+              ? "Region location shared. Meet there to explore and play together."
+              : "Wildz invite shared — they can join this live room.");
+            if (result === "copied") setNotice(multiplayer.roomKey.startsWith("wilds11:")
+              ? "Region location copied. Meet there to explore and play together."
+              : "Invite link copied — anyone opening it joins this live room.");
           } catch {
             setNotice("Sharing was blocked. Use your browser share control for this page.");
           }
@@ -172,7 +176,9 @@ export function WildsMultiplayer({
               }} type="button">
                 <i className={player.style} /><span><strong>{player.handle}</strong><small>{Math.round(presenceDistance(player, position))}m · {player.activeCard.name}</small></span><b>{player.status}</b>
               </button>
-            )) : <div className="wilds-live-empty"><strong>The trail is quiet.</strong><span>Share the invite link and another explorer will appear here live.</span></div>}
+            )) : <div className="wilds-live-empty"><strong>The trail is quiet.</strong><span>{multiplayer.roomKey.startsWith("wilds11:")
+              ? "Share your region location to meet another explorer here."
+              : "Share the invite link and another explorer will appear here live."}</span></div>}
           </div>
         </section>
       ) : null}

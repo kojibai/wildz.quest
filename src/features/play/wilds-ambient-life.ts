@@ -1,3 +1,4 @@
+import { generateWildsRegionV11 } from "./wilds-region-generator-v11";
 import type { WildsQualityTier } from "./wilds-quality-profile";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
 import { WILDS_WATERLINE_ELEVATION } from "./wilds-terrain-rendering";
@@ -183,4 +184,26 @@ export function projectWildsAmbientLifeLod(life: Pick<WildsAmbientLifeProjection
 
 export function wildsAmbientLifeDiagnostics() {
   return Object.freeze({ regionBuilds, neighborhoodBuilds, terrainSamples, regionCacheSize: regionCache.size, neighborhoodCacheSize: neighborhoodCache.size });
+}
+
+/** Ambient life stays at a constant two paths per v11 region. */
+export function projectWildsAmbientLifeRegionV11(regionX: string, regionZ: string) {
+  const region = generateWildsRegionV11(regionX, regionZ);
+  return (["aerial", "aquatic"] as const).map((medium, slot) => {
+    const bits = Number.parseInt(region.ambientSeed.slice(7 + slot * 16, 15 + slot * 16), 16);
+    const x = 3 + bits / 0x1_0000_0000 * 18;
+    const zBits = Number.parseInt(region.ambientSeed.slice(15 + slot * 16, 23 + slot * 16), 16);
+    const z = 3 + zBits / 0x1_0000_0000 * 18;
+    return Object.freeze({
+      version: "wildz.ambient-life.v11" as const,
+      id: `wildz.ambient.v11:${regionX}:${regionZ}:${slot}`,
+      regionX,
+      regionZ,
+      medium,
+      path: Object.freeze(Array.from({ length: 8 }, (_, index) => {
+        const angle = index * Math.PI / 4;
+        return Object.freeze({ x: quantize(x + Math.cos(angle)), y: medium === "aerial" ? 4 : -1, z: quantize(z + Math.sin(angle)) });
+      }))
+    });
+  });
 }

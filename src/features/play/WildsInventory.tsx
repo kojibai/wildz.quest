@@ -14,6 +14,7 @@ import {
   triggerCardHaptic,
   type CardSaveState
 } from "./card-save-feedback";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import { creatureForm } from "./creature-catalog";
 import {
   createWildsCardSendDraft,
@@ -145,7 +146,7 @@ export function WildsInventory({
   );
   const orderedInventory = useMemo(() => sortWildzCards(state.inventory, cardOrder), [cardOrder, state.inventory]);
   const matches = useMemo(() => orderedInventory.filter((asset) => {
-    const form = creatureForm(asset.manifest.formId);
+    const form = resolveCardForm(asset);
     if (!form) return false;
     const haystack = `${form.name} ${form.species} ${form.habitat} ${form.abilities.map((ability) => ability.name).join(" ")} ${form.cardNumber}`.toLowerCase();
     return haystack.includes(query.trim().toLowerCase()) && (rarity === "all" || form.rarity === rarity);
@@ -158,7 +159,7 @@ export function WildsInventory({
   const selectedArtifactFingerprint = useMemo(() => selected ? cardArtifactFingerprint(selected) : "", [selected]);
   playerVaultRef.current = playerVault;
   selectedCardRef.current = selected;
-  const selectedForm = selected ? creatureForm(selected.manifest.formId) : null;
+  const selectedForm = selected ? resolveCardForm(selected) : null;
   const selectedRetired = Boolean(selected && (
     state.adventureConditions[selected.id]?.life === "dead"
     || (isLivingCardAsset(selected) && currentRevision(selected).growth.life?.retired)
@@ -242,7 +243,7 @@ export function WildsInventory({
         }
       } catch {
         if (active) {
-          setPublicLinkStatus("Could not confirm the latest public card revision. Retrying automatically…");
+          setPublicLinkStatus("Could not confirm the latest public card. Retrying automatically…");
           retry = setTimeout(() => void prepare(), 30_000);
         }
       } finally {
@@ -548,7 +549,7 @@ export function WildsInventory({
         >
         <div className="wilds-inventory-grid">
           {visible.map((asset) => {
-            const form = creatureForm(asset.manifest.formId)!;
+            const form = resolveCardForm(asset)!;
             const cardProgress = exactCompanionProgress(state, asset);
             const retired = state.adventureConditions[asset.id]?.life === "dead"
               || (isLivingCardAsset(asset) && Boolean(currentRevision(asset).growth.life?.retired));

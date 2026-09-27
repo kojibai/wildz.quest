@@ -28,17 +28,22 @@ import {
   type PlayState
 } from "@/features/play/game-state";
 import { creatureForm } from "@/features/play/creature-catalog";
+import { resolveCardForm } from "@/features/play/wilds-card-form-resolution";
 import type { BattleFighter } from "@/features/play/battle-engine";
 import type { HotspotCover } from "@/features/play/hidden-hotspots";
 import type { WildsPresence } from "@/features/play/multiplayer-core";
 import { createWildsKaiWeatherSample, writeWildsKaiWeather } from "./wilds-kai-wind";
 import { writeWildsWeatherExposure } from "./wilds-weather-exposure";
 import { WildsEnvironment } from "@/features/play/WildsEnvironment";
+import { WildsV11Environment } from "@/features/play/WildsV11Environment";
 import { WildsExplorer } from "@/features/play/WildsExplorer";
 import { WildsAtmosphere } from "@/features/play/WildsAtmosphere";
 import { WildsUnderwaterAtmosphere } from "@/features/play/WildsUnderwaterAtmosphere";
 import { WildsCreatureActor, type WildsCreaturePose } from "@/features/play/WildsCreatureActor";
-import { projectEncounterCreatureVisualIdentity } from "@/features/play/creature-visual-identity";
+import { projectEncounterCreatureVisualIdentity, projectLivingGenomeCreatureVisualIdentity } from "@/features/play/creature-visual-identity";
+import { projectWildsV11BirthGenome } from "@/features/play/wilds-card-artwork";
+import { projectVerifiedBirthFormV11 } from "@/features/play/wilds-card-form-resolution";
+import type { WildsV11CreatureCard } from "@/features/play/wilds-card-proof-v11";
 import { projectWorldProgression } from "@/features/play/world-progression";
 import {
   rendererBudgetStatus,
@@ -102,7 +107,8 @@ import {
 } from "@/features/play/wilds-grounded-movement";
 import type { WildsTerrainObstacle } from "@/features/play/wilds-terrain-obstacles";
 import { WILDS_PLAYER_BODY_HEIGHT, WILDS_PLAYER_BODY_RADIUS } from "@/features/play/wilds-player-body";
-import { WILDS_TERRAIN_TILE_SIZE, wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
+import { WILDS_TERRAIN_TILE_SIZE, sampleWildsTerrainV11, wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
+import { offsetWildsWorldAddress, type WildsWorldAddress } from "@/features/play/wilds-world-address";
 import type { WildsSiteSpaceState } from "@/features/play/wilds-discovery-sites";
 import { wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeEncounter, type WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
 import { createWildsFlightCameraControlState, writeWildsFlightCameraControlState } from "@/features/play/wilds-flight-camera";
@@ -113,6 +119,7 @@ import type { WildsWorldCapabilityFamily } from "@/features/play/wilds-world-cap
 import { projectWildsCapabilityPresentation } from "@/features/play/wilds-capability-presentation";
 import { projectWildsDiscoveryHint } from "@/features/play/wilds-discovery-hint";
 import { creatureContinuityProjection } from "@/features/play/creature-continuity";
+import { advanceCaptureVisualTime, projectCaptureMoment, WILDS_CAPSULE_CAPTURE_MS } from "@/features/play/wilds-capture-sequence";
 import { readWildsCrewCondition } from "./wilds-crew-policy";
 import { canWildsCrewTravel, createWildsCrewPhysicalSampler } from "./wilds-crew-physical-navigation";
 import { createWildsCrewPathStepState, planWildsCrewPathNearTarget, wildsCrewRouteNeedsReplan, writeWildsCrewAlongsideTarget, writeWildsCrewTransportPosition, writeWildsCrewFollowingStep, type WildsCrewNavigationPoint, type WildsCrewNavigationAuthority } from "./wilds-crew-navigation";
@@ -421,9 +428,11 @@ function WildsScene({
   const activeAppearance = useMemo(() => activeAsset ? projectCardKaiAppearance(activeAsset) : null, [activeAsset]);
   const swimming = (siteSpace.spaceId === "wildz.space.outer.v1" ? aquaticPresentation.mode === "swim" : siteSpace.flooded)
     && aerialCapabilities.includes("swim");
-  const outdoorFloorY = useMemo(() => siteSpace.spaceId === "wildz.space.outer.v1"
-    ? Math.max(wildsTerrainElevation(state.player.x, state.player.z), wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, state.player.x, state.player.z, wildsTerrainElevation(state.player.x, state.player.z)))
-    : siteSpace.position.y, [siteRuntime, siteSpace.spaceId, siteSpace.position.y, state.player.x, state.player.z]);
+  const regionLocalAddress = state.worldCoordinateMode === "region-local" ? state.worldAddress : undefined;
+  const outdoorFloorY = useMemo(() => siteSpace.spaceId !== "wildz.space.outer.v1" ? siteSpace.position.y
+    : regionLocalAddress ? sampleWildsTerrainV11(regionLocalAddress).elevation
+      : Math.max(wildsTerrainElevation(state.player.x, state.player.z), wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, state.player.x, state.player.z, wildsTerrainElevation(state.player.x, state.player.z))),
+  [siteRuntime, siteSpace.spaceId, siteSpace.position.y, state.player.x, state.player.z, regionLocalAddress]);
   // Restored/stale floor coordinates cannot place the outdoor terrain above feet.
   // Retain elevated construction supports and the separate interior coordinate.
   const activeFloorY = Math.max(siteSpace.position.y, outdoorFloorY);
@@ -436,17 +445,17 @@ function WildsScene({
     shelterPosition: homeResidents.shelterPosition, player: homeResidents.shelterPosition,
     spaceId: "wildz.space.outer.v1"
   }) : []; }, [homeResidents, state.inventory, state.adventureConditions, activeAsset?.id, supportCards, crewTravelRuntime, crewTravelMembershipRevision]);
-  const homeResidentsNearby = homeResidents && siteSpace.spaceId === "wildz.space.outer.v1"
+  const homeResidentsNearby = !regionLocalAddress && homeResidents && siteSpace.spaceId === "wildz.space.outer.v1"
     && Math.hypot(homeResidents.shelterPosition.x-state.player.x,homeResidents.shelterPosition.z-state.player.z) <= 30;
   const terrainTileX = Math.floor(state.player.x / WILDS_TERRAIN_TILE_SIZE);
   const terrainTileZ = Math.floor(state.player.z / WILDS_TERRAIN_TILE_SIZE);
   const terrainObstacleNeighborhood = useMemo(
-    () => siteSpace.spaceId === "wildz.space.outer.v1" ? projectWildsAerialObstacleNeighborhood(state.player) : EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD,
+    () => siteSpace.spaceId === "wildz.space.outer.v1" && !regionLocalAddress ? projectWildsAerialObstacleNeighborhood(state.player) : EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD,
     // Player coordinates deliberately do not rebuild this immutable projection inside a tile.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [siteSpace.spaceId, terrainTileX, terrainTileZ]
+    [siteSpace.spaceId, regionLocalAddress, terrainTileX, terrainTileZ]
   );
-  const crewObstacles = useMemo(() => [...WILDS_RENDERED_PHYSICAL_OBSTACLES, ...terrainObstacleNeighborhood.obstacles, ...livingPhysicalObstacles], [terrainObstacleNeighborhood, livingPhysicalObstacles]);
+  const crewObstacles = useMemo(() => regionLocalAddress ? [] : [...WILDS_RENDERED_PHYSICAL_OBSTACLES, ...terrainObstacleNeighborhood.obstacles, ...livingPhysicalObstacles], [regionLocalAddress, terrainObstacleNeighborhood, livingPhysicalObstacles]);
   const actualCameraSubmergedRef = useRef(false);
   return (
     <WildsReadabilityProvider value={readability}>
@@ -469,31 +478,33 @@ function WildsScene({
       }} qualityProfile={qualityProfile} siteRuntime={siteRuntime} state={state} /> : null}
       <SmoothWorldFrame player={state.player} terrainElevation={activeFloorY}>
         <SearchableTerrain
-          activeWorkSource={activeWorkSource}
+          activeWorkSource={regionLocalAddress ? null : activeWorkSource}
           kaiUPulse={kaiMoment.uPulse}
           enabled={searchEnabled}
           missionProgress={state.missionProgress}
           onSearchPoint={onSearchPoint}
           onSelectOverlook={onSelectOverlook}
           player={state.player}
+          worldAddress={regionLocalAddress}
           terrainElevation={activeFloorY}
           qualityProfile={qualityProfile}
           worldMastery={state.worldMastery}
-          livingWorld={livingWorld}
+          livingWorld={regionLocalAddress ? null : livingWorld}
           worldMode={worldMode}
           siteRuntime={siteRuntime}
           siteSpace={siteSpace}
           onSitePortal={onSitePortal}
         />
-        {burrowPreview && <WildsBurrowGhost preview={burrowPreview} player={state.player} elevation={activeFloorY} />}
-        <WildsAmbientLife enabled={siteSpace.spaceId === "wildz.space.outer.v1"} player={state.player} qualityProfile={qualityProfile} siteRuntime={siteRuntime} terrainElevation={activeFloorY} />
+        {!regionLocalAddress && burrowPreview && <WildsBurrowGhost preview={burrowPreview} player={state.player} elevation={activeFloorY} />}
+        <WildsAmbientLife enabled={!regionLocalAddress && siteSpace.spaceId === "wildz.space.outer.v1"} player={state.player} qualityProfile={qualityProfile} siteRuntime={siteRuntime} terrainElevation={activeFloorY} />
+        {!regionLocalAddress && <>
         <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} worldMode={worldMode} />
         <WildsRegenerativeGroveEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} />
         <WildsContinuousConstruction spaceId={siteSpace.spaceId} world={livingWorld} player={state.player} terrainElevation={activeFloorY} preview={constructionPreview} selectable={constructionSelectionEnabled} onSelect={onSelectConstruction} onDrag={onDragConstruction} activeComponentId={activeConstructionId} />
         <WildsStewardEnvironment
           activeWorkSource={activeWorkSource}
           placementPreview={stewardPlacementPreview}
-          companionWorkFamilies={activeAsset ? projectWildsCreatureWorkFamilies(creatureForm(activeAsset.manifest.formId)?.element ?? "") : []}
+          companionWorkFamilies={activeAsset ? projectWildsCreatureWorkFamilies(resolveCardForm(activeAsset)?.element ?? "") : []}
           kaiUPulse={kaiMoment.uPulse}
           livingWorld={livingWorld}
           onInteractSource={onInteractResource}
@@ -505,15 +516,16 @@ function WildsScene({
           terrainElevation={activeFloorY}
         />
         <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} terrainElevation={activeFloorY} />
-        <EncounterSequence onSearchPoint={onSearchPoint} state={state} terrainElevation={activeFloorY} siteRuntime={siteRuntime} siteSpace={siteSpace} />
+        </>}
+        <EncounterSequence onSearchPoint={onSearchPoint} reducedMotion={qualityProfile.reducedMotion} state={state} terrainElevation={activeFloorY} siteRuntime={siteRuntime} siteSpace={siteSpace} />
         {visibleRemotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />)}
-        {trainers.map((trainer, index) => (
+        {!regionLocalAddress && trainers.map((trainer, index) => (
           index < 10 && Math.hypot(trainer.position[0] - state.player.x, trainer.position[2] - state.player.z) <= 28
             ? <TrainerExplorer key={trainer.id} trainer={trainer} localPlayer={state.player} onSelect={onSelectTrainer} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />
             : null
         ))}
       </SmoothWorldFrame>
-      <AerialPlayerFrame kaiUPulse={kaiMoment.uPulse} aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} flightEndurancePotential={flightEndurancePotential} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef} siteRuntime={siteRuntime} siteSpace={siteSpace}>
+      <AerialPlayerFrame kaiUPulse={kaiMoment.uPulse} aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} flightEndurancePotential={flightEndurancePotential} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef} siteRuntime={siteRuntime} siteSpace={siteSpace} worldAddress={regionLocalAddress}>
         <WildsExplorer
           aerialPalette={{
             primary: activeAppearance?.palette.primary ?? "#c9fff0",
@@ -541,7 +553,7 @@ function WildsScene({
   );
 }
 
-function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, children, flightEndurancePotential, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, terrainObstacleNeighborhood, verticalIntentRef, verticalTraversalRef, siteRuntime, siteSpace }: {
+function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, children, flightEndurancePotential, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, terrainObstacleNeighborhood, verticalIntentRef, verticalTraversalRef, siteRuntime, siteSpace, worldAddress }: {
   aquaticPresentation: WildsAquaticPresentation;
   capabilities: readonly WildsTraversalCapability[];
   children: ReactNode;
@@ -563,6 +575,7 @@ function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, child
   verticalTraversalRef: MutableRefObject<WildsVerticalTraversalState>;
   siteRuntime: WildsSiteRuntimeProjection;
   siteSpace: WildsSiteSpaceState;
+  worldAddress?: WildsWorldAddress;
 }) {
   const group = useRef<THREE.Group>(null);
   const previousPlayer = useRef(player);
@@ -605,7 +618,11 @@ function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, child
     } else {
       sampleAerialCollision(player, currentVertical.layer === "air" ? currentVertical.worldY : groundElevation + .35, livingPhysicalObstacles, collisionSample, WILDS_PLAYER_BODY_HEIGHT, WILDS_PLAYER_BODY_RADIUS, terrainObstacleNeighborhood.obstacles);
     }
-    const siteCollision = writeWildsSiteRuntimeAerialCollision(
+    const siteCollision = worldAddress && !siteInterior ? Object.assign(siteCollisionSampleRef.current, {
+      obstacleTopY: Number.NaN, ceilingY: Number.NaN, protectedAirspace: false, blockerId: null,
+      floorY: groundElevation, flooded: aquaticPresentation.mode === "swim" || aquaticPresentation.mode === "wade",
+      waterSurfaceY: aquaticPresentation.waterSurfaceY
+    }) : writeWildsSiteRuntimeAerialCollision(
       siteCollisionSampleRef.current,
       siteRuntime,
       siteSpace.spaceId,
@@ -1418,6 +1435,7 @@ function SearchableTerrain({
   activeWorkSource,
   kaiUPulse,
   player,
+  worldAddress,
   enabled,
   missionProgress,
   qualityProfile,
@@ -1434,6 +1452,7 @@ function SearchableTerrain({
   activeWorkSource?: WildsActiveWorkSource | null;
   kaiUPulse: number;
   player: PlayState["player"];
+  worldAddress?: WildsWorldAddress;
   enabled: boolean;
   missionProgress: number;
   qualityProfile: WildsQualityProfile;
@@ -1453,15 +1472,18 @@ function SearchableTerrain({
         if (!enabled) return;
         event.stopPropagation();
         const point = { x: player.x + event.point.x, z: player.z + event.point.z };
-        onSearchPoint(projectWildsInteractionSurfacePoint(
-          siteRuntime,
-          siteSpace.spaceId,
-          point,
-          siteSpace.spaceId === "wildz.space.outer.v1" ? wildsTerrainElevation(point.x, point.z) : siteSpace.position.y
-        ));
+        const surfaceY = worldAddress && siteSpace.spaceId === "wildz.space.outer.v1"
+          ? sampleWildsTerrainV11(offsetWildsWorldAddress(worldAddress,
+            BigInt(Math.round((point.x - player.x) * 1_000_000)),
+            BigInt(Math.round((point.z - player.z) * 1_000_000)))).elevation
+          : siteSpace.spaceId !== "wildz.space.outer.v1" ? siteSpace.position.y : wildsTerrainElevation(point.x, point.z);
+        onSearchPoint(worldAddress && siteSpace.spaceId === "wildz.space.outer.v1"
+          ? { x: Math.round(point.x * 1_000_000) / 1_000_000, z: Math.round(point.z * 1_000_000) / 1_000_000,
+            surfaceWorldY: Math.round(surfaceY * 1_000_000) / 1_000_000 }
+          : projectWildsInteractionSurfacePoint(siteRuntime, siteSpace.spaceId, point, surfaceY));
       }}
     >
-      <StreamedTerrain activeWorkSource={activeWorkSource} kaiUPulse={kaiUPulse} missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />
+      <StreamedTerrain activeWorkSource={activeWorkSource} kaiUPulse={kaiUPulse} missionProgress={missionProgress} player={player} worldAddress={worldAddress} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />
     </group>
   );
 }
@@ -1471,6 +1493,7 @@ function StreamedTerrain({
   kaiUPulse,
   missionProgress,
   player,
+  worldAddress,
   qualityProfile,
   terrainElevation,
   worldMastery,
@@ -1485,6 +1508,7 @@ function StreamedTerrain({
   kaiUPulse: number;
   missionProgress: number;
   player: PlayState["player"];
+  worldAddress?: WildsWorldAddress;
   qualityProfile: WildsQualityProfile;
   terrainElevation: number;
   worldMastery: number;
@@ -1495,6 +1519,9 @@ function StreamedTerrain({
   siteSpace: WildsSiteSpaceState;
   onSitePortal: (siteKey: string, direction: "enter" | "exit") => void;
 }) {
+  if (worldAddress && siteSpace.spaceId === "wildz.space.outer.v1") {
+    return <WildsV11Environment address={worldAddress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} />;
+  }
   return <WildsEnvironment activeWorkSource={activeWorkSource} kaiUPulse={kaiUPulse} missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />;
 }
 
@@ -1503,19 +1530,24 @@ function Creature({
   formId = `${card.id}-1`,
   pose = "idle",
   identity,
+  birthV11,
   layer = "ground"
 }: {
   card: CreatureCard;
   formId?: string;
   pose?: WildsCreaturePose;
   identity?: Exclude<PlayState["encounter"], { phase: "idle" }>["discoveryIdentity"];
+  birthV11?: WildsV11CreatureCard;
   layer?: WildsEncounterLayer;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const readability = useWildsReadability();
   const appearance = useMemo(
-    () => identity ? projectEncounterCreatureVisualIdentity({ identity, formId }) : null,
-    [formId, identity]
+    () => birthV11
+      ? projectLivingGenomeCreatureVisualIdentity(projectWildsV11BirthGenome(birthV11, formId), formId,
+        { fingerprint: birthV11.birth.generationDigest, cadenceMs: birthV11.birth.voice.pulseMs })
+      : identity ? projectEncounterCreatureVisualIdentity({ identity, formId }) : null,
+    [formId, identity, birthV11]
   );
 
   useFrame(() => {
@@ -1564,7 +1596,7 @@ function Creature({
   );
 }
 
-function EncounterSequence({ state, terrainElevation, siteRuntime, siteSpace, onSearchPoint }: { state: PlayState; terrainElevation: number; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; onSearchPoint: (point: WildsInteractionSurfacePoint) => void }) {
+function EncounterSequence({ state, terrainElevation, siteRuntime, siteSpace, onSearchPoint, reducedMotion }: { state: PlayState; terrainElevation: number; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; onSearchPoint: (point: WildsInteractionSurfacePoint) => void; reducedMotion: boolean }) {
   const encounter = state.encounter;
   if (encounter.phase === "idle") return null;
   const searchPosition = Number.isFinite(encounter.searchPoint.surfaceWorldY)
@@ -1588,7 +1620,14 @@ function EncounterSequence({ state, terrainElevation, siteRuntime, siteSpace, on
       </>
     );
   }
-  const card = creatureCards.find((candidate) => candidate.id === encounter.familyId);
+  const birthForm = encounter.birthV11 && encounter.formId
+    ? projectVerifiedBirthFormV11(encounter.birthV11.birth, encounter.formId) : null;
+  const card = birthForm
+    ? { id: birthForm.familyId, name: birthForm.name, species: birthForm.species,
+      role: birthForm.role, power: birthForm.stats.power, rarity: birthForm.rarity,
+      color: birthForm.palette.primary, accent: birthForm.palette.accent,
+      position: [0, 0, 0] as const, businessLogic: "" }
+    : creatureCards.find((candidate) => candidate.id === encounter.familyId);
   if (!card || !encounter.cover) return null;
   const localCard: CreatureCard = { ...card, position: [0, 0, 0] };
   const lastBattleAction = state.battle?.transcript.at(-1)?.action;
@@ -1617,9 +1656,10 @@ function EncounterSequence({ state, terrainElevation, siteRuntime, siteSpace, on
     <group position={position} userData={{ encounterLayer: placement?.layer ?? "ground", encounterWorldY: encounterWorldY ?? null, placementIdentity: placement?.identity ?? null, siteKey: encounter.siteContext?.siteKey ?? siteEncounter?.siteKey ?? null, siteSpaceId: encounter.siteContext?.spaceId ?? siteEncounter?.spaceId ?? siteSpace.spaceId }}>
       <SearchPulse hint position={[0, 0, 0]} />
       <HabitatCover cover={encounter.cover} open={encounter.phase !== "emerging"} />
-      <group scale={encounter.phase === "capsule" ? 0.68 : encounter.phase === "sealed" || encounter.phase === "revealed" ? 0.01 : 1}>
-        <Creature card={localCard} formId={encounter.formId} identity={encounter.discoveryIdentity} layer={placement?.layer} pose={pose} />
-      </group>
+      <CaptureCreature phase={encounter.phase} reducedMotion={reducedMotion}>
+        <Creature card={localCard} formId={encounter.formId} identity={encounter.discoveryIdentity}
+          birthV11={encounter.birthV11} layer={placement?.layer} pose={pose} />
+      </CaptureCreature>
       {state.battle && isBattleTelemetryPhase(state.encounter.phase) ? (
         <BattleWorldTelemetry
           captureReady={encounter.phase === "capture_ready"}
@@ -1629,7 +1669,7 @@ function EncounterSequence({ state, terrainElevation, siteRuntime, siteSpace, on
         />
       ) : null}
       {encounter.phase === "capsule" || encounter.phase === "sealed" || encounter.phase === "revealed" ? (
-        <CaptureCapsule sealed={encounter.phase !== "capsule"} />
+        <CaptureCapsule phase={encounter.phase} reducedMotion={reducedMotion} />
       ) : null}
     </group>
   );
@@ -1749,16 +1789,60 @@ function HabitatCover({ cover, open }: { cover: HotspotCover; open: boolean }) {
   );
 }
 
-function CaptureCapsule({ sealed }: { sealed: boolean }) {
+function CaptureCreature({ children, phase, reducedMotion }: { children: ReactNode; phase: string; reducedMotion: boolean }) {
   const ref = useRef<THREE.Group>(null);
-  useFrame(() => {
+  const elapsedMs = useRef(0);
+  const previousPhase = useRef(phase);
+  useEffect(() => {
+    const resetOnReturn = () => { if (document.visibilityState === "visible") elapsedMs.current = 0; };
+    document.addEventListener("visibilitychange", resetOnReturn);
+    return () => document.removeEventListener("visibilitychange", resetOnReturn);
+  }, []);
+  useFrame((_, delta) => {
     if (!ref.current) return;
-    const elapsed = frameSeconds();
-    ref.current.rotation.y = elapsed * (sealed ? 0.7 : 2.4);
-    ref.current.position.y = 0.7 + Math.sin(elapsed * 3) * (sealed ? 0.04 : 0.1);
+    if (previousPhase.current !== phase) {
+      previousPhase.current = phase;
+      elapsedMs.current = 0;
+    }
+    elapsedMs.current = advanceCaptureVisualTime(elapsedMs.current, delta * 1_000);
+    const visualPhase = phase === "capsule" || phase === "sealed" || phase === "revealed" ? phase : "emerging";
+    const moment = projectCaptureMoment(visualPhase, reducedMotion ? WILDS_CAPSULE_CAPTURE_MS : elapsedMs.current);
+    ref.current.scale.setScalar(moment.creatureScale);
+    ref.current.position.y = moment.creatureLift;
+  });
+  return <group ref={ref}>{children}</group>;
+}
+
+function CaptureCapsule({ phase, reducedMotion }: { phase: "capsule" | "sealed" | "revealed"; reducedMotion: boolean }) {
+  const ref = useRef<THREE.Group>(null);
+  const elapsedMs = useRef(0);
+  const sealElapsedMs = useRef(0);
+  const previousPhase = useRef(phase);
+  const sealed = phase !== "capsule";
+  useEffect(() => {
+    const resetOnReturn = () => { if (document.visibilityState === "visible" && phase === "capsule") elapsedMs.current = 0; };
+    document.addEventListener("visibilitychange", resetOnReturn);
+    return () => document.removeEventListener("visibilitychange", resetOnReturn);
+  }, [phase]);
+  useFrame((_, delta) => {
+    if (!ref.current) return;
+    if (previousPhase.current !== phase) {
+      previousPhase.current = phase;
+      if (phase === "sealed") sealElapsedMs.current = 0;
+    }
+    const stepMs = advanceCaptureVisualTime(0, delta * 1_000);
+    elapsedMs.current += stepMs;
+    if (sealed) sealElapsedMs.current += stepMs;
+    const moment = projectCaptureMoment(phase, reducedMotion ? WILDS_CAPSULE_CAPTURE_MS : elapsedMs.current);
+    const elapsed = elapsedMs.current / 1_000;
+    const sealBlend = sealed ? Math.min(1, sealElapsedMs.current / 250) : 0;
+    if (!reducedMotion) ref.current.rotation.y = (ref.current.rotation.y + stepMs / 1_000 * (2.4 - sealBlend * 1.7)) % (Math.PI * 2);
+    ref.current.position.y = 0.7 + moment.ballLift + (reducedMotion ? 0 : Math.sin(elapsed * 3) * (0.1 - sealBlend * 0.06));
+    ref.current.position.z = moment.ballTravel;
+    ref.current.scale.setScalar(moment.ballScale * (reducedMotion ? 1 : 1 + moment.lockPulse * Math.sin(elapsed * 12) * 0.035));
   });
   return (
-    <group ref={ref} scale={sealed ? 0.9 : 1.08}>
+    <group ref={ref}>
       <mesh castShadow>
         <sphereGeometry args={[0.62, 28, 20]} />
         <meshPhysicalMaterial color="#f7fff9" roughness={0.18} metalness={0.18} transmission={sealed ? 0.05 : 0.42} transparent opacity={sealed ? 0.94 : 0.7} clearcoat={1} />

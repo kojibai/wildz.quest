@@ -1,3 +1,4 @@
+import { parseWildsWorldAddress as parseWildsWorldAddressV11 } from "./wilds-world-address";
 import { projectWildsConstructionWeather, resolveWildsMaintenance, type WildsMaintenanceCommand } from "./wilds-construction-weather";
 import type { CommunityRequest } from "./wilds-community";
 import { settleWildsConstructionWork } from "./wilds-construction-work-reward";
@@ -17,7 +18,7 @@ import { admitWildsRaidParticipant, createWildsRaidRound, renewWildsRaidLease, r
 import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse, kaiUPulseToISOString, KAI_N_DAY_MICRO, KAI_PULSE_DURATION_MS } from "./kai-klok-moment";
 import type { KaiTemporalRoot } from "./kai-temporal-root";
 import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "./portable-card";
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import { reverifyWildsCreatureMandate, type WildsCreatureMandateV1 } from "./wilds-creature-mandate";
 import type { WildsResourceSource } from "./wilds-resource-authority";
 import {
@@ -643,7 +644,7 @@ export class WildsWorldService {
       } else if (command.mandate || command.cardProofDigest) {
         throw new Error("wilds_world_resource_mandate_invalid");
       }
-      const element = authority.card ? creatureForm(authority.card.manifest.formId)?.element ?? "" : "";
+      const element = authority.card ? resolveCardForm(authority.card)?.element ?? "" : "";
       const current = this.projection.harvestedSources[command.source.sourceId] ?? initialWildsHarvestedSourceState(command.source);
       if (current.head !== command.sourceHead) throw new Error("wilds_world_resource_source_stale");
       const equippedToolId = this.projection.equippedStewardTools[authority.actorId];
@@ -1065,4 +1066,15 @@ function projectionTeam(team: WildsSocialTeam, previous: import("./wilds-team-le
 
 function requireConstructionReach(actor: { x: number; z: number }, target: { x: number; z: number }) {
   if (![actor.x, actor.z, target.x, target.z].every(Number.isFinite) || Math.hypot(actor.x - target.x, actor.z - target.z) > 6) throw new Error("wilds_construction_unreachable");
+}
+
+/** Versioned region identity for v11 world commands; numeric v10 commands stay intact. */
+export function wildsWorldRegionForAddressV11(value: import("./wilds-world-address").WildsWorldAddress) {
+  const address = parseWildsWorldAddressV11(value);
+  return Object.freeze({
+    worldVersion: 11 as const,
+    regionX: address.regionX,
+    regionZ: address.regionZ,
+    key: `wildz.region.v11:${address.regionX}:${address.regionZ}`
+  });
 }

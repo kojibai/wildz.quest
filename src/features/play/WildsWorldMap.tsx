@@ -51,7 +51,8 @@ function WildsWorldMapView({
   bossKnowledge,
   trainers,
   onClose,
-  onRift
+  onRift,
+  onExploreBeyond
 }: {
   open: boolean;
   trackedDestination?: { label: string; x: number; z: number } | null;
@@ -74,6 +75,7 @@ function WildsWorldMapView({
   trainers: readonly WildsTrainerProjection[];
   onClose: () => void;
   onRift: (destination: { x: number; z: number }) => void | Promise<void>;
+  onExploreBeyond?: () => void | Promise<void>;
 }) {
   const ownCrewMarkers = useWildsCrewMap(crewMapSource, open);
   const remoteCrewMarkers = useMemo(() => projectWildsRemoteRoamingMarkers(remotePlayers, "self"), [remotePlayers]);
@@ -242,6 +244,7 @@ function WildsWorldMapView({
             ))}
           </div>
           <div aria-label="Atlas navigation" className="wilds-atlas-navigation" role="group">
+            {onExploreBeyond ? <button onClick={() => void onExploreBeyond()} type="button">Explore beyond</button> : null}
             <button aria-label="Orient map north up" title="North up" onClick={() => setNorthRequest(value => value + 1)} type="button">↑ N</button>
             <button
               aria-label="Center map on your current location"

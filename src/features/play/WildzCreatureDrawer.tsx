@@ -13,7 +13,7 @@ import {
   settleCreatureDrawer,
   type CreatureDrawerSnap
 } from "./creature-drawer";
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import type { VaultCompanionRosterEntry } from "./vault-companion-roster";
 import { WildsVerifiedBadge } from "./WildsVerifiedBadge";
 import { playHapticPattern } from "./wilds-haptics";
@@ -107,7 +107,7 @@ export const WildzCreatureDrawer = memo(function WildzCreatureDrawer({
     const start = Math.max(0, targetIndex - 4);
     return { start, end: Math.min(sortedEntries.length, start + 12) };
   }, [activeIndex, sortedEntries.length]);
-  const activeForm = activeEntry ? creatureForm(activeEntry.asset.manifest.formId) : null;
+  const activeForm = activeEntry ? resolveCardForm(activeEntry.asset) : null;
   const changeCardOrder = useStableEvent(onCardOrderChange);
   const selectCard = useStableEvent(onSelectCard);
   const selectAndClose = useCallback((assetId: string) => {

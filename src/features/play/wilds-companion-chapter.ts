@@ -13,7 +13,8 @@ const actions = {
   home: "You have rested together at this shelter before.",
   built: "You completed construction together here.",
   discovered: "You discovered this place together.",
-  harvest: "You have gathered resources together here."
+  harvest: "You have gathered resources together here.",
+  homecoming: "You returned together to your first meeting place."
 } as const;
 
 /** Journal facts and current route capabilities only. No invented feelings or progression. */
@@ -34,7 +35,7 @@ export function projectWildsCompanionChapter(input: {
   const first = shared.find(memory => memory.kind === "met");
   // Existing journal coordinates are outer-world coordinates. Never match an interior at the same X/Z.
   const nearby = input.inOuterWorld ? shared.filter(memory => Math.hypot(memory.position.x-input.position.x, memory.position.z-input.position.z) <= 8) : [];
-  const priority = { met: 0, home: 1, built: 2, discovered: 3, harvest: 4 };
+  const priority = { met: 0, homecoming: 1, home: 2, built: 3, discovered: 4, harvest: 5 };
   nearby.sort((a,b) => priority[a.kind]-priority[b.kind] || b.timestamp-a.timestamp);
   const revisit = nearby[0];
   const supported = new Set(input.capabilities);

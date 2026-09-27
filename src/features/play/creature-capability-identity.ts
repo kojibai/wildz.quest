@@ -1,5 +1,5 @@
 import type { AdventureCardCondition } from "./adventure/card-condition";
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import { projectCardCreatureVisualIdentity, type CreatureVisualIdentity } from "./creature-visual-identity";
 import { currentCreatureHistoryProjection, currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
@@ -188,7 +188,7 @@ export function projectCreatureCapabilityIdentity(asset: PortableCardAsset): Cre
   const traversalPotential = capabilityPotentialForVisualIdentity(visual);
   const progression = Object.freeze(identityProgression(asset));
   const abilityNames = isLivingCardAsset(asset) ? currentRevision(asset).abilityNames : asset.manifest.abilityNames;
-  const form = creatureForm(asset.manifest.formId);
+  const form = resolveCardForm(asset);
   if (!form) throw new Error("wilds_capability_form_unknown");
   const affinity = FAMILY_AFFINITY[form.element as keyof typeof FAMILY_AFFINITY] ?? FAMILY_AFFINITY.Prism;
   const canonicalKey = canonicalPortableCardJson({

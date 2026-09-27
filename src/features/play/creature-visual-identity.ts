@@ -7,6 +7,8 @@ import { isLivingCardAsset, type LivingCardGenome } from "./living-card-types";
 import { deriveCardVariantV3 } from "./card-variant";
 import { validateLivingCreatureIdentity, type LivingCreatureIdentityV3 } from "./living-taxonomy";
 import type { PortableCardAsset } from "./portable-card";
+import { resolveCardForm } from "./wilds-card-form-resolution";
+import { projectWildsCardGenome } from "./wilds-card-artwork";
 
 export type FunctionalAppendage = Readonly<{
   presence: "absent" | "vestigial" | "functional";
@@ -148,20 +150,20 @@ export function projectEncounterCreatureVisualIdentity(input: {
 }
 
 export function projectCardCreatureVisualIdentity(asset: PortableCardAsset): CreatureVisualIdentity {
-  const form = creatureForm(asset.manifest.formId);
+  const form = resolveCardForm(asset);
   if (!form) throw new Error("wilds_creature_visual_form_unknown");
   const variant = asset.manifest.variant;
   const living = isLivingCardAsset(asset);
   if (variant.generatorVersion === 3 && form.stage === 1 && (!living || asset.manifest.birth.kind !== "fusion")) {
     return projectEncounterCreatureVisualIdentity({ identity: variant.traits.identity, formId: form.id });
   }
-  const genome = living
-    ? currentLivingGenome(asset)
-    : deriveBirthGenome({
-        formId: asset.manifest.formId,
-        proofDigest: asset.proof.digest,
-        variant: asset.manifest.variant.traits
-      });
+  const genome = projectWildsCardGenome(asset);
+  if (!living && asset.manifest.birthV11) {
+    return projectLivingGenomeCreatureVisualIdentity(genome, form.id, {
+      fingerprint: asset.manifest.birthV11.birth.generationDigest,
+      cadenceMs: asset.manifest.birthV11.birth.voice.pulseMs
+    });
+  }
   if (variant.generatorVersion === 3) {
     if (living && asset.manifest.birth.kind === "fusion") {
       return projectLivingGenomeCreatureVisualIdentity(genome, form.id);

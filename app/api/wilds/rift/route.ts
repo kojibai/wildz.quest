@@ -1,6 +1,8 @@
+import { parseWildsWorldAddress } from "@/features/play/wilds-world-address";
+import { roomKeyForAddressV11 } from "@/features/play/multiplayer-core";
 import { NextRequest, NextResponse } from "next/server";
-import { applyAuthorizedRiftPresence, getWildsMultiplayerSnapshot } from "@/features/play/multiplayer-ledger";
-import { authorizeRiftTravel, type RiftTravelGrant } from "@/features/play/wilds-rift-travel";
+import { applyAuthorizedRiftPresence, applyAuthorizedRiftPresenceV11, getWildsMultiplayerSnapshot } from "@/features/play/multiplayer-ledger";
+import { authorizeRiftTravel, authorizeRiftTravelV11, isLocallyAdmittedRiftDestinationV11, type RiftTravelGrant, type RiftTravelGrantV11 } from "@/features/play/wilds-rift-travel";
 import {
   hydrateWildsRoomFromReceiz,
   parseWildsRoomKey,
@@ -15,12 +17,15 @@ export const dynamic = "force-dynamic";
 const riftLedgerKey = Symbol.for("receiz.wilds.rift-ledger.v1");
 
 type RiftLedger = {
-  grants: Map<string, RiftTravelGrant>;
+  grants: Map<string, RiftTravelGrant | RiftTravelGrantV11>;
+  requestsV11: Map<string, string>;
 };
 
 function riftLedger() {
   const root = globalThis as typeof globalThis & { [riftLedgerKey]?: RiftLedger };
-  return (root[riftLedgerKey] ??= { grants: new Map() });
+  const ledger = (root[riftLedgerKey] ??= { grants: new Map(), requestsV11: new Map() });
+  ledger.requestsV11 ??= new Map();
+  return ledger;
 }
 
 function position(value: unknown) {
@@ -37,6 +42,64 @@ export async function POST(request: NextRequest) {
     await hydrateWildsRoomFromReceiz(request, roomKey);
     const snapshot = getWildsMultiplayerSnapshot(roomKey);
     const currentPresence = snapshot.players.find((player) => player.playerId === actor.playerId);
+    if (body?.version === 11) {
+      const source = parseWildsWorldAddress(body.source);
+      const destination = parseWildsWorldAddress(body.destination);
+      // Cross-region arrival requires a verified travel admission, which is not
+      // yet attached to this endpoint. Never turn client coordinates into access.
+      if (!isLocallyAdmittedRiftDestinationV11(source, destination)) {
+        throw new Error("wilds_rift_v11_destination_not_admitted");
+      }
+      const idempotencyKeyV11 = typeof body.idempotencyKey === "string" ? body.idempotencyKey : "";
+      const cacheKeyV11 = `${actor.playerId}:v11:${idempotencyKeyV11}`;
+      const requestKeyV11 = JSON.stringify({ roomKey, source, destination });
+      const ledgerV11 = riftLedger();
+      const cachedV11 = ledgerV11.grants.get(cacheKeyV11);
+      if (cachedV11) {
+        if (!("version" in cachedV11) || cachedV11.version !== 11
+          || ledgerV11.requestsV11.get(cacheKeyV11) !== requestKeyV11) throw new Error("wilds_rift_idempotency_conflict");
+        const arrivalRoomKey = roomKeyForAddressV11("platform", cachedV11.destination);
+        if (arrivalRoomKey !== roomKey) await hydrateWildsRoomFromReceiz(request, arrivalRoomKey);
+        const arrival = getWildsMultiplayerSnapshot(arrivalRoomKey);
+        const arrived = arrival.players.find(player => player.playerId === actor.playerId);
+        const address = arrived?.worldAddress;
+        const lockedAtArrival = arrival.battles.some(battle => battle.phase === "active" && Boolean(battle.players[actor.playerId]))
+          || arrival.challenges.some(challenge => ["accepted", "active"].includes(challenge.state)
+            && [challenge.challengerId, challenge.opponentId].includes(actor.playerId));
+        if (!address || address.regionX !== cachedV11.destination.regionX || address.regionZ !== cachedV11.destination.regionZ
+          || address.localX !== cachedV11.destination.localX || address.localZ !== cachedV11.destination.localZ
+          || lockedAtArrival) throw new Error("wilds_rift_grant_consumed");
+        return NextResponse.json({ ok: true, grant: cachedV11, idempotent: true },
+          { headers: { "cache-control": "private, no-store" } });
+      }
+      if (!currentPresence?.worldAddress || roomKey !== roomKeyForAddressV11("platform", source)
+        || currentPresence.worldAddress.regionX !== source.regionX || currentPresence.worldAddress.regionZ !== source.regionZ
+        || currentPresence.worldAddress.localX !== source.localX || currentPresence.worldAddress.localZ !== source.localZ) {
+        throw new Error("wilds_rift_source_mismatch");
+      }
+      const lockedV11 = snapshot.battles.some((battle) => battle.phase === "active" && Boolean(battle.players[actor.playerId]))
+        || snapshot.challenges.some((challenge) => ["accepted", "active"].includes(challenge.state)
+          && [challenge.challengerId, challenge.opponentId].includes(actor.playerId));
+      const resultV11 = authorizeRiftTravelV11({ idempotencyKey: idempotencyKeyV11, source, destination }, {
+        playerId: actor.playerId, coordinationPulse: `${snapshot.revision + 1}`, locked: lockedV11
+      });
+      if (!resultV11.ok) throw new Error(resultV11.error);
+      const transported = applyAuthorizedRiftPresenceV11({
+        roomKey, playerId: actor.playerId, destination: resultV11.grant.destination, kaiPulse: resultV11.grant.kaiPulse
+      });
+      ledgerV11.grants.set(cacheKeyV11, resultV11.grant);
+      ledgerV11.requestsV11.set(cacheKeyV11, requestKeyV11);
+      if (ledgerV11.grants.size > 512) ledgerV11.grants.delete(ledgerV11.grants.keys().next().value!);
+      if (ledgerV11.requestsV11.size > 512) ledgerV11.requestsV11.delete(ledgerV11.requestsV11.keys().next().value!);
+      const publications = transported.source.roomKey === transported.destination.roomKey
+        ? [await publishWildsRoomToReceiz(request, actor, transported.destination)]
+        : await Promise.all([
+          publishWildsRoomToReceiz(request, actor, transported.source),
+          publishWildsRoomToReceiz(request, actor, transported.destination)
+        ]);
+      return NextResponse.json({ ok: true, grant: resultV11.grant, idempotent: false, publications },
+        { headers: { "cache-control": "private, no-store" } });
+    }
     const submittedSource = position(body?.source);
     if (currentPresence && Math.hypot(currentPresence.x - submittedSource.x, currentPresence.z - submittedSource.z) > 3) {
       throw new Error("wilds_rift_source_mismatch");

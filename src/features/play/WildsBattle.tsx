@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import type { BattleAction, BattleState } from "./battle-engine";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsLayeredEncounterProjection } from "./wilds-layered-encounters";
@@ -25,7 +25,7 @@ export function WildsBattle({
   const dismissRef = useRef(onDismiss);
   dismissRef.current = onDismiss;
   const active = inventory.find((asset) => asset.id === battle.player.id);
-  const form = active ? creatureForm(active.manifest.formId) : null;
+  const form = active ? resolveCardForm(active) : null;
   const ended = battle.phase === "fled" || battle.phase === "defeated";
   const message = battle.transcript.at(-1)?.detail ?? "A wild creature challenges your active card.";
   const effectiveness = battle.player.element === battle.wild.element ? "even" : `${battle.player.element} vs ${battle.wild.element}`;
@@ -116,7 +116,7 @@ export function WildsBattle({
                   onChange={(event) => {
                     const asset = inventory.find((candidate) => candidate.id === event.target.value);
                     if (!asset) return;
-                    onAction({ type: "switch", player: { assetId: asset.id, name: asset.manifest.name, element: creatureForm(asset.manifest.formId)?.element, ...asset.manifest.stats, health: asset.manifest.stats.health * 2 } });
+                    onAction({ type: "switch", player: { assetId: asset.id, name: asset.manifest.name, element: resolveCardForm(asset)?.element, ...asset.manifest.stats, health: asset.manifest.stats.health * 2 } });
                     event.currentTarget.value = "";
                   }}
                 >

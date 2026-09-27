@@ -29,6 +29,8 @@ import { recordWildsCrewModeObservation } from "./wilds-crew-observations";
 import { sanitizeWildsCrewPreferences, setWildsCrewPreference } from "./wilds-crew-preferences";
 import { projectWildsEarnedPhi } from "./wilds-earned-phi";
 import { useWildsJourney } from "./useWildsJourney";
+import { projectWildsHomecomingOffer } from "./wilds-creature-homecoming";
+import { isLivingCardAsset } from "./living-card-types";
 import { useWildsPlaytest } from "./useWildsPlaytest";
 import { WildsHomeLife } from "./WildsHomeLife";
 import { projectWildsHomeLife, type WildsHomeAction } from "./wilds-home-life";
@@ -49,13 +51,17 @@ import {
   selectedAsset,
   selectedCard,
   exactCompanionProgress,
+  upgradeV10PlayStateToV11,
   type PlayState,
   type WildsInput
 } from "@/features/play/game-state";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
 import { sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
+import { WILDS_V11_ORIGIN } from "@/features/play/wilds-encounter-client-v11";
+import { flushOneWildsV11Site, isWildsV11SiteNearPlayer } from "@/features/play/wilds-encounter-outbox-v11";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
+import { advanceCaptureVisualTime, capturePhaseDelayMs } from "@/features/play/wilds-capture-sequence";
 import { WildsBattle } from "@/features/play/WildsBattle";
 import { WildsTransformation } from "@/features/play/WildsTransformation";
 import { WildsChildCeremony } from "@/features/play/WildsChildCeremony";
@@ -69,7 +75,7 @@ import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
 import { useWorldOverlayDirector } from "@/features/play/use-world-overlay-director";
 import { usePlayModalLifecycle } from "@/features/play/use-play-modal-lifecycle";
-import { canAcceptPlayShellInput, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayCombatSurface, projectPlayShellOwner } from "@/features/play/play-shell-owner";
+import { canAcceptPlayShellInput, isCapturePresentationPhase, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayCombatSurface, projectPlayShellOwner } from "@/features/play/play-shell-owner";
 import {
   beginModalAdmission,
   canCommitModalAdmission,
@@ -104,14 +110,17 @@ import { createWildsGroveResourceLot } from "@/features/play/wilds-resource-lot"
 import type { WildsGroveExperienceAction } from "@/features/play/WildsRegenerativeGroveExperience";
 import { landmarkAtPosition, WILDS_FLAGSHIP_LANDMARKS, type WildsLandmarkId } from "@/features/play/wilds-landmarks";
 import { evaluateLandmarkAccess, type WildsLandmarkProgress } from "@/features/play/wilds-landmark-access";
-import { authorizeRiftTravel, type RiftTravelGrant } from "@/features/play/wilds-rift-travel";
+import { authorizeRiftTravel, authorizeRiftTravelV11, type RiftTravelGrant } from "@/features/play/wilds-rift-travel";
+import { sampleWildsTerrainV11 } from "@/features/play/wilds-terrain-authority";
+import { offsetWildsWorldAddress, type WildsWorldAddress } from "@/features/play/wilds-world-address";
 import { projectWildzHud } from "@/features/play/wildz-gameplay-hud";
 import { shouldRunWildzOffHotPathWork } from "@/features/play/wilds-network-status";
 import { nextCreatureContinuityDueAt } from "@/features/play/creature-continuity";
 import { WildzReferenceHud } from "@/features/play/WildzReferenceHud";
 import { WildzWorldControls } from "@/features/play/WildzWorldControls";
 import { WildsCreatureThumbnail } from "@/features/play/WildsCreatureThumbnail";
-import { creatureFamilies, creatureForm } from "@/features/play/creature-catalog";
+import { creatureFamilies } from "@/features/play/creature-catalog";
+import { resolveCardForm } from "@/features/play/wilds-card-form-resolution";
 import { createWildsPlayerVault, type WildsPlayerVaultPayload, type WildzCardOrder } from "@/features/play/wilds-player-vault";
 import type { WildzPreparedIdentityOwnedCard } from "@/lib/receiz/wildz-identity-adapter";
 import { normalizeWildsVisualSettings, type WildsVisualSettings } from "@/features/play/wilds-night-visibility";
@@ -180,7 +189,7 @@ import {
   type WildsAerialMode,
   type WildsAerialTraversalState
 } from "@/features/play/wilds-aerial-traversal";
-import { projectWildsAquaticPresentationAtPosition } from "@/features/play/wilds-aquatic-presentation";
+import { projectWildsAquaticPresentation, projectWildsAquaticPresentationAtPosition } from "@/features/play/wilds-aquatic-presentation";
 import { wildsOverlookAt, type WildsOverlookId } from "@/features/play/wilds-overlooks";
 import {
   createWildsVerticalTraversalState,
@@ -329,11 +338,59 @@ export function PlayCampaign({
     currentPlayState: PlayState
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
-  const [state, setState] = useState(() => initialState);
+  const [state, setState] = useState(() => upgradeV10PlayStateToV11(initialState));
   const crewPreferences = useMemo(() => sanitizeWildsCrewPreferences(state.crewPreferences, state.inventory, ownerReceizId, crewCustody), [state.crewPreferences, state.inventory, ownerReceizId, crewCustody]);
   const admittedSourceStateRef = useRef(initialState);
   const [sourceAdmission] = useState(createWildsPlayStateSourceAdmission);
   const [saveRestored, setSaveRestored] = useState(false);
+  const [encounterRetry, setEncounterRetry] = useState(0);
+  const encounterAdmissionInFlight = useRef(false);
+  const encounterAdmissionNextAt = useRef(0);
+  const encounterRetryTimer = useRef<number | null>(null);
+  const encounterAdmissionMounted = useRef(true);
+  useEffect(() => {
+    encounterAdmissionMounted.current = true;
+    const retry = () => setEncounterRetry(value => value + 1);
+    window.addEventListener("online", retry);
+    return () => {
+      encounterAdmissionMounted.current = false;
+      window.removeEventListener("online", retry);
+      if (encounterRetryTimer.current !== null) window.clearTimeout(encounterRetryTimer.current);
+    };
+  }, []);
+  useEffect(() => {
+    const outbox = state.pendingEncounterSitesV11;
+    const address = state.worldAddress;
+    if (!saveRestored || !address || state.worldCoordinateMode !== "region-local"
+      || state.encounter.phase !== "idle" || state.battle || !outbox?.pending.length
+      || encounterAdmissionInFlight.current || navigator.onLine === false) return;
+    if (!outbox.pending.some(item => item.actorId === ownerReceizId
+      && isWildsV11SiteNearPlayer(address, item.site))) return;
+    const delay = encounterAdmissionNextAt.current - Date.now();
+    if (delay > 0) {
+      if (encounterRetryTimer.current === null) encounterRetryTimer.current = window.setTimeout(() => {
+        encounterRetryTimer.current = null;
+        setEncounterRetry(value => value + 1);
+      }, delay);
+      return;
+    }
+    encounterAdmissionInFlight.current = true;
+    void flushOneWildsV11Site({ outbox, actorId: ownerReceizId, playerAddress: address })
+      .then(result => {
+        if (!encounterAdmissionMounted.current) return;
+        if (result.kind === "admitted" && result.birth) {
+          setState(current => applyWildsInput(current, { type: "admit-v11-birth", birth: result.birth!,
+            ownerReceizId, admittedAt: new Date().toISOString() }));
+        } else if (result.kind === "pending") {
+          encounterAdmissionNextAt.current = Date.now() + 4_000;
+          if (encounterRetryTimer.current === null) encounterRetryTimer.current = window.setTimeout(() => {
+            encounterRetryTimer.current = null;
+            setEncounterRetry(value => value + 1);
+          }, 4_000);
+        }
+      }).finally(() => { encounterAdmissionInFlight.current = false; });
+  }, [encounterRetry, ownerReceizId, saveRestored, state.battle, state.encounter.phase,
+    state.pendingEncounterSitesV11, state.worldAddress, state.worldCoordinateMode]);
   const onPlayStateChangeRef = useRef(onPlayStateChange);
   const playStatePublisherRef = useRef<WildzGameplayPublisher<{
     state: PlayState;
@@ -360,7 +417,7 @@ export function PlayCampaign({
     // The shell has already reconciled this state against the active Receiz ID.
     // Adopt that source directly so another authenticated browser can advance
     // live gameplay without remounting Canvas or replaying local input.
-    setState(current => admitWildsForwardPosition(initialState, current));
+    setState(current => admitWildsForwardPosition(upgradeV10PlayStateToV11(initialState), current));
   }, [initialState, sourceAdmission]);
   const [memorialAssetId, setMemorialAssetId] = useState<string | null>(null);
   const gameplaySurfaceRef = useRef<HTMLDivElement | null>(null);
@@ -690,6 +747,8 @@ export function PlayCampaign({
     surfaceOpen: multiplayerRosterOpen,
     style: explorerStyle,
     position: state.player,
+    worldAddress: state.worldAddress,
+    worldCoordinateMode: state.worldCoordinateMode,
     activeCard: activeAsset,
     cardAdmission,
     readRoamingCreatures: () => roamingPresenceReader.current()
@@ -777,6 +836,18 @@ export function PlayCampaign({
   } = useWorldOverlayDirector({ dismissSignal: commandDismissSignal, exclusiveOwner: modalOwner });
   const commandPanelOpen = modalOwner === "none" && worldOverlayState.panelKey !== null;
   const exclusiveOwner = commandPanelOpen ? "command" : modalOwner;
+  const homecomingOffer = useMemo(() => activeAsset && state.worldAddress && exclusiveOwner === "none"
+    && state.encounter.phase === "idle" && !state.battle && state.siteSpace.spaceId === "wildz.space.outer.v1"
+    ? projectWildsHomecomingOffer({
+      card: activeAsset, continuity: state.cardContinuityV11?.[activeAsset.id], playerAddress: state.worldAddress,
+      present: homeCompanions.some((card) => card.id === activeAsset.id),
+      completed: !state.homecomingDepartedAssetIds?.includes(activeAsset.id)
+        || Boolean(state.journeyJournal?.memories.some((memory) => memory.kind === "homecoming"
+        && memory.companionId === activeAsset.id))
+        || Boolean(isLivingCardAsset(activeAsset) && activeAsset.manifest.history?.events.some((event) => event.rulesetVersion === "wildz.homecoming.v11"))
+    }) : null,
+  [activeAsset, state.worldAddress, state.cardContinuityV11, state.homecomingDepartedAssetIds, state.journeyJournal, state.encounter.phase,
+    state.battle, state.siteSpace.spaceId, homeCompanions, exclusiveOwner]);
   useEffect(() => {
     if (exclusiveOwner === "none") return;
     setStewardPlacementMode(null);
@@ -830,7 +901,8 @@ export function PlayCampaign({
     if (exclusiveOwner === "none" || exclusiveOwner === "command") return;
     clearIncompatibleModalState(exclusiveOwner);
   }, [clearIncompatibleModalState, exclusiveOwner]);
-  const worldInteractionEnabled = canAcceptPlayShellInput(interactionEnabled, modalOwner, commandPanelOpen);
+  const worldInteractionEnabled = !isCapturePresentationPhase(state.encounter.phase)
+    && canAcceptPlayShellInput(interactionEnabled, modalOwner, commandPanelOpen);
   const backgroundHomesBlocked = !isPlayHomeAvailable(exclusiveOwner, "status");
   const referenceHomeBlocked = !isPlayHomeAvailable(exclusiveOwner, "reference");
   const canUseWorldStage = useCallback(
@@ -953,17 +1025,19 @@ export function PlayCampaign({
     [structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions]
   );
   const playerStructureSupport = useMemo(
-    () => wildsStructureSupportAt(state.player, livingStructureSupports, 0, state.siteSpace.position.y),
-    [livingStructureSupports, state.player, state.siteSpace.position.y]
+    () => state.worldCoordinateMode === "region-local" ? null : wildsStructureSupportAt(state.player, livingStructureSupports, 0, state.siteSpace.position.y),
+    [livingStructureSupports, state.player, state.siteSpace.position.y, state.worldCoordinateMode]
   );
   const [aerialMode, setAerialMode] = useState<WildsAerialMode>("ground");
-  const aquaticPresentation = useMemo(() => projectWildsAquaticPresentationAtPosition({
+  const aquaticPresentation = useMemo(() => state.worldCoordinateMode === "region-local" && state.worldAddress
+    ? projectWildsAquaticPresentation({ terrain: sampleWildsTerrainV11(state.worldAddress), canSwim, airborne: aerialMode !== "ground" })
+    : projectWildsAquaticPresentationAtPosition({
     x: state.player.x,
     z: state.player.z,
     canSwim,
     airborne: aerialMode !== "ground",
     supportElevation: playerStructureSupport?.deckY ?? null
-  }), [aerialMode, canSwim, playerStructureSupport?.deckY, state.player.x, state.player.z]);
+  }), [aerialMode, canSwim, playerStructureSupport?.deckY, state.player.x, state.player.z, state.worldAddress, state.worldCoordinateMode]);
   const [initialAerialState] = useState(() => createGroundedWildsAerialState(
     state.player,
     aquaticPresentation.terrainElevation
@@ -1284,7 +1358,7 @@ export function PlayCampaign({
     const joinZ = Number(params.get("wildsZ"));
     if (!joinedInvite.current && /^invite:[a-f0-9]{16}$/.test(joinRoom ?? "") && Number.isFinite(joinX) && Number.isFinite(joinZ)) {
       joinedInvite.current = true;
-      setState((current) => ({
+      setState((current) => current.worldCoordinateMode === "region-local" ? current : ({
         ...current,
         player: { x: joinX + 1.4, z: joinZ + 1.4 },
         partyTravelRevision: nextWildsPartyTravelRevision(current.partyTravelRevision),
@@ -1355,14 +1429,36 @@ export function PlayCampaign({
       }, 0);
       return () => window.clearTimeout(timer);
     }
-    const delay = ["emerging", "capsule", "sealed"].includes(state.encounter.phase) ? 0 : null;
+    const delay = capturePhaseDelayMs(state.encounter.phase, reducedMotion);
     if (delay === null) return;
-    const timer = window.setTimeout(() => {
+    let frame: number | null = null;
+    let elapsedMs = 0;
+    let previousFrameAt = 0;
+    const advance = () => {
       const uPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
       setState((current) => applyWildsInput(current, rootWildsInputInKai({ type: "advance-encounter", at: kaiUPulseToISOString(uPulse) }, uPulse)));
-    }, delay);
-    return () => window.clearTimeout(timer);
-  }, [state.encounter.phase]);
+    };
+    const scheduleVisibleCapture = () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      frame = null;
+      elapsedMs = 0;
+      previousFrameAt = 0;
+      if (document.visibilityState !== "visible") return;
+      const tick = (now: number) => {
+        if (previousFrameAt !== 0) elapsedMs = advanceCaptureVisualTime(elapsedMs, now - previousFrameAt);
+        previousFrameAt = now;
+        if (elapsedMs >= delay) advance();
+        else frame = window.requestAnimationFrame(tick);
+      };
+      frame = window.requestAnimationFrame(tick);
+    };
+    document.addEventListener("visibilitychange", scheduleVisibleCapture);
+    scheduleVisibleCapture();
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      document.removeEventListener("visibilitychange", scheduleVisibleCapture);
+    };
+  }, [state.encounter.phase, reducedMotion]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1443,12 +1539,13 @@ export function PlayCampaign({
     stone: availableMaterialLots.filter((lot) => lot.kind === "stone").length
   }), [availableMaterialLots]);
   const stewardWorkMeters = useMemo(() => projectWildsWorkCapabilityMeters(activeAsset ?? null, activeCondition), [activeAsset, activeCondition]);
-  const ownedFunctionalPieces = useMemo(() => Object.values(livingWorld.snapshot?.constructionComponents ?? {})
-    .filter(component => sameWildzPlayerCoordinate(component.ownerReceizId, ownerReceizId)), [livingWorld.snapshot?.constructionComponents, ownerReceizId]);
-  const ownedStructures = useMemo(() => Object.values(livingWorld.snapshot?.structures ?? {})
-    .filter(structure => sameWildzPlayerCoordinate(structure.ownerReceizId, ownerReceizId)), [livingWorld.snapshot?.structures, ownerReceizId]);
-  const unfinishedConstructionSites = useMemo(() => Object.values(livingWorld.snapshot?.constructionSites ?? {})
-    .filter(site => site.stage !== "complete"), [livingWorld.snapshot?.constructionSites]);
+  const regionLocalMode = state.worldCoordinateMode === "region-local";
+  const ownedFunctionalPieces = useMemo(() => regionLocalMode ? [] : Object.values(livingWorld.snapshot?.constructionComponents ?? {})
+    .filter(component => sameWildzPlayerCoordinate(component.ownerReceizId, ownerReceizId)), [regionLocalMode, livingWorld.snapshot?.constructionComponents, ownerReceizId]);
+  const ownedStructures = useMemo(() => regionLocalMode ? [] : Object.values(livingWorld.snapshot?.structures ?? {})
+    .filter(structure => sameWildzPlayerCoordinate(structure.ownerReceizId, ownerReceizId)), [regionLocalMode, livingWorld.snapshot?.structures, ownerReceizId]);
+  const unfinishedConstructionSites = useMemo(() => regionLocalMode ? [] : Object.values(livingWorld.snapshot?.constructionSites ?? {})
+    .filter(site => site.stage !== "complete"), [regionLocalMode, livingWorld.snapshot?.constructionSites]);
   const nearbyFunctionalPieces = useMemo(() => ownedFunctionalPieces.filter(component => Math.hypot(component.transform.position.x - state.player.x, component.transform.position.z - state.player.z) <= 6), [ownedFunctionalPieces, state.player.x, state.player.z]);
   const nearbyStewardWorkbench = useMemo(() => ownedStructures.find(structure => structure.blueprint === "steward-workbench" && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6)
     ?? nearbyFunctionalPieces.filter(component => component.kind === "workshop").map(component => resolveWildsConstructionFunction(livingWorld.snapshot!, component.componentId, "workshop")).find(Boolean) ?? null, [livingWorld.snapshot, ownedStructures, nearbyFunctionalPieces, state.player.x, state.player.z]);
@@ -1459,11 +1556,11 @@ export function PlayCampaign({
     .sort((left, right) => Math.hypot(left.position.x - state.player.x, left.position.z - state.player.z)
       - Math.hypot(right.position.x - state.player.x, right.position.z - state.player.z) || left.siteId.localeCompare(right.siteId))[0] ?? null,
   [unfinishedConstructionSites, state.player.x, state.player.z]);
-  const nearbyLivingSiteCandidates = useMemo(() => Object.values(livingWorld.snapshot?.sites ?? {})
-    .filter(site => Boolean(site.bossId) && site.phase !== "memorialized" && site.phase !== "expired"), [livingWorld.snapshot?.sites]);
-  const nearbyEcologyCandidates = useMemo(() => Object.values(livingWorld.snapshot?.ecologySites ?? {})
-    .filter(site => site.phase === "foreshadowed" || site.phase === "discovered" || site.phase === "active"), [livingWorld.snapshot?.ecologySites]);
-  const nearbyGroveCandidates = useMemo(() => Object.values(livingWorld.snapshot?.groves ?? {}), [livingWorld.snapshot?.groves]);
+  const nearbyLivingSiteCandidates = useMemo(() => regionLocalMode ? [] : Object.values(livingWorld.snapshot?.sites ?? {})
+    .filter(site => Boolean(site.bossId) && site.phase !== "memorialized" && site.phase !== "expired"), [regionLocalMode, livingWorld.snapshot?.sites]);
+  const nearbyEcologyCandidates = useMemo(() => regionLocalMode ? [] : Object.values(livingWorld.snapshot?.ecologySites ?? {})
+    .filter(site => site.phase === "foreshadowed" || site.phase === "discovered" || site.phase === "active"), [regionLocalMode, livingWorld.snapshot?.ecologySites]);
+  const nearbyGroveCandidates = useMemo(() => regionLocalMode ? [] : Object.values(livingWorld.snapshot?.groves ?? {}), [regionLocalMode, livingWorld.snapshot?.groves]);
   const stewardTools = useMemo(() => Object.values(livingWorld.snapshot?.stewardTools ?? {}).filter((tool) => sameWildzPlayerCoordinate(tool.ownerReceizId, ownerReceizId)), [livingWorld.snapshot?.stewardTools, ownerReceizId]);
   const storedStewardLots = useMemo(() => Object.entries(livingWorld.snapshot?.storedMaterialLots ?? {})
     .filter(([, cacheId]) => cacheId === nearbyTrailCache?.structureId)
@@ -1479,12 +1576,14 @@ export function PlayCampaign({
 
   const burrowBuilder = useWildsBurrowBuilder({world:livingWorld,physical:sitePhysical,space:state.siteSpace,player:state.player,owner:ownerReceizId,card:activeAsset,feedback:showWorldFeedback,onDig:()=>{spendWorldCapability("burrow");},onEnter:(siteKey)=>dispatch({type:"site-portal",direction:"enter",siteKey,siteRuntime})});
   const selectLivingBuildPiece = (kind: Parameters<typeof continuousBuilder.selectKind>[0]) => {
+    if (regionLocalMode) return;
     beginWorldActionFeedback(); burrowBuilder.close(); setConstructionFocus(null);
     setStewardPlacementMode(null); setStewardPlacementPreview(null);
     continuousBuilder.begin(); continuousBuilder.selectKind(kind);
     dispatchStageOverlay({ type: "panel", key: null });
   };
   const openLivingConstruction = (focus: "tools" | "storage" | null = null) => {
+    if (regionLocalMode) return;
     continuousBuilder.close(); setConstructionFocus(focus);
     dispatchStageOverlay({ type: "panel", key: "construction" });
   };
@@ -1531,6 +1630,7 @@ export function PlayCampaign({
   };
 
   const gatherStewardResource = async (source: WildsResourceSource, admittedHudAction = false) => {
+    if (regionLocalMode) return;
     if ((!admittedHudAction && !canUseWorldStage()) || livingWorld.pendingCommand) {
       if (admittedHudAction) showWorldFeedback("Your current work is settling. The satchel count will update here before the next source can be gathered.");
       return;
@@ -1614,6 +1714,7 @@ export function PlayCampaign({
   };
 
   const gatherNearestStewardResource = (family: WildsVisibleWorkFamily) => {
+    if (regionLocalMode) return;
     if (livingWorld.pendingCommand) {
       showWorldFeedback("Your current work is settling. The satchel count will update here before the next source can be gathered.");
       return;
@@ -1643,6 +1744,7 @@ export function PlayCampaign({
   };
 
   const placeTrailShelter = async (position: { x: number; z: number }) => {
+    if (regionLocalMode) return;
     if (stewardPlacementMode !== "trail-shelter" || livingWorld.pendingCommand) return;
     beginWorldActionFeedback();
     if (Math.hypot(position.x - state.player.x, position.z - state.player.z) > 7) {
@@ -1664,6 +1766,7 @@ export function PlayCampaign({
   };
 
   const placeTrailBridge = async (position: { x: number; z: number }) => {
+    if (regionLocalMode) return;
     if (stewardPlacementMode !== "trail-bridge" || livingWorld.pendingCommand) return;
     beginWorldActionFeedback();
     if (Math.hypot(position.x - state.player.x, position.z - state.player.z) > 7) {
@@ -1687,6 +1790,7 @@ export function PlayCampaign({
   };
 
   const contributeNearbyConstructionSite = async (site: WildsConstructionSiteV1) => {
+    if (regionLocalMode) return;
     beginWorldActionFeedback();
     const haveTimber = site.contributedLots.filter((entry) => entry.kind === "timber").length;
     const haveStone = site.contributedLots.filter((entry) => entry.kind === "stone").length;
@@ -1702,6 +1806,7 @@ export function PlayCampaign({
   };
 
   const workNearbyConstructionSite = async (site: WildsConstructionSiteV1) => {
+    if (regionLocalMode) return;
     beginWorldActionFeedback();
     try {
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
@@ -1715,6 +1820,7 @@ export function PlayCampaign({
   };
 
   const placeStewardGroundStructure = async (blueprint: "steward-workbench" | "trail-cache", position: { x: number; z: number }) => {
+    if (regionLocalMode) return;
     if (stewardPlacementMode !== blueprint || livingWorld.pendingCommand) return;
     beginWorldActionFeedback();
     const definition = blueprint === "steward-workbench"
@@ -1741,6 +1847,7 @@ export function PlayCampaign({
   };
 
   const craftStewardTool = async (kind: "steward-axe" | "quarry-pick") => {
+    if (regionLocalMode) return;
     beginWorldActionFeedback();
     if (!nearbyStewardWorkbench) return showWorldFeedback("Approach your Steward Workbench before shaping a tool.");
     try {
@@ -1754,6 +1861,7 @@ export function PlayCampaign({
   };
 
   const moveStewardMaterial = async (kind: "timber" | "stone", direction: "deposit" | "withdraw") => {
+    if (regionLocalMode) return;
     beginWorldActionFeedback();
     if (!nearbyTrailCache) return showWorldFeedback("Approach your Trail Cache first.");
     const lot = direction === "deposit" ? availableMaterialLots.find((candidate) => candidate.kind === kind) : storedStewardLots.find((candidate) => candidate?.kind === kind);
@@ -1765,6 +1873,7 @@ export function PlayCampaign({
   };
 
   const confirmStewardPlacement = () => {
+    if (regionLocalMode) return;
     if (!stewardPlacementPreview?.valid || livingWorld.pendingCommand) return;
     if (stewardPlacementPreview.blueprintId === "trail-shelter") void placeTrailShelter(stewardPlacementPreview.point);
     else if (stewardPlacementPreview.blueprintId === "trail-bridge") void placeTrailBridge(stewardPlacementPreview.point);
@@ -1783,7 +1892,7 @@ export function PlayCampaign({
     );
   }
 
-  const nearbyOverlook = wildsOverlookAt(state.player);
+  const nearbyOverlook = state.worldCoordinateMode === "region-local" ? null : wildsOverlookAt(state.player);
 
   const dispatch = (input: WildsInput) => {
     if (!interactionEnabled) return;
@@ -1815,8 +1924,8 @@ export function PlayCampaign({
         siteRuntime,
         siteMovementOutput: siteMovementOutputRef.current,
         siteDiscoveryOutput: siteDiscoveryOutputRef.current,
-        structureSupports: livingStructureSupports,
-        additionalObstacles: livingPhysicalObstacles,
+        structureSupports: state.worldCoordinateMode === "region-local" ? [] : livingStructureSupports,
+        additionalObstacles: state.worldCoordinateMode === "region-local" ? [] : livingPhysicalObstacles,
         aerialMode: airborne ? liveAerialMode : undefined,
         verticalClearance: verticalTraversalRef.current.offset,
         verticalWorldY: verticalTraversalRef.current.worldY
@@ -1883,6 +1992,25 @@ export function PlayCampaign({
     if (!runtime.landingRequired) return;
     const anchor = runtime.safeAnchor;
     const outer = state.siteSpace.spaceId === "wildz.space.outer.v1";
+    if (outer && state.worldCoordinateMode === "region-local" && state.worldAddress) {
+      const landingAddress = offsetWildsWorldAddress(state.worldAddress,
+        BigInt(Math.round((anchor.x - state.player.x) * 1_000_000)),
+        BigInt(Math.round((anchor.z - state.player.z) * 1_000_000)));
+      const terrain = sampleWildsTerrainV11(landingAddress);
+      const landedPlayer = { x: landingAddress.localX / 1_000_000, z: landingAddress.localZ / 1_000_000 };
+      completeWildsAerialLanding(runtime, landedPlayer.x, landedPlayer.z, terrain.elevation);
+      resetWildsVerticalTraversalState(verticalTraversalRef.current);
+      verticalIntentRef.current = 0;
+      horizontalAllowedRef.current = true;
+      setAerialMode("ground");
+      setState((current) => ({ ...current, worldAddress: landingAddress, player: landedPlayer,
+        partyTravelRevision: nextWildsPartyTravelRevision(current.partyTravelRevision),
+        siteSpace: { ...current.siteSpace, surfaceId: null,
+          position: { x: landedPlayer.x, y: terrain.elevation, z: landedPlayer.z }, flooded: terrain.surface === "deep-water" },
+        lastEvent: terrain.surface === "deep-water" && !activeTraversalCapabilities.includes("swim")
+          ? "Dropped into deep water. Lead with a swimming creature to move." : "Landed on the nearest clear surface." }));
+      return;
+    }
     const landing = outer
       ? resolveWildsRequiredLandingPosition(state.player, anchor, { capabilities: activeTraversalCapabilities, obstacles: livingPhysicalObstacles })
       : { x: anchor.x, z: anchor.z };
@@ -2105,7 +2233,7 @@ export function PlayCampaign({
     ? "Tap terrain to scan"
     : `${activeProximity}${state.encounter.trend ? ` · ${state.encounter.trend}` : ""}`;
   const captureToastActive = ["emerging", "capsule", "sealed", "revealed"].includes(state.encounter.phase);
-  const currentLandmark = landmarkAtPosition(state.player);
+  const currentLandmark = regionLocalMode ? null : landmarkAtPosition(state.player);
   const civicActorId = normalizeWildsCivicActorId(ownerReceizId);
   const settlementWorldMode = livingWorld.mode === "receiz_live" || livingWorld.mode === "kai_live" ? livingWorld.mode : livingWorld.mode === "local_practice" ? "local_practice" : "connecting";
   const discoveredLandmarkIds: WildsLandmarkId[] = civic.completedSourceIds.includes("settlement:wayfinder-hollow")
@@ -2423,6 +2551,22 @@ export function PlayCampaign({
       showWorldFeedback(error instanceof Error ? error.message : "wilds_rift_failed");
     }
   };
+  const enterOuterWilds = () => {
+    if (state.worldCoordinateMode === "region-local" || !state.worldAddress || modalOwner !== "map") return;
+    const origin: WildsWorldAddress = WILDS_V11_ORIGIN;
+    const result = authorizeRiftTravelV11({
+      source: state.worldAddress,
+      destination: origin,
+      idempotencyKey: `rift:${crypto.randomUUID()}`
+    }, { playerId: multiplayer.selfId, coordinationPulse: String(kaiMoment.uPulse), locked: false });
+    if (!result.ok) { showWorldFeedback(result.error); return; }
+    dispatch({ type: "apply-rift-grant-v11", grant: result.grant, playerId: result.grant.playerId });
+    resetTransientTraversal({ x: 0, z: 0 }, sampleWildsTerrainV11(origin).elevation);
+    multiplayer.selectPlayer(null);
+    setActiveLandmarkId(null);
+    releasePlayModalOwner("map");
+    setMapOpen(false);
+  };
   const handleCrewModeChange = async (assetId: string, mode: "follow" | "roam") => {
     const card = state.inventory.find(asset => asset.id === assetId && canOperateWildzCrewCard(asset, ownerReceizId, crewCustody));
     if (!card) return;
@@ -2638,7 +2782,7 @@ export function PlayCampaign({
             {trailPack.map((card, index) => {
               const progress = exactCompanionProgress(state, card);
               const mastery = projectWildsCardMastery(card);
-              const element = creatureForm(card.manifest.formId)?.element ?? card.manifest.species;
+              const element = resolveCardForm(card)?.element ?? card.manifest.species;
               const mood = index === 0 ? heartbeatMood : progress.bond >= 60 ? "Devoted" : progress.bond >= 25 ? "Steady" : "Listening";
               return <article className={index === 0 ? "is-leader" : "is-support"} key={card.id}>
                 <WildsCreatureThumbnail asset={card} />
@@ -2711,7 +2855,7 @@ export function PlayCampaign({
               const outcome = await onRestoreArtifact(file, confirmCardOnly, currentPlayState);
               const verifiedAssetIds = new Set(outcome.verifiedAssetIds);
               const restoredPlayState = {
-                ...outcome.playState,
+                ...upgradeV10PlayStateToV11(outcome.playState),
                 pendingSyncAssetIds: outcome.playState.pendingSyncAssetIds.filter((assetId) => !verifiedAssetIds.has(assetId))
               };
               setState(restoredPlayState);
@@ -2793,8 +2937,8 @@ export function PlayCampaign({
               searchEnabled={worldInteractionEnabled && (discoveryActive || Boolean(stewardPlacementMode) || continuousBuilder.open || burrowBuilder.open)}
               resourcePending={Boolean(livingWorld.pendingCommand)}
               resourceCompanionReady={Boolean(activeCondition && activeCondition.fatigue < 85 && activeCondition.injuries.length < 4)}
-              livingWorld={livingWorld.snapshot}
-              livingPhysicalObstacles={livingPhysicalObstacles}
+              livingWorld={regionLocalMode ? null : livingWorld.snapshot}
+              livingPhysicalObstacles={regionLocalMode ? [] : livingPhysicalObstacles}
               siteRuntime={siteRuntime}
               siteSpace={state.siteSpace}
               worldMode={settlementWorldMode}
@@ -2806,12 +2950,12 @@ export function PlayCampaign({
               onSelectPlayer={(player) => {
                 if (canUseWorldStage()) multiplayer.selectPlayer(player);
               }}
-              trainers={sagaTrainers}
+              trainers={regionLocalMode ? [] : sagaTrainers}
               onSelectTrainer={(trainer) => openTrainerEncounter(trainer, "world")}
               onSearchPoint={(point) => {
-                if (burrowBuilder.open) { burrowBuilder.point(point); return; }
-                if (continuousBuilder.open) { continuousBuilder.point(point); return; }
-                if (stewardPlacementMode) {
+                if (!regionLocalMode && burrowBuilder.open) { burrowBuilder.point(point); return; }
+                if (!regionLocalMode && continuousBuilder.open) { continuousBuilder.point(point); return; }
+                if (!regionLocalMode && stewardPlacementMode) {
                   setStewardPlacementPreview(projectWildsStewardPlacement({ actorPosition: state.player, blueprintId: stewardPlacementMode, point }));
                   return;
                 }
@@ -3078,6 +3222,14 @@ export function PlayCampaign({
               <button aria-label="Show tracked destination on map" onClick={openWorldMap} type="button"><Icons.map size={16} /></button>
               <button aria-label="Clear tracked destination" onClick={() => setTrackedDestination(null)} type="button"><Icons.close size={16} /></button>
             </div> : null}
+            {homecomingOffer ? <section className="wilds-homecoming-offer" aria-label="Companion homecoming">
+              <small>FIRST MEETING PLACE</small>
+              <strong>{homecomingOffer.title}</strong>
+              <p>{homecomingOffer.response}</p>
+              <div>{homecomingOffer.choices.map((choice) => <button key={choice.id} type="button"
+                onClick={() => dispatch({ type: "complete-homecoming", assetId: homecomingOffer.assetId,
+                  ownerReceizId, choice: choice.id, at: new Date().toISOString() })}>{choice.label}</button>)}</div>
+            </section> : null}
             <div className={`wilds-event-toast${captureToastActive ? " is-capture" : ""}`} aria-live="polite">
               {captureToastActive ? <Icons.seal aria-hidden="true" size={19} /> : null}
               <span key={worldFeedbackRevision}>{riftError || (activeLandmarkId ? `${currentLandmark?.name ?? "Landmark"} entrance awakened.` : state.lastEvent)}</span>
@@ -3105,6 +3257,7 @@ export function PlayCampaign({
           setMapOpen(false);
         }}
         onRift={riftTo}
+        onExploreBeyond={state.worldCoordinateMode === "legacy" ? enterOuterWilds : undefined}
         open={exclusiveOwner === "map" && mapOpen}
         qualityProfile={qualityProfile}
         reducedMotion={reducedMotion}

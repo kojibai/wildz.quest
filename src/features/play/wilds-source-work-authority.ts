@@ -1,4 +1,4 @@
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import type { KaiTemporalRoot } from "./kai-temporal-root";
 import type { PortableCardAsset } from "./portable-card";
 import { sha256PortableBasis } from "./portable-card";
@@ -53,7 +53,7 @@ export function planWildsMaterialHarvest(input: Readonly<{
     ? `creature:${sha256PortableBasis(input.card.id).slice(0, 32)}`
     : undefined;
   const creatureHead = input.card ? sha256PortableBasis(input.card.proof.digest) : undefined;
-  const element = input.card ? creatureForm(input.card.manifest.formId)?.element ?? "" : "";
+  const element = input.card ? resolveCardForm(input.card)?.element ?? "" : "";
   const creatureWorkFamilies = projectWildsCreatureWorkFamilies(element);
   const matchingCreature = creatureSubjectId && creatureHead && creatureWorkFamilies.includes(input.source.requirements.creature)
     ? { subjectId: creatureSubjectId, head: creatureHead, workFamilies: creatureWorkFamilies, willing: true as const }

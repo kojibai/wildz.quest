@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { initialWorldOverlayState, reduceWorldOverlay, type WorldOverlayOwner } from "../src/features/play/world-overlay-state";
 import { applyWildsInput, initialPlayState } from "../src/features/play/game-state";
 import { canRestoreFocus } from "../src/features/play/focus-recovery";
-import { canAcceptPlayShellInput, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayCombatSurface, projectPlayShellOwner } from "../src/features/play/play-shell-owner";
+import { canAcceptPlayShellInput, isCapturePresentationPhase, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayCombatSurface, projectPlayShellOwner } from "../src/features/play/play-shell-owner";
 import { generateIdentityBoundWildzCharacter } from "../src/features/identity/wildz-genesis";
 import { projectWildzContinuityExplorer } from "../src/features/play/wildz-explorer-proof";
 import { nextCompanionAbilityIndex } from "../src/features/play/companion-ability-composite";
@@ -327,10 +327,15 @@ test("modal admission tokens reject delayed work after another owner wins or clo
   }
 });
 
-test("a completed capture yields combat ownership so its reward can be admitted", () => {
-  for (const phase of ["battle_intro", "player_turn", "capture_ready", "emerging", "capsule", "sealed", "fled", "defeated"]) {
+test("the world owns the full ball capture before the reward can be admitted", () => {
+  for (const phase of ["battle_intro", "player_turn", "capture_ready", "fled", "defeated"]) {
     assert.equal(isWildBattleModalOwner(phase, true), true, `${phase} must retain combat ownership`);
   }
+  for (const phase of ["emerging", "capsule", "sealed"]) {
+    assert.equal(isWildBattleModalOwner(phase, true), false, `${phase} must show the world capture`);
+    assert.equal(isCapturePresentationPhase(phase), true, `${phase} must block world input`);
+  }
+  assert.equal(isCapturePresentationPhase("revealed"), false);
   assert.equal(isWildBattleModalOwner("revealed", true), false);
   assert.equal(isWildBattleModalOwner("idle", true), false);
   assert.equal(isWildBattleModalOwner("player_turn", false), false);

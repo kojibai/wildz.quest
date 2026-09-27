@@ -5,6 +5,7 @@ import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import { projectCardCreatureVisualIdentity, type CreatureVisualAppendages } from "./creature-visual-identity";
 import type { PortableCardAsset } from "./portable-card";
 import type { LivingCreatureIdentityV3 } from "./living-taxonomy";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 
 export type CardKaiAppearance = {
   source: "sealed" | "recovered";
@@ -39,7 +40,7 @@ export function threeCreatureColor(value: string) {
 }
 
 export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppearance {
-  const form = creatureForm(asset.manifest.formId);
+  const form = resolveCardForm(asset);
   if (!form) throw new Error("wilds_kai_appearance_form_unknown");
 
   const variant = asset.manifest.variant;

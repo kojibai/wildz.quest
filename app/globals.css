@@ -3631,6 +3631,43 @@ button.wildz-work-capability:focus-visible { outline: 2px solid #b8f5d9; outline
   line-height: 1.25;
 }
 
+.wilds-homecoming-offer {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: max(112px, calc(env(safe-area-inset-bottom) + 106px));
+  width: min(420px, calc(100% - 28px));
+  padding: 16px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 224, 153, .58);
+  border-radius: 18px;
+  color: #fffaf0;
+  background: linear-gradient(145deg, rgba(40, 32, 33, .97), rgba(17, 43, 40, .97));
+  box-shadow: 0 16px 45px rgba(0, 0, 0, .35);
+}
+.wilds-homecoming-offer > small { display: block; color: #ffe099; font-size: 10px; font-weight: 900; letter-spacing: .18em; }
+.wilds-homecoming-offer > strong { display: block; margin-top: 5px; font-size: 18px; }
+.wilds-homecoming-offer > p { margin: 7px 0 12px; color: #dce9de; font-size: 12px; line-height: 1.45; }
+.wilds-homecoming-offer > div { display: flex; flex-wrap: wrap; gap: 7px; }
+.wilds-homecoming-offer button { padding: 8px 10px; border: 1px solid rgba(255, 224, 153, .38); border-radius: 999px; color: #fff5d5; background: rgba(255, 224, 153, .12); font: inherit; font-size: 11px; cursor: pointer; }
+.wilds-homecoming-offer button:hover, .wilds-homecoming-offer button:focus-visible { background: rgba(255, 224, 153, .27); }
+@media (max-width: 600px) {
+  .wilds-homecoming-offer {
+    top: clamp(174px, 29%, 210px);
+    right: 10px;
+    bottom: auto;
+    left: auto;
+    width: min(230px, calc(100% - 114px));
+    max-height: min(42vh, 290px);
+    padding: 11px;
+    overflow-y: auto;
+    transform: none;
+  }
+  .wilds-homecoming-offer > strong { font-size: 14px; }
+  .wilds-homecoming-offer > p { margin: 5px 0 8px; font-size: 10px; }
+  .wilds-homecoming-offer button { padding: 6px 8px; font-size: 9px; }
+}
+
 .wilds-control-deck {
   display: grid;
   grid-template-columns: 108px minmax(0, 1fr);

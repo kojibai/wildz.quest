@@ -1,3 +1,4 @@
+import { generateWildsRegionV11 } from "./wilds-region-generator-v11";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
 import { wildsTerrainObstaclesForTile, type WildsTerrainObstacle } from "./wilds-terrain-obstacles";
@@ -334,4 +335,25 @@ export function clearWildsResourceAuthorityCachesForTests() {
   regionCache.clear();
   regionsBuilt = 0;
   constructionTerrainSamples = 0;
+}
+
+/** A fixed resource budget per v11 encounter region, addressed without numeric region casts. */
+export function projectWildsResourceRegionV11(regionX: string, regionZ: string) {
+  const region = generateWildsRegionV11(regionX, regionZ);
+  const kinds = ["timber", "stone", "fiber"] as const;
+  return kinds.map((kind, slot) => {
+    const xBits = Number.parseInt(region.resourceSeed.slice(7 + slot * 16, 15 + slot * 16), 16);
+    const zBits = Number.parseInt(region.resourceSeed.slice(15 + slot * 16, 23 + slot * 16), 16);
+    const localX = 2_000_000 + Math.floor(xBits / 0x1_0000_0000 * 20_000_000);
+    const localZ = 2_000_000 + Math.floor(zBits / 0x1_0000_0000 * 20_000_000);
+    return Object.freeze({
+      schema: "wildz.resource-source.v11" as const,
+      sourceId: `wildz.resource.v11:${regionX}:${regionZ}:${slot}`,
+      address: { worldVersion: 11 as const, regionX, regionZ, localX, localZ },
+      slot,
+      kind,
+      capacity: 3 + (xBits % 5),
+      quality: (1 + (zBits % 5)) as 1 | 2 | 3 | 4 | 5
+    });
+  });
 }

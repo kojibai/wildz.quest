@@ -1,6 +1,6 @@
 {
   "name": "wildz-quest",
-  "version": "10.0.0",
+  "version": "11.0.0",
   "description": "Open-source living game world and end-to-end Receiz SDK, MCP, and AI-skills reference implementation.",
   "license": "MIT",
   "private": true,
@@ -56,6 +56,8 @@
   },
   "dependencies": {
     "@huggingface/transformers": "3.8.1",
+    "@noble/ed25519": "3.0.0",
+    "@noble/hashes": "2.3.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@receiz/sdk": "127.0.0",

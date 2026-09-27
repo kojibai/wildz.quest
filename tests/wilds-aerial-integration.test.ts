@@ -123,7 +123,7 @@ describe("Wildz aerial and vista integration", () => {
     assert.match(campaign, /verticalClearance:\s*verticalTraversalRef\.current\.offset/);
     assert.match(campaign, /verticalWorldY:\s*verticalTraversalRef\.current\.worldY/);
     assert.match(gameState, /verticalClearance\?: number/);
-    assert.match(gameState, /resolveWildsGroundMovement\(player, intended, \{ capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports, additionalObstacles \}\)/);
+    assert.match(gameState, /resolveWildsGroundMovement\(player, intended, \{ capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports,\s+additionalObstacles, terrainSampler/);
     assert.doesNotMatch(playStateContract, /verticalTraversal|verticalClearance|safeMin|safeMax/);
   });
 
@@ -165,7 +165,7 @@ describe("Wildz aerial and vista integration", () => {
     assert.match(campaign, /resolveWildsRequiredLandingPosition[\s\S]*safeAnchor/);
     assert.match(campaign, /projectWildsRenderedLivingObstacles\(\{ sites, bosses, structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions \}\)/);
     assert.match(campaign, /resolveWildsRequiredLandingPosition\([\s\S]*obstacles:\s*livingPhysicalObstacles/);
-    assert.match(campaign, /livingPhysicalObstacles=\{livingPhysicalObstacles\}/);
+    assert.match(campaign, /livingPhysicalObstacles=\{regionLocalMode \? \[\] : livingPhysicalObstacles\}/);
     assert.doesNotMatch(campaign, /\?\?\s*anchor/);
     assert.match(campaign, /completeWildsAerialLanding/);
     assert.doesNotMatch(campaign, /advanceWildsAerialTraversal/);

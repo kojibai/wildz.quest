@@ -6,6 +6,7 @@ import {
   createInviteRoom,
   expirePresence,
   regionForPosition,
+  roomKeyForAddressV11,
   sanitizeWildsMessage,
   validatePresenceMove,
   visiblePresence
@@ -21,7 +22,7 @@ import {
   submitPvpIntent,
   type PvpCard
 } from "../src/features/play/pvp-battle-engine.js";
-import { applyAuthorizedRiftPresence, getWildsAtlasPresence, heartbeatWildsPresence } from "../src/features/play/multiplayer-ledger.js";
+import { applyAuthorizedRiftPresence, applyAuthorizedRiftPresenceV11, getWildsAtlasPresence, getWildsAtlasPresenceV11, heartbeatWildsPresence } from "../src/features/play/multiplayer-ledger.js";
 import { initialPlayState } from "../src/features/play/game-state.js";
 import { buildWildsMultiplayerHeartbeatBody } from "../src/features/play/use-wilds-multiplayer.js";
 
@@ -65,6 +66,66 @@ it("sends a verified active card once and keeps later movement heartbeats card-f
   });
   assert.equal("card" in movement, false);
   assert.equal("cardAdmission" in movement, false);
+});
+
+it("binds v11 heartbeat presence to its exact-address room", () => {
+  const origin = { worldVersion: 11 as const, regionX: "0", regionZ: "0", localX: 0, localZ: 0 };
+  const address = { worldVersion: 11 as const, regionX: "9007199254740993", regionZ: "-2", localX: 7_000_000, localZ: 19_000_000 };
+  const roomKey = roomKeyForAddressV11("platform", address);
+  const originRoomKey = roomKeyForAddressV11("platform", origin);
+  const base = { playerId: "v11-player", handle: "Far Walker", style: "female" as const,
+    heading: 0, practice: false, activeCard: card("v11-card") };
+  assert.throws(() => heartbeatWildsPresence({ ...base, roomKey, x: 7, z: 19,
+    address, now: "2026-09-26T12:00:00.000Z" }), /origin_required/);
+  heartbeatWildsPresence({ ...base, roomKey: originRoomKey, x: 0, z: 0,
+    address: origin, now: "2026-09-26T12:00:00.000Z" });
+  applyAuthorizedRiftPresenceV11({ roomKey: originRoomKey, playerId: base.playerId,
+    destination: address, kaiPulse: "41", now: "2026-09-26T12:00:00.500Z" });
+  const first = heartbeatWildsPresence({ ...base, roomKey, x: 7, z: 19,
+    address, now: "2026-09-26T12:00:00.750Z" });
+  assert.deepEqual(first.self.worldAddress, address);
+  const atlas = getWildsAtlasPresenceV11({ actorId: "another-v11-player", center: address, now: Date.parse("2026-09-26T12:00:01.000Z") });
+  assert.equal(atlas.players.find(player => player.playerId === "v11-player")?.x, 7);
+  const destination = { ...address, regionX: "9007199254740994", localX: 2_000_000 };
+  const moved = applyAuthorizedRiftPresenceV11({ roomKey, playerId: "v11-player", destination, kaiPulse: "42", now: "2026-09-26T12:00:02.000Z" });
+  assert.equal(moved.destination.players.find(player => player.playerId === "v11-player")?.worldAddress?.regionX, destination.regionX);
+  assert.equal(moved.source.players.some(player => player.playerId === "v11-player"), false);
+  assert.throws(() => heartbeatWildsPresence({ roomKey: "wilds:platform:0:0", playerId: "v11-player", handle: "Far Walker", style: "female",
+    x: 7, z: 19, address, heading: 0, practice: false, activeCard: card("v11-card"), now: "2026-09-26T12:00:01.000Z" }), /room|address/i);
+});
+
+it("checks ordinary movement when crossing region rooms and clears the old room", () => {
+  const at = "2026-09-26T12:00:00.000Z";
+  const boundary = { worldVersion: 11 as const, regionX: "0", regionZ: "0", localX: 23_000_000, localZ: 1_000_000 };
+  const next = { ...boundary, regionX: "1", localX: 7_000_000 };
+  const roomKey = roomKeyForAddressV11("platform", boundary);
+  const nextRoomKey = roomKeyForAddressV11("platform", next);
+  const base = { playerId: "crossing-player", handle: "Walker", style: "male" as const,
+    heading: 0, practice: false, activeCard: card("crossing-card") };
+  heartbeatWildsPresence({ ...base, roomKey: roomKeyForAddressV11("platform", { ...boundary, localX: 0, localZ: 0 }),
+    x: 0, z: 0, address: { ...boundary, localX: 0, localZ: 0 }, now: at });
+  applyAuthorizedRiftPresenceV11({ roomKey, playerId: base.playerId, destination: boundary,
+    kaiPulse: "42", now: "2026-09-26T12:00:00.100Z" });
+  assert.throws(() => heartbeatWildsPresence({ ...base, roomKey: nextRoomKey,
+    x: 7, z: 1, address: next, now: "2026-09-26T12:00:00.200Z" }), /teleport_rejected/);
+  assert.throws(() => heartbeatWildsPresence({ ...base, roomKey: nextRoomKey, previousRoomKey: roomKey,
+    x: 7, z: 1, address: next, now: "2026-09-26T12:00:00.200Z" }), /teleport_rejected/);
+  const accepted = heartbeatWildsPresence({ ...base, roomKey: nextRoomKey, previousRoomKey: roomKey,
+    x: 7, z: 1, address: next, now: "2026-09-26T12:00:01.100Z" });
+  assert.equal(accepted.departed?.players.some(player => player.playerId === base.playerId), false);
+  assert.equal(accepted.snapshot.players.some(player => player.playerId === base.playerId), true);
+});
+
+it("retains the last accepted v11 address after live presence expires", () => {
+  const origin = { worldVersion: 11 as const, regionX: "0", regionZ: "0", localX: 0, localZ: 0 };
+  const roomKey = roomKeyForAddressV11("platform", origin);
+  const base = { roomKey, playerId: "returning-player", handle: "Returning Walker", style: "female" as const,
+    heading: 0, practice: false, activeCard: card("returning-card") };
+  heartbeatWildsPresence({ ...base, address: origin, x: 0, z: 0, now: "2026-09-26T12:00:00.000Z" });
+  const nearby = { ...origin, localX: 1_000_000 };
+  const resumed = heartbeatWildsPresence({ ...base, address: nearby, x: 1, z: 0,
+    now: "2026-09-26T12:00:20.000Z" });
+  assert.deepEqual(resumed.self.worldAddress, nearby);
 });
 
 it("keeps the Receiz response token server-side when returning the live actor", () => {

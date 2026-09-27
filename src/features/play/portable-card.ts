@@ -14,6 +14,9 @@ import { admitLegacyCard, appendLivingCardRevision, currentLivingGenome, current
 import { isLivingCardAsset, type LivingCardAsset } from "./living-card-types";
 import { deriveHeartboundPresentation } from "./heartbound-anime-genome";
 import { validateLivingCreatureIdentity, type LivingCreatureIdentityV3 } from "./living-taxonomy";
+import { verifyWildsV11BirthSync, type WildsV11CreatureCard } from "./wilds-card-proof-v11";
+import { projectVerifiedBirthFormV11, resolveCardForm } from "./wilds-card-form-resolution";
+import { WILDS_V11_ENCOUNTER_PUBLIC_KEYS } from "./wilds-v11-release-keys";
 
 export type PortableCardStatus = "sealed_local" | "verified" | "listed" | "suspended" | "revoked";
 
@@ -48,7 +51,7 @@ export type PortableCardVariant = {
 
 export type PortableCardManifest = {
   schema: "receiz.wilds_card_manifest.v1";
-  catalogVersion: typeof CREATURE_CATALOG_VERSION;
+  catalogVersion: typeof CREATURE_CATALOG_VERSION | "wildz.procedural.catalog.v11";
   assetId: string;
   formId: string;
   familyId: string;
@@ -64,6 +67,7 @@ export type PortableCardManifest = {
   encounterId: string;
   capturedAt: string;
   variant: PortableCardVariant;
+  birthV11?: WildsV11CreatureCard;
   lineage: {
     rootAssetId: string;
     rootDigest: string;
@@ -381,9 +385,64 @@ export function sealDiscoveredCard(input: {
   };
 }
 
-export function verifyPortableCard(asset: PortableCardAsset): PortableCardVerification {
+/** The existing portable card is the capture object; the signed birth is additive evidence. */
+export function sealWildsV11Card(input: {
+  birth: WildsV11CreatureCard;
+  ownerReceizId: string;
+  capturedAt: string;
+  battleTranscriptDigest?: string;
+}, pinnedKeys: Readonly<Record<string, string>> = WILDS_V11_ENCOUNTER_PUBLIC_KEYS): LegacyPortableCardAsset {
+  if (!verifyWildsV11BirthSync(input.birth, pinnedKeys)) throw new Error("wilds_v11_birth_unverified");
+  const ownerReceizId = input.ownerReceizId.trim();
+  if (ownerReceizId !== input.birth.birth.identity.actorId) throw new Error("wilds_v11_card_owner_mismatch");
+  if (!Number.isFinite(Date.parse(input.capturedAt))) throw new Error("wilds_v11_capture_time_invalid");
+  const encounterId = `wildz:v11:${input.birth.proofDigest.slice(7)}`;
+  const formId = `wildz:form:v11:${input.birth.birth.generationDigest.slice(7)}`;
+  const form = projectVerifiedBirthFormV11(input.birth.birth, formId);
+  const assetId = assetIdFor({ ownerReceizId, formId, encounterId });
+  const battleTranscriptDigest = input.battleTranscriptDigest ?? "sha256:none";
+  const kaiPulse = "0";
+  // Appearance belongs to the signed birth and never rerolls at capture time.
+  const seed = input.birth.birth.generationDigest;
+  const traits = { ...deriveCardVariant(seed, 1), bodyScale: input.birth.birth.body.scale,
+    animationMs: input.birth.birth.voice.pulseMs,
+    palette: { primary: input.birth.birth.surface.primary, accent: input.birth.birth.surface.accent,
+      glow: input.birth.birth.surface.glow }, visualFingerprint: input.birth.birth.generationDigest };
+  const manifest: PortableCardManifest = {
+    schema: "receiz.wilds_card_manifest.v1", catalogVersion: "wildz.procedural.catalog.v11",
+    assetId, formId, familyId: form.familyId, stage: 1,
+    cardNumber: input.birth.birth.generationDigest.slice(7, 19), name: form.name, species: form.species,
+    rarity: form.rarity, foil: form.foil, stats: { ...form.stats },
+    abilityNames: [form.abilities[0].name, form.abilities[1].name], ownerReceizId, encounterId,
+    capturedAt: input.capturedAt,
+    variant: { generatorVersion: 1, seed, traitsDigest: sha256PortableBasis(canonicalPortableCardJson(traits)),
+      kaiPulse, battleTranscriptDigest, traits },
+    birthV11: input.birth,
+    lineage: { rootAssetId: assetId, rootDigest: "self", previousAssetId: null,
+      previousDigest: null, evolvedAt: null }
+  };
+  manifest.lineage.rootDigest = manifestDigest(manifest);
+  manifest.lineage.rootDigest = manifestDigest(manifest);
+  return { id: assetId, status: "sealed_local", synchronizedAt: null, manifest,
+    proof: { kind: "receiz.wilds_local_seal.v1", digest: manifestDigest(manifest),
+      canonicalization: "receiz.sorted-json.v1", sealedAt: input.capturedAt } };
+}
+
+export function verifyPortableCard(asset: PortableCardAsset,
+  pinnedKeys: Readonly<Record<string, string>> = WILDS_V11_ENCOUNTER_PUBLIC_KEYS): PortableCardVerification {
   const errors: string[] = [];
   const manifest = asset.manifest;
+  if (!isLivingCardAsset(asset) && (asset.manifest.birthV11 !== undefined || manifest.catalogVersion === "wildz.procedural.catalog.v11")) {
+    try {
+      const procedural = asset.manifest;
+      if (!procedural.birthV11 || procedural.catalogVersion !== "wildz.procedural.catalog.v11") throw new Error();
+      const expected = sealWildsV11Card({ birth: procedural.birthV11, ownerReceizId: procedural.ownerReceizId,
+        capturedAt: procedural.capturedAt, battleTranscriptDigest: procedural.variant.battleTranscriptDigest }, pinnedKeys);
+      if (asset.id !== expected.id || canonicalPortableCardJson(procedural) !== canonicalPortableCardJson(expected.manifest)
+        || canonicalPortableCardJson(asset.proof) !== canonicalPortableCardJson(expected.proof)) errors.push("wilds_v11_card_proof_invalid");
+    } catch { errors.push("wilds_v11_card_proof_invalid"); }
+    return { ok: errors.length === 0, errors };
+  }
   const form = creatureForm(manifest.formId);
   if (manifest.schema !== "receiz.wilds_card_manifest.v1") errors.push("schema_invalid");
   if (manifest.catalogVersion !== CREATURE_CATALOG_VERSION) errors.push("catalog_version_invalid");
@@ -516,6 +575,9 @@ export function portableCardBaseProofAsset(asset: PortableCardAsset): LegacyPort
   if (!verified.ok) throw new Error("wilds_card_proof_invalid");
   if (!requiresPortableCardProofAppend(asset)) return asset as LegacyPortableCardAsset;
   const manifest = asset.manifest;
+  if (manifest.birthV11) return sealWildsV11Card({ birth: manifest.birthV11,
+    ownerReceizId: manifest.ownerReceizId, capturedAt: manifest.capturedAt,
+    battleTranscriptDigest: manifest.variant.battleTranscriptDigest });
   return sealCollectedCard({
     formId: isLivingCardAsset(asset) ? asset.manifest.birth.formId : manifest.formId,
     ownerReceizId: manifest.ownerReceizId,
@@ -589,7 +651,7 @@ export function portableCardExchangeAsset(asset: PortableCardAsset, priceCents: 
   if (!Number.isInteger(priceCents) || priceCents <= 0 || priceCents > 100_000_000) throw new Error("exchange_listing_price_invalid");
   const listingOwner = custodyOwnerReceizId.trim();
   if (!listingOwner) throw new Error("exchange_listing_owner_required");
-  const form = creatureForm(asset.manifest.formId)!;
+  const form = resolveCardForm(asset)!;
   const claimId = asset.proof.digest.slice(7, 39);
   const pulse = String(Date.parse(asset.proof.sealedAt));
   const verifyPath = `/verify?claim=${encodeURIComponent(claimId)}&pulse=${encodeURIComponent(pulse)}`;

@@ -1,5 +1,5 @@
 import { hasLaterWildsPlayerLedger } from "./wilds-play-state-source";
-import { restorePlayState, serializePlayState, type PlayState } from "./game-state";
+import { restorePlayState, serializePlayState, upgradeV10PlayStateToV11, type PlayState } from "./game-state";
 import {
   createAdmittedWildsInventory,
   retainAdmittedWildsInventory,
@@ -22,7 +22,7 @@ export type WildzRuntimeCheckpoint = {
   keyId: string;
   actorId: string;
   vaultRoot: string;
-  playState: Omit<PlayState, "inventory">;
+  playState: Omit<PlayState, "inventory" | "cardContinuityV11">;
 };
 
 type PendingInventoryCheckpoint = {
@@ -79,7 +79,9 @@ export function prepareWildzRuntimeCheckpoint(input: {
   actorId: string;
   playState: PlayState;
 }): { key: string; checkpoint: WildzRuntimeCheckpoint } {
-  const { inventory, ...playState } = input.playState;
+  // The runtime checkpoint contains gameplay only; Vault proofs and their
+  // v11 continuity projections are rebuilt from the separately held Vault.
+  const { inventory, cardContinuityV11: _cardContinuityV11, ...playState } = upgradeV10PlayStateToV11(input.playState);
   const checkpoint: WildzRuntimeCheckpoint = {
     schema: RUNTIME_SCHEMA,
     keyId: input.keyId,

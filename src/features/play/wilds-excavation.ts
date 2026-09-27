@@ -1,3 +1,4 @@
+import { parseWildsWorldAddress as parseWildsWorldAddressV11 } from "./wilds-world-address";
 import type {
   ReceizClient,
   ReceizWorldAuthorityV1,
@@ -1233,4 +1234,10 @@ function validateRecoveredWorldEvent(
     registryDigest: WILDS_EXCAVATION_REGISTRY_DIGEST,
     reducerDigest: WILDS_EXCAVATION_REDUCER_DIGEST
   });
+}
+
+/** V11 excavation world identity uses the exact region strings from the site address. */
+export function wildsExcavationWorldIdForAddressV11(value: import("./wilds-world-address").WildsWorldAddress) {
+  const address = parseWildsWorldAddressV11(value);
+  return `wildz.excavation.region.v11:${address.regionX}:${address.regionZ}`;
 }

@@ -20,11 +20,14 @@ import type {
 } from "./creature-history-types";
 import {
   canonicalPortableCardJson,
+  sealWildsV11Card,
   sha256PortableBasis,
   verifyPortableCard,
   type LegacyPortableCardAsset,
   type PortableCardVerification
 } from "./portable-card";
+import { projectVerifiedBirthFormV11 } from "./wilds-card-form-resolution";
+import { projectWildsV11BirthGenome } from "./wilds-card-artwork";
 import {
   isLivingCardAsset,
   type LivingCardAsset,
@@ -161,8 +164,12 @@ export function admitLegacyCard(legacy: LegacyPortableCardAsset, admittedAt: str
 } = {}): LivingCardAsset {
   if (!verifyPortableCard(legacy).ok) throw new Error("wilds_legacy_card_invalid");
   if (!Number.isFinite(Date.parse(admittedAt))) throw new Error("wilds_living_admission_time_invalid");
-  const form = creatureForm(legacy.manifest.formId)!;
-  const genome = options.birthGenome ?? birthGenome(legacy);
+  const form = legacy.manifest.birthV11
+    ? projectVerifiedBirthFormV11(legacy.manifest.birthV11.birth, legacy.manifest.formId)
+    : creatureForm(legacy.manifest.formId)!;
+  const genome = options.birthGenome ?? (legacy.manifest.birthV11
+    ? projectWildsV11BirthGenome(legacy.manifest.birthV11, legacy.manifest.formId)
+    : birthGenome(legacy));
   const name = options.name ?? legacy.manifest.name;
   const revision = sealRevision({
     revision: 0,
@@ -187,10 +194,11 @@ export function admitLegacyCard(legacy: LegacyPortableCardAsset, admittedAt: str
   });
   const manifest: LivingCardManifest = {
     ...legacy.manifest,
+    catalogVersion: legacy.manifest.catalogVersion,
     schema: "receiz.wilds_living_card_manifest.v2",
     name,
     lineage: options.lineage ?? { ...legacy.manifest.lineage, childAssetIds: [] },
-    birth: options.birth ?? { kind: "legacy_admission", bornAt: legacy.manifest.capturedAt, formId: form.id, legacyDigest: legacy.proof.digest },
+    birth: options.birth ?? { kind: legacy.manifest.birthV11 ? "capture" : "legacy_admission", bornAt: legacy.manifest.capturedAt, formId: form.id, legacyDigest: legacy.proof.digest },
     birthGenome: genome,
     currentRevision: 0,
     revisions: [revision],
@@ -318,7 +326,9 @@ export function appendLivingCardRevision(input: { asset: LivingCardAsset; revisi
   if (!checked.ok) throw new Error("wilds_living_previous_invalid");
   if (!Number.isFinite(Date.parse(input.revision.sealedAt))) throw new Error("wilds_revision_time_invalid");
   const prior = currentRevision(input.asset);
-  const form = creatureForm(input.revision.formId);
+  const form = input.asset.manifest.birthV11 && input.revision.formId === input.asset.manifest.birth.formId
+    ? projectVerifiedBirthFormV11(input.asset.manifest.birthV11.birth, input.revision.formId)
+    : creatureForm(input.revision.formId);
   if (!form || form.stage !== input.revision.stage) throw new Error("wilds_revision_form_invalid");
   if (!validProjectedStats(input.revision.stats, form.stats)) throw new Error("wilds_revision_stats_invalid");
   if (canonicalPortableCardJson(input.revision.abilityNames) !== canonicalPortableCardJson(form.abilities.map((ability) => ability.name))) throw new Error("wilds_revision_abilities_invalid");
@@ -402,6 +412,31 @@ export function verifyLivingCard(asset: LivingCardAsset): PortableCardVerificati
   if (!manifest.ownerReceizId.trim()) errors.push("owner_required");
   if (!manifest.revisions.length || manifest.currentRevision !== manifest.revisions.length - 1) errors.push("current_revision_invalid");
   if (manifest.birth.legacyDigest !== null && !DIGEST.test(manifest.birth.legacyDigest)) errors.push("legacy_digest_invalid");
+  if ((manifest.encounterId.startsWith("wildz:v11:") || manifest.birth.formId.startsWith("wildz:form:v11:"))
+    && !manifest.birthV11) errors.push("wilds_v11_birth_required");
+  if (manifest.birthV11 || manifest.catalogVersion === "wildz.procedural.catalog.v11") {
+    try {
+      if (!manifest.birthV11 || manifest.catalogVersion !== "wildz.procedural.catalog.v11") throw new Error("birth_missing");
+      const original = sealWildsV11Card({ birth: manifest.birthV11,
+        ownerReceizId: manifest.ownerReceizId, capturedAt: manifest.capturedAt,
+        battleTranscriptDigest: manifest.variant.battleTranscriptDigest });
+      if (manifest.birth.legacyDigest !== original.proof.digest
+        || manifest.birth.formId !== original.manifest.formId
+        || manifest.encounterId !== original.manifest.encounterId
+        || manifest.familyId !== original.manifest.familyId
+        || manifest.lineage.rootAssetId !== original.id
+        || manifest.lineage.rootDigest !== original.manifest.lineage.rootDigest
+        || canonicalPortableCardJson(manifest.variant) !== canonicalPortableCardJson(original.manifest.variant)
+        || canonicalPortableCardJson(manifest.birthGenome) !== canonicalPortableCardJson(
+          projectWildsV11BirthGenome(manifest.birthV11, original.manifest.formId))
+        || manifest.revisions[0]?.formId !== original.manifest.formId
+        || manifest.revisions[0]?.title !== original.manifest.name
+        || canonicalPortableCardJson(manifest.revisions[0]?.stats) !== canonicalPortableCardJson(original.manifest.stats)
+        || canonicalPortableCardJson(manifest.revisions[0]?.abilityNames) !== canonicalPortableCardJson(original.manifest.abilityNames)) {
+        errors.push("wilds_v11_birth_basis_invalid");
+      }
+    } catch { errors.push("wilds_v11_birth_basis_invalid"); }
+  }
   if (manifest.variant.generatorVersion === 2) {
     try {
       const form = creatureForm(manifest.birth.formId);

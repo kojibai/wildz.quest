@@ -1,3 +1,4 @@
+import { parseWildsWorldAddress, type WildsWorldAddress } from "./wilds-world-address";
 import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import type { WildsRoamingEncounterNotice } from "./wilds-roaming-encounter";
 import { sanitizeWildsRoamingPresence, type WildsRoamingCreaturePresence } from "./wilds-roaming-presence";
@@ -12,6 +13,8 @@ import {
   expirePresence,
   presenceDistance,
   regionForPosition,
+  roomKeyForAddressV11,
+  validatePresenceMoveV11,
   sanitizeWildsMessage,
   validatePresenceMove,
   WILDS_INTERACTION_DISTANCE,
@@ -44,6 +47,20 @@ export type WildsMultiplayerSnapshot = WildsMultiplayerRoom & {
 };
 
 const ledgerKey = Symbol.for("receiz.wilds.multiplayer-ledger.v1");
+const presenceHeadKey = Symbol.for("receiz.wilds.presence-head-v11.v1");
+
+function presenceHeadsV11() {
+  const root = globalThis as typeof globalThis & { [presenceHeadKey]?: Map<string, WildsPresence> };
+  return (root[presenceHeadKey] ??= new Map());
+}
+
+function rememberPresenceHeadV11(player: WildsPresence) {
+  if (!player.worldAddress) return;
+  const heads = presenceHeadsV11();
+  const previous = heads.get(player.playerId);
+  if (!previous || Date.parse(player.lastSeenAt) >= Date.parse(previous.lastSeenAt)) heads.set(player.playerId, player);
+  if (heads.size > 10_000) heads.delete(heads.keys().next().value!);
+}
 
 function rooms() {
   const root = globalThis as typeof globalThis & { [ledgerKey]?: Map<string, WildsMultiplayerRoom> };
@@ -82,6 +99,7 @@ function cleanRoom(room: WildsMultiplayerRoom, now: string): WildsMultiplayerRoo
 function save(room: WildsMultiplayerRoom, now: string) {
   const next = cleanRoom({ ...room, revision: room.revision + 1, updatedAt: now }, now);
   rooms().set(room.roomKey, next);
+  next.players.forEach(rememberPresenceHeadV11);
   return next;
 }
 
@@ -108,7 +126,10 @@ export function admitWildsMultiplayerRoom(value: WildsMultiplayerRoom) {
     throw new Error("wilds_multiplayer_room_invalid");
   }
   const current = rooms().get(value.roomKey);
-  if (!current || value.revision > current.revision) rooms().set(value.roomKey, value);
+  if (!current || value.revision > current.revision) {
+    rooms().set(value.roomKey, value);
+    value.players.forEach(rememberPresenceHeadV11);
+  }
   return rooms().get(value.roomKey)!;
 }
 
@@ -117,6 +138,7 @@ export function restoreWildsMultiplayerRoom(value: WildsMultiplayerRoom) {
     throw new Error("wilds_multiplayer_room_invalid");
   }
   rooms().set(value.roomKey, value);
+  value.players.forEach(rememberPresenceHeadV11);
   return value;
 }
 
@@ -144,7 +166,7 @@ export function getWildsAtlasPresence(input: {
     }
   }
   const players = [...newestByPlayer.values()]
-    .filter((player) => player.playerId !== input.actorId)
+    .filter((player) => !player.worldAddress && player.playerId !== input.actorId)
     .sort((left, right) => presenceDistance(left, input.center) - presenceDistance(right, input.center));
   // Public atlas consumers need complete presence records so the main live
   // roster can show players outside the current room. Private players remain
@@ -202,11 +224,13 @@ export function getWildsAtlasPresence(input: {
 
 export function heartbeatWildsPresence(input: {
   roomKey: string;
+  previousRoomKey?: string;
   playerId: string;
   handle: string;
   style: "female" | "male";
   x: number;
   z: number;
+  address?: WildsWorldAddress;
   heading: number;
   practice: boolean;
   activeCard: PvpCard;
@@ -215,8 +239,31 @@ export function heartbeatWildsPresence(input: {
 }) {
   const now = input.now ?? new Date().toISOString();
   const room = getWildsMultiplayerSnapshot(input.roomKey, now);
-  const previous = room.players.find((player) => player.playerId === input.playerId);
-  const movement = validatePresenceMove(previous ? { x: previous.x, z: previous.z, at: previous.lastSeenAt } : null, { x: input.x, z: input.z, at: now });
+  const previousInRoom = room.players.find((player) => player.playerId === input.playerId);
+  const address = input.address ? parseWildsWorldAddress(input.address) : undefined;
+  if (address) {
+    if (input.roomKey !== roomKeyForAddressV11("platform", address)
+      || input.x !== address.localX / 1_000_000 || input.z !== address.localZ / 1_000_000) {
+      throw new Error("wilds_presence_address_room_mismatch");
+    }
+  } else if (input.roomKey.startsWith("wilds11:")) {
+    throw new Error("wilds_presence_address_required");
+  }
+  const hintedSourceRoom = address && !previousInRoom && input.previousRoomKey && input.previousRoomKey !== input.roomKey
+    ? getWildsMultiplayerSnapshot(input.previousRoomKey, now) : null;
+  const sourcePresence = hintedSourceRoom?.players.find((player) => player.playerId === input.playerId);
+  const previous = [previousInRoom, sourcePresence, address ? presenceHeadsV11().get(input.playerId) : undefined]
+    .filter((player): player is WildsPresence => Boolean(player))
+    .sort((left, right) => Date.parse(right.lastSeenAt) - Date.parse(left.lastSeenAt))[0];
+  const priorRoomKey = address && previous?.worldAddress ? roomKeyForAddressV11("platform", previous.worldAddress) : null;
+  const sourceRoom = priorRoomKey && priorRoomKey !== input.roomKey
+    ? getWildsMultiplayerSnapshot(priorRoomKey, now) : null;
+  if (previous && Boolean(previous.worldAddress) !== Boolean(address)) throw new Error("wilds_presence_address_mode_mismatch");
+  if (address && !previous && (address.regionX !== "0" || address.regionZ !== "0"
+    || address.localX !== 0 || address.localZ !== 0)) throw new Error("wilds_presence_origin_required");
+  const movement = address
+    ? validatePresenceMoveV11(previous?.worldAddress ? { address: previous.worldAddress, at: previous.lastSeenAt } : null, { address, at: now })
+    : validatePresenceMove(previous ? { x: previous.x, z: previous.z, at: previous.lastSeenAt } : null, { x: input.x, z: input.z, at: now });
   if (!movement.ok) throw new Error(movement.error);
   const presence: WildsPresence = {
     playerId: input.playerId,
@@ -224,6 +271,7 @@ export function heartbeatWildsPresence(input: {
     style: input.style,
     x: input.x,
     z: input.z,
+    ...(address ? { worldAddress: address } : {}),
     heading: Number.isFinite(input.heading) ? input.heading : 0,
     status: room.battles.some((battle) => battle.phase === "active" && battle.players[input.playerId]) ? "busy" : "available",
     lastSeenAt: now,
@@ -233,7 +281,10 @@ export function heartbeatWildsPresence(input: {
   };
   const players = [...room.players.filter((player) => player.playerId !== input.playerId), presence];
   const saved = save({ ...room, players, capabilities: undefined } as unknown as WildsMultiplayerRoom, now);
-  return { self: presence, snapshot: snapshot(saved) };
+  const departed = sourceRoom?.players.some(player => player.playerId === input.playerId)
+    ? snapshot(save({ ...sourceRoom, players: sourceRoom.players.filter(player => player.playerId !== input.playerId), capabilities: undefined } as unknown as WildsMultiplayerRoom, now))
+    : null;
+  return { self: presence, snapshot: snapshot(saved), departed };
 }
 
 export function applyAuthorizedRiftPresence(input: {
@@ -359,4 +410,93 @@ export function announceWildsRoamingEncounter(notice: WildsRoamingEncounterNotic
   const room: WildsMultiplayerRoom = rooms().get(notice.roomKey) ?? emptyRoom(notice.roomKey, now);
   const notices = [...(room.roamingEncounters ?? []).filter(item => item.id !== notice.id), notice].slice(-24);
   return snapshot(save({ ...room, roamingEncounters: notices }, now));
+}
+
+/** Nine nearby exact-address rooms at most; distant coordinates never become Numbers. */
+export function getWildsAtlasPresenceV11(input: {
+  actorId: string;
+  center: WildsWorldAddress;
+  now?: number;
+  maxClusters?: number;
+}) {
+  const center = parseWildsWorldAddress(input.center);
+  const now = input.now ?? Date.now();
+  const nowIso = new Date(now).toISOString();
+  const newestByPlayer = new Map<string, WildsPresence>();
+  for (let dx = -1n; dx <= 1n; dx += 1n) {
+    for (let dz = -1n; dz <= 1n; dz += 1n) {
+      const address = {
+        ...center,
+        regionX: (BigInt(center.regionX) + dx).toString(),
+        regionZ: (BigInt(center.regionZ) + dz).toString()
+      };
+      const room = rooms().get(roomKeyForAddressV11("platform", address));
+      if (!room) continue;
+      for (const player of cleanRoom(room, nowIso).players) {
+        if (!player.worldAddress || player.playerId === input.actorId) continue;
+        const current = newestByPlayer.get(player.playerId);
+        if (!current || Date.parse(player.lastSeenAt) > Date.parse(current.lastSeenAt)) newestByPlayer.set(player.playerId, player);
+      }
+    }
+  }
+  const players: WildsPresence[] = [];
+  const privateClusters = new Map<string, { id: string; regionX: number; regionZ: number; count: number; position: { x: number; z: number } }>();
+  for (const player of newestByPlayer.values()) {
+    const address = parseWildsWorldAddress(player.worldAddress);
+    const dx = BigInt(address.regionX) - BigInt(center.regionX);
+    const dz = BigInt(address.regionZ) - BigInt(center.regionZ);
+    if (dx < -1n || dx > 1n || dz < -1n || dz > 1n) continue;
+    const regionX = Number(dx);
+    const regionZ = Number(dz);
+    if (player.status === "private") {
+      const id = `cluster:v11:${regionX}:${regionZ}`;
+      const cluster = privateClusters.get(id);
+      if (cluster) cluster.count += 1;
+      else privateClusters.set(id, { id, regionX, regionZ, count: 1,
+        position: { x: regionX * 24 + 12, z: regionZ * 24 + 12 } });
+      continue;
+    }
+    players.push({ ...player, x: regionX * 24 + address.localX / 1_000_000, z: regionZ * 24 + address.localZ / 1_000_000,
+      roamingCreatures: publicRoamingCreatures(player) });
+  }
+  players.sort((left, right) => presenceDistance(left, { x: center.localX / 1_000_000, z: center.localZ / 1_000_000 })
+    - presenceDistance(right, { x: center.localX / 1_000_000, z: center.localZ / 1_000_000 }));
+  return { players: players.slice(0, 24), clusters: [...privateClusters.values()].slice(0, Math.max(1, Math.min(64, input.maxClusters ?? 64))) };
+}
+
+/** Server-authorized v11 Rift transports presence between bounded region rooms. */
+export function applyAuthorizedRiftPresenceV11(input: {
+  roomKey: string;
+  playerId: string;
+  destination: WildsWorldAddress;
+  kaiPulse: string;
+  now?: string;
+}) {
+  if (!/^\d{1,32}$/.test(input.kaiPulse)) throw new Error("wilds_rift_grant_invalid");
+  const destination = parseWildsWorldAddress(input.destination);
+  const now = input.now ?? new Date().toISOString();
+  const sourceRoom = getWildsMultiplayerSnapshot(input.roomKey, now);
+  const current = sourceRoom.players.find(player => player.playerId === input.playerId);
+  if (!current?.worldAddress || input.roomKey !== roomKeyForAddressV11("platform", current.worldAddress)) {
+    throw new Error("wilds_rift_source_mismatch");
+  }
+  const destinationKey = roomKeyForAddressV11("platform", destination);
+  const updated: WildsPresence = {
+    ...current,
+    x: destination.localX / 1_000_000,
+    z: destination.localZ / 1_000_000,
+    worldAddress: destination,
+    lastSeenAt: now
+  };
+  if (destinationKey === input.roomKey) {
+    const room = snapshot(save({ ...sourceRoom, players: sourceRoom.players.map(player => player.playerId === input.playerId ? updated : player),
+      capabilities: undefined } as unknown as WildsMultiplayerRoom, now));
+    return { source: room, destination: room };
+  }
+  const destinationRoom = getWildsMultiplayerSnapshot(destinationKey, now);
+  const source = snapshot(save({ ...sourceRoom, players: sourceRoom.players.filter(player => player.playerId !== input.playerId),
+    capabilities: undefined } as unknown as WildsMultiplayerRoom, now));
+  const arrived = snapshot(save({ ...destinationRoom, players: [...destinationRoom.players.filter(player => player.playerId !== input.playerId), updated],
+    capabilities: undefined } as unknown as WildsMultiplayerRoom, now));
+  return { source, destination: arrived };
 }

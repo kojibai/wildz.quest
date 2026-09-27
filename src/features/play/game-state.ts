@@ -2,7 +2,7 @@ import { nextWildsPartyTravelRevision } from "./wilds-party-transport";
 import { sanitizeWildsCrewPreferences, type WildsCrewPreferences } from "./wilds-crew-preferences";
 import { verifyWildsConstructionFunctionSource, type WildsConstructionFunctionSource } from "./wilds-construction-function";
 import { applyWildsFlightWind, createWildsKaiWeatherSample, writeWildsKaiWeather } from "./wilds-kai-wind";
-import { sanitizeWildsJourneyJournal, type WildsJourneyJournal } from "./wilds-journey";
+import { rememberWildsJourney, sanitizeWildsJourneyJournal, type WildsJourneyJournal } from "./wilds-journey";
 import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
 import { restoreWildsBurrowSpace } from "./wilds-burrow";
 import { wildsStructureSupportAt } from "./wilds-structure-support";
@@ -13,6 +13,7 @@ import {
   evolvePortableCard,
   canonicalPortableCardJson,
   sealDiscoveredCard,
+  sealWildsV11Card,
   sealCollectedCard,
   sha256PortableBasis,
   verifyPortableCard,
@@ -29,7 +30,7 @@ import {
   type AdmittedWildsInventory
 } from "./admitted-inventory";
 import { encounterFromSearch, idleEncounterState, isCapturableEncounter, type EncounterState } from "./encounter-state";
-import { hotspotsForRegion, nearbyHiddenHotspots, searchHiddenHotspots } from "./hidden-hotspots";
+import { coverForHabitat, hotspotsForRegion, nearbyHiddenHotspots, searchHiddenHotspots } from "./hidden-hotspots";
 import { applyKaiAffinityToHotspot } from "./kai-encounter-affinity";
 import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse, kaiUPulseToISOString } from "./kai-klok-moment";
 import { rootWildsInputInKai } from "./wilds-input-temporal-root";
@@ -51,7 +52,7 @@ import { deriveAscensionGenome } from "./heartbound-genome";
 import { isLivingCardAsset, type GrowthPath, type LivingGrowthSnapshot } from "./living-card-types";
 import { createLivingChildTransaction, lineageEligibility } from "./living-lineage";
 import { worldMasteryAward, type WorldMasteryVerb } from "./world-progression";
-import { validateRiftGrant, type RiftTravelGrant } from "./wilds-rift-travel";
+import { validateRiftGrant, validateRiftGrantV11, type RiftTravelGrant, type RiftTravelGrantV11 } from "./wilds-rift-travel";
 import { movementScale, type WildsMovementMode } from "./wilds-movement";
 import { resolveWildsGroundMovement } from "./wilds-grounded-movement";
 import { regionForPosition } from "./multiplayer-core";
@@ -60,8 +61,21 @@ import {
   discoverWildsExplorationSite,
   normalizeWildsExplorationAtlas,
   revealWildsExplorationAt,
+  createInitialWildsExplorationAtlasV11,
+  normalizeWildsExplorationAtlasV11,
+  revealWildsExplorationAtV11,
+  type WildsExplorationAtlasV11,
   type WildsExplorationAtlas
 } from "./wilds-exploration-atlas";
+import { offsetWildsWorldAddress, parseWildsWorldAddress, v10PositionToWildsAddress, type WildsWorldAddress } from "./wilds-world-address";
+import { observationPointV11, observeWildsSiteV11 } from "./wilds-site-search-v11";
+import { emptyWildsV11EncounterOutbox, enqueueWildsV11Site, isWildsV11SiteNearPlayer, restoreWildsV11EncounterOutbox,
+  type WildsV11EncounterOutbox } from "./wilds-encounter-outbox-v11";
+import { verifyWildsV11BirthSync, type WildsV11CreatureCard } from "./wilds-card-proof-v11";
+import { WILDS_V11_ENCOUNTER_PUBLIC_KEYS } from "./wilds-v11-release-keys";
+import { projectV10CardContinuityV11, type WildsV10CardContinuityV11 } from "./wilds-card-continuity-v11";
+import { projectVerifiedBirthFormV11, resolveCardForm } from "./wilds-card-form-resolution";
+import { firstWildsMeetingForCard, isWildsHomecomingNearMeeting, projectWildsHomecomingOffer, type WildsHomecomingChoice } from "./wilds-creature-homecoming";
 import { admitWildsDiscoveryPhysicalNeighborhood, isCanonicalWildsDiscoverySiteKey, normalizeWildsSiteSpaceState, type WildsSiteSpaceState } from "./wilds-discovery-sites";
 import { enterWildsSiteRuntime, exitWildsSiteRuntime, forceExitWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeMovement, type WildsSiteDiscoveryOutput, type WildsSiteMovementOutput, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import {
@@ -69,7 +83,7 @@ import {
   type WildsTraversalCapability
 } from "./wilds-traversal-capabilities";
 import type { WildsEncounterInteractionLayer } from "./wilds-layered-encounters";
-import { wildsTerrainElevation } from "./wilds-terrain-authority";
+import { sampleWildsTerrainV11, wildsTerrainElevation } from "./wilds-terrain-authority";
 import type { WildsStructureSupport } from "./wilds-structure-support";
 import type { WildsTerrainObstacle } from "./wilds-terrain-obstacles";
 import { projectWildsCivicHistory, type WildsCivicEvent } from "./wilds-civic-history";
@@ -118,11 +132,14 @@ export type WildsInput = (
   | { type: "move-vector"; x: number; z: number; mode?: WildsMovementMode; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number; structureSupports?: readonly WildsStructureSupport[]; additionalObstacles?: readonly WildsTerrainObstacle[]; siteRuntime?: WildsSiteRuntimeProjection; siteMovementOutput?: WildsSiteMovementOutput; siteDiscoveryOutput?: WildsSiteDiscoveryOutput }
   | { type: "site-portal"; direction: "enter" | "exit"; siteKey: string; siteRuntime: WildsSiteRuntimeProjection }
   | { type: "apply-rift-grant"; grant: RiftTravelGrant; playerId: string }
+  | { type: "apply-rift-grant-v11"; grant: RiftTravelGrantV11; playerId: string }
   | { type: "record-world-activity"; activity: WildsActivityEntry }
   | { type: "discover" }
   | { type: "capture"; encounterId: string; capturedAt: string; ownerReceizId: string }
   | { type: "search-point"; x: number; z: number; surfaceWorldY?: number; searchedAt: string; ownerReceizId: string; verticalLayer?: WildsEncounterInteractionLayer; verticalWorldY?: number; verticalMinWorldY?: number; verticalMaxWorldY?: number; traversalCapabilities?: readonly WildsTraversalCapability[]; siteKey?: string | null; siteSpaceId?: string }
+  | { type: "admit-v11-birth"; birth: WildsV11CreatureCard; ownerReceizId: string; admittedAt: string }
   | { type: "advance-encounter"; at: string }
+  | { type: "complete-homecoming"; assetId: string; ownerReceizId: string; choice: WildsHomecomingChoice; at: string }
   | { type: "start-battle"; at: string }
   | { type: "battle-action"; action: BattleAction; at?: string }
   | { type: "dismiss-reveal" }
@@ -204,6 +221,7 @@ export type PlayState = {
   partyTravelRevision?: number;
   crewPreferences?: WildsCrewPreferences;
   journeyJournal?: WildsJourneyJournal;
+  homecomingDepartedAssetIds?: string[];
   actionHistory: WildsActivityEntry[];
   activeAction: GameAction;
   beans: number;
@@ -229,11 +247,18 @@ export type PlayState = {
     x: number;
     z: number;
   };
+  /** Exact persistent position for v11 saves; player is a bounded local projection. */
+  worldAddress?: WildsWorldAddress;
+  worldCoordinateMode?: "legacy" | "region-local";
+  explorationAtlasV11?: WildsExplorationAtlasV11;
+  pendingEncounterSitesV11?: WildsV11EncounterOutbox;
+  cardContinuityV11?: Record<string, WildsV10CardContinuityV11>;
   explorationAtlas: WildsExplorationAtlas;
   siteSpace: WildsSiteSpaceState;
   pendingSyncAssetIds: string[];
   pendingTravelGrowthEvents: Array<{ assetId: string; event: GrowthEvent }>;
   appliedArenaSettlementIds: string[];
+  appliedRiftGrantIdsV11?: string[];
   rewardCards: RewardCard[];
   selectedCardId: string;
   selectedAssetId: string;
@@ -364,6 +389,9 @@ function legacyStarterCardForOwner(ownerReceizId: string) {
   });
 }
 
+const trailStarterFamilies = creatureFamilies.filter((family) =>
+  creatureForm(family.formIds[0])?.rarity === "trail");
+
 function kaiBornStarterCardForOwner(ownerReceizId: string, createdAt: string) {
   const capturedAt = new Date(createdAt).toISOString();
   const choice = sha256PortableBasis(canonicalPortableCardJson({
@@ -371,8 +399,8 @@ function kaiBornStarterCardForOwner(ownerReceizId: string, createdAt: string) {
     ownerReceizId,
     capturedAt
   }));
-  const familyIndex = Number.parseInt(choice.slice(7, 15), 16) % creatureFamilies.length;
-  const family = creatureFamilies[familyIndex]!;
+  const familyIndex = Number.parseInt(choice.slice(7, 15), 16) % trailStarterFamilies.length;
+  const family = trailStarterFamilies[familyIndex]!;
   const form = creatureForm(family.formIds[0]);
   if (!form) throw new Error("wilds_starter_form_missing");
   const encounterId = `starter:${choice.slice(7, 31)}`;
@@ -400,9 +428,11 @@ export const initialPlayState: PlayState = {
   completed: false,
   completedMissionIds: [],
   capturedHotspotIds: [],
+  homecomingDepartedAssetIds: [],
   discoveredCardIds: ["mintcub"],
   energy: 84,
   encounter: idleEncounterState,
+  pendingEncounterSitesV11: emptyWildsV11EncounterOutbox(),
   inventory: admitLocallySealedWildsInventory([{ ...starterCardAsset, status: "verified", synchronizedAt: "2026-06-29T12:00:00.000Z" }]),
   lastEvent: "SealCub joined your deck. Walk near another wild companion.",
   level: 7,
@@ -476,10 +506,72 @@ export function createOwnerBoundInitialPlayState(ownerReceizId: string, createdA
 }
 
 const PLAY_SAVE_SCHEMA = "receiz.wilds.save.v9";
+const PLAY_SAVE_SCHEMA_V11 = "receiz.wilds.save.v11";
 const LEGACY_PLAY_SAVE_SCHEMAS = new Set(["receiz.wilds.save.v2", "receiz.wilds.save.v3", "receiz.wilds.save.v4", "receiz.wilds.save.v5", "receiz.wilds.save.v6", "receiz.wilds.save.v7", "receiz.wilds.save.v8"]);
 
+function validateV11PlayerCoordinates(state: PlayState): WildsWorldAddress {
+  const address = parseWildsWorldAddress(state.worldAddress);
+  if (state.worldCoordinateMode === "legacy") {
+    const converted = v10PositionToWildsAddress(state.player.x, state.player.z);
+    if (converted.regionX !== address.regionX || converted.regionZ !== address.regionZ
+      || converted.localX !== address.localX || converted.localZ !== address.localZ) {
+      throw new RangeError("V11 legacy player address mismatch");
+    }
+  } else if (state.worldCoordinateMode === "region-local") {
+    if (state.player.x !== address.localX / 1_000_000 || state.player.z !== address.localZ / 1_000_000) {
+      throw new RangeError("V11 local player address mismatch");
+    }
+  } else {
+    throw new RangeError("V11 player coordinate mode invalid");
+  }
+  return address;
+}
+
 export function serializePlayState(state: PlayState) {
-  return JSON.stringify({ schema: PLAY_SAVE_SCHEMA, state: { ...state, journeyJournal: sanitizeWildsJourneyJournal(state.journeyJournal, state.journeyJournal?.ownerId) } });
+  const v11 = state.worldAddress !== undefined;
+  if (v11) {
+    validateV11PlayerCoordinates(state);
+    normalizeWildsExplorationAtlasV11(state.explorationAtlasV11);
+  }
+  return JSON.stringify({ schema: v11 ? PLAY_SAVE_SCHEMA_V11 : PLAY_SAVE_SCHEMA, state: {
+    ...state,
+    homecomingDepartedAssetIds: (state.homecomingDepartedAssetIds ?? []).filter((id) => state.inventory.some((card) => card.id === id)),
+    ...(v11 ? { cardContinuityV11: projectV10CardContinuityV11(state.inventory) } : {}),
+    journeyJournal: sanitizeWildsJourneyJournal(state.journeyJournal, state.journeyJournal?.ownerId)
+  } });
+}
+
+/** Explicit, idempotent v10 continuity upgrade. It never reseals or rerolls inventory. */
+export function upgradeV10PlayStateToV11(state: PlayState): PlayState {
+  if (state.worldAddress) {
+    const continuity = state.cardContinuityV11 ?? projectV10CardContinuityV11(state.inventory);
+    return state.cardContinuityV11 && state.homecomingDepartedAssetIds ? state : {
+      ...state, cardContinuityV11: continuity,
+      homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, continuity, state.worldAddress, state.inventory)
+    };
+  }
+  const address = v10PositionToWildsAddress(state.player.x, state.player.z);
+  const continuity = projectV10CardContinuityV11(state.inventory);
+  return {
+    ...state,
+    worldAddress: address,
+    worldCoordinateMode: "legacy",
+    explorationAtlasV11: createInitialWildsExplorationAtlasV11(),
+    cardContinuityV11: continuity,
+    homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, continuity, address, state.inventory)
+  };
+}
+
+function departedHomecomingIds(existing: readonly string[] | undefined, continuity: Record<string, WildsV10CardContinuityV11>, address: WildsWorldAddress,
+  cards: readonly PortableCardAsset[]): string[] {
+  const departed = new Set(existing ?? []);
+  const activeIds = new Set<string>();
+  for (const card of cards) {
+    activeIds.add(card.id);
+    const meeting = firstWildsMeetingForCard(card, continuity[card.id]);
+    if (meeting && !isWildsHomecomingNearMeeting(address, meeting)) departed.add(card.id);
+  }
+  return [...departed].filter((id) => activeIds.has(id));
 }
 
 /** Normalize runtime state without serializing or reverifying exact admitted cards.
@@ -614,12 +706,16 @@ export function restorePlayState(
   admittedInventory?: AdmittedWildsInventory
 ): PlayState {
   let recovery: PlayState | undefined;
+  let v11Envelope = false;
   const recover = () => recovery ?? (recovery = fallbackPlayState(ownerReceizId));
   if (!value) return recover();
   try {
     const parsed = JSON.parse(value) as { schema?: unknown; state?: unknown };
-    if ((parsed.schema !== PLAY_SAVE_SCHEMA && !LEGACY_PLAY_SAVE_SCHEMAS.has(String(parsed.schema))) || !parsed.state || typeof parsed.state !== "object") return recover();
+    v11Envelope = parsed.schema === PLAY_SAVE_SCHEMA_V11;
+    if ((parsed.schema !== PLAY_SAVE_SCHEMA && !v11Envelope && !LEGACY_PLAY_SAVE_SCHEMAS.has(String(parsed.schema))) || !parsed.state || typeof parsed.state !== "object") return recover();
     const saved = parsed.state as Partial<PlayState>;
+    const restoredWorldAddress = v11Envelope ? validateV11PlayerCoordinates(saved as PlayState) : undefined;
+    const restoredAtlasV11 = v11Envelope ? normalizeWildsExplorationAtlasV11(saved.explorationAtlasV11) : undefined;
     if (!saved.player || typeof saved.player.x !== "number" || typeof saved.player.z !== "number") return recover();
     // Complete saves overwrite every owner-specific default. Only incomplete legacy
     // envelopes need a newly issued fallback starter for their missing defaults.
@@ -650,6 +746,8 @@ export function restorePlayState(
       return [...assets, sealed];
     }, ownerScopedInventory);
     const migratedInventory = sameSessionInventory ?? admitLocallySealedWildsInventory(admitAndMergeInventory(inventoryWithMigrations));
+    const admittedDiscoveredCardIds = Array.from(new Set([...discoveredCardIds,
+      ...migratedInventory.filter(asset => Boolean(asset.manifest.birthV11)).map(asset => asset.manifest.familyId)]));
     const restoredHearttreeReceipts = Array.isArray(saved.hearttreeReceipts)
       ? saved.hearttreeReceipts.filter((receipt): receipt is HearttreeReceipt => Boolean(receipt) && verifyHearttreeReceipt(receipt as HearttreeReceipt).ok).slice(-512)
       : [];
@@ -728,6 +826,12 @@ export function restorePlayState(
       z: clamp(saved.player.z, worldBounds.min, worldBounds.max)
     };
     const restoredWorldAdditions = normalizeOwnedWorldAdditions(saved.ownedWorldAdditions,ownerReceizId);
+    const restoredContinuity = v11Envelope ? projectV10CardContinuityV11(migratedInventory) : undefined;
+    const restoredDepartures = restoredContinuity && restoredWorldAddress
+      ? departedHomecomingIds((Array.isArray(saved.homecomingDepartedAssetIds) ? saved.homecomingDepartedAssetIds : [])
+        .filter((id): id is string => typeof id === "string" && id.length <= 256)
+        .map((id) => migratedAssetIds.get(id) ?? id), restoredContinuity, restoredWorldAddress, migratedInventory)
+      : [];
     return withWorldProgress({
       ...fallback,
       ...saved,
@@ -736,8 +840,14 @@ export function restorePlayState(
       partyTravelRevision: Number.isSafeInteger(saved.partyTravelRevision) && saved.partyTravelRevision! >= 0 ? saved.partyTravelRevision : 0,
       actionHistory: normalizeWildsActivityHistory(saved.actionHistory),
       player: restoredPlayer,
+      worldAddress: restoredWorldAddress,
+      worldCoordinateMode: v11Envelope ? saved.worldCoordinateMode : undefined,
+      explorationAtlasV11: restoredAtlasV11,
+      pendingEncounterSitesV11: restoreWildsV11EncounterOutbox(saved.pendingEncounterSitesV11, ownerReceizId ?? ""),
+      cardContinuityV11: restoredContinuity,
+      homecomingDepartedAssetIds: restoredDepartures,
       siteSpace: restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
-      explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, restoredPlayer),
+      explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, v11Envelope ? { x: 0, z: 0 } : restoredPlayer),
       ownedWorldAdditions: restoredWorldAdditions,
       missionProgress: typeof saved.missionProgress === "number" && Number.isFinite(saved.missionProgress)
         ? Math.max(0, Math.min(99, Math.floor(saved.missionProgress)))
@@ -745,7 +855,7 @@ export function restorePlayState(
       completedMissionIds: Array.isArray(saved.completedMissionIds)
         ? Array.from(new Set(saved.completedMissionIds.filter((id): id is string => typeof id === "string" && id.length > 0))).slice(-2_048)
         : [],
-      discoveredCardIds,
+      discoveredCardIds: admittedDiscoveredCardIds,
       inventory: migratedInventory,
       ...(quarantinedInventory.length ? { quarantinedInventory } : {}),
       selectedAssetId: restoredSelectedAssetId,
@@ -805,6 +915,9 @@ export function restorePlayState(
       appliedArenaSettlementIds: Array.isArray(saved.appliedArenaSettlementIds)
         ? Array.from(new Set(saved.appliedArenaSettlementIds.filter((id): id is string => typeof id === "string" && /^arena-settlement:[a-f0-9]{24}$/.test(id)))).slice(-512)
         : [],
+      ...(saved.worldAddress ? { appliedRiftGrantIdsV11: Array.isArray(saved.appliedRiftGrantIdsV11)
+        ? Array.from(new Set(saved.appliedRiftGrantIdsV11.filter((id): id is string => typeof id === "string" && /^rift:[a-f0-9]{32}$/.test(id)))).slice(-512)
+        : [] } : {}),
       companionProgress: {
         ...initialPlayState.companionProgress,
         ...(saved.companionProgress ?? {})
@@ -836,7 +949,8 @@ export function restorePlayState(
       hearttreeReceipts: restoredHearttreeReceipts,
       hearttreeSquadAssetIds: hearttreeSquadAssetIds.length ? hearttreeSquadAssetIds : livingInventory[0] ? [livingInventory[0].id] : []
     });
-  } catch {
+  } catch (error) {
+    if (v11Envelope) throw new Error("wilds_v11_save_address_or_state_invalid", { cause: error });
     return recover();
   }
 }
@@ -935,6 +1049,19 @@ function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = n
   const placement = restoredEncounterPlacement(candidate);
   const siteContext = restoredEncounterSiteContext(candidate, placement);
   if (candidate.siteContext !== undefined && !siteContext) return idleEncounterState;
+  if (candidate.birthV11 !== undefined) {
+    const birthV11 = candidate.birthV11 as WildsV11CreatureCard;
+    if (!verifyWildsV11BirthSync(birthV11, WILDS_V11_ENCOUNTER_PUBLIC_KEYS)
+      || birthV11.birth.identity.actorId !== candidate.ownerReceizId) return idleEncounterState;
+    const formId = `wildz:form:v11:${birthV11.birth.generationDigest.slice(7)}`;
+    const form = projectVerifiedBirthFormV11(birthV11.birth, formId);
+    const hotspotId = `wildz:v11:${birthV11.proofDigest.slice(7)}`;
+    if (candidate.formId !== formId || candidate.familyId !== form.familyId
+      || candidate.hotspotId !== hotspotId) return idleEncounterState;
+    return { ...candidate, birthV11, searchPoint, proximity, trend,
+      formId, familyId: form.familyId, hotspotId, discoveryIdentity: undefined,
+      ...(placement ? { placement } : {}), siteContext } as EncounterState;
+  }
   if (!discoveryIdentity && visibleIdentityPhases.has(String(candidate.phase))) {
     discoveryIdentity = reconstructEncounterDiscoveryIdentity({
       hotspotId: typeof candidate.hotspotId === "string" ? candidate.hotspotId : undefined,
@@ -959,6 +1086,13 @@ function restoreEncounter(value: unknown, occupiedNames: ReadonlySet<string> = n
 
 export function selectedCard(state: PlayState) {
   const asset = selectedAsset(state);
+  if (asset?.manifest.birthV11) {
+    const form = resolveCardForm(asset)!;
+    return { id: form.familyId, name: asset.manifest.name, species: form.species,
+      role: form.role, power: form.stats.power, rarity: form.rarity,
+      color: form.palette.primary, accent: form.palette.accent,
+      position: [0, 0, 0] as Vec3, businessLogic: "" } satisfies CreatureCard;
+  }
   return creatureCards.find((card) => card.id === (asset?.manifest.familyId ?? state.selectedCardId)) ?? creatureCards[0];
 }
 
@@ -1236,6 +1370,46 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     return owner ? createOwnerBoundInitialPlayState(owner) : initialPlayState;
   }
 
+  if (input.type === "complete-homecoming") {
+    const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
+    if (!asset || state.selectedAssetId !== asset.id || asset.manifest.ownerReceizId !== input.ownerReceizId
+      || !state.worldAddress || state.encounter.phase !== "idle" || state.battle
+      || state.siteSpace.spaceId !== "wildz.space.outer.v1"
+      || !state.homecomingDepartedAssetIds?.includes(asset.id)) return state;
+    const continuity = state.cardContinuityV11?.[asset.id];
+    const priorHistory = isLivingCardAsset(asset) ? asset.manifest.history?.events ?? [] : [];
+    const offer = projectWildsHomecomingOffer({
+      card: asset, continuity, playerAddress: state.worldAddress, present: isPlayableAsset(state, asset.id),
+      completed: false
+    });
+    if (!offer || !offer.choices.some((choice) => choice.id === input.choice)
+      || priorHistory.some((event) => event.eventId === offer.eventId)
+      || state.journeyJournal?.memories.some((memory) => memory.kind === "homecoming" && memory.subjectId === offer.eventId)) return state;
+    const choice = offer.choices.find((candidate) => candidate.id === input.choice)!;
+    try {
+      const living = isLivingCardAsset(asset) ? asset : admitLegacyCard(asset, input.at);
+      const updated = appendLivingCardHistory({ asset: living, event: {
+        eventId: offer.eventId, rulesetVersion: "wildz.homecoming.v11", occurredAt: input.at,
+        source: { mode: "world", activityId: offer.eventId, actorId: input.ownerReceizId, authority: "local" },
+        evidence: {},
+        effects: [{ kind: "record", counters: {}, achievementIds: [offer.eventId], relationshipIds: [], scarIds: [], upgradeIds: [] }]
+      } });
+      const inventory = admitLocallySealedWildsInventory(state.inventory.map((candidate) => candidate.id === updated.id ? updated : candidate));
+      const journal = state.journeyJournal?.ownerId === input.ownerReceizId
+        ? state.journeyJournal : { version: 1 as const, ownerId: input.ownerReceizId, memories: [] };
+      return { ...state, inventory, cardContinuityV11: projectV10CardContinuityV11(inventory),
+        journeyJournal: { ...journal, memories: rememberWildsJourney(journal.memories, {
+          kind: "homecoming", subjectId: offer.eventId, companionId: asset.id,
+          companionName: asset.manifest.name, label: choice.response,
+          position: "worldVersion" in offer.meeting ? state.player : offer.meeting
+        }, Date.parse(input.at)) },
+        pendingSyncAssetIds: Array.from(new Set([...state.pendingSyncAssetIds, updated.id])),
+        lastEvent: choice.response };
+    } catch {
+      return state;
+    }
+  }
+
   if (input.type === "record-steward-work") {
     const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
     if (!asset || !isPlayableAsset(state, asset.id)) return state;
@@ -1380,7 +1554,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
   if (input.type === "use-field-ability") {
     const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
     if (!asset || !isPlayableAsset(state, asset.id) || !Number.isInteger(input.abilityIndex) || !Number.isFinite(Date.parse(input.usedAt))) return state;
-    const form = creatureForm(asset.manifest.formId);
+    const form = resolveCardForm(asset);
     const ability = form?.abilities[input.abilityIndex];
     if (!ability) return state;
     const familyId = asset.manifest.familyId;
@@ -1764,7 +1938,9 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
 
   if (input.type === "start-battle") {
     if (state.encounter.phase !== "battle_intro" || !state.encounter.formId || !state.encounter.hotspotId) return state;
-    const wild = creatureForm(state.encounter.formId);
+    const wild = state.encounter.birthV11
+      ? projectVerifiedBirthFormV11(state.encounter.birthV11.birth, state.encounter.formId)
+      : creatureForm(state.encounter.formId);
     const playerAsset = selectedAsset(state);
     if (!wild || !playerAsset || !isPlayableAsset(state, playerAsset.id)) return { ...state, encounter: { ...state.encounter, phase: "defeated" }, lastEvent: "No verified playable card was available for battle." };
     const wildName = state.encounter.discoveryIdentity?.name.display ?? wild.name;
@@ -1774,7 +1950,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       player: {
         assetId: playerAsset.id,
         name: playerAsset.manifest.name,
-        element: creatureForm(playerAsset.manifest.formId)?.element,
+        element: resolveCardForm(playerAsset)?.element,
         ...playerAsset.manifest.stats,
         health: persistentLife?.maxVitality ?? playerAsset.manifest.stats.health * 2,
         currentHealth: persistentLife?.vitality
@@ -1820,7 +1996,9 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     if (battle.phase === "captured") return resolved;
     const asset = state.inventory.find((candidate) => candidate.id === battle.player.id);
     if (!asset) return resolved;
-    const wild = state.encounter.formId ? creatureForm(state.encounter.formId) : null;
+    const wild = state.encounter.birthV11 && state.encounter.formId
+      ? projectVerifiedBirthFormV11(state.encounter.birthV11.birth, state.encounter.formId)
+      : state.encounter.formId ? creatureForm(state.encounter.formId) : null;
     const occurredAt = state.encounter.searchedAt;
     const awards = battleGrowthAwards(state.battle, battle, { boss: wild?.rarity === "mythic" || wild?.rarity === "eternal" });
     const progressed = applyRecordedGrowthEvents(resolved, asset, awards.map((award) => ({
@@ -1834,8 +2012,66 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       : { ...progressed, lastEvent: last };
   }
 
+  if (input.type === "admit-v11-birth") {
+    if (state.worldCoordinateMode !== "region-local" || !state.worldAddress
+      || state.encounter.phase !== "idle" || state.battle
+      || !Number.isFinite(Date.parse(input.admittedAt))
+      || input.ownerReceizId !== input.birth?.birth?.identity?.actorId
+      || !verifyWildsV11BirthSync(input.birth, WILDS_V11_ENCOUNTER_PUBLIC_KEYS)) return state;
+    const identity = input.birth.birth.identity;
+    const pending = restoreWildsV11EncounterOutbox(state.pendingEncounterSitesV11, input.ownerReceizId);
+    const match = pending.pending.find(item => item.slot === identity.slot
+      && canonicalPortableCardJson(item.site) === canonicalPortableCardJson(identity.site));
+    if (!match || !isWildsV11SiteNearPlayer(state.worldAddress, identity.site)) return state;
+    const nextOutbox = { ...pending, pending: pending.pending.filter(item => item !== match) };
+    const encounterId = `wildz:v11:${input.birth.proofDigest.slice(7)}`;
+    const alreadyCaptured = state.inventory.find(asset => asset.manifest.encounterId === encounterId);
+    if (alreadyCaptured) return { ...state, pendingEncounterSitesV11: nextOutbox,
+      lastEvent: `${alreadyCaptured.manifest.name} is already with you.` };
+    const formId = `wildz:form:v11:${input.birth.birth.generationDigest.slice(7)}`;
+    const form = projectVerifiedBirthFormV11(input.birth.birth, formId);
+    return { ...state, pendingEncounterSitesV11: nextOutbox, activeAction: "explore",
+      encounter: { phase: "battle_intro", searchedAt: input.admittedAt,
+        searchPoint: { x: state.player.x, z: state.player.z }, ownerReceizId: input.ownerReceizId,
+        hotspotId: encounterId, familyId: form.familyId, formId, cover: coverForHabitat(form.habitat, identity.slot),
+        proximity: "hot", trend: null, birthV11: input.birth },
+      lastEvent: `${form.name} emerged at this living site.` };
+  }
+
   if (input.type === "search-point") {
     if (!Number.isFinite(input.x) || !Number.isFinite(input.z) || !Number.isFinite(Date.parse(input.searchedAt)) || !input.ownerReceizId.trim()) return state;
+    if (state.worldCoordinateMode === "region-local" && state.worldAddress && state.siteSpace.spaceId === "wildz.space.outer.v1") {
+      if (Math.hypot(input.x - state.player.x, input.z - state.player.z) > 8) {
+        return { ...state, lastEvent: "That signal is beyond reach. Move closer before scanning." };
+      }
+      const observation = observeWildsSiteV11(observationPointV11(state.worldAddress, state.player, input));
+      const direction = observation.direction
+        ? Math.abs(observation.direction.x) >= Math.abs(observation.direction.z)
+          ? observation.direction.x >= 0 ? "east" : "west"
+          : observation.direction.z >= 0 ? "south" : "north"
+        : "nearby";
+      const lastEvent = observation.kind === "site"
+        ? `A living site is here in region ${observation.site!.regionX}, ${observation.site!.regionZ}. Its creature remains unknown until the encounter is admitted.`
+        : observation.kind === "near"
+          ? `Living signal ${direction} · ${Math.round(Number(observation.distanceMicro) / 100_000) / 10} world units away.`
+          : "Signal cold. Keep exploring this region.";
+      let pendingEncounterSitesV11 = state.pendingEncounterSitesV11;
+      if (observation.kind === "site" && observation.site && observation.slot !== undefined) {
+        try {
+          pendingEncounterSitesV11 = enqueueWildsV11Site(
+            restoreWildsV11EncounterOutbox(state.pendingEncounterSitesV11, input.ownerReceizId),
+            { actorId: input.ownerReceizId, site: observation.site, slot: observation.slot }
+          );
+        } catch (error) {
+          return { ...state, lastEvent: error instanceof Error && error.message === "wilds_v11_encounter_outbox_full"
+            ? "Your pending site journal is full. Reconnect nearby before recording another site."
+            : "This living site could not be recorded yet. Try scanning again nearby." };
+        }
+      }
+      return { ...state, activeAction: "explore", encounter: idleEncounterState, lastEvent,
+        pendingEncounterSitesV11,
+        lastSearchPoint: { x: input.x, z: input.z } };
+    }
     const point = {
       x: clamp(input.x, worldBounds.min, worldBounds.max),
       z: clamp(input.z, worldBounds.min, worldBounds.max),
@@ -1936,54 +2172,66 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       };
     }
     let sealed: PortableCardAsset;
-    const restoredIdentity = encounter.discoveryIdentity;
-    const restoredForm = restoredIdentity ? discoveredFormForIdentity(restoredIdentity) : undefined;
-    const discoveryIdentity = restoredIdentity && restoredForm
-      ? restoredIdentity
-      : reconstructEncounterDiscoveryIdentity(
-          {
-            ...encounter,
-            location: encounter.placement
-              ? { x: encounter.placement.x, z: encounter.placement.z }
-              : encounter.searchPoint
-          },
-          new Set(state.inventory.map((asset) => asset.manifest.name.toLowerCase()))
-        );
-    if (!discoveryIdentity) {
-      return { ...state, lastEvent: "Capture remains locked while its permanent identity is recovered." };
-    }
-    const discoveredForm = restoredForm ?? discoveredFormForIdentity(discoveryIdentity);
-    if (!discoveredForm) {
-      return { ...state, lastEvent: `Capture remains locked. ${discoveryIdentity.name.display}'s discovered form is still being recovered.` };
-    }
-    const normalizedEncounter = {
-      ...encounter,
-      ownerReceizId: discoveryIdentity.discovery.ownerScope,
-      familyId: discoveryIdentity.family.id,
-      formId: discoveredForm.id,
-      discoveryIdentity
-    };
-    const capturedAt = new Date(Math.max(Date.parse(input.at), Date.parse(discoveryIdentity.discoveredAt))).toISOString();
-    try {
-      sealed = sealDiscoveredCard({
-        identity: discoveryIdentity,
-        formId: discoveredForm.id,
+    let normalizedEncounter = encounter;
+    let capturedName: string;
+    if (encounter.birthV11) {
+      const form = projectVerifiedBirthFormV11(encounter.birthV11.birth, encounter.formId);
+      capturedName = form.name;
+      try {
+        sealed = sealWildsV11Card({ birth: encounter.birthV11,
+          ownerReceizId: encounter.ownerReceizId, capturedAt: input.at,
+          battleTranscriptDigest: state.battle ? battleTranscriptDigest(state.battle) : undefined });
+      } catch {
+        return { ...state, lastEvent: `Capture remains locked. ${capturedName} is still here while verification completes.` };
+      }
+    } else {
+      const restoredIdentity = encounter.discoveryIdentity;
+      const restoredForm = restoredIdentity ? discoveredFormForIdentity(restoredIdentity) : undefined;
+      const discoveryIdentity = restoredIdentity && restoredForm
+        ? restoredIdentity
+        : reconstructEncounterDiscoveryIdentity(
+            {
+              ...encounter,
+              location: encounter.placement
+                ? { x: encounter.placement.x, z: encounter.placement.z }
+                : encounter.searchPoint
+            },
+            new Set(state.inventory.map((asset) => asset.manifest.name.toLowerCase()))
+          );
+      if (!discoveryIdentity) {
+        return { ...state, lastEvent: "Capture remains locked while its permanent identity is recovered." };
+      }
+      const discoveredForm = restoredForm ?? discoveredFormForIdentity(discoveryIdentity);
+      if (!discoveredForm) {
+        return { ...state, lastEvent: `Capture remains locked. ${discoveryIdentity.name.display}'s discovered form is still being recovered.` };
+      }
+      normalizedEncounter = {
+        ...encounter,
         ownerReceizId: discoveryIdentity.discovery.ownerScope,
-        capturedAt,
-        battleTranscriptDigest: state.battle ? battleTranscriptDigest(state.battle) : undefined
-      });
-    } catch {
-      return {
-        ...state,
-        encounter: normalizedEncounter,
-        lastEvent: `Capture remains locked. ${discoveryIdentity.name.display} is still here while verification completes.`
+        familyId: discoveryIdentity.family.id,
+        formId: discoveredForm.id,
+        discoveryIdentity
       };
+      capturedName = discoveryIdentity.name.display;
+      const capturedAt = new Date(Math.max(Date.parse(input.at), Date.parse(discoveryIdentity.discoveredAt))).toISOString();
+      try {
+        sealed = sealDiscoveredCard({
+          identity: discoveryIdentity,
+          formId: discoveredForm.id,
+          ownerReceizId: discoveryIdentity.discovery.ownerScope,
+          capturedAt,
+          battleTranscriptDigest: state.battle ? battleTranscriptDigest(state.battle) : undefined
+        });
+      } catch {
+        return { ...state, encounter: normalizedEncounter,
+          lastEvent: `Capture remains locked. ${capturedName} is still here while verification completes.` };
+      }
     }
     if (!verifyPortableCard(sealed).ok) {
       return {
         ...state,
         encounter: normalizedEncounter,
-        lastEvent: `Capture remains locked. ${discoveryIdentity.name.display} is still here while verification completes.`
+        lastEvent: `Capture remains locked. ${capturedName} is still here while verification completes.`
       };
     }
     const nextDiscovered = Array.from(new Set([...state.discoveredCardIds, sealed.manifest.familyId]));
@@ -2068,6 +2316,28 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     };
   }
 
+  if (input.type === "apply-rift-grant-v11") {
+    if (!validateRiftGrantV11(input.grant, { playerId: input.playerId }).ok) return state;
+    if (state.appliedRiftGrantIdsV11?.includes(input.grant.grantId)) return state;
+    const address = parseWildsWorldAddress(input.grant.destination);
+    const player = { x: address.localX / 1_000_000, z: address.localZ / 1_000_000 };
+    const atlas = revealWildsExplorationAtV11(state.explorationAtlasV11 ?? createInitialWildsExplorationAtlasV11(), address);
+    return {
+      ...state,
+      activeAction: "explore",
+      partyTravelRevision: nextWildsPartyTravelRevision(state.partyTravelRevision),
+      player,
+      worldAddress: address,
+      encounter: idleEncounterState,
+      homecomingDepartedAssetIds: departedHomecomingIds(state.homecomingDepartedAssetIds, state.cardContinuityV11 ?? {}, address, state.inventory),
+      worldCoordinateMode: "region-local",
+      appliedRiftGrantIdsV11: [...(state.appliedRiftGrantIdsV11 ?? []), input.grant.grantId].slice(-512),
+      explorationAtlasV11: atlas,
+      siteSpace: normalizeWildsSiteSpaceState(undefined, { x: player.x, y: sampleWildsTerrainV11(address).elevation, z: player.z }),
+      lastEvent: "Rift complete. Explore the surrounding region to find its living sites."
+    };
+  }
+
   if (input.type === "apply-rift-grant") {
     if (!validateRiftGrant(input.grant, { playerId: input.playerId }).ok) return state;
     const player = { ...input.grant.destination };
@@ -2127,12 +2397,14 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       y: wildsTerrainElevation(state.player.x, state.player.z),
       z: state.player.z
     });
+    const movementAddress = currentSpace.spaceId === "wildz.space.outer.v1" && state.worldCoordinateMode === "region-local"
+      ? state.worldAddress : undefined;
     const movement = currentSpace.spaceId === "wildz.space.outer.v1"
       ? input.type === "move"
-        ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles, input.kaiUPulse)
-        : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles, input.kaiUPulse)
+        ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles, input.kaiUPulse, movementAddress)
+        : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles, input.kaiUPulse, movementAddress)
       : movePlayerInsideSite(state.player, input);
-    const siteMovement = input.siteRuntime ? writeWildsSiteRuntimeMovement(
+    const siteMovement = input.siteRuntime && !movementAddress ? writeWildsSiteRuntimeMovement(
       input.siteMovementOutput ?? { x: movement.position.x, z: movement.position.z, floorY: movement.elevation, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null, flooded: false, blocked: false, blockedByClimb: false },
       input.siteRuntime,
       currentSpace.spaceId,
@@ -2150,17 +2422,31 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       const builtFloor = wildsStructureSupportAt({ x: siteMovement.x, z: siteMovement.z }, input.structureSupports, 0, currentSpace.position.y);
       if (builtFloor && builtFloor.deckY >= siteMovement.floorY && builtFloor.deckY + 1.55 <= siteMovement.ceilingY) siteMovement.floorY = builtFloor.deckY;
     }
-    const nextPlayer = siteMovement ? { x: siteMovement.x, z: siteMovement.z } : movement.position;
+    const rawNextPlayer = siteMovement ? { x: siteMovement.x, z: siteMovement.z } : movement.position;
+    const nextAddress = state.worldCoordinateMode === "region-local" && state.worldAddress
+      ? offsetWildsWorldAddress(state.worldAddress,
+        BigInt(Math.round((rawNextPlayer.x - state.player.x) * 1_000_000)),
+        BigInt(Math.round((rawNextPlayer.z - state.player.z) * 1_000_000)))
+      : state.worldCoordinateMode === "legacy" && state.worldAddress
+        ? v10PositionToWildsAddress(rawNextPlayer.x, rawNextPlayer.z)
+        : undefined;
+    const nextPlayer = nextAddress && state.worldCoordinateMode === "region-local"
+      ? { x: nextAddress.localX / 1_000_000, z: nextAddress.localZ / 1_000_000 }
+      : rawNextPlayer;
     const previousRegion = regionForPosition(state.player);
     const nextRegion = regionForPosition(nextPlayer);
-    let explorationAtlas = previousRegion.x === nextRegion.x && previousRegion.z === nextRegion.z
+    let explorationAtlas = state.worldCoordinateMode === "region-local" || (previousRegion.x === nextRegion.x && previousRegion.z === nextRegion.z)
       ? state.explorationAtlas
       : revealWildsExplorationAt(state.explorationAtlas, nextPlayer);
-    if (input.siteRuntime) {
+    const explorationAtlasV11 = nextAddress && state.explorationAtlasV11
+      && (nextAddress.regionX !== state.worldAddress?.regionX || nextAddress.regionZ !== state.worldAddress?.regionZ)
+      ? revealWildsExplorationAtV11(state.explorationAtlasV11, nextAddress)
+      : state.explorationAtlasV11;
+    if (input.siteRuntime && !movementAddress) {
       const discovery = writeWildsSiteRuntimeDiscovery(input.siteDiscoveryOutput ?? { siteKey: null }, input.siteRuntime, currentSpace.spaceId, nextPlayer.x, siteMovement?.floorY ?? movement.elevation, nextPlayer.z);
       if (discovery.siteKey) explorationAtlas = discoverWildsExplorationSite(explorationAtlas, discovery.siteKey);
     }
-    const nearest = nearestCreature({ player: nextPlayer });
+    const nearest = state.worldCoordinateMode === "region-local" ? undefined : nearestCreature({ player: nextPlayer });
     const nearbyText = movement.traversalBlockedBy === "swim"
       ? "Deep water ahead. Lead with an aquatic creature to swim."
       : movement.traversalBlockedBy === "climb" || siteMovement?.blockedByClimb
@@ -2175,11 +2461,21 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
         ? `${nearest.card.name} is within discovery range.`
         : "Explore the wilds and look for companion signals.";
 
+    const meeting = leader && firstWildsMeetingForCard(leader, state.cardContinuityV11?.[leader.id]);
+    const homecomingDepartedAssetIds = leader && meeting && nextAddress
+      && !state.homecomingDepartedAssetIds?.includes(leader.id)
+      && !isWildsHomecomingNearMeeting(nextAddress, meeting)
+      ? [...(state.homecomingDepartedAssetIds ?? []), leader.id]
+      : state.homecomingDepartedAssetIds;
+
     const moved: PlayState = {
       ...state,
       activeAction: "explore",
       energy: Math.max(0, state.energy - 1),
       explorationAtlas,
+      worldAddress: nextAddress,
+      homecomingDepartedAssetIds,
+      explorationAtlasV11,
       siteSpace: currentSpace.spaceId === "wildz.space.outer.v1" ? {
         version: "wildz.site-space-state.v1",
         spaceId: "wildz.space.outer.v1",
@@ -2259,7 +2555,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
   }
 
   if (input.type === "discover" || input.type === "capture") {
-    const nearest = nearestCreature(state);
+    const nearest = state.worldCoordinateMode === "region-local" ? undefined : nearestCreature(state);
     if (!nearest || nearest.distance > 1.25) {
       return {
         ...state,
@@ -2423,7 +2719,8 @@ function movePlayer(
   verticalWorldY?: number,
   structureSupports?: readonly WildsStructureSupport[],
   additionalObstacles?: readonly WildsTerrainObstacle[],
-  kaiUPulse?: number
+  kaiUPulse?: number,
+  v11Address?: WildsWorldAddress
 ) {
   const next = { ...player };
 
@@ -2441,7 +2738,11 @@ function movePlayer(
     intended.x = clamp(intended.x, worldBounds.min, worldBounds.max);
     intended.z = clamp(intended.z, worldBounds.min, worldBounds.max);
   }
-  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports, additionalObstacles });
+  const terrainSampler = v11Address ? (x: number, z: number) => sampleWildsTerrainV11(offsetWildsWorldAddress(
+    v11Address, BigInt(Math.round((x - player.x) * 1_000_000)), BigInt(Math.round((z - player.z) * 1_000_000))
+  )) : undefined;
+  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports,
+    additionalObstacles, terrainSampler, ...(v11Address ? { obstacles: additionalObstacles ?? [] } : {}) });
 }
 
 function movePlayerVector(
@@ -2455,12 +2756,16 @@ function movePlayerVector(
   verticalWorldY?: number,
   structureSupports?: readonly WildsStructureSupport[],
   additionalObstacles?: readonly WildsTerrainObstacle[],
-  kaiUPulse?: number
+  kaiUPulse?: number,
+  v11Address?: WildsWorldAddress
 ) {
   const safeX = Number.isFinite(x) ? x : 0;
   const safeZ = Number.isFinite(z) ? z : 0;
   const magnitude = Math.hypot(safeX, safeZ);
-  if (magnitude < 0.08) return resolveWildsGroundMovement(player, player, { capabilities, aerialMode, obstacles: [], verticalClearance, verticalWorldY, structureSupports });
+  const terrainSampler = v11Address ? (pointX: number, pointZ: number) => sampleWildsTerrainV11(offsetWildsWorldAddress(
+    v11Address, BigInt(Math.round((pointX - player.x) * 1_000_000)), BigInt(Math.round((pointZ - player.z) * 1_000_000))
+  )) : undefined;
+  if (magnitude < 0.08) return resolveWildsGroundMovement(player, player, { capabilities, aerialMode, obstacles: [], verticalClearance, verticalWorldY, structureSupports, terrainSampler });
   const scale = worldBounds.analogStep * movementMultiplier / Math.max(1, magnitude);
   const intended = {
     x: clamp(player.x + safeX * scale, worldBounds.min, worldBounds.max),
@@ -2471,7 +2776,8 @@ function movePlayerVector(
     intended.x = clamp(intended.x, worldBounds.min, worldBounds.max);
     intended.z = clamp(intended.z, worldBounds.min, worldBounds.max);
   }
-  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports, additionalObstacles });
+  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports,
+    additionalObstacles, terrainSampler, ...(v11Address ? { obstacles: additionalObstacles ?? [] } : {}) });
 }
 
 function movePlayerInsideSite(player: PlayState["player"], input: Extract<WildsInput, { type: "move" | "move-vector" }>) {

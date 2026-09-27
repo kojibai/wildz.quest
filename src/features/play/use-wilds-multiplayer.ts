@@ -1,10 +1,11 @@
+import type { WildsWorldAddress } from "./wilds-world-address";
 "use client";
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 
 import type { WildsRoamingPresenceUpload } from "./wilds-roaming-presence";
 
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createInviteRoom, expirePresence, roomKeyForPosition, type WildsPresence } from "./multiplayer-core";
+import { createInviteRoom, expirePresence, roomKeyForAddressV11, roomKeyForPosition, type WildsPresence } from "./multiplayer-core";
 import type { WildsMultiplayerSnapshot } from "./multiplayer-ledger";
 import type { PvpIntent } from "./pvp-battle-engine";
 import type { PortableCardAsset } from "./portable-card";
@@ -29,6 +30,8 @@ export function sameWildsMultiplayerPresence(left: WildsPresence[], right: Wilds
       && player.playerId === candidate.playerId
       && player.x === candidate.x
       && player.z === candidate.z
+      && player.worldAddress?.regionX === candidate.worldAddress?.regionX
+      && player.worldAddress?.regionZ === candidate.worldAddress?.regionZ
       && player.status === candidate.status
       && player.lastSeenAt === candidate.lastSeenAt
       && player.activeCard.proofDigest === candidate.activeCard.proofDigest
@@ -74,6 +77,8 @@ export function buildWildsMultiplayerHeartbeatBody(input: {
   style: "female" | "male";
   x: number;
   z: number;
+  address?: WildsWorldAddress;
+  previousRoomKey?: string;
   heading: number;
   card: PortableCardAsset;
   cardAdmission: WildzVaultCardMembershipProof | null;
@@ -85,6 +90,8 @@ export function buildWildsMultiplayerHeartbeatBody(input: {
     style: input.style,
     x: input.x,
     z: input.z,
+    ...(input.address ? { address: input.address } : {}),
+    ...(input.previousRoomKey ? { previousRoomKey: input.previousRoomKey } : {}),
     heading: input.heading,
     ...(input.roamingCreatures ? { roamingCreatures: input.roamingCreatures.map(({ card, cardAdmission, ...pose }) => ({
       ...pose, ...(cardAlreadyAdmitted ? { cardRef: { assetId: card.id, proofDigest: card.proof.digest } } : { card, ...(cardAdmission ? { cardAdmission } : {}) })
@@ -103,6 +110,8 @@ export function useWildsMultiplayer(input: {
   surfaceOpen: boolean;
   style: "female" | "male";
   position: { x: number; z: number };
+  worldAddress?: WildsWorldAddress;
+  worldCoordinateMode?: "legacy" | "region-local";
   activeCard: PortableCardAsset | null;
   cardAdmission: WildzVaultCardMembershipProof | null;
   readRoamingCreatures?: () => readonly WildsRoamingPresenceUpload[];
@@ -120,6 +129,7 @@ export function useWildsMultiplayer(input: {
   const latest = useRef(input);
   const retryAfter = useRef(0);
   const admittedHeartbeatCards = useRef(new Set<string>());
+  const acceptedRoomKey = useRef<string | null>(null);
   latest.current = input;
 
   useEffect(() => {
@@ -133,7 +143,10 @@ export function useWildsMultiplayer(input: {
     return () => document.removeEventListener("visibilitychange", updateVisibility);
   }, []);
 
-  const roomKey = roomOverride ?? roomKeyForPosition("platform", input.position);
+  const v11RoomKey = useMemo(() => input.worldCoordinateMode === "region-local" && input.worldAddress
+    ? roomKeyForAddressV11("platform", input.worldAddress) : null,
+    [input.worldCoordinateMode, input.worldAddress]);
+  const roomKey = v11RoomKey ?? roomOverride ?? roomKeyForPosition("platform", input.position);
 
   const heartbeat = useCallback(async () => {
     const current = latest.current;
@@ -161,6 +174,9 @@ export function useWildsMultiplayer(input: {
           style: current.style,
           x: current.position.x,
           z: current.position.z,
+          ...(current.worldCoordinateMode === "region-local" && current.worldAddress ? { address: current.worldAddress } : {}),
+          ...(current.worldCoordinateMode === "region-local" && acceptedRoomKey.current?.startsWith("wilds11:")
+            ? { previousRoomKey: acceptedRoomKey.current } : {}),
           heading: 0,
           card: activeCard,
           cardAdmission: current.cardAdmission,
@@ -184,6 +200,7 @@ export function useWildsMultiplayer(input: {
       if (admittedHeartbeatCards.current.size >= 128) admittedHeartbeatCards.current.delete(admittedHeartbeatCards.current.values().next().value!);
       admittedHeartbeatCards.current.add(admissionPin);
       setSelfId(result.actor.playerId);
+      acceptedRoomKey.current = roomKey;
       const requiresAttention = result.snapshot.challenges.some((challenge) => (
         challenge.opponentId === result.actor.playerId && challenge.state === "offered"
       )) || result.snapshot.battles.some((battle) => (
@@ -272,11 +289,15 @@ export function useWildsMultiplayer(input: {
     if (!shouldAttemptWildsNetwork()) return;
     const current = latest.current;
     try {
-      const params = new URLSearchParams({
-        x: String(current.position.x),
-        z: String(current.position.z),
-        guestId
-      });
+      const params = current.worldCoordinateMode === "region-local" && current.worldAddress
+        ? new URLSearchParams({
+          regionX: current.worldAddress.regionX,
+          regionZ: current.worldAddress.regionZ,
+          localX: String(current.worldAddress.localX),
+          localZ: String(current.worldAddress.localZ),
+          guestId
+        })
+        : new URLSearchParams({ x: String(current.position.x), z: String(current.position.z), guestId });
       const result = await jsonRequest<{ players: WildsPresence[] }>(`/api/wilds/atlas?${params.toString()}`, { cache: "no-store" });
       const players = result.players ?? [];
       startTransition(() => {
@@ -329,6 +350,16 @@ export function useWildsMultiplayer(input: {
   }, [guestId, roomKey]);
 
   const createInviteLink = useCallback(async () => {
+    if (input.worldCoordinateMode === "region-local" && input.worldAddress) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("wildsJoin");
+      url.searchParams.delete("wildsX");
+      url.searchParams.delete("wildsZ");
+      url.searchParams.set("wildsRegionX", input.worldAddress.regionX);
+      url.searchParams.set("wildsRegionZ", input.worldAddress.regionZ);
+      url.hash = "play";
+      return url.toString();
+    }
     const room = roomKey.startsWith("invite:") ? roomKey : createInviteRoom(selfId || guestId, input.position, input.activeCard?.manifest.variant.kaiPulse ?? new Date().toISOString());
     setRoomOverride(room);
     const url = new URL(window.location.href);
@@ -338,7 +369,7 @@ export function useWildsMultiplayer(input: {
     url.hash = "play";
     window.history.replaceState(window.history.state, "", url);
     return url.toString();
-  }, [guestId, input.activeCard, input.position, roomKey, selfId]);
+  }, [guestId, input.activeCard, input.position, input.worldAddress, input.worldCoordinateMode, roomKey, selfId]);
 
   const remotePlayers = useMemo(() => {
     const newestByPlayer = new Map<string, WildsPresence>();
@@ -348,9 +379,10 @@ export function useWildsMultiplayer(input: {
       if (!current || Date.parse(player.lastSeenAt) > Date.parse(current.lastSeenAt)) newestByPlayer.set(player.playerId, player);
     }
     return [...newestByPlayer.values()]
-    .filter((player) => player.playerId !== selfId && player.status !== "private")
+    .filter((player) => player.playerId !== selfId && player.status !== "private"
+      && Boolean(player.worldAddress) === (input.worldCoordinateMode === "region-local"))
     .sort((left, right) => Math.hypot(left.x - input.position.x, left.z - input.position.z) - Math.hypot(right.x - input.position.x, right.z - input.position.z))
-  }, [globalPlayers, input.position.x, input.position.z, input.surfaceOpen, selfId, snapshot?.players]);
+  }, [globalPlayers, input.position.x, input.position.z, input.surfaceOpen, input.worldCoordinateMode, selfId, snapshot?.players]);
   const selectedPlayer = remotePlayers.find((player) => player.playerId === selectedPlayerId) ?? null;
   const selectPlayer = useCallback((player: WildsPresence | null) => setSelectedPlayerId(player?.playerId ?? null), []);
   const activeBattle = snapshot?.battles.find((battle) => battle.phase === "active" && Boolean(battle.players[selfId]))

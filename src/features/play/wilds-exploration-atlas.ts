@@ -1,3 +1,4 @@
+import { parseWildsWorldAddress, type WildsWorldAddress } from "./wilds-world-address";
 import { regionForPosition, WILDS_REGION_SIZE } from "./multiplayer-core";
 import { isCanonicalWildsDiscoverySiteKey } from "./wilds-discovery-sites";
 
@@ -235,4 +236,81 @@ export function *wildsExplorationRegions(
       for (let x = range.minX; x <= range.maxX; x += 1) yield { x, z: row.z };
     }
   }
+}
+
+export type WildsExplorationAtlasV11 = Readonly<{
+  version: 11;
+  /** Canonical regionX:regionZ keys; no bounding rectangle is materialized. */
+  regions: readonly string[];
+  siteKeys: readonly string[];
+}>;
+
+const V11_ATLAS_ENTRY_LIMIT = 100_000;
+const v11RegionIndexes = new WeakMap<WildsExplorationAtlasV11["regions"], ReadonlySet<string>>();
+
+function v11RegionKey(regionX: string, regionZ: string): string {
+  const address = parseWildsWorldAddress({ worldVersion: 11, regionX, regionZ, localX: 0, localZ: 0 });
+  return `${address.regionX}:${address.regionZ}`;
+}
+
+function parseV11RegionKey(key: unknown): string {
+  if (typeof key !== "string") throw new RangeError("Invalid v11 exploration region");
+  const parts = key.split(":");
+  if (parts.length !== 2) throw new RangeError("Invalid v11 exploration region");
+  return v11RegionKey(parts[0]!, parts[1]!);
+}
+
+function sortV11Regions(keys: readonly string[]): string[] {
+  return [...new Set(keys)].sort((left, right) => {
+    const [leftX, leftZ] = left.split(":");
+    const [rightX, rightZ] = right.split(":");
+    const xDelta = BigInt(leftX!) - BigInt(rightX!);
+    if (xDelta !== 0n) return xDelta < 0n ? -1 : 1;
+    const zDelta = BigInt(leftZ!) - BigInt(rightZ!);
+    return zDelta < 0n ? -1 : zDelta > 0n ? 1 : 0;
+  });
+}
+
+export function createInitialWildsExplorationAtlasV11(): WildsExplorationAtlasV11 {
+  const regions: string[] = [];
+  for (let x = START_MIN; x <= START_MAX; x += 1) {
+    for (let z = START_MIN; z <= START_MAX; z += 1) regions.push(`${x}:${z}`);
+  }
+  return { version: 11, regions: sortV11Regions(regions), siteKeys: [] };
+}
+
+export function normalizeWildsExplorationAtlasV11(value: unknown): WildsExplorationAtlasV11 {
+  if (!value || typeof value !== "object") throw new RangeError("Invalid v11 exploration atlas");
+  const candidate = value as Record<string, unknown>;
+  if (candidate.version !== 11 || !Array.isArray(candidate.regions) || candidate.regions.length > V11_ATLAS_ENTRY_LIMIT
+    || !Array.isArray(candidate.siteKeys) || candidate.siteKeys.length > V11_ATLAS_ENTRY_LIMIT) {
+    throw new RangeError("Invalid v11 exploration atlas");
+  }
+  const regions = sortV11Regions(candidate.regions.map(parseV11RegionKey));
+  if (candidate.siteKeys.some(key => typeof key !== "string" || key.length > 256)) {
+    throw new RangeError("Invalid v11 exploration site key");
+  }
+  return { version: 11, regions, siteKeys: [...new Set(candidate.siteKeys as string[])].sort() };
+}
+
+export function wildsExplorationContainsRegionV11(atlas: WildsExplorationAtlasV11, regionX: string, regionZ: string): boolean {
+  let index = v11RegionIndexes.get(atlas.regions);
+  if (!index) {
+    index = new Set(atlas.regions);
+    v11RegionIndexes.set(atlas.regions, index);
+  }
+  return index.has(v11RegionKey(regionX, regionZ));
+}
+
+export function revealWildsExplorationAtV11(atlas: WildsExplorationAtlasV11, value: WildsWorldAddress): WildsExplorationAtlasV11 {
+  const address = parseWildsWorldAddress(value);
+  const regions = new Set(atlas.regions);
+  for (let dx = -1n; dx <= 1n; dx += 1n) {
+    for (let dz = -1n; dz <= 1n; dz += 1n) {
+      regions.add(v11RegionKey((BigInt(address.regionX) + dx).toString(), (BigInt(address.regionZ) + dz).toString()));
+    }
+  }
+  if (regions.size === atlas.regions.length) return atlas;
+  if (regions.size > V11_ATLAS_ENTRY_LIMIT) throw new RangeError("V11 exploration atlas storage limit reached");
+  return { ...atlas, regions: sortV11Regions([...regions]) };
 }

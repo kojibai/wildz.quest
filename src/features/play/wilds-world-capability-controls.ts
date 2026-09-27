@@ -1,5 +1,5 @@
 import type { AdventureCardCondition } from "./adventure/card-condition";
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import { canCreatureUseBurrow, projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "./creature-capability-identity";
 import { canonicalPortableCardJson, type PortableCardAsset } from "./portable-card";
 import { projectWildsCreatureWorkFamilies } from "./wilds-steward-construction";
@@ -45,7 +45,7 @@ export function projectWildsCapabilityControls(
 ): readonly WildsProjectedCapabilityControl[] {
   const identity = projectCreatureCapabilityIdentity(asset);
   const runtime = projectCreatureRuntimeCapabilities(identity, condition);
-  const form = creatureForm(asset.manifest.formId);
+  const form = resolveCardForm(asset);
   if (!form) throw new Error("wilds_capability_form_unknown");
   const families = new Set<WildsWorldCapabilityFamily>();
   for (const specialty of identity.specialties) families.add(specialty.family);

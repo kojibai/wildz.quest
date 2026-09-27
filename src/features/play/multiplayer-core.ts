@@ -1,3 +1,4 @@
+import { parseWildsWorldAddress, type WildsWorldAddress } from "./wilds-world-address";
 import type { WildsRoamingCreaturePresence } from "./wilds-roaming-presence";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import type { PvpCard } from "./pvp-battle-engine";
@@ -12,6 +13,7 @@ export type WildsPresence = {
   style: "female" | "male";
   x: number;
   z: number;
+  worldAddress?: WildsWorldAddress;
   heading: number;
   status: "available" | "busy" | "private" | "reconnecting";
   lastSeenAt: string;
@@ -91,4 +93,38 @@ export function sanitizeWildsMessage(input: string) {
     throw new Error("wilds_message_contact_blocked");
   }
   return text;
+}
+
+/** Fixed-length room label derived from the full canonical v11 region address. */
+export function roomKeyForAddressV11(tenant: string, value: WildsWorldAddress): string {
+  if (!/^[a-z0-9.-]{1,48}$/i.test(tenant)) throw new RangeError("Invalid Wilds room tenant");
+  const address = parseWildsWorldAddress(value);
+  const digest = sha256PortableBasis(canonicalPortableCardJson({
+    version: 11, tenant, regionX: address.regionX, regionZ: address.regionZ
+  }));
+  return `wilds11:${tenant}:${digest.slice(7)}`;
+}
+
+/** Exact fixed-point speed check, even when region coordinates exceed 2^53. */
+export function validatePresenceMoveV11(
+  previous: { address: WildsWorldAddress; at: string } | null,
+  next: { address: WildsWorldAddress; at: string }
+): { ok: true } | { ok: false; error: "wilds_presence_position_invalid" | "wilds_presence_teleport_rejected" } {
+  let address: WildsWorldAddress;
+  let prior: WildsWorldAddress | null = null;
+  try {
+    address = parseWildsWorldAddress(next.address);
+    if (previous) prior = parseWildsWorldAddress(previous.address);
+  } catch {
+    return { ok: false, error: "wilds_presence_position_invalid" };
+  }
+  if (!prior || !previous) return { ok: true };
+  const elapsed = Date.parse(next.at) - Date.parse(previous.at);
+  if (!Number.isFinite(elapsed)) return { ok: false, error: "wilds_presence_position_invalid" };
+  const elapsedMs = Math.max(250, elapsed);
+  const allowedMicro = BigInt(elapsedMs) * 12_000n;
+  const dx = (BigInt(address.regionX) - BigInt(prior.regionX)) * 24_000_000n + BigInt(address.localX - prior.localX);
+  const dz = (BigInt(address.regionZ) - BigInt(prior.regionZ)) * 24_000_000n + BigInt(address.localZ - prior.localZ);
+  if (dx * dx + dz * dz > allowedMicro * allowedMicro) return { ok: false, error: "wilds_presence_teleport_rejected" };
+  return { ok: true };
 }

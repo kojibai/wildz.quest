@@ -74,7 +74,7 @@ test("player-state route requires the verified Receiz actor and never accepts a 
 test("an admitted collection update preserves local position without remounting the world", async () => {
   const source = await import("node:fs/promises").then((fs) => fs.readFile("src/features/play/PlayCampaign.tsx", "utf8"));
   assert.match(source, /admittedSourceStateRef\.current === initialState/);
-  assert.match(source, /admitWildsForwardPosition\(initialState, current\)/);
+  assert.match(source, /admitWildsForwardPosition\(upgradeV10PlayStateToV11\(initialState\), current\)/);
   assert.doesNotMatch(source, /key=\{[^}]*sourceDigest/);
 });
 

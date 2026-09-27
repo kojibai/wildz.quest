@@ -1,7 +1,8 @@
 import { standaloneCardUrl } from "./card-export";
 import { projectCardKaiAppearance } from "./card-kai-appearance";
-import { creatureForm, type CreatureStats } from "./creature-catalog";
-import { deriveBirthGenome } from "./heartbound-genome";
+import type { CreatureStats } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
+import { projectWildsCardGenome } from "./wilds-card-artwork";
 import { identityForGenome } from "./heartbound-identity";
 import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import { deriveKaiMomentExpression, KAI_MATH_TEACHINGS } from "./kai-klok-teachings";
@@ -100,7 +101,7 @@ function battleRole(stats: CreatureStats) {
 }
 
 function storyFor(asset: PortableCardAsset, temperament: string, gesture: string, posture: string): LivingCardStory {
-  const habitat = creatureForm(asset.manifest.formId)?.habitat ?? "Wilds";
+  const habitat = resolveCardForm(asset)?.habitat ?? "Wilds";
   const nature = title(temperament).toLowerCase();
   const signal = title(gesture).toLowerCase();
   const presence = title(posture).toLowerCase();
@@ -119,11 +120,9 @@ function storyFor(asset: PortableCardAsset, temperament: string, gesture: string
 }
 
 export function projectLivingCardStory(asset: PortableCardAsset): LivingCardStory {
-  const form = creatureForm(asset.manifest.formId);
+  const form = resolveCardForm(asset);
   if (!form) throw new Error("wilds_dossier_form_unknown");
-  const genome = isLivingCardAsset(asset)
-    ? currentLivingGenome(asset)
-    : deriveBirthGenome({ formId: asset.manifest.formId, proofDigest: asset.proof.digest, variant: asset.manifest.variant.traits });
+  const genome = projectWildsCardGenome(asset);
   const identity = identityForGenome(genome, asset.proof.digest);
   return storyFor(asset, genome.face.expressionSet, identity.behavior.gesture, identity.behavior.posture);
 }
@@ -139,12 +138,11 @@ export function canonicalPublicProofJson(asset: PortableCardAsset) {
 }
 
 export function projectLivingCardDossier(asset: PortableCardAsset, origin: string): LivingCardDossier {
-  const form = creatureForm(asset.manifest.formId);
+  const form = resolveCardForm(asset);
   if (!form) throw new Error("wilds_dossier_form_unknown");
   const living = isLivingCardAsset(asset);
-  const genome = living
-    ? currentLivingGenome(asset)
-    : deriveBirthGenome({ formId: asset.manifest.formId, proofDigest: asset.proof.digest, variant: asset.manifest.variant.traits });
+  const signedBirth = !isLivingCardAsset(asset) && Boolean(asset.manifest.birthV11);
+  const genome = projectWildsCardGenome(asset);
   const identity = identityForGenome(genome, asset.proof.digest);
   const revision = living ? currentRevision(asset) : null;
   const historyProjection = living ? currentCreatureHistoryProjection(asset) : null;
@@ -166,8 +164,8 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
     { label: "Stable asset identity", status: asset.id === asset.manifest.assetId ? "pass" : "fail", detail: asset.id },
     { label: "Proof digest", status: verification.errors.includes("digest_mismatch") ? "fail" : "pass", detail: asset.proof.digest },
     { label: "Canonicalization", status: asset.proof.canonicalization === "receiz.sorted-json.v1" ? "pass" : "fail", detail: asset.proof.canonicalization },
-    { label: "Revision chain", status: verification.errors.some((error) => error.includes("revision")) ? "fail" : "pass", detail: living ? `${asset.manifest.revisions.length} linked revision${asset.manifest.revisions.length === 1 ? "" : "s"}` : "Legacy birth seal" },
-    { label: "Creature history", status: verification.errors.some((error) => error.includes("history")) ? "fail" : "pass", detail: living && asset.manifest.history ? `${asset.manifest.history.events.length} append-only event${asset.manifest.history.events.length === 1 ? "" : "s"} · uPulse ${asset.manifest.history.events.at(-1)?.kai.uPulse ?? 0}` : "Legacy card projection" },
+    { label: "Revision chain", status: verification.errors.some((error) => error.includes("revision")) ? "fail" : "pass", detail: living ? `${asset.manifest.revisions.length} linked revision${asset.manifest.revisions.length === 1 ? "" : "s"}` : signedBirth ? "Signed birth and capture seal" : "Legacy birth seal" },
+    { label: "Creature history", status: verification.errors.some((error) => error.includes("history")) ? "fail" : "pass", detail: living && asset.manifest.history ? `${asset.manifest.history.events.length} append-only event${asset.manifest.history.events.length === 1 ? "" : "s"} · uPulse ${asset.manifest.history.events.at(-1)?.kai.uPulse ?? 0}` : signedBirth ? "Original encounter retained in this card" : "Legacy card projection" },
     { label: "Visual genome", status: verification.errors.some((error) => error.includes("genome") || error.includes("art")) ? "fail" : "pass", detail: identity.signature }
   ];
   const body = identity.body;

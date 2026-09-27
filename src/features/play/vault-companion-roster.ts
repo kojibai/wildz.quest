@@ -1,5 +1,5 @@
 import { emptyAdventureCondition, type AdventureCardCondition } from "./adventure/card-condition";
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import type { PlayState } from "./game-state";
 import { currentCreatureHistoryProjection, currentRevision } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
@@ -48,7 +48,7 @@ export function projectVaultCompanionRoster(input: VaultCompanionRosterInput): r
       : input.companionProgress[asset.id]
         ?? input.companionProgress[asset.manifest.familyId]
         ?? { level: 1, xp: 0, bond: 0 };
-    const form = creatureForm(asset.manifest.formId);
+    const form = resolveCardForm(asset);
     return [{
       asset,
       name: asset.manifest.name,

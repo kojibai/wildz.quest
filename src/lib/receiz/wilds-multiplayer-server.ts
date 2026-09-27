@@ -29,7 +29,7 @@ function stringValue(value: unknown, maxLength = 200) {
 
 export function parseWildsRoomKey(value: unknown) {
   const roomKey = stringValue(value, 160);
-  if (!/^(?:wilds:[a-z0-9.:-]+:-?\d+:-?\d+|invite:[a-f0-9]{16})$/i.test(roomKey)) throw new Error("wilds_room_invalid");
+  if (!/^(?:wilds:[a-z0-9.:-]+:-?\d+:-?\d+|wilds11:[a-z0-9.-]{1,48}:[a-f0-9]{64}|invite:[a-f0-9]{16})$/i.test(roomKey)) throw new Error("wilds_room_invalid");
   return roomKey;
 }
 

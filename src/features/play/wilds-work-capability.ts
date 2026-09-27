@@ -1,5 +1,5 @@
 import { applyAdventureConditionDelta, type AdventureCardCondition } from "./adventure/card-condition";
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsResourceSource, WildsResourceWorkFamily } from "./wilds-resource-authority";
 import { projectWildsCreatureWorkFamilies } from "./wilds-steward-construction";
@@ -42,7 +42,7 @@ export function applyWildsCompanionWork(condition: AdventureCardCondition): Adve
 
 export function projectWildsWorkCapabilityMeters(asset: PortableCardAsset | null, condition?: AdventureCardCondition | null): readonly WildsWorkCapabilityMeter[] {
   if (!asset) return [];
-  const element = creatureForm(asset.manifest.formId)?.element ?? "";
+  const element = resolveCardForm(asset)?.element ?? "";
   const fatigue = condition?.fatigue ?? 0;
   const injuries = condition?.injuries.length ?? 0;
   const consentBlocked = fatigue >= 85 || injuries >= 4;
@@ -65,7 +65,7 @@ export function selectWildsResourceWorkPartner(
   const ready = assets.filter((asset) => {
     const condition = conditions[asset.id];
     if (condition && (condition.life === "dead" || condition.retiredAt || condition.fatigue >= 85 || condition.injuries.length >= 4)) return false;
-    return projectWildsCreatureWorkFamilies(creatureForm(asset.manifest.formId)?.element ?? "").includes(family);
+    return projectWildsCreatureWorkFamilies(resolveCardForm(asset)?.element ?? "").includes(family);
   });
   return ready.find((asset) => asset.id === activeAssetId) ?? ready[0] ?? null;
 }

@@ -2,12 +2,11 @@ import type { WildzGameImageKind } from "../../lib/receiz/wildz-game-image-expor
 import { verifyAndAdmitWildsCard, retainAdmittedWildsInventory } from "./admitted-inventory";
 import { createRetainedProofJson, freezeProofValue } from "./retained-proof-json";
 import { pngCrc32 as crc32 } from "../../lib/png-crc32";
-import { creatureForm } from "./creature-catalog";
+import { resolveCardForm } from "./wilds-card-form-resolution";
 import { wildzSealedDownloadFilename } from "../../lib/receiz/wildz-sealed-document";
 import QRCode from "qrcode";
-import { deriveBirthGenome } from "./heartbound-genome";
+import { projectWildsCardGenome } from "./wilds-card-artwork";
 import { renderHeartboundSvg } from "./heartbound-renderer";
-import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { projectLivingCardStory } from "./living-card-dossier";
 import { parseWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
@@ -182,13 +181,11 @@ export function createWildsCardSendDraft(
 }
 
 export function renderWildsCardSvg(asset: PortableCardAsset, options: { origin?: string } = {}) {
-  const form = creatureForm(asset.manifest.formId);
+  const form = resolveCardForm(asset);
   if (!form) throw new Error("wilds_card_form_unknown");
   const stats = asset.manifest.stats;
   const palette = asset.manifest.variant.traits.palette;
-  const genome = isLivingCardAsset(asset)
-    ? currentLivingGenome(asset)
-    : deriveBirthGenome({ formId: asset.manifest.formId, proofDigest: asset.proof.digest, variant: asset.manifest.variant.traits });
+  const genome = projectWildsCardGenome(asset);
   const heartboundArt = renderHeartboundSvg(genome, "card", { width: 640, height: 405, title: asset.manifest.name });
   const foilOpacity = form.foil === "standard" ? 0.08 : form.foil === "shimmer" ? 0.2 : 0.32;
   const statRows = [

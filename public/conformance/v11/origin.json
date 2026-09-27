@@ -1,0 +1,21 @@
+{
+  "schema": "wildz.encounter-proof.v11",
+  "input": {
+    "schema": "wildz.encounter-input.v11",
+    "keyId": "wildz-v11-conformance-only-2026-09",
+    "law": "wildz.rarity.v11",
+    "actorId": "conformance.example",
+    "site": {
+      "worldVersion": 11,
+      "regionX": "0",
+      "regionZ": "0",
+      "localX": 0,
+      "localZ": 0
+    },
+    "slot": 0
+  },
+  "signatureB64u": "DuGckZltvu6S3htEQBYvnXSoXXlFmd4fzYaCHahRmTJkfuIr_md3NfhkGm6xtfXND1FKMlXIi95O7-RiwZx9Cw",
+  "draw": 1191928,
+  "className": "uncommon",
+  "creatureSeed": "sha256:5ace78f33f3307f239b898bd9ad41f8fad0b137967c465e0ad6a3082575c989e"
+}
