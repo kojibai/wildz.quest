@@ -13050,15 +13050,6 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-vault-sheet-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 2px; }
 .wilds-vault-sheet-heading small { color: #7fa1aa; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 .wilds-vault-sheet-heading strong { font-size: 13px; }
-.wilds-v11-local-collection { border: 1px solid rgba(145, 226, 185, .25); border-radius: 18px; padding: 16px; background: linear-gradient(135deg, rgba(29, 77, 61, .28), rgba(11, 26, 33, .5)); }
-.wilds-v11-local-collection h3 { margin: 0 0 6px; font-size: 16px; }
-.wilds-v11-local-collection p { max-width: 60ch; margin: 0 0 14px; color: #bad2c8; font-size: 12px; line-height: 1.5; }
-.wilds-v11-local-collection ul { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; }
-.wilds-v11-local-collection li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid rgba(169, 224, 196, .16); border-radius: 12px; background: rgba(6, 22, 26, .42); }
-.wilds-v11-local-collection li span { display: grid; gap: 3px; min-width: 0; }
-.wilds-v11-local-collection li strong { overflow-wrap: anywhere; }
-.wilds-v11-local-collection li small { color: #b5d0c2; text-transform: capitalize; }
-.wilds-v11-local-collection li button { flex: 0 0 auto; border: 1px solid rgba(177, 234, 197, .5); border-radius: 999px; padding: 8px 12px; background: rgba(29, 72, 56, .75); color: #ebfff1; cursor: pointer; }
 .wilds-command-sheet-content .wilds-inventory { margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
 .wilds-command-sheet-content .wilds-inventory > header { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid rgb(131 235 207 / 14%); border-radius: 14px; background: linear-gradient(135deg, rgb(113 232 195 / 9%), rgb(247 210 91 / 5%)); }
 .wilds-command-sheet-content .wilds-inventory > header h3 { margin-top: 1px; font-size: 18px; }

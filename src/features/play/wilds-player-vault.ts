@@ -216,9 +216,6 @@ export function mergeWildsPlayerPlayStates(input: {
       ? mergeWildsJourneyJournal(input.actorId, sanitizeWildsJourneyJournal(input.local.journeyJournal, input.actorId)?.memories ?? [], restoredPlayState.journeyJournal)
       : undefined,
     inventory: [...input.local.inventory, ...restoredPlayState.inventory],
-    proceduralCardEvidenceV11: [...new Map([...(input.local.proceduralCardEvidenceV11 ?? []),
-      ...(restoredPlayState.proceduralCardEvidenceV11 ?? [])]
-      .map(card => [card.proofDigest, card])).values()],
     ...((input.local.quarantinedInventory?.length || restoredPlayState.quarantinedInventory?.length) ? {
       quarantinedInventory: [...new Map([...(input.local.quarantinedInventory ?? []), ...(restoredPlayState.quarantinedInventory ?? [])]
         .map(card => [card.proof.digest, card])).values()]

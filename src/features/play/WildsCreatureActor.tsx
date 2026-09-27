@@ -6,7 +6,7 @@ import { useMemo, useRef, type RefObject } from "react";
 import { companionFootRows, companionFootStep, writeWildsCompanionAnimation, type WildsCompanionGait } from "./wilds-companion-gait";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { creatureForm, type CreatureRenderRecipe } from "./creature-catalog";
+import { creatureForm } from "./creature-catalog";
 import { threeCreatureColor, type CardKaiAppearance } from "./card-kai-appearance";
 import { useWildsReadability } from "./WildsReadabilityContext";
 
@@ -101,7 +101,6 @@ export function WildsCreatureActor({
   identityToken,
   morphology,
   anatomy,
-  renderRecipe,
   cadenceMs,
   pose = "idle",
   locomotion = "ground",
@@ -117,7 +116,6 @@ export function WildsCreatureActor({
   identityToken?: string;
   morphology?: { head: number; torso: number; limb: number; symmetry: number };
   anatomy?: CardKaiAppearance["anatomy"];
-  renderRecipe?: CreatureRenderRecipe;
   cadenceMs?: number;
   pose?: WildsCreaturePose;
   locomotion?: WildsCreatureLocomotion;
@@ -135,11 +133,11 @@ export function WildsCreatureActor({
   const wings = useRef<THREE.Group>(null);
   const aura = useRef<THREE.Group>(null);
   const form = creatureForm(formId) ?? creatureForm(`${familyId}-1`);
-  const body = anatomy?.body ?? renderRecipe?.body ?? form?.anatomy.body ?? "round";
+  const body = anatomy?.body ?? form?.anatomy.body ?? "round";
   const footRows = companionFootRows(anatomy?.locomotion ?? (body === "serpentine" ? "serpentine" : body === "winged" ? "flying" : "quadruped"));
   const legged = footRows.length > 0;
-  const detail = anatomy?.detail ?? renderRecipe?.detail ?? form?.anatomy.detail ?? "ears";
-  const auraKind = renderRecipe?.aura ?? form?.anatomy.aura ?? "prism";
+  const detail = anatomy?.detail ?? form?.anatomy.detail ?? "ears";
+  const auraKind = form?.anatomy.aura ?? "prism";
   const wingPlan = projectActorWingRenderPlan(anatomy);
   const gripPlan = projectActorGripRenderPlan(anatomy);
   const hasFins = anatomy ? anatomy.appendages.fins.presence === "functional" : false;

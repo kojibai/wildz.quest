@@ -27,15 +27,12 @@ export default function ProofChecker() {
         ? { kind: "valid", message: inspection.example
           ? inspection.artifact === "encounter"
             ? "Example verified. Its signature, odds, class, and creature seed agree. This is not a player discovery."
-            : inspection.artifact === "local-card"
-              ? "Example birth and local card verified. This is not a player discovery or proof of current ownership."
-              : "Example verified. Its signature, odds, and creature details agree. This is not a player discovery."
-          : inspection.artifact === "local-card" ? "Birth and local card bytes verified. Current ownership requires a separate custody check."
-            : inspection.artifact === "birth" ? "Verified. This creature’s birth, rarity, and encounter proof all agree."
+            : "Example verified. Its signature, odds, and creature details agree. This is not a player discovery."
+          : inspection.artifact === "birth" ? "Verified. This creature’s birth, rarity, and encounter proof all agree."
               : "Verified. The signed site, rarity draw, class, and creature seed all agree.", inspection }
         : { kind: "invalid", message: "This file could not be verified. It may be incomplete or changed." });
     } catch {
-      setCheck({ kind: "error", message: "Choose a saved creature card, birth proof, or encounter result in JSON format." });
+      setCheck({ kind: "error", message: "Choose a birth proof or encounter result in JSON format." });
     } finally {
       setBusy(false);
       event.target.value = "";
@@ -44,9 +41,9 @@ export default function ProofChecker() {
 
   return <div className={styles.checker}>
     <label className={styles.filePicker}>
-      <span><strong>Check a creature’s proof</strong><small>Select a saved card, birth proof, or encounter result. It stays in this browser.</small></span>
+      <span><strong>Check a creature’s proof</strong><small>Select a birth proof or encounter result. It stays in this browser.</small></span>
       <span className={styles.fileButton}>Choose JSON</span>
-      <input accept=".json,application/json" aria-label="Choose creature card or encounter proof JSON" onChange={onFile} type="file" />
+      <input accept=".json,application/json" aria-label="Choose birth or encounter proof JSON" onChange={onFile} type="file" />
     </label>
     <p aria-live="polite" className={check ? `${styles.checkResult} ${styles[check.kind]}` : styles.checkResult} role="status">
       {busy ? "Verifying locally…" : check?.message ?? "Verification runs offline after this page has loaded."}

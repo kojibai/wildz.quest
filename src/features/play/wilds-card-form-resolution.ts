@@ -1,7 +1,6 @@
 import { creatureForm, type CreatureForm } from "./creature-catalog";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsV11CreatureBirth } from "./wilds-creature-generator-v11";
-import { isAdmittedWildsV11LocalCard, WILDS_V11_LOCAL_CARD_SCHEMA, type WildsV11LocalCard } from "./wilds-portable-card-v11";
 
 /** Shared gameplay fields; progression and exchange eligibility are separate from a birth form. */
 export type CreatureFormLike = Pick<CreatureForm,
@@ -22,12 +21,8 @@ function title(value: string) {
 }
 
 /** Consume only cards admitted at their respective verifier boundary. No global form cache is needed. */
-export function resolveCardForm(card: PortableCardAsset | WildsV11LocalCard): CreatureFormLike | null {
-  if ("schema" in card && card.schema === WILDS_V11_LOCAL_CARD_SCHEMA) {
-    if (!isAdmittedWildsV11LocalCard(card)) return null;
-    return projectVerifiedBirthFormV11(card.birth.birth, card.id);
-  }
-  return "manifest" in card ? creatureForm(card.manifest.formId) : null;
+export function resolveCardForm(card: PortableCardAsset): CreatureFormLike | null {
+  return creatureForm(card.manifest.formId);
 }
 
 /** Only call after the complete signed birth has passed the async proof boundary. */

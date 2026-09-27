@@ -2,7 +2,6 @@ import { admitWildsV11EncounterFromSite } from "./wilds-encounter-client-v11";
 import type { WildsV11CreatureCard } from "./wilds-card-proof-v11";
 import { generateWildsRegionV11 } from "./wilds-region-generator-v11";
 import { parseWildsWorldAddress, WILDS_REGION_MICRO_UNITS, type WildsWorldAddress } from "./wilds-world-address";
-import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 
 export const WILDS_V11_ENCOUNTER_OUTBOX_SCHEMA = "wildz.encounter-outbox.v11" as const;
 const MAX_PENDING = 64;
@@ -52,10 +51,8 @@ export function restoreWildsV11EncounterOutbox(value: unknown, actorId: string):
   for (const entry of entries.slice(0, MAX_PENDING)) {
     try {
       const site = canonicalPending(entry);
-      if (site.actorId !== actorId && !sameWildzPlayerCoordinate(site.actorId, actorId)) continue;
-      const normalized = { ...site, actorId };
-      const key = pendingKey(normalized);
-      if (!seen.has(key)) { pending.push(normalized); seen.add(key); }
+      const key = pendingKey(site);
+      if (site.actorId === actorId && !seen.has(key)) { pending.push(site); seen.add(key); }
     } catch { /* Untrusted observation discarded. */ }
   }
   return { schema: WILDS_V11_ENCOUNTER_OUTBOX_SCHEMA, pending };
@@ -81,16 +78,13 @@ export async function flushOneWildsV11Site(input: {
   outbox: WildsV11EncounterOutbox;
   actorId: string;
   playerAddress: WildsWorldAddress;
-  target?: Readonly<{ site: WildsWorldAddress; slot: number }>;
   fetcher?: typeof fetch;
   pinnedKeys?: Readonly<Record<string, string>>;
 }): Promise<{ kind: "no-nearby" | "pending" | "admitted"; outbox: WildsV11EncounterOutbox;
   birth?: WildsV11CreatureCard; error?: string }> {
   const playerAddress = parseWildsWorldAddress(input.playerAddress);
   const outbox = restoreWildsV11EncounterOutbox(input.outbox, input.actorId);
-  const target = input.target ? canonicalPending({ actorId: input.actorId, ...input.target }) : null;
-  const item = outbox.pending.find(candidate => (!target || pendingKey(candidate) === pendingKey(target))
-    && nearSite(playerAddress, candidate.site));
+  const item = outbox.pending.find(candidate => nearSite(playerAddress, candidate.site));
   if (!item) return { kind: "no-nearby", outbox };
   try {
     const birth = await admitWildsV11EncounterFromSite({ actorId: input.actorId, playerAddress,

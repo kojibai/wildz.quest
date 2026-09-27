@@ -68,7 +68,6 @@ import {
 } from "./wilds-exploration-atlas";
 import { offsetWildsWorldAddress, parseWildsWorldAddress, v10PositionToWildsAddress, type WildsWorldAddress } from "./wilds-world-address";
 import { observationPointV11, observeWildsSiteV11 } from "./wilds-site-search-v11";
-import { WILDS_V11_LOCAL_CARD_SCHEMA, type WildsV11LocalCard } from "./wilds-portable-card-v11";
 import { emptyWildsV11EncounterOutbox, enqueueWildsV11Site, restoreWildsV11EncounterOutbox,
   type WildsV11EncounterOutbox } from "./wilds-encounter-outbox-v11";
 import { projectV10CardContinuityV11, type WildsV10CardContinuityV11 } from "./wilds-card-continuity-v11";
@@ -232,8 +231,6 @@ export type PlayState = {
   energy: number;
   encounter: EncounterState;
   inventory: PortableCardAsset[];
-  /** Untrusted portable bytes only. Async birth verification is required before any gameplay projection. */
-  proceduralCardEvidenceV11?: WildsV11LocalCard[];
   /** Preserved evidence only: never admitted to gameplay or irreversible mortality. */
   quarantinedInventory?: PortableCardAsset[];
   lastEvent: string;
@@ -431,7 +428,6 @@ export const initialPlayState: PlayState = {
   encounter: idleEncounterState,
   pendingEncounterSitesV11: emptyWildsV11EncounterOutbox(),
   inventory: admitLocallySealedWildsInventory([{ ...starterCardAsset, status: "verified", synchronizedAt: "2026-06-29T12:00:00.000Z" }]),
-  proceduralCardEvidenceV11: [],
   lastEvent: "SealCub joined your deck. Walk near another wild companion.",
   level: 7,
   missionProgress: 0,
@@ -724,13 +720,6 @@ export function restorePlayState(
     const restoredInventory = sameSessionInventory ?? (Array.isArray(saved.inventory)
       ? saved.inventory.filter((asset): asset is PortableCardAsset => Boolean(asset) && verifyAndAdmitWildsCard(asset as PortableCardAsset))
       : []);
-    const proceduralCardEvidenceV11 = Array.isArray(saved.proceduralCardEvidenceV11)
-      ? saved.proceduralCardEvidenceV11.filter((value): value is WildsV11LocalCard => Boolean(value)
-        && value.schema === WILDS_V11_LOCAL_CARD_SCHEMA
-        && typeof value.id === "string" && value.id.startsWith("wildz:creature:")
-        && typeof value.proofDigest === "string" && value.proofDigest.startsWith("sha256:")
-        && (!ownerReceizId || sameOwnedWorldActor(value.ownerId, ownerReceizId)))
-      : [];
     const ownerScopedInventory = ownerReceizId && !sameSessionInventory
       ? restoredInventory.map((asset) => reissuePlaceholderAsset(asset, ownerReceizId))
       : restoredInventory;
@@ -856,7 +845,6 @@ export function restorePlayState(
         : [],
       discoveredCardIds,
       inventory: migratedInventory,
-      proceduralCardEvidenceV11,
       ...(quarantinedInventory.length ? { quarantinedInventory } : {}),
       selectedAssetId: restoredSelectedAssetId,
       selectedCardId: livingInventory.find((asset) => asset.id === restoredSelectedAssetId)?.manifest.familyId ?? "",
