@@ -142,7 +142,7 @@ export function useWildsMultiplayer(input: {
 
   const v11RoomKey = useMemo(() => input.worldCoordinateMode === "region-local" && input.worldAddress
     ? roomKeyForAddressV11("platform", input.worldAddress) : null,
-    [input.worldCoordinateMode, input.worldAddress?.regionX, input.worldAddress?.regionZ]);
+    [input.worldCoordinateMode, input.worldAddress]);
   const roomKey = roomOverride ?? v11RoomKey ?? roomKeyForPosition("platform", input.position);
 
   const heartbeat = useCallback(async () => {
@@ -366,7 +366,7 @@ export function useWildsMultiplayer(input: {
     .filter((player) => player.playerId !== selfId && player.status !== "private"
       && Boolean(player.worldAddress) === (input.worldCoordinateMode === "region-local"))
     .sort((left, right) => Math.hypot(left.x - input.position.x, left.z - input.position.z) - Math.hypot(right.x - input.position.x, right.z - input.position.z))
-  }, [globalPlayers, input.position.x, input.position.z, input.surfaceOpen, selfId, snapshot?.players]);
+  }, [globalPlayers, input.position.x, input.position.z, input.surfaceOpen, input.worldCoordinateMode, selfId, snapshot?.players]);
   const selectedPlayer = remotePlayers.find((player) => player.playerId === selectedPlayerId) ?? null;
   const selectPlayer = useCallback((player: WildsPresence | null) => setSelectedPlayerId(player?.playerId ?? null), []);
   const activeBattle = snapshot?.battles.find((battle) => battle.phase === "active" && Boolean(battle.players[selfId]))

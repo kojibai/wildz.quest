@@ -2238,6 +2238,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       ? state.explorationAtlas
       : revealWildsExplorationAt(state.explorationAtlas, nextPlayer);
     const explorationAtlasV11 = nextAddress && state.explorationAtlasV11
+      && (nextAddress.regionX !== state.worldAddress?.regionX || nextAddress.regionZ !== state.worldAddress?.regionZ)
       ? revealWildsExplorationAtV11(state.explorationAtlasV11, nextAddress)
       : state.explorationAtlasV11;
     if (input.siteRuntime) {
