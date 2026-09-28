@@ -1751,14 +1751,24 @@ function HabitatCover({ cover, open }: { cover: HotspotCover; open: boolean }) {
 
 function CaptureCapsule({ sealed }: { sealed: boolean }) {
   const ref = useRef<THREE.Group>(null);
-  useFrame(() => {
+  const elapsedRef = useRef(0);
+  const speedRef = useRef(2.4);
+  const bobRef = useRef(0.1);
+  useFrame((_, delta) => {
     if (!ref.current) return;
-    const elapsed = frameSeconds();
-    ref.current.rotation.y = elapsed * (sealed ? 0.7 : 2.4);
-    ref.current.position.y = 0.7 + Math.sin(elapsed * 3) * (sealed ? 0.04 : 0.1);
+    // A local presentation clock keeps the spin continuous across sealing;
+    // multiplying the world clock by a new speed used to jump the ball's pose.
+    const dt = Math.min(delta, 0.05);
+    elapsedRef.current += dt;
+    speedRef.current = THREE.MathUtils.damp(speedRef.current, sealed ? 0.7 : 2.4, 8, dt);
+    bobRef.current = THREE.MathUtils.damp(bobRef.current, sealed ? 0.04 : 0.1, 8, dt);
+    ref.current.rotation.y += speedRef.current * dt;
+    ref.current.position.y = 0.7 + Math.sin(elapsedRef.current * 3) * bobRef.current;
+    const scale = THREE.MathUtils.damp(ref.current.scale.x, sealed ? 0.9 : 1.08, 8, dt);
+    ref.current.scale.setScalar(scale);
   });
   return (
-    <group ref={ref} scale={sealed ? 0.9 : 1.08}>
+    <group ref={ref} scale={1.08}>
       <mesh castShadow>
         <sphereGeometry args={[0.62, 28, 20]} />
         <meshPhysicalMaterial color="#f7fff9" roughness={0.18} metalness={0.18} transmission={sealed ? 0.05 : 0.42} transparent opacity={sealed ? 0.94 : 0.7} clearcoat={1} />

@@ -357,16 +357,46 @@ self.addEventListener("periodicsync", (event) => {
   if (event.tag === "wildz-creature-care") event.waitUntil(notifyDueCreatureCare());
 });
 
+self.addEventListener("push", (event) => {
+  event.waitUntil((async () => {
+    let payload;
+    try { payload = event.data?.json(); } catch { return; }
+    if (payload?.type !== "wildz-message" || typeof payload.messageId !== "string"
+      || typeof payload.recipientId !== "string" || typeof payload.peer?.id !== "string"
+      || typeof payload.peer?.handle !== "string") return;
+    const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of clients) client.postMessage(payload);
+    // userVisibleOnly subscriptions require a visible OS notification for every push.
+    await self.registration.showNotification(String(payload.title || "New Wildz message").slice(0, 160), {
+      body: "Open Wildz to read your message.", icon: "/icons/icon-192.png",
+      tag: `wildz-message:${payload.messageId}`, data: {
+        type: "wildz-message-open", recipientId: payload.recipientId, peer: payload.peer
+      }
+    });
+  })());
+});
+
 self.addEventListener("notificationclick", (event) => {
-  if (!event.notification?.tag?.startsWith("wildz-care:")) return;
+  const isMessage = event.notification?.tag?.startsWith("wildz-message:");
+  if (!isMessage && !event.notification?.tag?.startsWith("wildz-care:")) return;
   event.notification.close();
   event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
-    const existing = clients[0];
+    const data = event.notification.data;
+    const url = new URL("/", self.location.origin);
+    if (isMessage) {
+      url.searchParams.set("messages", "1");
+      url.searchParams.set("recipientId", data.recipientId);
+      url.searchParams.set("peerId", data.peer.id);
+      url.searchParams.set("peerHandle", data.peer.handle);
+    }
+    const existing = clients.find((client) => new URL(client.url).origin === self.location.origin);
     if (existing) {
+      // Navigation preserves click intent until the messenger is mounted.
+      if (isMessage) await existing.navigate(url.href);
       await existing.focus();
       return;
     }
-    await self.clients.openWindow(event.notification.data?.url || "/");
+    await self.clients.openWindow(url.href);
   }));
 });
 

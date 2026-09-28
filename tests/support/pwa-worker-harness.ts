@@ -31,10 +31,13 @@ export function createWorkerHarness(options: {
   cacheNames?: string[];
   fetch?: (request: RequestLike) => Promise<Response>;
   release?: string;
+  clients?: Array<{ url: string; postMessage(data: unknown): void; focus(): Promise<void>; navigate(url: string): Promise<void> }>;
 } = {}) {
   const listeners = new Map<string, WorkerListener>();
   const stores = new Map<string, Map<string, Response>>();
   const fetchCalls: RequestLike[] = [];
+  const notifications: Array<{ title: string; options: Record<string, unknown> }> = [];
+  const openedWindows: string[] = [];
   let claimed = false;
   let skippedWaiting = false;
 
@@ -82,7 +85,12 @@ export function createWorkerHarness(options: {
       href: `https://wildz.quest/sw.js?release=${encodeURIComponent(release)}`,
       origin: "https://wildz.quest"
     },
+    registration: {
+      async showNotification(title: string, options: Record<string, unknown>) { notifications.push({ title, options }); }
+    },
     clients: {
+      async matchAll() { return options.clients ?? []; },
+      async openWindow(url: string) { openedWindows.push(url); },
       async claim() {
         claimed = true;
       }
@@ -112,6 +120,8 @@ export function createWorkerHarness(options: {
 
   return {
     caches,
+    notifications,
+    openedWindows,
     fetchCalls,
     get claimed() {
       return claimed;

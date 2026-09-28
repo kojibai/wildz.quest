@@ -1355,7 +1355,9 @@ export function PlayCampaign({
       }, 0);
       return () => window.clearTimeout(timer);
     }
-    const delay = ["emerging", "capsule", "sealed"].includes(state.encounter.phase) ? 0 : null;
+    // Presentation time lets the capsule play before revealing the reward.
+    // It runs locally and never waits for publication or network sync.
+    const delay = state.encounter.phase === "emerging" ? 1_050 : state.encounter.phase === "capsule" ? 1_250 : state.encounter.phase === "sealed" ? 700 : null;
     if (delay === null) return;
     const timer = window.setTimeout(() => {
       const uPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();

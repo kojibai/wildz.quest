@@ -17356,3 +17356,12 @@ html, body, body * {
   .wilds-wallet-navigation { padding: 6px 5px calc(6px + env(safe-area-inset-bottom)); }
   .wilds-wallet-balance-band { padding: 22px 18px; }
 }
+
+.wilds-message-alert { position: fixed; z-index: 150; top: max(18px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; width: min(380px, calc(100vw - 24px)); padding: 8px; color: #effffa; border: 1px solid #65d5c2; background: #071b24; border-radius: 16px; box-shadow: 0 12px 36px #0008; }
+.wilds-message-alert button { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 8px; color: inherit; border: 0; background: transparent; cursor: pointer; }
+.wilds-message-alert button:first-child { flex: 1; text-align: left; }
+.wilds-message-alert span { display: grid; gap: 4px; min-width: 0; }
+.wilds-message-alert small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #b2d2ce; }
+.wilds-message-notification-settings { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 16px; color: #c5e4dd; font-size: 12px; }
+.wilds-message-notification-settings button { padding: 8px 10px; color: #071b24; background: #9df4d8; border: 0; border-radius: 10px; }
+.wilds-message-notification-settings small { flex-basis: 100%; color: #ffb6c8; }

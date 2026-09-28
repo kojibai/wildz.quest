@@ -1,3 +1,5 @@
+import { after } from "next/server";
+import { deliverMessagePush, messagePushConfigured } from "./wilds-message-push";
 import type { NextRequest } from "next/server";
 import type { JsonObject } from "@receiz/sdk";
 import {
@@ -143,6 +145,10 @@ export async function publishWildsConversation(
   adapterFactory: WildsMessengerAdapterFactory = createReceizCommerceAdapter
 ) {
   if (actor.practice) return { published: false, mode: "local_practice" as const };
+  const latest = conversation.messages.at(-1);
+  if (messagePushConfigured() && latest?.senderId === actor.playerId && Date.now() - Date.parse(latest.createdAt) < 60_000) {
+    after(() => deliverMessagePush(latest));
+  }
   const peer = conversation.participants.find((participant) => participant.id !== actor.playerId);
   if (!peer) throw new Error("wilds_message_participant_required");
   const sourceUrl = wildsConversationSourceUrl(request, actor.playerId, peer.id);

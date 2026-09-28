@@ -158,3 +158,36 @@ test("release-distinct shell assets are served cache-first", async () => {
   assert.equal(await result.response?.text(), "release icon");
   assert.equal(worker.fetchCalls.length, 0);
 });
+
+test("message push wakes closed PWAs with a private notification and delivers updates to open clients", async () => {
+  const messages: unknown[] = [];
+  const worker = createWorkerHarness({ clients: [{ url: "https://wildz.quest/", postMessage: (data) => messages.push(data), focus: async () => {}, navigate: async () => {} }] });
+  const payload = { type: "wildz-message", messageId: "direct-message:123", recipientId: "@recipient", peer: { id: "@sender", handle: "Sender" }, title: "Sender messaged you", body: "Do not show private message text on the lock screen" };
+  await worker.dispatchExtendable("push", { data: { json: () => payload } });
+  assert.equal(messages.length, 1);
+  assert.equal(worker.notifications.length, 1);
+  assert.equal(worker.notifications[0].title, payload.title);
+  assert.equal(worker.notifications[0].options.body, "Open Wildz to read your message.");
+  assert.equal(worker.notifications[0].options.tag, "wildz-message:direct-message:123");
+});
+
+test("message notification clicks cold-open the addressed conversation", async () => {
+  const worker = createWorkerHarness();
+  let closed = false;
+  await worker.dispatchExtendable("notificationclick", { notification: {
+    tag: "wildz-message:123", data: { recipientId: "@recipient", peer: { id: "@sender", handle: "Sender & Friend" } }, close: () => { closed = true; }
+  } });
+  assert.equal(closed, true);
+  const url = new URL(worker.openedWindows[0]);
+  assert.equal(url.origin, "https://wildz.quest");
+  assert.equal(url.searchParams.get("messages"), "1");
+  assert.equal(url.searchParams.get("recipientId"), "@recipient");
+  assert.equal(url.searchParams.get("peerHandle"), "Sender & Friend");
+});
+
+test("invalid message pushes do not display arbitrary notifications", async () => {
+  const worker = createWorkerHarness();
+  await worker.dispatchExtendable("push", { data: { json: () => { throw new Error("invalid JSON"); } } });
+  await worker.dispatchExtendable("push", { data: { json: () => ({ type: "wildz-message", title: "Untrusted" }) } });
+  assert.equal(worker.notifications.length, 0);
+});

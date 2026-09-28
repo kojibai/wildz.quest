@@ -1,3 +1,4 @@
+import { messagePushPeers } from "@/lib/receiz/wilds-message-push";
 import { NextRequest, NextResponse } from "next/server";
 import { wildsConversationSummary } from "@/features/play/wilds-messenger-core";
 import { hydrateWildsConversation, hydrateWildsMessengerInbox } from "@/lib/receiz/wilds-messenger-server";
@@ -18,7 +19,7 @@ function parsePeers(value: string | null) {
 export async function GET(request: NextRequest) {
   try {
     const actor = await resolveWildsMultiplayerActor(request, request.nextUrl.searchParams.get("guestId"));
-    const peers = parsePeers(request.nextUrl.searchParams.get("peers"));
+    const peers = [...parsePeers(request.nextUrl.searchParams.get("peers")), ...await messagePushPeers(actor.playerId).catch(() => [])];
     const [published, explicit] = await Promise.all([
       hydrateWildsMessengerInbox(actor),
       Promise.all(peers.map((peer) => hydrateWildsConversation(request, actor, peer)))
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
       .filter((conversation) => conversation.messages.length > 0)
       .map((conversation) => wildsConversationSummary(conversation, actor.playerId))
       .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt));
-    return NextResponse.json({ ok: true, summaries }, { headers: { "cache-control": "private, no-store" } });
+    return NextResponse.json({ ok: true, summaries, conversations: [...byId.values()] }, { headers: { "cache-control": "private, no-store" } });
   } catch (cause) {
     const error = cause instanceof Error ? cause.message : "wilds_message_inbox_failed";
     return NextResponse.json({ ok: false, error }, { status: 503, headers: { "cache-control": "private, no-store" } });

@@ -1,5 +1,6 @@
 "use client";
 
+import { registerMessagePush, supportsMessagePush, WILDZ_MESSAGE_PUSH } from "@/features/pwa/message-push-client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   wildsConversationId,
@@ -89,6 +90,12 @@ export function useWildsMessenger(input: {
   selfHandle: string;
   livePeers: readonly WildsMessengerParticipant[];
 }) {
+  const [messageAlert, setMessageAlert] = useState<{ peer: WildsMessengerParticipant; body: string } | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationError, setNotificationError] = useState("");
+  const [enablingNotifications, setEnablingNotifications] = useState(false);
+  const inboxReadyRef = useRef(false);
+  const notifiedIdsRef = useRef(new Set<string>());
   const [open, setOpen] = useState(false);
   const [selectedPeer, setSelectedPeer] = useState<WildsMessengerParticipant | null>(null);
   const [peers, setPeers] = useState<WildsMessengerParticipant[]>([]);
@@ -109,6 +116,9 @@ export function useWildsMessenger(input: {
   useEffect(() => {
     if (!input.selfId || hydratedActorRef.current === input.selfId) return;
     hydratedActorRef.current = input.selfId;
+    inboxReadyRef.current = false;
+    notifiedIdsRef.current.clear();
+    setMessageAlert(null);
     const cache = readCache(input.selfId);
     setPeers(cache.peers);
     setConversations(cache.conversations);
@@ -116,7 +126,8 @@ export function useWildsMessenger(input: {
   }, [input.selfId]);
 
   const allPeers = useMemo(() => mergePeers(peers, input.livePeers as WildsMessengerParticipant[]), [input.livePeers, peers]);
-  const selectedRoomId = selectedRoom?.id ?? null;
+  const allPeersRef = useRef(allPeers);
+  allPeersRef.current = allPeers;
 
   useEffect(() => {
     writeCache(input.selfId, allPeers, conversations, rooms);
@@ -148,7 +159,8 @@ export function useWildsMessenger(input: {
   }, [input.guestId, input.selfId]);
 
   const rememberPeer = useCallback((peer: WildsMessengerParticipant) => {
-    setPeers((current) => mergePeers(current, [peer]));
+    setPeers((current) => current.some((item) => item.id === peer.id && item.handle === peer.handle)
+      ? current : mergePeers(current, [peer]));
   }, []);
 
   const refreshThread = useCallback(async (peer: WildsMessengerParticipant, quiet = false) => {
@@ -170,14 +182,29 @@ export function useWildsMessenger(input: {
   }, [input.guestId, input.selfId]);
 
   const refreshInbox = useCallback(async (quiet = false) => {
-    if (!input.selfId || !allPeers.length || document.visibilityState === "hidden") return;
+    if (!input.selfId || document.visibilityState === "hidden") return;
     if (!quiet) setSyncing(true);
     try {
-      const encodedPeers = allPeers.map((peer) => encodeURIComponent(JSON.stringify(peer))).join("|");
+      const encodedPeers = allPeersRef.current.map((peer) => encodeURIComponent(JSON.stringify(peer))).join("|");
       const params = new URLSearchParams({ guestId: input.guestId, peers: encodedPeers });
-      const result = await messengerRequest<{ summaries: WildsConversationSummary[] }>(`/api/wilds/messages/inbox?${params.toString()}`, { cache: "no-store" });
+      const result = await messengerRequest<{ summaries: WildsConversationSummary[]; conversations: WildsConversation[] }>(`/api/wilds/messages/inbox?${params.toString()}`, { cache: "no-store" });
+      if (hydratedActorRef.current !== input.selfId) return;
       for (const summary of result.summaries) rememberPeer(summary.peer);
-      await Promise.all(result.summaries.map((summary) => refreshThread(summary.peer, true)));
+      const known = new Set(conversationsRef.current.flatMap((thread) => thread.messages.map((message) => message.id)));
+      const incoming = result.conversations.flatMap((thread) => thread.messages.filter((message) =>
+        message.recipientId === input.selfId && !message.deletedAt && !known.has(message.id)
+        && !notifiedIdsRef.current.has(message.id)
+        && Date.parse(message.createdAt) > Date.parse(thread.readThrough[input.selfId] ?? "1970-01-01")));
+      for (const message of incoming) notifiedIdsRef.current.add(message.id);
+      if (inboxReadyRef.current && incoming.length) {
+        const latest = incoming.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)).at(-1)!;
+        setMessageAlert({ peer: { id: latest.senderId, handle: latest.senderHandle }, body: latest.body });
+      }
+      inboxReadyRef.current = true;
+      setConversations((current) => {
+        const next = result.conversations.reduce(admitConversationState, current);
+        return next.length === current.length && next.every((thread, index) => thread.id === current[index]?.id && JSON.stringify(thread) === JSON.stringify(current[index])) ? current : next;
+      });
       void refreshRooms();
       setError("");
     } catch (cause) {
@@ -185,25 +212,56 @@ export function useWildsMessenger(input: {
     } finally {
       if (!quiet) setSyncing(false);
     }
-  }, [allPeers, input.guestId, input.selfId, refreshRooms, refreshThread, rememberPeer]);
+  }, [input.guestId, input.selfId, refreshRooms, rememberPeer]);
 
   useEffect(() => {
-    // Gameplay remains allocation- and network-free while the messenger is
-    // closed. A foreground thread can poll cheaply without touching the world
-    // frame loop; background delivery should graduate to push, never walking-time polling.
-    if (!open || !input.selfId) return;
+    if (!input.selfId) return;
     let stopped = false;
     let timer: number | null = null;
+    let running = false;
     const tick = async () => {
-      if (stopped) return;
-      if (selectedRoomId) await refreshRooms([selectedRoomId]);
-      else if (selectedPeer) await refreshThread(selectedPeer, true);
-      else await refreshInbox(true);
-      if (!stopped) timer = window.setTimeout(tick, 4_000);
+      if (stopped || running) return;
+      if (timer !== null) window.clearTimeout(timer);
+      running = true;
+      try { await refreshInbox(true); } finally { running = false; }
+      if (!stopped) timer = window.setTimeout(tick, open ? 4_000 : 15_000);
     };
+    const wake = () => { if (document.visibilityState === "visible") void tick(); };
+    const push = (event: MessageEvent) => { if (event.data?.type === WILDZ_MESSAGE_PUSH && event.data.recipientId === input.selfId) void tick(); };
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("online", wake);
+    navigator.serviceWorker?.addEventListener("message", push);
     void tick();
-    return () => { stopped = true; if (timer !== null) window.clearTimeout(timer); };
-  }, [input.selfId, open, refreshInbox, refreshRooms, refreshThread, selectedPeer, selectedRoomId]);
+    return () => {
+      stopped = true;
+      if (timer !== null) window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", wake);
+      window.removeEventListener("online", wake);
+      navigator.serviceWorker?.removeEventListener("message", push);
+    };
+  }, [input.selfId, open, refreshInbox]);
+
+  useEffect(() => {
+    if (!messageAlert) return;
+    const timer = window.setTimeout(() => setMessageAlert(null), 7000);
+    return () => window.clearTimeout(timer);
+  }, [messageAlert]);
+
+  const enableNotifications = useCallback(async () => {
+    setEnablingNotifications(true);
+    setNotificationError("");
+    try { await registerMessagePush(true); setNotificationsEnabled(true); }
+    catch (cause) { setNotificationError(cause instanceof Error ? cause.message : "Could not enable notifications."); }
+    finally { setEnablingNotifications(false); }
+  }, []);
+
+  useEffect(() => {
+    setNotificationsEnabled(false);
+    if (!input.selfId || input.selfId.startsWith("guest:") || !supportsMessagePush() || Notification.permission !== "granted") return;
+    let cancelled = false;
+    void registerMessagePush().then(() => { if (!cancelled) setNotificationsEnabled(true); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [input.selfId]);
 
   const conversation = selectedPeer
     ? conversations.find((item) => item.id === wildsConversationId(input.selfId, selectedPeer.id)) ?? null
@@ -219,6 +277,7 @@ export function useWildsMessenger(input: {
   }, [refreshThread, rememberPeer]);
 
   const openMessenger = useCallback((peer?: WildsMessengerParticipant) => {
+    setMessageAlert(null);
     setOpen(true);
     if (peer) selectConversation(peer);
     else {
@@ -226,6 +285,22 @@ export function useWildsMessenger(input: {
       void refreshRooms();
     }
   }, [refreshInbox, refreshRooms, selectConversation]);
+
+  useEffect(() => {
+    const handleOpen = (data: { type?: string; recipientId?: string; peer?: WildsMessengerParticipant }) => {
+      if (data.type === "wildz-message-open" && data.recipientId === input.selfId) openMessenger(data.peer);
+    };
+    const handler = (event: MessageEvent) => handleOpen(event.data ?? {});
+    navigator.serviceWorker?.addEventListener("message", handler);
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("messages") === "1" && url.searchParams.get("recipientId") === input.selfId) {
+      const id = url.searchParams.get("peerId"), handle = url.searchParams.get("peerHandle");
+      openMessenger(id && handle ? { id, handle } : undefined);
+      for (const key of ["messages", "recipientId", "peerId", "peerHandle"]) url.searchParams.delete(key);
+      window.history.replaceState(window.history.state, "", url);
+    }
+    return () => navigator.serviceWorker?.removeEventListener("message", handler);
+  }, [input.selfId, openMessenger]);
 
   const closeMessenger = useCallback(() => {
     setOpen(false);
@@ -343,7 +418,7 @@ export function useWildsMessenger(input: {
   }, []);
 
   const markRead = useCallback(async () => {
-    if (!selectedPeer || !conversation || !conversation.messages.length) return;
+    if (!open || document.visibilityState !== "visible" || !selectedPeer || !conversation || !conversation.messages.length) return;
     const through = conversation.messages.at(-1)!.createdAt;
     if (Date.parse(conversation.readThrough[input.selfId] ?? "1970-01-01") >= Date.parse(through)) return;
     try {
@@ -354,7 +429,13 @@ export function useWildsMessenger(input: {
       });
       setConversations((current) => admitConversationState(current, result.conversation));
     } catch { /* the next poll retries the read receipt */ }
-  }, [conversation, input.guestId, input.selfId, selectedPeer]);
+  }, [conversation, input.guestId, input.selfId, open, selectedPeer]);
+
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") void markRead(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [markRead]);
 
   const react = useCallback(async (messageId: string, emoji: string) => {
     if (!selectedPeer) return;
@@ -371,6 +452,12 @@ export function useWildsMessenger(input: {
   }, [input.guestId, selectedPeer]);
 
   return {
+    messageAlert,
+    dismissMessageAlert: () => setMessageAlert(null),
+    notificationsEnabled,
+    notificationError,
+    enablingNotifications,
+    enableNotifications,
     open,
     selectedPeer,
     selectedRoom,

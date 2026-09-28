@@ -146,8 +146,8 @@ describe("Wilds Receiz-ID messenger", () => {
     assert.match(server, /visibility:\s*"private"/);
     assert.match(server, /sync_pending/);
     assert.match(sourceRoute, /Message content is never served/);
-    assert.match(hook, /if \(!open \|\| !input\.selfId\) return/);
-    assert.match(hook, /window\.setTimeout\(tick, 4_000\)/);
+    assert.match(hook, /if \(!input\.selfId \|\| document\.visibilityState === "hidden"\) return/);
+    assert.match(hook, /window\.setTimeout\(tick, open \? 4_000 : 15_000\)/);
     assert.doesNotMatch(hook, /20_000|setInterval/);
     assert.doesNotMatch(server, /authorization required|permission required|projection required/i);
   });

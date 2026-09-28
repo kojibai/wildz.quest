@@ -167,11 +167,21 @@ export function WildsMessenger({
     textarea.style.height = `${Math.min(132, Math.max(44, textarea.scrollHeight))}px`;
   }, [draft]);
 
-  if (!messenger.open || typeof document === "undefined") return null;
+  if (typeof document === "undefined") return null;
+  const messageAlert = messenger.messageAlert && (!messenger.open || messenger.messageAlert.peer.id !== selectedPeerId) ? (
+    <div className="wilds-message-alert" role="status" aria-live="polite">
+      <button type="button" onClick={() => messenger.openMessenger(messenger.messageAlert!.peer)}>
+        <Icons.send size={20} /><span><strong>{messenger.messageAlert.peer.handle} messaged you</strong><small>{messenger.messageAlert.body}</small></span>
+      </button>
+      <button type="button" aria-label="Dismiss message notification" onClick={messenger.dismissMessageAlert}><Icons.close size={16} /></button>
+    </div>
+  ) : null;
+  if (!messenger.open) return messageAlert ? createPortal(messageAlert, document.body) : null;
   const conversation = messenger.conversation;
 
   return createPortal((
     <section aria-label="Wildz messages" aria-modal="true" className="wilds-messenger" ref={dialogRef} role="dialog">
+      {messageAlert}
       <header className="wilds-messenger-header">
         {messenger.selectedPeer || messenger.selectedRoom || roomOpen || roomEditor ? <button aria-label="Back to conversations" className="wilds-messenger-back" onClick={() => { messenger.selectConversation(null); messenger.selectRoom(null); setRoomOpen(false); setRoomEditor(null); }} type="button"><Icons.chevronLeft size={20} /></button> : <span className="wilds-messenger-mark"><Icons.send size={18} /></span>}
         <div><small>{messenger.selectedRoom ? `${messenger.selectedRoom.members.length} members` : roomOpen ? "Shared live connection" : messenger.selectedPeer ? "Private connection" : roomEditor ? "New private room" : "Receiz ID messenger"}</small><strong>{messenger.selectedRoom?.name ?? (roomOpen ? "World room" : messenger.selectedPeer?.handle ?? (roomEditor ? "Create room" : "Messages"))}</strong></div>
@@ -180,6 +190,11 @@ export function WildsMessenger({
       </header>
 
       {!messenger.selectedPeer && !messenger.selectedRoom && !roomOpen && !roomEditor ? <div className="wilds-messenger-inbox">
+        <div className="wilds-message-notification-settings">
+          <span>{messenger.notificationsEnabled ? "Message notifications enabled" : "Get notified when Wildz is closed"}</span>
+          {!messenger.notificationsEnabled ? <button type="button" disabled={messenger.enablingNotifications} onClick={() => void messenger.enableNotifications()}>{messenger.enablingNotifications ? "Enabling…" : "Enable notifications"}</button> : null}
+          {messenger.notificationError ? <small role="status">{messenger.notificationError}</small> : null}
+        </div>
         <div className="wilds-messenger-search"><Icons.search size={17} /><input aria-label="Search conversations" onChange={(event) => setQuery(event.target.value)} placeholder="Search explorers" value={query} /></div>
         <div className="wilds-messenger-inbox-title"><span><strong>Connections</strong><small>{messenger.unreadCount ? `${messenger.unreadCount} unread` : "You’re all caught up"}</small></span><div><button onClick={() => { setRoomName(""); setRoomMemberIds([]); setRoomEditor("create"); }} type="button">New room</button><button onClick={() => void messenger.refreshInbox()} type="button">Refresh</button></div></div>
         <div className="wilds-messenger-conversations">

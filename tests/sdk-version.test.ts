@@ -117,7 +117,12 @@ test("the production env template contains only standalone Wildz variables and a
     "WILDS_PULSE_TICK_SECRET",
     "RECEIZ_CONNECT_ACCESS_TOKEN",
     "NEXT_PUBLIC_CHECKOUT_MODE",
-    "RECEIZ_CHECKOUT_MODE"
+    "RECEIZ_CHECKOUT_MODE",
+    "WILDS_PUSH_VAPID_PUBLIC_KEY",
+    "WILDS_PUSH_VAPID_PRIVATE_KEY",
+    "WILDS_PUSH_VAPID_SUBJECT",
+    "WILDS_PUSH_REDIS_URL",
+    "WILDS_PUSH_REDIS_TOKEN"
   ]);
   assert.match(template, /Record\/Seal\/Verify[\s\S]*receiz:record[\s\S]*receiz:seal[\s\S]*receiz:verify/);
   assert.match(template, /strict-live configuration and production activation sentinels/i);
