@@ -56,6 +56,7 @@ import type {
   WildzCardOnlyConfirmation,
   WildzCommittedArtifactRestore
 } from "@/features/identity/wildz-restore";
+import { friendlyWildzRestoreError } from "@/features/identity/wildz-restore";
 
 export function WildsInventory({
   state,
@@ -453,6 +454,7 @@ export function WildsInventory({
             const files = Array.from(event.currentTarget.files ?? []);
             let imported = 0;
             let updated = 0;
+            const preserved = new Set<string>();
             let rejected = 0;
             let rejectionMessage = "";
             let currentPlayState = state;
@@ -468,21 +470,23 @@ export function WildsInventory({
                   currentPlayState = outcome.playState;
                   imported += summary.addedAssetIds.length;
                   updated += summary.updatedAssetIds.length;
+                  for (const assetId of outcome.quarantinedAssetIds ?? []) preserved.add(assetId);
                   const selected = [...summary.addedAssetIds, ...summary.updatedAssetIds].at(-1);
                   if (selected) setSelectedId(selected);
                 } catch (cause) {
                   rejected += 1;
-                  if (!rejectionMessage && cause instanceof Error) rejectionMessage = cause.message;
+                  if (!rejectionMessage) rejectionMessage = friendlyWildzRestoreError(cause);
                 }
               }
             } finally {
               input.value = "";
               setImporting(false);
             }
-            setImportMessage(imported || updated
+            setImportMessage(imported || updated || preserved.size
               ? [
                   imported ? `${imported} verified card${imported === 1 ? "" : "s"} added` : "",
                   updated ? `${updated} verified card${updated === 1 ? "" : "s"} updated` : "",
+                  preserved.size ? `${preserved.size} retirement record${preserved.size === 1 ? "" : "s"} preserved; verification pending` : "",
                   rejected ? `${rejected} rejected` : ""
                 ].filter(Boolean).join(" · ") + "."
               : rejectionMessage || "No card was added. Choose a Receiz sealed card, vault image, or Receiz Vault package.");

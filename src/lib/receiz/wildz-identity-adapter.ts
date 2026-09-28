@@ -100,6 +100,7 @@ const defaultArtifactHistory = createWildzArtifactHistory(defaultContinuityDatab
 export const defaultWildzProofSourceRepository = createWildzProofSourceRepository(defaultContinuityDatabase);
 const defaultArtifactCodec = createWildzArtifactCodec({
   allowQuarantinedIdentityRecovery: true,
+  allowQuarantinedCardImport: true,
   identityRepository: defaultIdentityRepository,
   sealedDocumentStore: createWildzSealedDocumentStore(defaultContinuityDatabase),
   commerceVaultReader: { inspect: inspectReceizCommerceVault },

@@ -560,6 +560,53 @@ test("identity recovery isolates untrusted mortality, preserves exact evidence, 
   assert.equal(reopened.kind, "card-vault");
   assert.deepEqual(reopened.player?.playState.quarantinedInventory, [retired]);
   assert.deepEqual(reopened.player?.playState.inventory.map(card => card.id), [healthy.id]);
-  await assert.rejects(restoreWildzArtifactForSurface({ surface: "card-vault", bytes, mimeType: "image/png",
-    inspection, codec: recoveryCodec, repository, database, confirmCardOnly: true, preserveActiveIdentity: true }), /quarantine_identity_activation_required/);
+  const merged = await restoreWildzArtifactForSurface({ surface: "card-vault", bytes, mimeType: "image/png",
+    inspection, codec: recoveryCodec, repository, database, confirmCardOnly: true, preserveActiveIdentity: true });
+  assert.deepEqual(merged.playState.inventory.map(card => card.id), [healthy.id]);
+  assert.deepEqual(merged.quarantinedAssetIds, [retired.id]);
+});
+
+test("Vault uploads preserve untrusted retirement without blocking healthy cards or retiring an existing living card", async () => {
+  const retired = retiredAsset();
+  const living = admitLegacyCard(assets(1)[0]!, assets(1)[0]!.manifest.capturedAt);
+  const healthy = assets(2)[1]!;
+  const database = createMemoryWildzContinuityDatabase();
+  const repository = createWildzIdentityRepository({ database });
+  const session = await repository.bootstrap();
+  const uploadCodec = createWildzArtifactCodec({ allowQuarantinedCardImport: true,
+    identityRepository: repository, commerceVaultReader: { inspect: inspectReceizCommerceVault } });
+  const currentPlayState = { ...structuredClone(initialPlayState), inventory: [living],
+    selectedAssetId: living.id, selectedCardId: living.manifest.familyId };
+  // A foreign player's full snapshot must not overwrite the active player's ledger.
+  const player = createWildsPlayerVault({ playerId: "artifact_codec_owner", exportedAt: "2026-07-15T15:00:00.000Z",
+    playState: { ...currentPlayState, inventory: [retired, healthy], fusionSparks: currentPlayState.fusionSparks + 999 },
+    settings: { avatarStyle: null, movementMode: "walk", audio: {} }, personalEvents: [],
+    canonicalCursor: { worldId: "wilds:global:v3", revision: 0, eventId: null }, receipts: [] });
+  const bytes = embedPortableVaultInPng(BASE_PNG, [retired, healthy], player);
+  const inspection = await uploadCodec.inspect({ bytes, mimeType: "image/png" });
+  assert.equal(inspection.kind, "card-vault");
+  if (inspection.kind !== "card-vault") throw new Error("Expected card vault");
+  assert.deepEqual(inspection.quarantinedAssets, [retired]);
+  const outcome = await restoreWildzArtifactForSurface({ surface: "card-vault", bytes, mimeType: "image/png",
+    inspection, codec: uploadCodec, repository, database, confirmCardOnly: true,
+    preserveActiveIdentity: true, currentPlayState });
+  assert.equal(outcome.session.keyId, session.keyId);
+  assert.deepEqual(await repository.active(), session);
+  assert.deepEqual(outcome.verifiedAssetIds, [healthy.id]);
+  assert.deepEqual(outcome.quarantinedAssetIds, [retired.id]);
+  assert.deepEqual(outcome.playState.inventory.find(card => card.id === living.id), living);
+  assert.equal(outcome.playState.inventory.some(card => card.id === healthy.id), true);
+  assert.equal(outcome.playState.fusionSparks, currentPlayState.fusionSparks);
+  assert.equal(outcome.playState.selectedAssetId, living.id);
+  assert.deepEqual(outcome.playState.quarantinedInventory, [retired]);
+  const retained = database.dump().meta.find(([key]) => String(key).startsWith("wildz:retirement-quarantine:v1:"));
+  assert.deepEqual((retained?.[1] as { bytes: Uint8Array }).bytes, bytes);
+
+  const retiredOnly = embedPortableVaultInPng(BASE_PNG, [retired]);
+  const preserved = await restoreWildzArtifactForSurface({ surface: "card-vault", bytes: retiredOnly, mimeType: "image/png",
+    codec: uploadCodec, repository, database, confirmCardOnly: true, preserveActiveIdentity: true,
+    currentPlayState: outcome.playState });
+  assert.deepEqual(preserved.playState.inventory, outcome.playState.inventory);
+  assert.deepEqual(preserved.playState.quarantinedInventory, [retired]);
+  assert.deepEqual(preserved.verifiedAssetIds, []);
 });

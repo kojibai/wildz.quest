@@ -947,7 +947,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const artifactAssetIds = inspection.assets.map((asset) => asset.id);
     if (disposition === "merge-owned" || disposition === "restore-portable") {
       const outcome = await restoreArtifact(file, "card-vault", true, currentPlayState, "merge-vault", prepared);
-      if (artifactAssetIds.length === 1) {
+      if (artifactAssetIds.length === 1 && outcome.verifiedAssetIds.includes(artifactAssetIds[0]!)) {
         try {
           await downloadRestoredWildzCard(outcome, artifactAssetIds[0]!, {
             prepare: prepareWildzIdentityOwnedCard,

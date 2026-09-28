@@ -119,6 +119,7 @@ export type WildzCommittedArtifactRestore = {
   character: WildzCharacterGenesis | null;
   playerContinuity: WildzPlayerContinuity;
   verifiedAssetIds: string[];
+  quarantinedAssetIds?: string[];
   commerceProjection: ReceizCommerceVaultProjection | null;
 };
 
@@ -440,7 +441,9 @@ export async function restoreWildzArtifactForSurface(input: {
   if (inspection.kind === "unsupported") throw new Error(inspection.code);
   if (inspection.kind === "retirement-quarantine") throw new WildzRetirementQuarantineError(inspection);
   const quarantinedAssets = "quarantinedAssets" in inspection ? inspection.quarantinedAssets ?? [] : [];
-  if (quarantinedAssets.length && (!input.carryCurrentVault || input.preserveActiveIdentity))
+  const importingWithQuarantine = input.surface === "card-vault" && Boolean(input.preserveActiveIdentity)
+    && quarantinedAssets.length > 0;
+  if (quarantinedAssets.length && !importingWithQuarantine && (!input.carryCurrentVault || input.preserveActiveIdentity))
     throw new Error("wildz_restore_quarantine_identity_activation_required");
   const verifiedIdentity = identityFromInspection(inspection);
   const cardOnlyConfirmed = verifiedIdentity
@@ -482,7 +485,7 @@ export async function restoreWildzArtifactForSurface(input: {
         && !isVerifiedWildzCardDescendant(base, sidecar))) throw new Error("wildz_roaming_sidecar_invalid");
     assets = [sidecar];
   }
-  const playerForSession = player && shouldMergeIntoActiveVault
+  const playerForSession = importingWithQuarantine ? null : player && shouldMergeIntoActiveVault
     ? createWildsPlayerVault({
         playerId: session.actorId,
         exportedAt: player.exportedAt,
@@ -521,7 +524,15 @@ export async function restoreWildzArtifactForSurface(input: {
         && inspection.kind === "card-vault"
         && shouldMergeIntoActiveVault
         && assets.length === 1;
-      const merged = importingSingleCard
+      // Import only eligible cards. The source player still binds the original
+      // complete inventory, so it must not be reconciled into gameplay here.
+      const merged = importingWithQuarantine
+        ? (() => {
+            const imported = importAssets(mergeBase, assets.filter(asset => !quarantinedIds.has(asset.id)));
+            const selected = imported.inventory.find(asset => asset.id === mergeBase.selectedAssetId);
+            return selected ? { ...imported, selectedAssetId: selected.id, selectedCardId: selected.manifest.familyId } : imported;
+          })()
+        : importingSingleCard
         ? (() => {
             const imported = importAssets(mergeBase, assets);
             if (!playerForSession) return imported;
@@ -555,11 +566,12 @@ export async function restoreWildzArtifactForSurface(input: {
         ? (shouldMergeIntoActiveVault ? { ...current, inventory: merged.inventory } : current)
         : merged;
       if (quarantinedAssets.length) {
-        const inventory = next.inventory.filter(card => !quarantinedIds.has(card.id));
+        // An untrusted retirement must never remove an existing living card.
+        const inventory = importingWithQuarantine ? next.inventory : next.inventory.filter(card => !quarantinedIds.has(card.id));
         const selected = inventory.find(card => card.id === next.selectedAssetId) ?? inventory[0];
         next = { ...next, inventory, selectedAssetId: selected?.id ?? "", selectedCardId: selected?.manifest.familyId ?? "",
           quarantinedInventory: [...new Map([...(next.quarantinedInventory ?? []), ...quarantinedAssets].map(card => [card.id, card])).values()],
-          lastEvent: `${quarantinedAssets.length} creature retirement record(s) preserved for verification. Your account and remaining Vault were restored.` };
+          lastEvent: `${quarantinedAssets.length} creature retirement record(s) preserved for verification. ${importingWithQuarantine ? "Eligible verified cards were added to your Vault." : "Your account and remaining Vault were restored."}` };
         // Exact source survives independently of the gameplay projection.
         await tx.put("meta", { bytes: input.bytes.slice(), mimeType: input.mimeType, name: input.name },
           `wildz:retirement-quarantine:v1:${scope}:${quarantinedAssets.map(card => card.proof.digest).join(":")}`);
@@ -639,6 +651,7 @@ export async function restoreWildzArtifactForSurface(input: {
     character: committed.character,
     playerContinuity: continuityFromOwner(committed),
     verifiedAssetIds,
+    quarantinedAssetIds: [...quarantinedIds].sort(),
     commerceProjection: inspection.kind === "commerce-vault" ? inspection.projection : null
   };
 }

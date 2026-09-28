@@ -158,6 +158,7 @@ export type WildzArtifactInspection =
       kind: "commerce-vault";
       identity: VerifiedWildzIdentity | null;
       assets: PortableCardAsset[];
+      quarantinedAssets?: PortableCardAsset[];
       sourceSchemas: string[];
       unrelatedDomainSchemas: string[];
       projection: ReceizCommerceVaultProjection;
@@ -253,6 +254,7 @@ function vaultDigest(assets: readonly PortableCardAsset[]) {
 
 export function createWildzArtifactCodec(input: {
   allowQuarantinedIdentityRecovery?: boolean;
+  allowQuarantinedCardImport?: boolean;
   identityRepository: Pick<WildzIdentityRepository, "prepare">;
   commerceVaultReader: ReceizCommerceVaultReader;
   artifactOpener?: WildzArtifactOpener;
@@ -402,9 +404,10 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
               // Parsing only: these assets never enter authoritative gameplay.
               retirementAuthorityVerifier: { verifyRetirement: () => true }
             });
-            if (input.allowQuarantinedIdentityRecovery && identity && !identityError && !commerceError && quarantined.player) {
-              // Parsing does not authorize mortality. Bind the complete player to
-              // its identity below, then restore affected cards only as quarantine.
+            if (!identityError && !commerceError && (input.allowQuarantinedCardImport
+              || (input.allowQuarantinedIdentityRecovery && identity && quarantined.player))) {
+              // Parsing does not authorize mortality. Keep the original player
+              // binding checks and restore affected cards only as quarantine.
               extraction = quarantined;
               quarantinedAssets = quarantined.assets.filter(card => isLivingCardAsset(card)
                 && livingCardHasIrreversibleMortality(card)
@@ -453,6 +456,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
       if (commerce) {
         return {
           kind: "commerce-vault",
+          ...(quarantinedAssets.length ? { quarantinedAssets } : {}),
           identity,
           assets: extraction.assets,
           sourceSchemas: [...new Set([commerce.projection.sourceSchema, ...extraction.sourceSchemas])].sort(),
@@ -466,8 +470,11 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
       const admitCrewInspection = <T extends WildzArtifactInspection>(result: T): T => {
         if (proofObject?.compatibility === "current-native" && proofObjectPayload) {
           const exact = extractVerifiedWildzCards({ pngBasis: null, verifiedPortableSnapshot: null,
-            restoredVaultFiles: [], proofObjectPayload, retirementAuthorityVerifier: input.retirementAuthorityVerifier });
-          const entries = exact.assets.filter(card => !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, proofObject!.ownerReceizId))
+            restoredVaultFiles: [], proofObjectPayload, retirementAuthorityVerifier: quarantinedAssets.length
+              ? { verifyRetirement: () => true } : input.retirementAuthorityVerifier });
+          const quarantinedIds = new Set(quarantinedAssets.map(card => card.id));
+          const entries = exact.assets.filter(card => !quarantinedIds.has(card.id)
+            && !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, proofObject!.ownerReceizId))
             .map(card => ({ card: structuredClone(card), artifactSha256: proofObject!.artifactBasisSha256 }));
           if (entries.length) inspectionCrewAdmissions.set(result, issueCrewCustody(proofObject.ownerReceizId, entries));
         }
@@ -514,6 +521,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
         return admitCrewInspection({
           kind: "card-vault",
           assets: extraction.assets,
+          ...(quarantinedAssets.length ? { quarantinedAssets } : {}),
           vaultDigest: vaultDigest(extraction.assets),
           player: extraction.player,
           playerBinding,
