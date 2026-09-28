@@ -16,6 +16,9 @@ import { wildzRemoteSessionMatchesIdentity } from "@/lib/receiz/wildz-session-br
 import { projectWildsWalletFromIdentityAccount } from "./wilds-wallet-source-authority";
 
 import { walletAuthorizationFailureCode, WildsWalletAuthorizationError } from "./wilds-wallet-authorization-error";
+import { createWildsWalletReadAuthorizationCoordinator } from "./wilds-wallet-read-authorization-coordinator";
+
+const coordinateReadAuthorization = createWildsWalletReadAuthorizationCoordinator();
 
 type ChallengeEnvelope = Readonly<{
   applicationId: string;
@@ -75,7 +78,14 @@ function challengeEnvelope(value: unknown): ChallengeEnvelope | null {
     ? candidate as ChallengeEnvelope : null;
 }
 
-export async function authorizeWildsWalletReadWithIdentity(keyId: string, dependencies: ReadAuthorizationDependencies = DEFAULT_DEPENDENCIES, purpose: WildsIdentityAuthorityPurpose = "wallet-read") {
+export function authorizeWildsWalletReadWithIdentity(keyId: string, dependencies: ReadAuthorizationDependencies = DEFAULT_DEPENDENCIES, purpose: WildsIdentityAuthorityPurpose = "wallet-read") {
+  const authorize = () => completeWildsWalletReadAuthorization(keyId, dependencies, purpose);
+  return dependencies === DEFAULT_DEPENDENCIES
+    ? coordinateReadAuthorization(JSON.stringify([keyId, purpose]), authorize)
+    : authorize();
+}
+
+async function completeWildsWalletReadAuthorization(keyId: string, dependencies: ReadAuthorizationDependencies, purpose: WildsIdentityAuthorityPurpose) {
   const purposeQuery = purpose === "artifact-claim" ? "&purpose=artifact-claim" : "";
   const completionPath = `/api/auth/wildz/wallet-authority${purpose === "artifact-claim" ? "?purpose=artifact-claim" : ""}`;
   const identity = await dependencies.loadIdentity(keyId);

@@ -152,7 +152,7 @@ test("identity authority never depends on a remote representation", () => {
     response: null
   });
 
-  assert.equal(state.status, "source-verified");
+  assert.equal(state.status, "idle");
   assert.equal(state.sourceAuthorityVerified, true);
   assert.equal(state.summary, null);
 });

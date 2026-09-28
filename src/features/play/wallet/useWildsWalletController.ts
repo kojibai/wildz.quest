@@ -95,8 +95,8 @@ export function useWildsWalletController(
     if (authorized) {
       setOperationError(null);
       await driver.refresh({ replace: true });
-    } else if (readAuthorityErrorRef.current) {
-      setOperationError(readAuthorityErrorRef.current.message);
+    } else {
+      setOperationError(readAuthorityErrorRef.current?.message ?? "Wallet connection could not be renewed. Please retry.");
     }
   }, [driver, options.readAuthorization]);
   const admitSourceThenRefresh = useCallback(async (refreshOptions: Readonly<{ replace?: boolean }> = {}) => {

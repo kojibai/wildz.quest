@@ -1,4 +1,5 @@
 import type { WorldOverlayOwner } from "@/features/play/world-overlay-state";
+import { walletAuthorizationFailureCode } from "./wilds-wallet-authorization-error";
 import { projectWildsWalletCapabilities, normalizeWildsWalletPublicUsername } from "@/lib/receiz/wilds-wallet-projections";
 import {
   admitWildsWalletStagedTransferResponse,
@@ -102,7 +103,9 @@ export function createWildsWalletControllerDriver(input: {
         const failure = cause && typeof cause === "object" && "status" in cause ? cause as { status: number | null; code: string | null } : { status: null, code: null };
         const reason = classifyWildsWalletRefreshFailure(failure);
         if (reason === "revoked") cache.delete(walletAuthorityCacheKey(identityKey, authorityGeneration));
-        publish({ type: "refresh-failed", requestId: request.id, reason });
+        const code = failure.code ? walletAuthorizationFailureCode({ code: failure.code })
+          : cause instanceof Error && cause.message === "wallet_read_timeout" ? "WALLET_READ_TIMEOUT" : "WALLET_READ_UNAVAILABLE";
+        publish({ type: "refresh-failed", requestId: request.id, reason, code });
       } finally {
         request.controller.abort();
         for (const cleanup of cleanups) cleanup();

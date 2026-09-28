@@ -238,6 +238,19 @@ test("a matching Identity Seal keeps the server-verified Vault card commitment",
   assert.equal(unpackWildzProofSession(packWildzProofSession(upgraded, SECRET), SECRET, NOW).vaultCardRootSha256, vault.vaultCardRootSha256);
 });
 
+test("wallet renewal retains the admitted cards only for the same identity key and owner", () => {
+  const prior = createWildzReceizIdProofSession({ keyId: "receiz_identity_key_12345678", username: "bjklock", displayName: "BJK", vaultCardRootSha256: `sha256:${"a".repeat(64)}`, issuedAt: NOW }, SECRET);
+  const renewed = createWildzReceizIdProofSession({ keyId: prior.keyId, username: "bjklock", displayName: null, issuedAt: NOW + 1 }, SECRET);
+  const retained = retainWildzVaultCardAdmission(renewed, prior);
+  assert.equal(retained.vaultCardRootSha256, prior.vaultCardRootSha256);
+  assert.equal(retained.issuedAt, renewed.issuedAt);
+  assert.equal(unpackWildzProofSession(packWildzProofSession(retained, SECRET), SECRET, NOW + 1).vaultCardRootSha256, prior.vaultCardRootSha256);
+  const differentKey = createWildzReceizIdProofSession({ keyId: "receiz_identity_key_different", username: "bjklock", displayName: null, issuedAt: NOW }, SECRET);
+  const differentOwner = createWildzReceizIdProofSession({ keyId: prior.keyId, username: "another", displayName: null, issuedAt: NOW }, SECRET);
+  assert.throws(() => retainWildzVaultCardAdmission(differentKey, prior), /identity_mismatch/);
+  assert.throws(() => retainWildzVaultCardAdmission(differentOwner, prior), /identity_mismatch/);
+});
+
 test("a legacy Vault recovery principal cannot claim canonical account-only writes", async () => {
   const prior = process.env.RECEIZ_OAUTH_STATE_SECRET;
   process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;

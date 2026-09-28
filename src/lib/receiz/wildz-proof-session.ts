@@ -235,7 +235,7 @@ export function retainWildzVaultCardAdmission(
   const identity = assertProofSession(identitySession);
   const vault = assertProofSession(verifiedVaultSession);
   if (identity.authority !== "identity-key"
-    || vault.authority !== "proof-sealed-vault"
+    || (vault.authority !== "proof-sealed-vault" && (vault.authority !== "identity-key" || identity.keyId !== vault.keyId))
     || identity.actorId !== vault.actorId
     || identity.profileHandle !== vault.profileHandle) {
     throw new Error("wildz_vault_admission_identity_mismatch");

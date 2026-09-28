@@ -46,6 +46,18 @@ const actions = {
   onRecover() {}, onEditTransfer() {}, onResetTransfer() {}, onRefresh() {}, onRequestReceive() {}
 };
 
+test("a failed balance read displays its connection reference and retry instead of endless verification", () => {
+  const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, {
+    state: state({ status: "loading", summary: null, readFailureCode: "WALLET_READ_TIMEOUT" }),
+    publicUsername: "explorer",
+    ...actions
+  }));
+  assert.match(markup, /Wallet connection pending/);
+  assert.match(markup, /WALLET_READ_TIMEOUT/);
+  assert.match(markup, /Retry connection/);
+  assert.doesNotMatch(markup, /Verifying reserve/);
+});
+
 test("wallet instrument announces exact admitted value while abbreviating the visual HUD value", () => {
   const markup = renderToStaticMarkup(createElement(WildsWalletInstrument, {
     disabled: false,

@@ -4,10 +4,22 @@ import {
   projectWildsCompanionWorkMotion,
   projectWildsResourceBody,
   projectWildsSourceWorkMotion,
-  projectWildsWorkPresentation
+  projectWildsWorkPresentation,
+  writeWildsWorkApproachAnchor
 } from "../src/features/play/wilds-work-presentation";
 
 describe("living stewardship presentation", () => {
+  it("holds the harvesting destination while the explorer walks and resets for new work", () => {
+    const anchor = { sourceId: "", startedAtMs: NaN, x: 0, z: 0 };
+    const source = { sourceId: "tree", kind: "timber" as const, position: { x: 3, y: 0, z: 0 }, startedAtMs: 1, settledAtMs: null };
+    writeWildsWorkApproachAnchor(anchor, source, { x: 0, z: 0 });
+    const destination = { ...anchor };
+    for (let frame = 0; frame < 600; frame++) writeWildsWorkApproachAnchor(anchor, source, { x: frame / 10, z: frame / 20 });
+    assert.deepEqual(anchor, destination);
+    assert.equal(anchor.x, 3 - .82);
+    writeWildsWorkApproachAnchor(anchor, { ...source, startedAtMs: 2 }, { x: 6, z: 0 });
+    assert.equal(anchor.x, 3 + .82);
+  });
   it("isolates work motion to the exact active source without becoming authority", () => {
     const active = projectWildsWorkPresentation({ sourceId: "source:tree:1", activeSourceId: "source:tree:1", commandPending: true, commandSettled: false, elapsedMs: 640, reducedMotion: false });
     const neighbor = projectWildsWorkPresentation({ sourceId: "source:tree:2", activeSourceId: "source:tree:1", commandPending: true, commandSettled: false, elapsedMs: 640, reducedMotion: false });

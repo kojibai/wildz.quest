@@ -10,6 +10,19 @@ export type WildsActiveWorkSource = Readonly<{
   arrival?: { atMs: number | null };
 }>;
 
+export type WildsWorkApproachAnchor = { sourceId: string; startedAtMs: number; x: number; z: number };
+
+/** Keep the creature's work destination fixed when the explorer walks away. */
+export function writeWildsWorkApproachAnchor(anchor: WildsWorkApproachAnchor, source: WildsActiveWorkSource, player: Readonly<{ x: number; z: number }>) {
+  if (anchor.sourceId === source.sourceId && anchor.startedAtMs === source.startedAtMs) return;
+  const dx = source.position.x - player.x, dz = source.position.z - player.z;
+  const distance = Math.max(.001, Math.hypot(dx, dz));
+  anchor.sourceId = source.sourceId;
+  anchor.startedAtMs = source.startedAtMs;
+  anchor.x = source.position.x - dx / distance * .82;
+  anchor.z = source.position.z - dz / distance * .82;
+}
+
 export type WildsResourceBodyProjection = Readonly<{
   vitality: number;
   ringIntensity: number;

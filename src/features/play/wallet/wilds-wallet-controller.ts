@@ -42,6 +42,7 @@ export type WildsWalletControllerState = Readonly<{
   sourceSnapshot?: WildsWalletReadResponse | null;
   balanceBasis?: "saved" | "current";
   transportAuthorityRequired?: boolean;
+  readFailureCode?: string | null;
   requestId: number | null; receiveRequestId: number | null; summary: WalletSummaryProjection | null; capabilities: WalletCapabilityProjection | null;
   ledger: WalletLedgerPageProjection | null; recipient: WildsWalletRecipientState; receiveLocator: string | null; stagedTransactionId: string | null;
   transfer: WildsWalletTransferState;
@@ -54,7 +55,7 @@ export type WildsWalletControllerEvent =
   | { type: "refresh-start"; requestId: number }
   | { type: "refresh-resolved"; pendingDetails?: boolean; requestId: number; identityKey: string; authorityGeneration: string; response: WildsWalletReadResponse }
   | { type: "source-authority-resolved"; identityKey: string; authorityGeneration: string; response: WildsWalletReadResponse | null }
-  | { type: "refresh-failed"; requestId: number; reason: WildsWalletFailureReason }
+  | { type: "refresh-failed"; requestId: number; reason: WildsWalletFailureReason; code?: string }
   | { type: "identity-invalidated"; identityKey: string; authorityGeneration: string }
   | { type: "exclusive-owner-changed"; owner: WorldOverlayOwner }
   | { type: "recipient-start"; requestId: number; username: string }
@@ -136,17 +137,19 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
     case "source-authority-resolved":
       if (state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration) return state;
       if (state.balanceBasis === "current" || state.status === "verified") return { ...state, sourceAuthorityVerified: true, sourceSnapshot: event.response };
+      if (!event.response) return { ...state, sourceAuthorityVerified: true, sourceSnapshot: null };
       return { ...state, status: "source-verified", sourceAuthorityVerified: true, sourceSnapshot: event.response, balanceBasis: "saved", ...(event.response ? { summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger } : {}) };
     case "refresh-resolved":
       if (state.requestId !== event.requestId || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration) return state;
       // Show the same current settlement balance used by transfer preview.
       // This does not rewrite the identity proof or add lifetime awards to funds.
-      return { ...state, transportAuthorityRequired: false, status: "verified", balanceBasis: "current", requestId: event.pendingDetails ? event.requestId : null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
+      return { ...state, readFailureCode: null, transportAuthorityRequired: false, status: "verified", balanceBasis: "current", requestId: event.pendingDetails ? event.requestId : null, summary: event.response.summary, capabilities: event.response.capabilities, ledger: event.response.ledger };
     case "refresh-failed":
       if (state.requestId !== event.requestId) return state;
+      state = { ...state, readFailureCode: event.code ?? "WALLET_READ_UNAVAILABLE" };
       if (event.reason === "authority-required" && hasRetainedProjection(state) && state.balanceBasis === "current") return { ...state, status: "offline-verified", requestId: null, transportAuthorityRequired: true };
       if ((event.reason === "network" || event.reason === "failed") && hasRetainedProjection(state) && state.balanceBasis === "current") return { ...state, status: "offline-verified", requestId: null };
-      if (state.sourceAuthorityVerified) return { ...state, ...(state.sourceSnapshot ? { summary: state.sourceSnapshot.summary, ledger: state.sourceSnapshot.ledger, capabilities: state.sourceSnapshot.capabilities } : { summary: null, ledger: null }), balanceBasis: "saved", status: "source-verified", requestId: null, transportAuthorityRequired: event.reason === "authority-required" || event.reason === "revoked" || state.transportAuthorityRequired === true };
+      if (state.sourceAuthorityVerified && state.sourceSnapshot) return { ...state, summary: state.sourceSnapshot.summary, ledger: state.sourceSnapshot.ledger, capabilities: state.sourceSnapshot.capabilities, balanceBasis: "saved", status: "source-verified", requestId: null, transportAuthorityRequired: event.reason === "authority-required" || event.reason === "revoked" || state.transportAuthorityRequired === true };
       if (event.reason === "revoked") return clearPrivate(state, "revoked");
       if (event.reason === "network" && hasRetainedProjection(state)) return { ...state, status: "offline-verified", requestId: null };
       return clearPrivate(state, event.reason === "authority-required" ? "authority-required" : "failed");

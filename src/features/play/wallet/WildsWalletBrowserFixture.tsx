@@ -20,7 +20,7 @@ const resourceFixture: WildsResourceLotV1 = {
   ownerReceizId: "explorer", source: { groveId: "grove:fixture", groveSourceHead: `sha256:${"b".repeat(64)}`, groveAdmittedHead: `sha256:${"c".repeat(64)}`, operationId: "grove:fixture:harvest", operationPlanDigest: `sha256:${"d".repeat(64)}`, kaiUPulse: 1 },
   revision: 0, parentHead: null, transferable: true, authority: "source-proof-objects", head: `sha256:${"e".repeat(64)}`
 };
-export function WildsWalletEdgeBrowserFixture() {
+export function WildsWalletEdgeBrowserFixture({ connectionPending = false }: { connectionPending?: boolean } = {}) {
   const [state, setState] = useState<WildsWalletPresentationState>({
     ...fixtureState("verified"),
     balanceBasis: "current",
@@ -29,10 +29,12 @@ export function WildsWalletEdgeBrowserFixture() {
       read: "available", receive: "available", recipientLookup: { available: true }, send: { available: true },
       resourceTransfer: { available: true }, cardTransfer: { available: true }, phiSettlement: { available: true }, phiReserve: { available: true }
     },
-    sourceAuthorityVerified: true, edgeAuthorityVerified: true
+    sourceAuthorityVerified: true, edgeAuthorityVerified: true,
+    ...(connectionPending ? { summary: null, status: "failed" as const, readFailureCode: "WALLET_READ_TIMEOUT" } : {})
   });
   const fixtureActions = {
     ...actions,
+    onRefresh() { setState(current => ({ ...current, status: "verified", readFailureCode: null, summary: { ...fixtureState("verified").summary!, admittedPhiMicro: "19726741562", displayUsdCents: "671317465" } })); },
     onEditTransfer(field: "recipient" | "amount") { setState(current => reduceWildsWalletController(current, { type: "transfer-edit", field })); },
     onResetTransfer() { setState(current => reduceWildsWalletController(current, { type: "transfer-reset" })); },
     onNavigate(page: WildsWalletControllerState["page"]) { setState((current) => ({ ...current, page })); },

@@ -320,6 +320,31 @@ test("a stalled balance request settles instead of loading forever", async () =>
   assert.equal(driver.state.status, "failed");
   assert.equal(driver.state.summary, null);
   assert.equal(driver.state.requestId, null);
+  assert.equal(driver.state.readFailureCode, "WALLET_READ_TIMEOUT");
+  driver.close();
+});
+
+test("an empty identity wallet snapshot cannot mask failed live reads or late failures", async () => {
+  let connected = false;
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "uploaded-card-owner", authorityGeneration: "new-vault",
+    cache: createWildsWalletSessionCache(2), publish() {},
+    fetcher: async path => connected
+      ? { ok: true, status: 200, json: async () => path.endsWith("summary") ? response().summary : path.endsWith("capabilities") ? response().capabilities : response().ledger }
+      : { ok: false, status: 401, json: async () => ({ error: "receiz_wallet_read_scope_required" }) }
+  });
+  driver.admitSourceAuthority(null);
+  await driver.refresh();
+  assert.equal(driver.state.status, "authority-required");
+  assert.equal(driver.state.readFailureCode, "receiz_wallet_read_scope_required");
+  driver.admitSourceAuthority(null);
+  assert.equal(driver.state.status, "authority-required");
+  assert.equal(driver.state.sourceAuthorityVerified, true);
+  connected = true;
+  await driver.refresh();
+  assert.equal(driver.state.status, "verified");
+  assert.equal(driver.state.summary?.admittedPhiMicro, "1");
+  assert.equal(driver.state.readFailureCode, null);
   driver.close();
 });
 

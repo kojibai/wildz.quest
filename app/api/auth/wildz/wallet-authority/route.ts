@@ -11,6 +11,7 @@ import {
   createWildzReceizIdProofSession,
   packWildzProofSession,
   readWildzProofSessionCookie,
+  retainWildzVaultCardAdmission,
   wildzProofSessionCookieOptions
 } from "@/lib/receiz/wildz-proof-session";
 import {
@@ -104,11 +105,16 @@ export async function POST(request: NextRequest) {
     response.cookies.set("receiz_access_token", admitted.accessToken, sessionCookie);
     response.cookies.set("receiz_session_scope", WILDZ_RECEIZ_SESSION_SCOPE, sessionCookie);
     response.cookies.set("receiz_granted_scopes", admitted.grantedScopes.join(" "), sessionCookie);
-    const establishedSession = createWildzReceizIdProofSession({
+    let establishedSession = createWildzReceizIdProofSession({
       keyId: admitted.keyId,
       username: admitted.profileHandle,
       displayName: null
     });
+    try {
+      establishedSession = retainWildzVaultCardAdmission(establishedSession, readWildzProofSessionCookie(request));
+    } catch {
+      // A new account cannot inherit another account's verified vault record.
+    }
     response.cookies.set(WILDZ_PROOF_SESSION_COOKIE, packWildzProofSession(establishedSession), wildzProofSessionCookieOptions());
     response.cookies.set(ticketCookie(request), "", { ...cookieOptions(0), maxAge: 0 });
     return response;

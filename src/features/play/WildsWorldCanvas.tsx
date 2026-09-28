@@ -107,7 +107,7 @@ import type { WildsSiteSpaceState } from "@/features/play/wilds-discovery-sites"
 import { wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeEncounter, type WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
 import { createWildsFlightCameraControlState, writeWildsFlightCameraControlState } from "@/features/play/wilds-flight-camera";
 import { projectWildsInteractionSurfacePoint, type WildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
-import { type WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
+import { writeWildsWorkApproachAnchor, type WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
 import type { WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
 import type { WildsWorldCapabilityFamily } from "@/features/play/wilds-world-capability-registry";
 import { projectWildsCapabilityPresentation } from "@/features/play/wilds-capability-presentation";
@@ -816,6 +816,7 @@ function useCrewFollower(input: {
   const stepState = useRef(createWildsCrewPathStepState());
   const directState = useRef(createWildsCrewPathStepState());
   const target = useRef({ x: input.player.x, y: input.terrainElevation, z: input.player.z });
+  const workAnchor = useRef({ sourceId: "", startedAtMs: NaN, x: 0, z: 0 });
   const targetFloor = useRef({ x: NaN, z: NaN, runtime: input.siteRuntime, space: "", interiorFloor: NaN, y: input.terrainElevation });
   const directWaypoints = useRef<Readonly<WildsCrewNavigationPoint>[]>([target.current]);
   const path = useRef<readonly Readonly<WildsCrewNavigationPoint>[]>([]);
@@ -829,7 +830,8 @@ function useCrewFollower(input: {
   const relocatedKey = useRef(input.crewRelocationKey);
   const relocationPoint = useRef({ x: input.player.x, y: input.terrainElevation, z: input.player.z });
   const relocationSample = useRef({ allowed: false, y: NaN });
-  const originX = Math.floor(input.player.x / 16) * 16, originZ = Math.floor(input.player.z / 16) * 16;
+  const navigationOrigin = input.workSource?.position ?? input.player;
+  const originX = Math.floor(navigationOrigin.x / 16) * 16, originZ = Math.floor(navigationOrigin.z / 16) * 16;
   const allowAccompaniedWading = input.mode === "follow" && !input.workSource && !retainedTravel;
   const canClimb = allowAccompaniedWading && input.partyCanClimb === true;
   const sampleSegment = useMemo(() => createWildsCrewPhysicalSampler({ canClimb, runtime: input.siteRuntime, spaceId: input.siteSpace.spaceId, obstacles: input.obstacles, originX, originZ, allowAccompaniedWading }), [input.siteRuntime, input.siteSpace.spaceId, input.obstacles, originX, originZ, allowAccompaniedWading, canClimb]);
@@ -853,9 +855,8 @@ function useCrewFollower(input: {
     if (excursion?.spaceId === current.siteSpace.spaceId) {
       x = excursion.target.x; z = excursion.target.z;
     } else if (current.workSource) {
-      const dx = current.workSource.position.x - current.player.x, dz = current.workSource.position.z - current.player.z;
-      const d = Math.max(.001, Math.hypot(dx, dz));
-      x = current.workSource.position.x - dx / d * .82; z = current.workSource.position.z - dz / d * .82;
+      writeWildsWorkApproachAnchor(workAnchor.current, current.workSource, current.player);
+      x = workAnchor.current.x; z = workAnchor.current.z;
     } else if (current.mode === "roam" && (!current.locomotion || current.locomotion === "ground")) {
       const cadence = Math.max(2500, Math.min(12000, current.cadenceMs * 2));
       const visit = Math.floor(current.kaiUPulse / 1_000_000 * KAI_PULSE_DURATION_MS / cadence);
