@@ -369,6 +369,46 @@ test("card-only restore rejects a divergent same-ID proof fork without persistin
   assert.equal(persistedAfter?.inventory.some((asset) => asset.id === earlierIncoming.id), false);
 });
 
+test("an existing dead card does not block unrelated single-card or multi-card Vault uploads", async () => {
+  const { database, repository, codec } = createCodec();
+  const session = await repository.bootstrap();
+  const cards = verifiedAssets(4);
+  const living = admitLegacyCard(cards[0]!, cards[0]!.manifest.capturedAt);
+  const dead = sealRetirement(living, {
+    creatureId: living.id,
+    previousRevisionDigest: currentRevision(living).digest,
+    matchReceiptDigest: `sha256:${"d".repeat(64)}`,
+    finalVitality: 0,
+    teamOutcome: "defeat",
+    retiredAt: "2026-07-15T14:01:00.000Z",
+    kaiUPulse: living.manifest.history!.events.at(-1)!.kai.uPulse + 1
+  }, { verified: true, mortalOptIn: true }).card;
+  const current: PlayState = {
+    ...structuredClone(initialPlayState), inventory: [dead],
+    selectedAssetId: dead.id, selectedCardId: dead.manifest.familyId
+  };
+  await saveWildzRestoredPlayState({ database, session, playState: current });
+  const single = await restoreWildzArtifactForSurface({
+    surface: "card-vault", bytes: embedPortableVaultInPng(BASE_PNG, [cards[1]!]), mimeType: "image/png",
+    codec, repository, database, confirmCardOnly: true, preserveActiveIdentity: true, currentPlayState: current
+  });
+  assert.deepEqual(single.verifiedAssetIds, [cards[1]!.id]);
+  assert.deepEqual(single.playState.inventory.find(card => card.id === dead.id), dead);
+  assert.equal(single.playState.inventory.some(card => card.id === cards[1]!.id), true);
+  assert.deepEqual(single.quarantinedAssetIds, []);
+
+  // Exercise the stored Vault too, without supplying an in-memory PlayState.
+  const multiple = await restoreWildzArtifactForSurface({
+    surface: "card-vault", bytes: embedPortableVaultInPng(BASE_PNG, cards.slice(2)), mimeType: "image/png",
+    codec, repository, database, confirmCardOnly: true, preserveActiveIdentity: true
+  });
+  assert.deepEqual(multiple.verifiedAssetIds, cards.slice(2).map(card => card.id).sort());
+  const reopened = await loadWildzRestoredPlayState({ database, session });
+  assert.deepEqual(reopened?.inventory.map(card => card.id).sort(), cards.map(card => card.id).sort());
+  assert.deepEqual(reopened?.inventory.find(card => card.id === dead.id), dead);
+  assert.deepEqual(await repository.active(), session);
+});
+
 test("local self-hashed retirement cannot override a codec-admitted living card", async () => {
   const { database, repository, codec } = createCodec();
   const session = await repository.bootstrap();

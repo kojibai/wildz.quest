@@ -207,9 +207,13 @@ function emptyVaultPlayState(): PlayState {
 
 function importAssets(base: PlayState, assets: readonly PortableCardAsset[]) {
   const codecAdmittedProofs = new Set(assets.map((asset) => asset.proof.digest));
+  const incomingIds = new Set(assets.map((asset) => asset.id));
   extractVerifiedWildzCards({
     pngBasis: null,
-    verifiedPortableSnapshot: [base.inventory, assets],
+    // Only cards being added or updated participate in import reconciliation.
+    // Existing dead cards remain intact without needing fresh retirement
+    // authority for an unrelated upload. Same-ID updates still check authority.
+    verifiedPortableSnapshot: [base.inventory.filter(asset => incomingIds.has(asset.id)), assets],
     restoredVaultFiles: [],
     // Only exact proofs admitted by the codec's origin verifier carry retirement
     // authority here; local self-hashed state never promotes itself.
