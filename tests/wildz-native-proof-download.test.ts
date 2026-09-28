@@ -4,6 +4,8 @@ import {
   downloadPortableCard,
   downloadPortableVault,
   preparePortableCardArtifact,
+  downloadBlob,
+  saveBlobToDevice,
 } from "../src/features/play/card-export";
 import { createPublicWildsCardRecord } from "../src/features/play/public-card-registry";
 import { sealCollectedCard } from "../src/features/play/portable-card";
@@ -16,7 +18,7 @@ const BASE_PNG = Uint8Array.from(Buffer.from(
 function installDownloadBrowser() {
   const descriptors = new Map<string, PropertyDescriptor | undefined>();
   const remember = (key: string) => descriptors.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
-  for (const key of ["document", "window", "Image", "fetch"]) remember(key);
+  for (const key of ["document", "window", "Image", "fetch", "navigator"]) remember(key);
   const createObjectUrl = URL.createObjectURL;
   const revokeObjectUrl = URL.revokeObjectURL;
   let downloaded: Blob | null = null;
@@ -45,11 +47,15 @@ function installDownloadBrowser() {
         return {
           href: "",
           download: "",
+          target: "",
+          rel: "",
           style: { display: "" },
           attached: false,
           remove() { this.attached = false; },
           click() {
             assert.equal(this.attached, true);
+            assert.equal(this.target, "_blank", "a Safari preview fallback must not navigate the running game");
+            assert.equal(this.rel, "noopener noreferrer");
             downloadedFilename = this.download;
           }
         };
@@ -99,6 +105,39 @@ function card(encounterId: string) {
     capturedAt: "2026-07-16T12:00:00.000Z"
   });
 }
+
+test("async native-save failures download without replacing the running game page", async () => {
+  const browser = installDownloadBrowser();
+  let shareAttempts = 0;
+  try {
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: {
+      canShare: () => true,
+      share: async () => {
+        shareAttempts++;
+        throw new DOMException("User activation expired during preparation", "NotAllowedError");
+      }
+    } });
+    const blob = new Blob([BASE_PNG.slice().buffer], { type: "image/png" });
+    assert.equal(await saveBlobToDevice(blob, "creature.png"), "download");
+    assert.equal(shareAttempts, 1);
+    assert.equal(browser.downloadedFilename(), "creature.png");
+    downloadBlob(blob, "vault.png");
+    assert.equal(browser.downloadedFilename(), "vault.png");
+  } finally { browser.restore(); }
+});
+
+test("cancelling the native save sheet does not open a fallback download", async () => {
+  const browser = installDownloadBrowser();
+  try {
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: {
+      canShare: () => true,
+      share: async () => { throw new DOMException("Cancelled", "AbortError"); }
+    } });
+    await assert.rejects(saveBlobToDevice(new Blob([BASE_PNG.slice().buffer], { type: "image/png" }), "creature.png"),
+      /wilds_native_save_cancelled/);
+    assert.equal(browser.downloadedFilename(), "");
+  } finally { browser.restore(); }
+});
 
 test("card and Vault saves never upload recovery payloads or download an unsealed fallback when the local signer is unavailable", async () => {
   const browser = installDownloadBrowser();

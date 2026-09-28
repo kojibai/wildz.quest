@@ -86,7 +86,7 @@ export function WildsInventory({
   playerVault: (asset?: PlayState["inventory"][number]) => WildsPlayerVaultPayload;
   vaultAdmission: WildzVaultCardAdmission;
   onPrepareCard: (asset: PlayState["inventory"][number], player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
-  onExportCard: (asset: PlayState["inventory"][number], player: () => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
+  onExportCard: (asset: PlayState["inventory"][number], player: (asset?: PlayState["inventory"][number]) => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: () => Promise<unknown>;
   onPrepareVault?: () => Promise<unknown>;
   onInput: (input: WildsInput) => void;

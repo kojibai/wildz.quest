@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createWildsWalletControllerState, gateWildsWalletClientCapabilities, hydrateWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPage, type WildsWalletReadResponse } from "./wilds-wallet-controller";
+import { createWildsWalletControllerState, gateWildsWalletClientCapabilities, hydrateWildsWalletControllerState, renewWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPage, type WildsWalletReadResponse } from "./wilds-wallet-controller";
 import { normalizeWildsWalletPublicUsername } from "@/lib/receiz/wilds-wallet-projections";
 import { createWildsWalletControllerDriver, type WildsWalletControllerDriver, wildsWalletSharedSessionCache } from "./wilds-wallet-controller-driver";
 
@@ -108,7 +108,8 @@ export function useWildsWalletController(
       sourceAuthorityPromiseRef.current = operation;
       void operation.finally(() => { if (sourceAuthorityPromiseRef.current === operation) sourceAuthorityPromiseRef.current = null; });
     }
-    await sourceAuthorityPromiseRef.current;
+    // Saved identity projection enriches the view independently. It must not
+    // hold the live balance request behind a large imported proof archive.
     if (driver.state.identityKey !== expected.identityKey || driver.state.authorityGeneration !== expected.authorityGeneration) return;
     await refreshWithIdentityAuthority(refreshOptions);
   }, [driver, options.readAuthorization, refreshWithIdentityAuthority]);
@@ -166,7 +167,8 @@ export function useWildsWalletController(
     return () => { disposed = true; clearTimeout(timer); };
   }, [admitSourceThenRefresh, authorityGeneration, driver, options.readAuthorization]);
   const openTerminal = useCallback(() => { driver.open(); void admitSourceThenRefresh(); }, [admitSourceThenRefresh, driver]);
-  const visible = state.identityKey === identityKey && state.authorityGeneration === authorityGeneration ? state : createWildsWalletControllerState(identityKey, authorityGeneration);
+  const visible = state.identityKey === identityKey && state.authorityGeneration === authorityGeneration ? state
+    : renewWildsWalletControllerState(state, createWildsWalletControllerState(identityKey, authorityGeneration));
   const capabilities = visible.capabilities
     ? gateWildsWalletClientCapabilities(visible.capabilities, { proofAuthorization: Boolean(options.authorization) })
     : null;

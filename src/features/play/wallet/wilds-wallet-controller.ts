@@ -344,3 +344,13 @@ export function hydrateWildsWalletControllerState(identityKey: string, authority
   const cached = cache.read(walletAuthorityCacheKey(identityKey, authorityGeneration));
   return cached ? { ...state, status: "offline-verified" as const, balanceBasis: cache.balanceBasis(walletAuthorityCacheKey(identityKey, authorityGeneration)), summary: cached.summary, capabilities: cached.capabilities, ledger: cached.ledger } : state;
 }
+
+/** A same-account session renewal changes authorization, not the last observed
+ * balance. Retain its display while resetting all interactive authority. */
+export function renewWildsWalletControllerState(previous: WildsWalletControllerState, next: WildsWalletControllerState): WildsWalletControllerState {
+  if (previous.identityKey !== next.identityKey || !next.authorityGeneration
+    || next.summary || previous.balanceBasis !== "current" || !previous.summary || !previous.capabilities
+    || previous.status === "revoked" || previous.status === "authority-required") return next;
+  return { ...next, status: "offline-verified", balanceBasis: "current", transportAuthorityRequired: true,
+    summary: previous.summary, capabilities: previous.capabilities, ledger: previous.ledger };
+}

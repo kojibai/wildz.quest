@@ -84,7 +84,6 @@ import { startWildzProfilePublication, wildzProfilePublicationDisposition, type 
 import type { ProfilePublicationFailure } from "@/features/profile/publication-failure";
 import { createWildzExportCoordinator } from "@/lib/receiz/wildz-export-coordinator";
 import { downloadBlob } from "@/features/play/card-export";
-import { downloadRestoredWildzCard } from "@/lib/receiz/wildz-upload-card-download";
 import { publishWildzProfileWithIdentityProof } from "@/lib/receiz/wildz-profile-identity-publication";
 import { startWildzSessionReconnect } from "@/lib/receiz/wildz-session-reconnect";
 import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-verifier";
@@ -476,7 +475,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     };
     const flushWhenHidden = () => {
       if (document.visibilityState === "hidden") {
-        flushLatestRuntimeCheckpoint();
+        // File pickers and native save sheets hide the page too. Flush through
+        // the background serializer; reserve synchronous checkpoints for exit.
+        flush();
       } else {
         // A background/foreground cycle is not a page exit. Permit the next
         // real exit to preserve any gameplay performed after returning.
@@ -946,18 +947,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const disposition = wildzVaultUploadDisposition(inspection, current.session.actorId);
     const artifactAssetIds = inspection.assets.map((asset) => asset.id);
     if (disposition === "merge-owned" || disposition === "restore-portable") {
-      const outcome = await restoreArtifact(file, "card-vault", true, currentPlayState, "merge-vault", prepared);
-      if (artifactAssetIds.length === 1 && outcome.verifiedAssetIds.includes(artifactAssetIds[0]!)) {
-        try {
-          await downloadRestoredWildzCard(outcome, artifactAssetIds[0]!, {
-            prepare: prepareWildzIdentityOwnedCard,
-            download: downloadBlob
-          });
-        } catch {
-          throw new Error("Your card was added to the Vault, but its automatic download could not start. Use Save on the card to download it.");
-        }
-      }
-      return outcome;
+      // Upload ends at the durable commit. Exporting another sealed file here
+      // competes with the new card preview and can open Safari's download UI.
+      return restoreArtifact(file, "card-vault", true, currentPlayState, "merge-vault", prepared);
     }
     // Foreign custody changes only after native Record -> Seal succeeds. Awaiting
     // this action keeps rendering live and avoids restoring/resealing twice.
@@ -1352,7 +1344,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           onPrepareCard={(asset, player) => prepareWildzIdentityOwnedCard(identity, asset, player, { allowPrompt: false })}
           onExportCard={(asset, player, prepared) => prepared && matchesPreparedWildzIdentityOwnedCard(prepared, identity, asset)
             ? savePreparedWildzIdentityOwnedCard(prepared)
-            : downloadWildzIdentityOwnedCard(identity, asset, player())}
+            : downloadWildzIdentityOwnedCard(identity, asset, player(asset))}
           onExportVault={() => saveCombinedVault()}
           onPrepareVault={prewarmCombinedVault}
           vaultAdmission={vaultAdmission}

@@ -213,6 +213,35 @@ test("refreshing a source-backed wallet shows and caches settled earnings", asyn
 });
 
 
+test("card-upload session renewal keeps the last balance visible, resets transfer authority, and reads the new balance", async () => {
+  const cache = createWildsWalletSessionCache(3);
+  let amount = "20000";
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "bjklock", authorityGeneration: "before-upload", cache, publish() {},
+    fetcher: async path => ({ ok: true, status: 200, json: async () => path.endsWith("summary")
+      ? { ...response().summary, admittedPhiMicro: amount }
+      : path.endsWith("capabilities") ? response().capabilities : response().ledger })
+  });
+  await driver.refresh();
+  driver.open();
+  driver.selectTransferRecipient("recipient");
+  driver.reviewTransferAmount("settlement", "1", "prior-consent");
+  driver.setAuthority("bjklock", "after-upload");
+  assert.equal(driver.state.summary?.admittedPhiMicro, "20000");
+  assert.equal(driver.state.status, "offline-verified");
+  assert.equal(driver.state.transportAuthorityRequired, true);
+  assert.equal(driver.state.transfer.phase, "recipient");
+  assert.equal(driver.state.transfer.operationNonce, null);
+  assert.equal(cache.read("bjklock:after-upload"), null, "old data is not issued as proof for the renewed session");
+  amount = "30000";
+  await driver.refresh();
+  assert.equal(driver.state.summary?.admittedPhiMicro, "30000");
+  assert.equal(driver.state.status, "verified");
+  assert.equal(driver.state.transportAuthorityRequired, false);
+  driver.setAuthority("other-player", "other-session");
+  assert.equal(driver.state.summary, null);
+});
+
 test("a late saved identity projection cannot populate a different account", () => {
   const driver = createWildsWalletControllerDriver({ identityKey: "old", authorityGeneration: "one", cache: createWildsWalletSessionCache(2), publish() {}, fetcher: async () => { throw new Error("not needed"); } });
   driver.setAuthority("new", "two");

@@ -318,7 +318,7 @@ export function PlayCampaign({
   onWorldReady?: () => void;
   worldVisible?: boolean;
   onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
-  onExportCard: (asset: PortableCardAsset, player: () => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
+  onExportCard: (asset: PortableCardAsset, player: (asset?: PortableCardAsset) => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: () => Promise<unknown>;
   onPrepareVault?: () => Promise<unknown>;
   vaultAdmission: WildzVaultCardAdmission | null;

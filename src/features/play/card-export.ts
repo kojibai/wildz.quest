@@ -642,6 +642,10 @@ export function downloadBlob(blob: Blob, filename: string) {
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
+  // Safari may preview a blob instead of honoring download. Keep that fallback
+  // out of the running game, including when an async save lost user activation.
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
   link.style.display = "none";
   document.body.appendChild(link);
   try { link.click(); }
