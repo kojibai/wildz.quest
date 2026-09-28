@@ -1,6 +1,8 @@
 # Message notifications
 
-The Messages inbox includes an **Enable notifications** button. Permission is
+The Messages header includes a bell for notification settings. Its **Enable
+notifications** button is offered only after the server reports that push is
+ready. Permission is
 requested only when the player taps it. Once enabled, direct messages (including
 room invitations and card offers) trigger Web Push even when Wildz is closed.
 Lock-screen notifications show the sender, with message content kept inside the
@@ -19,7 +21,9 @@ startup without producing a burst of old alerts.
    `WILDS_PUSH_VAPID_PUBLIC_KEY`, `WILDS_PUSH_VAPID_PRIVATE_KEY`, and
    `WILDS_PUSH_VAPID_SUBJECT` (a contact `mailto:` or HTTPS URL).
 2. Provision an HTTPS Redis REST service and set `WILDS_PUSH_REDIS_URL` and
-   `WILDS_PUSH_REDIS_TOKEN` on every application instance. This stores browser
+   `WILDS_PUSH_REDIS_TOKEN` on every application instance. Integration-provisioned
+   `KV_REST_API_URL`/`KV_REST_API_TOKEN` and
+   `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` are also recognized. This stores browser
    subscriptions, successful delivery IDs, and peer discovery hints; message
    authority remains in the existing Receiz conversation proofs.
 3. Deploy the changes over HTTPS. Keep the VAPID pair stable between releases.

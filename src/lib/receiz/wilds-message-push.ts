@@ -3,15 +3,25 @@ import webpush, { type PushSubscription } from "web-push";
 import type { WildsDirectMessage, WildsMessengerParticipant } from "@/features/play/wilds-messenger-core";
 
 // Redis holds delivery addresses and inbox discovery hints, never message authority.
+// Accept integration-provisioned credentials so a connected Vercel/Upstash store
+// works without manually duplicating its environment variables.
+function messagePushRedisConfig() {
+  return {
+    url: process.env.WILDS_PUSH_REDIS_URL || process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.WILDS_PUSH_REDIS_TOKEN || process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
+  };
+}
 export function messagePushConfigured() {
-  return Boolean(process.env.WILDS_PUSH_REDIS_URL && process.env.WILDS_PUSH_REDIS_TOKEN
+  const redis = messagePushRedisConfig();
+  return Boolean(redis.url && redis.token
     && process.env.WILDS_PUSH_VAPID_PUBLIC_KEY && process.env.WILDS_PUSH_VAPID_PRIVATE_KEY
     && process.env.WILDS_PUSH_VAPID_SUBJECT);
 }
 
 export async function pushRedis(command: (string | number)[]) {
-  const response = await fetch(process.env.WILDS_PUSH_REDIS_URL!, {
-    method: "POST", headers: { authorization: `Bearer ${process.env.WILDS_PUSH_REDIS_TOKEN}`, "content-type": "application/json" },
+  const redis = messagePushRedisConfig();
+  const response = await fetch(redis.url!, {
+    method: "POST", headers: { authorization: `Bearer ${redis.token}`, "content-type": "application/json" },
     body: JSON.stringify(command), cache: "no-store", signal: AbortSignal.timeout(5000)
   });
   const data = await response.json() as { result?: unknown; error?: string };

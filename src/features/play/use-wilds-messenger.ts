@@ -1,6 +1,6 @@
 "use client";
 
-import { registerMessagePush, supportsMessagePush, WILDZ_MESSAGE_PUSH } from "@/features/pwa/message-push-client";
+import { registerMessagePush, supportsMessagePush, readMessagePushConfig, type MessagePushConfig, WILDZ_MESSAGE_PUSH } from "@/features/pwa/message-push-client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   wildsConversationId,
@@ -91,6 +91,8 @@ export function useWildsMessenger(input: {
   livePeers: readonly WildsMessengerParticipant[];
 }) {
   const [messageAlert, setMessageAlert] = useState<{ peer: WildsMessengerParticipant; body: string } | null>(null);
+  const [notificationSupport, setNotificationSupport] = useState(false);
+  const [pushConfig, setPushConfig] = useState<MessagePushConfig | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationError, setNotificationError] = useState("");
   const [enablingNotifications, setEnablingNotifications] = useState(false);
@@ -250,16 +252,28 @@ export function useWildsMessenger(input: {
   const enableNotifications = useCallback(async () => {
     setEnablingNotifications(true);
     setNotificationError("");
-    try { await registerMessagePush(true); setNotificationsEnabled(true); }
+    try { await registerMessagePush(true, pushConfig ?? undefined); setNotificationsEnabled(true); }
     catch (cause) { setNotificationError(cause instanceof Error ? cause.message : "Could not enable notifications."); }
     finally { setEnablingNotifications(false); }
-  }, []);
+  }, [pushConfig]);
 
   useEffect(() => {
     setNotificationsEnabled(false);
-    if (!input.selfId || input.selfId.startsWith("guest:") || !supportsMessagePush() || Notification.permission !== "granted") return;
+    setPushConfig(null);
+    setNotificationError("");
+    const supported = supportsMessagePush();
+    setNotificationSupport(supported);
+    if (!input.selfId || input.selfId.startsWith("guest:") || !supported) return;
     let cancelled = false;
-    void registerMessagePush().then(() => { if (!cancelled) setNotificationsEnabled(true); }).catch(() => {});
+    void readMessagePushConfig().then(async (config) => {
+      if (cancelled) return;
+      setPushConfig(config);
+      if (!config.configured || Notification.permission !== "granted") return;
+      await registerMessagePush(false, config);
+      if (!cancelled) setNotificationsEnabled(true);
+    }).catch((cause) => {
+      if (!cancelled) setNotificationError(cause instanceof Error ? cause.message : "Message notifications are temporarily unavailable.");
+    });
     return () => { cancelled = true; };
   }, [input.selfId]);
 
@@ -454,6 +468,9 @@ export function useWildsMessenger(input: {
   return {
     messageAlert,
     dismissMessageAlert: () => setMessageAlert(null),
+    notificationSupport,
+    notificationsAvailable: pushConfig?.configured === true,
+    checkingNotifications: notificationSupport && !input.selfId.startsWith("guest:") && !pushConfig && !notificationError,
     notificationsEnabled,
     notificationError,
     enablingNotifications,

@@ -264,7 +264,7 @@ describe("Wilds Receiz-ID messenger", () => {
     assert.match(messenger, /Everyone currently live in this world room/);
     assert.match(messenger, /wilds-messenger-world-thread/);
     assert.match(css, /\.wilds-messenger-world-thread\s*\{[^}]*grid-template-rows:\s*minmax\(0, 1fr\) auto;/);
-    assert.match(css, /@media \(max-width: 430px\)[\s\S]*\.wilds-messenger-header\s*\{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) 28px auto;/);
+    assert.match(css, /@media \(max-width: 430px\)[\s\S]*\.wilds-messenger-header\s*\{[^}]*grid-template-columns:\s*auto minmax\(0, 1fr\) auto auto;/);
     assert.match(messenger, /roomChat\.onSend\(outgoing\)/);
     assert.match(messenger, /messenger\.rooms\.map/);
     assert.match(messenger, /messenger\.createRoom\(roomName, members\)/);

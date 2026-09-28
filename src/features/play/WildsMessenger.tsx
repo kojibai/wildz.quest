@@ -47,6 +47,7 @@ export function WildsMessenger({
   onSendPhi?: (peer: { id: string; handle: string }) => void;
   onClaimCard?: (offer: WildsCardTransferOffer) => Promise<unknown>;
 }) {
+  const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [roomDraft, setRoomDraft] = useState("");
   const [roomOpen, setRoomOpen] = useState(false);
@@ -115,7 +116,8 @@ export function WildsMessenger({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        if (selectedPeer) selectConversation(null);
+        if (notificationSettingsOpen) setNotificationSettingsOpen(false);
+        else if (selectedPeer) selectConversation(null);
         else if (roomEditor) setRoomEditor(null);
         else if (selectedRoom) selectRoom(null);
         else if (roomOpen) setRoomOpen(false);
@@ -136,10 +138,11 @@ export function WildsMessenger({
       window.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = priorOverflow;
     };
-  }, [closeMessenger, messenger.open, roomEditor, roomOpen, selectConversation, selectedPeer, selectedRoom, selectRoom]);
+  }, [closeMessenger, messenger.open, notificationSettingsOpen, roomEditor, roomOpen, selectConversation, selectedPeer, selectedRoom, selectRoom]);
 
   useEffect(() => {
     if (messenger.open) return;
+    setNotificationSettingsOpen(false);
     setRoomOpen(false);
     setRoomEditor(null);
     setRoomDraft("");
@@ -185,16 +188,20 @@ export function WildsMessenger({
       <header className="wilds-messenger-header">
         {messenger.selectedPeer || messenger.selectedRoom || roomOpen || roomEditor ? <button aria-label="Back to conversations" className="wilds-messenger-back" onClick={() => { messenger.selectConversation(null); messenger.selectRoom(null); setRoomOpen(false); setRoomEditor(null); }} type="button"><Icons.chevronLeft size={20} /></button> : <span className="wilds-messenger-mark"><Icons.send size={18} /></span>}
         <div><small>{messenger.selectedRoom ? `${messenger.selectedRoom.members.length} members` : roomOpen ? "Shared live connection" : messenger.selectedPeer ? "Private connection" : roomEditor ? "New private room" : "Receiz ID messenger"}</small><strong>{messenger.selectedRoom?.name ?? (roomOpen ? "World room" : messenger.selectedPeer?.handle ?? (roomEditor ? "Create room" : "Messages"))}</strong></div>
+        <span className="wilds-messenger-header-status">
         <span className={`wilds-messenger-sync${messenger.syncing ? " is-syncing" : ""}`} title={messenger.syncing ? "Synchronizing" : "Source verified"}><i />{messenger.syncing ? "Syncing" : "Verified"}</span>
+          <button type="button" className={`wilds-messenger-notification-toggle${messenger.notificationsEnabled ? " is-enabled" : ""}`} aria-label="Message notification settings" aria-expanded={notificationSettingsOpen} aria-controls="wilds-message-notification-settings" title="Message notifications" onClick={() => setNotificationSettingsOpen((current) => !current)}><Icons.bell size={17} /></button>
+        </span>
+        {notificationSettingsOpen ? <div className="wilds-message-notification-settings" id="wilds-message-notification-settings" role="group" aria-label="Message notifications">
+          <p>{messenger.notificationsEnabled ? "Message notifications are on." : selfId.startsWith("guest:") ? "Sign in to enable message notifications." : !messenger.notificationSupport ? "On iPhone or iPad, add Wildz to your home screen, then enable notifications in the installed app." : messenger.checkingNotifications ? "Checking message notifications…" : !messenger.notificationsAvailable ? "Message notifications are temporarily unavailable. You’ll still see new messages and unread counts in Wildz." : "Get notified of new messages, even when Wildz is closed."}</p>
+          {messenger.notificationsAvailable && !messenger.notificationsEnabled && !selfId.startsWith("guest:") ? <button type="button" disabled={messenger.enablingNotifications} onClick={() => void messenger.enableNotifications()}>{messenger.enablingNotifications ? "Enabling…" : "Enable notifications"}</button> : null}
+          {messenger.notificationError ? <p role="status">{messenger.notificationError}</p> : null}
+          <button type="button" className="wilds-message-notification-done" onClick={() => setNotificationSettingsOpen(false)}>Done</button>
+        </div> : null}
         <button aria-label="Close messages" className="wilds-messenger-close" onClick={messenger.closeMessenger} type="button"><Icons.close size={20} /></button>
       </header>
 
       {!messenger.selectedPeer && !messenger.selectedRoom && !roomOpen && !roomEditor ? <div className="wilds-messenger-inbox">
-        <div className="wilds-message-notification-settings">
-          <span>{messenger.notificationsEnabled ? "Message notifications enabled" : "Get notified when Wildz is closed"}</span>
-          {!messenger.notificationsEnabled ? <button type="button" disabled={messenger.enablingNotifications} onClick={() => void messenger.enableNotifications()}>{messenger.enablingNotifications ? "Enabling…" : "Enable notifications"}</button> : null}
-          {messenger.notificationError ? <small role="status">{messenger.notificationError}</small> : null}
-        </div>
         <div className="wilds-messenger-search"><Icons.search size={17} /><input aria-label="Search conversations" onChange={(event) => setQuery(event.target.value)} placeholder="Search explorers" value={query} /></div>
         <div className="wilds-messenger-inbox-title"><span><strong>Connections</strong><small>{messenger.unreadCount ? `${messenger.unreadCount} unread` : "You’re all caught up"}</small></span><div><button onClick={() => { setRoomName(""); setRoomMemberIds([]); setRoomEditor("create"); }} type="button">New room</button><button onClick={() => void messenger.refreshInbox()} type="button">Refresh</button></div></div>
         <div className="wilds-messenger-conversations">
