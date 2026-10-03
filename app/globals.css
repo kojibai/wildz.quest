@@ -244,6 +244,8 @@ body {
   margin: 0;
   overflow: hidden;
   overscroll-behavior: none;
+  /* Keep the app at its viewport scale; scrolling and world-camera input remain available. */
+  touch-action: pan-x pan-y;
   background: #09110d;
 }
 
