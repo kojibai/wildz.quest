@@ -15,17 +15,17 @@ test("Wildz AI skills state exact release authority and confirmation law", () =>
 
   for (const name of ["wildz-builder-skill", "wildz-market-operator-skill"]) {
     const source = readFileSync(`ai-skills/${name}/SKILL.md`, "utf8");
-    assert.match(source, /127\.0\.0/i);
+    assert.match(source, /128\.0\.0/i);
     assert.match(source, /8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065/i);
-    assert.match(source, /eadd171a45fcc51e275a1c57de1eb8e67614757a5723d141793641edf7207a10/i);
-    assert.match(source, /v127[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
+    assert.match(source, /940c316b5b7d6212240e699d03b3c1fd419cbbecc6ee51ddd7aa7783d9e523b0/i);
+    assert.match(source, /v128[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
   }
 
   const release = readFileSync("ai-skills/wildz-release-skill/SKILL.md", "utf8");
-  assert.match(release, /127\.0\.0/i);
+  assert.match(release, /128\.0\.0/i);
   assert.match(release, /8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065/i);
-  assert.match(release, /eadd171a45fcc51e275a1c57de1eb8e67614757a5723d141793641edf7207a10/i);
-  assert.match(release, /60 v127 application operations/i);
+  assert.match(release, /940c316b5b7d6212240e699d03b3c1fd419cbbecc6ee51ddd7aa7783d9e523b0/i);
+  assert.match(release, /60 v128 application operations/i);
   assert.match(release, /v124[\s\S]*(?:enclosing artifact|known truth|Merkle|Fibonacci)/i);
   assert.doesNotMatch(release, /123\.0\.0|945a581d|e08cec3e/i);
 });

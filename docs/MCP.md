@@ -1,6 +1,6 @@
 # Wildz Receiz SDK, MCP, and AI-skills contract
 
-Wildz pins `@receiz/sdk@127.0.0` as the application/runtime boundary and `@receiz/mcp-server@127.0.0` plus `@receiz/ai-skills@127.0.0` as development tooling. All three exact packages resolve from the public npm registry, and `pnpm-lock.yaml` pins their published SHA-512 integrity values. The release adopts the coordinated v127 registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `eadd171a45fcc51e275a1c57de1eb8e67614757a5723d141793641edf7207a10`. No fork, package patch, third-party database, or external database is introduced.
+Wildz pins `@receiz/sdk@128.0.0` as the application/runtime boundary and `@receiz/mcp-server@128.0.0` plus `@receiz/ai-skills@128.0.0` as development tooling. All three exact packages resolve from the public npm registry, and `pnpm-lock.yaml` pins their published SHA-512 integrity values. The release adopts the coordinated v128 registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `940c316b5b7d6212240e699d03b3c1fd419cbbecc6ee51ddd7aa7783d9e523b0`. No fork, package patch, third-party database, or external database is introduced.
 
 The packaged MCP runtime remains operator tooling, and the packaged AI skills remain doctrine for builders and agents. Neither outranks verified artifact continuity or server admission.
 
@@ -8,17 +8,17 @@ The repository-wide [Receiz-first engineering law](RECEIZ_FIRST_ENGINEERING.md) 
 
 Run MCP from an agent host with `pnpm exec receiz-mcp`. Public reads need no bearer token. Delegated writes require a Receiz-issued Connect/OIDC token supplied to the MCP process as `RECEIZ_ACCESS_TOKEN` or `RECEIZ_CONNECT_ACCESS_TOKEN`. Keep MCP imports out of `app/`, `src/`, client components, and browser bundles.
 
-V127 aligns complete source custody, first-seal ownership, deterministic coordinates, and verified append continuity. It retains the V125 lawful-action and edge-value tools with their original protocol names. Wildz retains the existing V124 runtime methods under the V127 package; historical proofs require no byte migration. Declaring an operation in the contract does not activate a new gameplay payout or authorize a database migration.
+V128 aligns complete source custody, first-seal ownership, deterministic coordinates, and verified append continuity. It retains the V125 lawful-action and edge-value tools with their original protocol names. Wildz retains the existing V124 runtime methods under the V128 package; historical proofs require no byte migration. Declaring an operation in the contract does not activate a new gameplay payout or authorize a database migration.
 
-## v127 application contract, registry, and checker
+## v128 application contract, registry, and checker
 
-`receiz.app.json` defines Wildz with the stable `receiz.app.contract.v1` schema and selects `artifact-first` authority with `allowDatabaseAuthority: false`. The installed v127 compiler/checker binds the repository to registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `eadd171a45fcc51e275a1c57de1eb8e67614757a5723d141793641edf7207a10`.
+`receiz.app.json` defines Wildz with the stable `receiz.app.contract.v1` schema and selects `artifact-first` authority with `allowDatabaseAuthority: false`. The installed v128 compiler/checker binds the repository to registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `940c316b5b7d6212240e699d03b3c1fd419cbbecc6ee51ddd7aa7783d9e523b0`.
 
-V127 coordinates the SDK, MCP, AI manifests, ruleset, registry, operation matrix, compatible package range, and packed runtime as one release identity. It preserves lawful-action admission, value-head derivation, and edge value custody alongside V124 canonical Kai time, challenge construction, authority sessions, runtime qualification, authenticated domain replay, durable execution, and public recipient resolution.
+V128 coordinates the SDK, MCP, AI manifests, ruleset, registry, operation matrix, compatible package range, and packed runtime as one release identity. It preserves lawful-action admission, value-head derivation, and edge value custody alongside V124 canonical Kai time, challenge construction, authority sessions, runtime qualification, authenticated domain replay, durable execution, and public recipient resolution.
 
 V124 remains source-first and non-breaking for Wildz: sealed proof objects remain authority, projections only accelerate distribution and restoration, and weaker partial projections cannot erase stronger verified fields.
 
-Run `pnpm receiz:check` to invoke the official v127 repository checker against package target `127.0.0` and verify the coordinated release, `127.0.0` ruleset, registry digest, 60-operation matrix, protocol limits, and authority flags. The command is also part of the release gate. A clean checker result confirms that the declared repository integration requirements have evidence; it is not a substitute for artifact verification, strict-live qualification, or remote mutation evidence.
+Run `pnpm receiz:check` to invoke the official v128 repository checker against package target `128.0.0` and verify the coordinated release, `127.0.0` ruleset, registry digest, 60-operation matrix, protocol limits, and authority flags. The command is also part of the release gate. A clean checker result confirms that the declared repository integration requirements have evidence; it is not a substitute for artifact verification, strict-live qualification, or remote mutation evidence.
 
 The checked-in historical migration checkpoint remains forward-only evidence: no sealed artifact, receipt, or proof head was rewritten. Historical sealed bytes remain eligible for current verification, but historical admissions, actors, plans, capabilities, stores, confirmations, or receipts cannot authorize a current receiver. A queued proposal is not a global commitment.
 
@@ -88,7 +88,7 @@ Commands remain a separate, explicit-confirmation path. Publication, tournament 
 
 This documentation records the supported operating boundary; it is not evidence that MCP, authenticated tournament reads, remote publication, or any mutation was exercised in this release. Those claims require saved, sanitized release evidence from the actual run.
 
-## v127 packaged offline sealing
+## v128 packaged offline sealing
 
 The public `@receiz/sdk/offline` and `@receiz/sdk/offline/node` exports supply
 canonical file sealing with the enrolled V4 device, packaged Groth16 resources
@@ -104,7 +104,9 @@ AI skills describe these operations; they do not supply identity ownership.
 
 Use `pnpm receiz:offline-qualification` with an already-enrolled private
 `WILDZ_TEST_SEAL_DIRECTORY` for the independent blocked-network MCP check.
-The [v127 integration record](release/receiz-v127-integration.md) documents actual
+The [v128 integration record](release/receiz-v128-integration.md) documents actual
 results and the unqualified live configuration/settlement boundaries.
 Historical HTTP compatibility remains disabled without a real explicitly
 configured compatibility host; no default Receiz route is invented.
+
+Receiz package release 128.0.0 retains constitutional ruleset 127.0.0; package and ruleset versions are deliberately distinct.

@@ -1,8 +1,8 @@
-# Wildz v127 AI operating doctrine
+# Wildz v128 AI operating doctrine
 
-Wildz is aligned only to the public npm releases `@receiz/ai-skills@127.0.0`, `@receiz/sdk@127.0.0`, and `@receiz/mcp-server@127.0.0`, with published SHA-512 integrity values pinned in `pnpm-lock.yaml`. All current procedures bind to registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065`, operation-matrix digest `eadd171a45fcc51e275a1c57de1eb8e67614757a5723d141793641edf7207a10`, and artifact laws `ARTIFACT-001` through `ARTIFACT-030`.
+Wildz is aligned only to the public npm releases `@receiz/ai-skills@128.0.0`, `@receiz/sdk@128.0.0`, and `@receiz/mcp-server@128.0.0`, with published SHA-512 integrity values pinned in `pnpm-lock.yaml`. All current procedures bind to registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065`, operation-matrix digest `940c316b5b7d6212240e699d03b3c1fd419cbbecc6ee51ddd7aa7783d9e523b0`, and artifact laws `ARTIFACT-001` through `ARTIFACT-030`.
 
-V127 is one coordinated release identity across SDK, MCP, AI manifests, ruleset, registry, operation matrix, compatible package range, and packed runtime. Durable proof memory is first admission only, then append forever. V121 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
+V128 is one coordinated release identity across SDK, MCP, AI manifests, ruleset, registry, operation matrix, compatible package range, and packed runtime. Durable proof memory is first admission only, then append forever. V121 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
 
 Sealed proof-object truth and verified local history outrank SDK, MCP, AI, server, database, session, and UI projections. Receiz.com reference behavior comes before developer rails. Never mutate witnessed history; append authenticated truth and rebuild projections. A queued proposal is not a global commitment.
 
@@ -23,3 +23,5 @@ MCP and AI outputs are operational guidance, never proof authority. Any admitted
 For creature-compatible experiences, follow the [developer integration guide](../docs/developers/creature-experiences.md) and its tested source example. Preserve exact identity and revision, admit once outside the frame loop, and use current capabilities rather than family defaults.
 
 Public card URLs require a publicly recoverable record. Follow the [publication authorization guide](../docs/developers/public-card-publication.md): card verification does not grant registry write permission. Use matching delegated authority or local Identity Seal signing through the exact same-origin relay, and confirm anonymous recovery before advertising a QR. Never transmit private seal material or put publication in the frame loop.
+
+Receiz package release 128.0.0 retains constitutional ruleset 127.0.0; package and ruleset versions are deliberately distinct.

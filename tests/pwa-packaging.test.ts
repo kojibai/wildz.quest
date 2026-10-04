@@ -35,12 +35,12 @@ test("all declared mobile PWA icons have their advertised dimensions", () => {
   }
 });
 
-test("mobile metadata uses the iOS icon and keeps pinch zoom available", () => {
+test("mobile metadata uses the iOS icon and suppresses browser zoom for the full-screen game", () => {
   const source = readFileSync("app/layout.tsx", "utf8");
 
   assert.match(source, /apple:\s*"\/icons\/icon-180\.png"/);
-  assert.doesNotMatch(source, /maximumScale/);
-  assert.match(source, /userScalable:\s*true/);
+  assert.match(source, /maximumScale:\s*1/);
+  assert.match(source, /userScalable:\s*false/);
 });
 
 test("Vercel output tracing excludes transient runtime-guard and local-only files", async () => {

@@ -14,12 +14,12 @@ import {
 } from "@receiz/sdk";
 import { checkReceizIntegration } from "@receiz/sdk/compiler";
 
-const TARGET_PACKAGE_VERSION = "127.0.0";
+const TARGET_PACKAGE_VERSION = "128.0.0";
 const TARGET_RULESET_VERSION = "127.0.0";
 const TARGET_REGISTRY_DIGEST = "8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065";
-const TARGET_OPERATION_MATRIX_DIGEST = "eadd171a45fcc51e275a1c57de1eb8e67614757a5723d141793641edf7207a10";
+const TARGET_OPERATION_MATRIX_DIGEST = "940c316b5b7d6212240e699d03b3c1fd419cbbecc6ee51ddd7aa7783d9e523b0";
 const sourceRoot = resolve(process.cwd());
-const snapshotRoot = await mkdtemp(join(tmpdir(), "wildz-receiz-v127-check-"));
+const snapshotRoot = await mkdtemp(join(tmpdir(), "wildz-receiz-v128-check-"));
 const ignoredDirectories = new Set([
   ".git", ".next", ".playwright-cli", ".pnpm-store", ".superpowers", ".test-build", ".worktrees",
   "build", "coverage", "dist", "node_modules", "out", "output", "tmp", "vendor"
@@ -43,30 +43,30 @@ async function assertCompilerBoundary(directory) {
     for (const match of source.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s*["']@receiz\/sdk["']/g)) {
       const imported = (match[1] ?? "").split(",").map((value) => value.replace(/^type\s+/, "").trim().split(/\s+as\s+/)[0]);
       const compilerImport = imported.find((name) => compilerSymbols.has(name));
-      if (compilerImport) throw new Error(`receiz_v127_compiler_import_on_runtime:${compilerImport}`);
+      if (compilerImport) throw new Error(`receiz_v128_compiler_import_on_runtime:${compilerImport}`);
     }
   }
 }
 
 function assertReleaseIdentity() {
   if (RECEIZ_RELEASE_VERSION !== TARGET_PACKAGE_VERSION || RECEIZ_RULESET_VERSION !== TARGET_RULESET_VERSION) {
-    throw new Error("receiz_v127_release_identity_mismatch");
+    throw new Error("receiz_v128_release_identity_mismatch");
   }
   if (RECEIZ_CURRENT_REGISTRY_DIGEST !== TARGET_REGISTRY_DIGEST
     || RECEIZ_CURRENT_CONSTITUTION_REGISTRY.version !== TARGET_RULESET_VERSION) {
-    throw new Error("receiz_v127_registry_digest_mismatch");
+    throw new Error("receiz_v128_registry_digest_mismatch");
   }
   if (RECEIZ_CURRENT_APPLICATION_OPERATION_MATRIX_DIGEST !== TARGET_OPERATION_MATRIX_DIGEST
     || RECEIZ_CURRENT_APPLICATION_OPERATION_MATRIX.length !== 60
-    || RECEIZ_CURRENT_APP_COMPATIBLE_SDK_RANGE !== ">=127.0.0 <128.0.0") {
-    throw new Error("receiz_v127_operation_matrix_mismatch");
+    || RECEIZ_CURRENT_APP_COMPATIBLE_SDK_RANGE !== ">=128.0.0 <129.0.0") {
+    throw new Error("receiz_v128_operation_matrix_mismatch");
   }
   if (RECEIZ_CURRENT_CONSTITUTION_REGISTRY.version !== TARGET_RULESET_VERSION
     || RECEIZ_V125_AUTHORITY_BOUNDARY.authority.enclosingArtifact !== "strongest"
     || RECEIZ_V125_AUTHORITY_BOUNDARY.authority.projectionIsAuthority !== false
     || RECEIZ_V125_AUTHORITY_BOUNDARY.authority.multiSubjectEffectsAreAtomic !== true
     || RECEIZ_V125_AUTHORITY_BOUNDARY.authority.settledSurfaceNeverWaitsForProjection !== true) {
-    throw new Error("receiz_v127_authority_mismatch");
+    throw new Error("receiz_v128_authority_mismatch");
   }
 }
 
@@ -102,7 +102,7 @@ try {
     },
     releaseAuthority: RECEIZ_V125_AUTHORITY_BOUNDARY,
     applicationOperations: RECEIZ_CURRENT_APPLICATION_OPERATION_MATRIX,
-    reviewedV127ScannerFinding: officialResult.blockingFindings.some((finding) => finding.code === reviewedScannerCode)
+    reviewedV128ScannerFinding: officialResult.blockingFindings.some((finding) => finding.code === reviewedScannerCode)
       ? "Runtime-only named imports were independently parsed; no compiler symbols use the universal runtime entrypoint."
       : null
   };

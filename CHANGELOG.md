@@ -2,6 +2,16 @@
 
 All notable changes to Wildz are documented here. Wildz uses semantic versioning for public releases.
 
+## [11.0.0] - 2026-10-04
+
+See the [complete release notes](docs/release/v11.0.0.md) and full source ledger since v10.1.0.
+
+- Upgrade the coordinated Receiz SDK, MCP and AI packages to 128.0.0 while retaining constitutional ruleset 127.0.0.
+- Add message notifications, reliable push configuration and restored messenger layout.
+- Restore full capture animation and repair Vault import retirement handling.
+- Fix interrupted uploads/saves, wallet session renewal races, harvest movement and double-tap zoom.
+- Advance installed-PWA update discovery to v11.0.0-r1.
+
 ## [10.1.0] - 2026-09-26
 
 **Continuity and Control.** See the [complete release notes](docs/release/v10.1.0.md) for the full change ledger since v10.0.0 and qualification limits.

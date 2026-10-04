@@ -6,7 +6,7 @@ import { handleReceizMcpMessage, parseReceizMcpToolResult } from '@receiz/mcp-se
 import { verifyReceizOfflineSealedFile } from '@receiz/sdk/offline';
 
 if (!process.env.WILDZ_TEST_SEAL_DIRECTORY) throw new Error('Provide an already-enrolled disposable WILDZ_TEST_SEAL_DIRECTORY; this script never enrolls.');
-const workspace = await mkdtemp(join(tmpdir(), 'wildz-v127-offline-mcp-'));
+const workspace = await mkdtemp(join(tmpdir(), 'wildz-v128-offline-mcp-'));
 process.env.RECEIZ_OFFLINE_SEAL_DIRECTORY = process.env.WILDZ_TEST_SEAL_DIRECTORY;
 process.env.RECEIZ_OFFLINE_WORKSPACE = workspace;
 let calls = 0;
@@ -20,8 +20,8 @@ async function call(name, args = {}) {
 }
 try {
   const initialization = await handleReceizMcpMessage({ jsonrpc: '2.0', id: ++id, method: 'initialize', params: {} });
-  assert.equal(initialization.result.serverInfo.version, '127.0.0');
-  await writeFile(join(workspace, 'input.json'), JSON.stringify({ game: 'wildz', qualification: 'v127', unknownNamespace: { retained: true } }));
+  assert.equal(initialization.result.serverInfo.version, '128.0.0');
+  await writeFile(join(workspace, 'input.json'), JSON.stringify({ game: 'wildz', qualification: 'v128', unknownNamespace: { retained: true } }));
   const status = await call('receiz_offline_seal_status');
   assert.equal(status.ready, true);
   await call('receiz_offline_seal_file', { inputPath: 'input.json', outputPath: 'sealed.receizbundle', mimeType: 'application/json' });
@@ -33,7 +33,7 @@ try {
   const tampered = bytes.slice(); tampered[Math.floor(tampered.length / 2)] ^= 1;
   assert.equal((await verifyReceizOfflineSealedFile({ bytes: tampered, filename: 'sealed.receizbundle' })).ok, false);
   assert.equal(calls, 0);
-  console.log(JSON.stringify({ sdk: '127.0.0', mcp: '127.0.0', ready: true, canonicalVerification: true, tamperRejected: true, networkCalls: calls }));
+  console.log(JSON.stringify({ sdk: '128.0.0', mcp: '128.0.0', ready: true, canonicalVerification: true, tamperRejected: true, networkCalls: calls }));
 } finally {
   globalThis.fetch = originalFetch;
   await rm(workspace, { recursive: true, force: true });

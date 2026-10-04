@@ -130,7 +130,8 @@ test("game browser zoom is suppressed without changing custom world-map zoom", (
   assert.match(css, /\.wildz-app\s*\{[^}]*touch-action:\s*none/s);
   assert.match(css, /\.wildz-shell-overlay\s*\{[^}]*touch-action:\s*pan-y/s);
   assert.match(css, /\.wilds-atlas-canvas canvas\s*\{[^}]*touch-action:\s*none/s);
-  assert.doesNotMatch(layout, /maximumScale|max(?:imum)?-scale|userScalable:\s*false/);
+  assert.match(layout, /maximumScale:\s*1/);
+  assert.match(layout, /userScalable:\s*false/);
 });
 
 test("full Identity Seal proof assembly leaves the visible Profile thread", () => {
