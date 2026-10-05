@@ -20,7 +20,7 @@ test("D-pad maps screen-forward travel through the frame-local camera heading", 
   assert.match(source, /Math\.min\(rect\.width, rect\.height\) \* 0\.42/);
   assert.match(source, /window\.requestAnimationFrame\(tick\)/);
   assert.match(source, /window\.cancelAnimationFrame\(frame\)/);
-  assert.equal(source.match(/emitMovement\(/g)?.length, 2, "movement must emit immediately and then repeat while held");
+  assert.equal(source.match(/emitMovement\(/g)?.length, 3, "movement emits immediately, repeats while held, and supports arrow keys");
   const pointerDownStart = source.indexOf("onPointerDown=");
   const pointerMoveStart = source.indexOf("onPointerMove=", pointerDownStart);
   const pointerUpStart = source.indexOf("onPointerUp=", pointerMoveStart);

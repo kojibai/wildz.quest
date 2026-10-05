@@ -333,6 +333,7 @@ export function PlayCampaign({
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
   const [creationOpen,setCreationOpen]=useState(false);
+  const [creationPlacing,setCreationPlacing]=useState(false);
   const [creationPreview,setCreationPreview]=useState<CreationPreview|null>(null);
   const creationPoint=useRef<((pose:CreationCompileContext["pose"])=>void)|null>(null);
   const [creationContext,setCreationContext]=useState<CreationCompileContext|null>(null);
@@ -783,11 +784,11 @@ export function PlayCampaign({
     exclusiveOriginRef,
     claimExclusiveOwner
   } = useWorldOverlayDirector({ dismissSignal: commandDismissSignal, exclusiveOwner: modalOwner });
-  const closeCreation=useCallback(()=>{setCreationOpen(false);setCreationPreview(null);},[]);
+  const closeCreation=useCallback(()=>{setCreationOpen(false);setCreationPlacing(false);setCreationPreview(null);},[]);
   const manualCreationAction=useRef(()=>{});
-  const openManualFromCreation=useCallback(()=>{setCreationOpen(false);setCreationPreview(null);manualCreationAction.current();},[]);
-  useEffect(()=>{setCreationOpen(false);setCreationPreview(null);},[ownerReceizId,state.siteSpace.spaceId]);
-  useEffect(()=>{if(modalOwner!=="none"){setCreationOpen(false);setCreationPreview(null);}},[modalOwner]);
+  const openManualFromCreation=useCallback(()=>{setCreationOpen(false);setCreationPlacing(false);setCreationPreview(null);manualCreationAction.current();},[]);
+  useEffect(()=>{setCreationOpen(false);setCreationPlacing(false);setCreationPreview(null);},[ownerReceizId,state.siteSpace.spaceId]);
+  useEffect(()=>{if(modalOwner!=="none"){setCreationOpen(false);setCreationPlacing(false);setCreationPreview(null);}},[modalOwner]);
   const commandPanelOpen = modalOwner === "none" && worldOverlayState.panelKey !== null;
   const exclusiveOwner = commandPanelOpen ? "command" : modalOwner;
   useEffect(() => {
@@ -2767,7 +2768,7 @@ export function PlayCampaign({
       <div className="wilds-shell wilds-playable-shell">
         <div className="wilds-world" data-wilds-wallet-state={walletController.status}>
           <div
-            className={`wilds-stage${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${combatSurface === "pvp" ? " pvp-active" : ""}${multiplayerRosterOpen ? " multiplayer-roster-open" : ""}${combatSurface === "wild" ? " wild-battle-active" : ""}${commandPanelOpen ? " is-command-panel-open" : ""}${worldOverlayState.toolsOpen ? " is-world-tools-open" : ""}`}
+            className={`wilds-stage${creationPlacing ? " is-creation-placement" : ""}${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${combatSurface === "pvp" ? " pvp-active" : ""}${multiplayerRosterOpen ? " multiplayer-roster-open" : ""}${combatSurface === "wild" ? " wild-battle-active" : ""}${commandPanelOpen ? " is-command-panel-open" : ""}${worldOverlayState.toolsOpen ? " is-world-tools-open" : ""}`}
             aria-label="Receiz Wilds playable 3D world"
             ref={gameplaySurfaceRef}
           >
@@ -3041,6 +3042,7 @@ export function PlayCampaign({
               ownerId={ownerReceizId} spaceId={state.siteSpace.spaceId} cards={crewCards} conditions={state.adventureConditions}
               lots={availableMaterialLots} context={creationContext}
               cardAdmissions={creationCardAdmissions}
+              onMovementInput={dispatchWorldInput} headingRef={cameraHeadingRef} onPlacementModeChange={setCreationPlacing}
               placementRef={creationPoint} onPreview={setCreationPreview} onClose={closeCreation}
               onManualBuild={openManualFromCreation}
             /> : null}

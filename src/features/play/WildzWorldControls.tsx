@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, type MutableRefObject, type RefObject } from "react";
+import { useBuildGesture } from "./creation/use-build-gesture";
 import { Icons } from "@/components/icons";
 import type { WildzCardSort } from "./card-sort";
 import type { PlayState, WildsInput } from "./game-state";
@@ -213,6 +214,7 @@ export function WildzWorldControls({
     if(onBeginConstruction){onBeginConstruction();return;}
     overlayDispatch({ type: "panel", key: "construction" });
   }, [onBeginConstruction, onOpenCreation, overlayDispatch, worldHomesEnabled]);
+  const buildGesture=useBuildGesture(handleOpenConstruction,gestureCancelSignal);
   const handleMovementModeChange = useCallback(() => {
     if (worldHomesEnabled) changeMovementMode(movementMode === "walk" ? "run" : "walk");
   }, [changeMovementMode, movementMode, worldHomesEnabled]);
@@ -323,22 +325,6 @@ export function WildzWorldControls({
             enabled={worldHomesEnabled}
             onRequest={onRequestCapability}
           />
-          <button aria-label="Open creature crew" title="Creature crew" disabled={!worldHomesEnabled} onClick={onOpenCrew} type="button"><Icons.roam aria-hidden="true" size={21} /></button>
-          <button
-            aria-label={`${onOpenCreation ? "Create with creatures" : "Open Living Construction"}. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
-            className="wildz-construction-control"
-            disabled={!worldHomesEnabled}
-            onClick={handleOpenConstruction}
-            title={onOpenCreation ? "Create with creatures" : "Living Construction"}
-            type="button"
-          >
-            <span className="wildz-construction-label"><Icons.construction aria-hidden="true" size={16} />Build</span>
-            <span aria-hidden="true" className="wildz-construction-counts">
-              <b key={`hay-${materialCounts.hay}`}><Icons.products size={11} />{materialCounts.hay}</b>
-              <b key={`timber-${materialCounts.timber}`}><Icons.timber size={11} />{materialCounts.timber}</b>
-              <b key={`stone-${materialCounts.stone}`}><Icons.quarry size={11} />{materialCounts.stone}</b>
-            </span>
-          </button>
           {verticalControlsVisible ? <div aria-label="Vertical traversal controls" className="wildz-vertical-controls">
             <button
               aria-label={verticalReadout.layer === "water" ? "Ascend toward the water surface" : "Ascend"}
@@ -382,6 +368,26 @@ export function WildzWorldControls({
           movementMode={movementMode}
           onInput={handleInput}
         />
+      </div>
+
+      <div aria-hidden={movementHomeBlocked} className="wildz-construction-home wildz-quick-utilities" inert={movementHomeBlocked ? true : undefined}>
+          <button aria-label="Open creature crew" title="Creature crew" disabled={!worldHomesEnabled} onClick={onOpenCrew} type="button"><Icons.roam aria-hidden="true" size={21} /></button>
+          <button
+            aria-label={`${onOpenCreation ? "Create with creatures" : "Open Living Construction"}. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
+            className="wildz-construction-control"
+            disabled={!worldHomesEnabled}
+            {...buildGesture}
+            style={{touchAction:"none"}}
+            title={onOpenCreation ? "Create with creatures · tap or swipe up" : "Living Construction · tap or swipe up"}
+            type="button"
+          >
+            <span className="wildz-construction-label"><Icons.construction aria-hidden="true" size={16} />Build</span>
+            <span aria-hidden="true" className="wildz-construction-counts">
+              <b key={`hay-${materialCounts.hay}`}><Icons.products size={11} />{materialCounts.hay}</b>
+              <b key={`timber-${materialCounts.timber}`}><Icons.timber size={11} />{materialCounts.timber}</b>
+              <b key={`stone-${materialCounts.stone}`}><Icons.quarry size={11} />{materialCounts.stone}</b>
+            </span>
+          </button>
       </div>
 
       <div aria-hidden={toolsHomeBlocked} className="wildz-tools-home" inert={toolsHomeBlocked ? true : undefined}>

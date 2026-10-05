@@ -5,11 +5,12 @@ import type { WildsInput } from "./game-state";
 import { cameraRelativeMovement, type WildsMovementMode } from "./wilds-movement";
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 
-export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSignal = 0 }: {
+export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSignal = 0, label }: {
   cameraHeadingRef: RefObject<number>;
   movementMode: WildsMovementMode;
   onInput: (input: WildsInput) => void;
   cancelSignal?: number;
+  label?: string;
 }) {
   const vector = useRef({ x: 0, z: 0 });
   const dragging = useRef(false);
@@ -92,7 +93,8 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
 
   return (
     <button
-      aria-label={`Movement trackpad. ${movementMode === "run" ? "Running" : "Walking"}. Hold and drag in any direction to travel.`}
+      aria-label={label || `Movement trackpad. ${movementMode === "run" ? "Running" : "Walking"}. Hold and drag in any direction to travel.`}
+      onKeyDown={event=>{const directions:Record<string,{x:number;z:number}>={ArrowUp:{x:0,z:-1},ArrowDown:{x:0,z:1},ArrowLeft:{x:-1,z:0},ArrowRight:{x:1,z:0}};if(directions[event.key]){event.preventDefault();event.stopPropagation();emitMovement(directions[event.key]);}}}
       aria-pressed={active}
       className="wildz-dpad"
       onLostPointerCapture={release}
