@@ -21,3 +21,12 @@ test('authentication verifies the captured bytes when transport data changes dur
 test('SDK transaction binding retains the full exact creation command including its digest',async()=>{const {verifyWildsCreationTransactionBinding}=await import('../src/lib/receiz/wilds-creation-admission');const op=creationOperationFixture(),head=`sha256:${'a'.repeat(64)}`,transaction={schema:'receiz.world.transaction.v122' as const,transactionId:'tx:fixture',worldId:op.command.instance.worldId,expectedWorldHead:head,participantHeads:Object.fromEntries(Object.entries(op.expectedHeads).filter((entry):entry is [string,string]=>entry[1]!==null)),commands:[{commandId:'command:fixture',worldId:op.command.instance.worldId,expectedWorldHead:head,actorSubjectId:'actor:owner',participantSubjectIds:Object.keys(op.expectedHeads).filter(id=>op.expectedHeads[id]!==null),causalParents:[],command:op,exactCommandBytesB64u:'fixture-only',commandDigest:head,planDigest:head,authorityDigest:head,mandateDigest:head}],registryDigest:head,reducerDigest:head,idempotencyKey:op.idempotencyKey,transactionDigest:head};assert.equal(verifyWildsCreationTransactionBinding(transaction,op),true);assert.equal(verifyWildsCreationTransactionBinding({...transaction,commands:[{...transaction.commands[0],command:{...op,actorId:'other'}}]},op),false);});
 
 test('exact candidate retains the definition bytes needed for independent source reconstruction',()=>{const context=creationOperationContextFixture(),operation=creationOperationFixture();assert.deepEqual(operation.definition,context.definition);assert.equal(Object.isFrozen(operation.definition),true);});
+
+test('a resealed candidate with invalid work or material conservation cannot dispatch',async()=>{
+ const {constructionProofDigest}=await import('../src/features/play/wilds-construction-project');
+ const operation=creationOperationFixture();
+ for(const change of [{workerAllocations:operation.workerAllocations.map(w=>({...w,work:-1}))},{resources:operation.resources.map((r,i)=>i===0?{...r,quantity:2}:r)},{resources:[]},{actorId:'other'},{ruleDigest:`sha256:${'f'.repeat(64)}`}]){
+  const {digest,...before}={...operation,...change};void digest;const altered={...before,digest:constructionProofDigest(before)};
+  const fixture=portFixture(altered);assert.equal((await fixture.port.execute(altered)).status,'unknown');assert.equal(fixture.dispatchCalls,0);
+ }
+});

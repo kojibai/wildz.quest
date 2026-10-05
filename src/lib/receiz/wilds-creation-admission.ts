@@ -16,7 +16,7 @@ export function verifyWildsCreationTransactionBinding(transaction:ReceizWorldTra
  const expected=Object.fromEntries(Object.entries(operation.expectedHeads).filter((entry):entry is [string,string]=>entry[1]!==null));
  return transaction.idempotencyKey===operation.idempotencyKey&&transaction.worldId===operation.command.instance.worldId&&transaction.expectedWorldHead===operation.expectedHeads[`space:${operation.command.instance.spaceId}`]&&canonicalizeReceizV122(transaction.participantHeads)===canonicalizeReceizV122(expected)&&transaction.commands.length===1&&canonicalizeReceizV122(transaction.commands[0].command)===canonicalizeReceizV122(operation);
 }
-export function createWildsCreationAdmission(runtime?:WildsCreationRuntime){
+export function createWildsCreationAdmission(runtime?:WildsCreationRuntime,dispatchFence?:()=>Promise<boolean>){
  if(!runtime)return createUnavailableCreationAdmissionPort('creation_runtime_reducer_and_mandate_unqualified');
  const authenticated=new Map<string,string>();
  const remember=(operation:CreationOperation,result:CreationAdmissionOutcome)=>{authenticated.set(constructionProofDigest(result),operation.digest);if(authenticated.size>128)authenticated.delete(authenticated.keys().next().value!);};
@@ -34,9 +34,20 @@ export function createWildsCreationAdmission(runtime?:WildsCreationRuntime){
    let prepared:Awaited<ReturnType<WildsCreationRuntime['prepare']>>;
    try{prepared=await runtime.prepare(operation);}catch{return verifiedZero(operation,'creation_authorization_unavailable_before_dispatch',{kind:'local-pre-dispatch'});}
    if(!verifyWildsCreationTransactionBinding(prepared.transaction,operation))return verifiedZero(operation,'creation_transaction_binding_invalid',{kind:'local-pre-dispatch'});
-   const result=await executeWildsV122Transaction({...prepared,rail:runtime.rail,
+   let declined=false;
+   const rail=dispatchFence?{...runtime.rail,
+    worldExecutionV122:request=>declined?Promise.resolve({status:'unknown' as const}):runtime.rail.worldExecutionV122(request),
+    worldExecutionByIdempotencyKeyV122:request=>declined?Promise.resolve({status:'unknown' as const}):runtime.rail.worldExecutionByIdempotencyKeyV122(request),
+    executeWorldTransactionV122:async exact=>{
+     try{if(!await dispatchFence())throw Error('creation_crew_final_fence_rejected');}catch{declined=true;throw Error('creation_crew_final_fence_rejected');}
+     // Invoke the rail directly; no callback/await is inserted after the successful fence.
+     return runtime.rail.executeWorldTransactionV122(exact);
+    }
+   } satisfies Execution['rail']:runtime.rail;
+   const result=await executeWildsV122Transaction({...prepared,rail,
     // Retain exact signed bytes until operation completion also persists; recovery cannot regenerate them.
     journal:{stage:runtime.transactionJournal.stage,clear:async()=>{}},authenticateReceipt:runtime.authenticateReceipt});
+   if(declined)return verifiedZero(operation,'creation_crew_final_fence_rejected',{kind:'local-pre-dispatch'});
    if(!result.ok)return result.writes===0?verifiedZero(operation,result.code,'outcome'in result?result.outcome:{kind:'local-pre-dispatch'}):{status:'unknown' as const,operationId:operation.operationId,reason:result.code};
    return project(operation,result.outcome);
   },

@@ -3,6 +3,7 @@ import {assertCreationData,parseCreationDefinition} from './definition';
 import {constructionProofDigest,freezeConstructionProof,sealConstructionProof,validConstructionHead,validConstructionId,validConstructionKai} from '../wilds-construction-project';
 import {createCreationInstance,sealCreationInstance,verifyCreationInstance} from './instance';
 import {selectCreationResources} from './resources';
+import {planCreationTasks} from './crew';
 import {CREATION_MATERIALS} from './registry';
 import type {CreationDefinition,CreationCommitResult} from './types';
 import type {CreationInstance} from './instance';
@@ -21,8 +22,18 @@ export const CREATION_CONSTRUCT_RULE_ID='creation.construct.v1';
 export const CREATION_CONSTRUCT_RULE_HEAD=constructionProofDigest({id:CREATION_CONSTRUCT_RULE_ID,version:1,grammarVersion:1,materials:CREATION_MATERIALS,maximumWorkers:32,components:'static-condition-support',custody:'exact-quantity1-lot-consumption-and-embedded-lineage'});
 const authenticatedOutcomes=new WeakMap<object,string>();
 const pending=(operationId:string,reason:string):CreationAdmissionOutcome=>({status:'unknown',operationId,reason});
-function operationValid(operation:CreationOperation):boolean{
- try{assertCreationData(operation);const {digest,...basis}=operation;return operation.schema==='wildz.creation-operation.v1'&&parseCreationDefinition(operation.definition).digest===operation.definitionDigest&&validConstructionHead(digest)&&digest===constructionProofDigest(basis)&&validConstructionId(operation.operationId)&&validConstructionId(operation.idempotencyKey)&&operation.command.action==='construct'&&verifyCreationInstance(operation.command.instance)&&operation.command.instance.instanceId===operation.instanceId&&operation.command.instance.definitionDigest===operation.definitionDigest&&new Set(operation.resources.map(r=>r.id)).size===operation.resources.length;}catch{return false;}
+export function verifyCreationOperation(operation:CreationOperation):boolean{
+ try{
+  assertCreationData(operation);const {digest,...basis}=operation,definition=parseCreationDefinition(operation.definition),instance=operation.command.instance;
+  if(operation.schema!=='wildz.creation-operation.v1'||definition.digest!==operation.definitionDigest||!validConstructionHead(digest)||digest!==constructionProofDigest(basis)||!validConstructionId(operation.operationId)||!validConstructionId(operation.actorId)||!validConstructionKai(operation.kaiUPulse)||operation.idempotencyKey!==`creation:${constructionProofDigest({actorId:operation.actorId,operationId:operation.operationId}).slice(7)}`||operation.ruleDigest!==CREATION_CONSTRUCT_RULE_HEAD||!validConstructionHead(operation.planDigest)||operation.command.action!=='construct'||!verifyCreationInstance(instance)||instance.instanceId!==operation.instanceId||instance.definitionDigest!==definition.digest||definition.creatorId!==operation.actorId||instance.creatorId!==operation.actorId||instance.ownerId!==operation.actorId||instance.stewardId!==operation.actorId||instance.stage!=='functional'||instance.revision!==0||instance.parentHead!==null||instance.kaiUPulse!==operation.kaiUPulse)return false;
+  if(definition.nodes.some(n=>n.behaviors.length)||Object.keys(instance.nodeStates).length!==definition.nodes.length||definition.nodes.some(n=>{const state=instance.nodeStates[n.id];return !state||state.nodeId!==n.id||state.kind!=='condition'||state.condition!==100||constructionProofDigest(state.supportIds)!==constructionProofDigest(n.supports);}))return false;
+  if(operation.expectedHeads[operation.instanceId]!==null||operation.expectedHeads[`rule:${CREATION_CONSTRUCT_RULE_ID}`]!==CREATION_CONSTRUCT_RULE_HEAD||!validConstructionHead(operation.expectedHeads[`actor:${operation.actorId}`])||!validConstructionHead(operation.expectedHeads[`space:${instance.spaceId}`])||Object.entries(operation.expectedHeads).some(([id,head])=>!validConstructionId(id)||(id!==operation.instanceId&&!validConstructionHead(head))))return false;
+  if(!operation.workerAllocations.length||operation.workerAllocations.length>32||new Set(operation.workerAllocations.map(w=>w.workerId)).size!==operation.workerAllocations.length||operation.workerAllocations.some(w=>!validConstructionId(w.workerId)||!validConstructionHead(operation.expectedHeads[w.workerId])||!Number.isSafeInteger(w.work)||w.work<0||w.work>1_000_000)||operation.workerAllocations.reduce((n,w)=>n+w.work,0)<=0||operation.mandates.length!==operation.workerAllocations.length||new Set(operation.mandates.map(m=>m.id)).size!==operation.mandates.length)return false;
+  if(operation.workerAllocations.some(w=>{const matches=operation.mandates.filter(m=>m.workerId===w.workerId);return matches.length!==1||matches[0].ownerId!==operation.actorId||matches[0].revoked||matches[0].expiresKaiUPulse<operation.kaiUPulse||!Number.isSafeInteger(matches[0].workCeiling)||matches[0].workCeiling<w.work||operation.expectedHeads[matches[0].id]!==matches[0].head||!validConstructionHead(matches[0].head);}))return false;
+  if(!Array.isArray(operation.resources)||operation.resources.length>65536||new Set(operation.resources.map(r=>r.id)).size!==operation.resources.length||operation.resources.some(r=>!validConstructionId(r.id)||!validConstructionHead(r.head)||operation.expectedHeads[r.id]!==r.head||r.quantity!==1||!Object.hasOwn(CREATION_MATERIALS,r.kind))||constructionProofDigest(operation.resources)!==constructionProofDigest(instance.embeddedResources)||operation.command.resourceSuccessors.length!==operation.resources.length)return false;
+  if(operation.resources.some(r=>{const matches=operation.command.resourceSuccessors.filter(s=>s.id===r.id);if(matches.length!==1)return true;const successor=matches[0] as CreationResourceSource & {schema?:string;parentHead?:string;spentBy?:string;embeddedIn?:string};const {head,...body}=successor;return successor.schema!=='wildz.creation-material-custody.v1'||successor.parentHead!==r.head||successor.ownerId!==operation.actorId||successor.quantity!==r.quantity||successor.kind!==r.kind||successor.spent!==true||successor.spentBy!==operation.operationId||successor.embeddedIn!==operation.instanceId||!validConstructionHead(head)||constructionProofDigest(body)!==head;}))return false;
+  return Array.isArray(operation.causalParents)&&operation.causalParents.length<=128&&new Set(operation.causalParents).size===operation.causalParents.length&&operation.causalParents.every(validConstructionId);
+ }catch{return false;}
 }
 /** Pure candidate preparation. Invoke in a worker/server boundary, never a frame/input callback. */
 export function prepareCreationOperation(plan:CreationPlan,context:CreationOperationContext):CreationOperation{
@@ -38,8 +49,9 @@ export function prepareCreationOperation(plan:CreationPlan,context:CreationOpera
  const selection=selectCreationResources(context.lots,context.compileContext.budget,plan.requiredResources,context.availability);if(Object.keys(selection.deficits).length)throw Error('creation_resource_shortage');
  const resourceSuccessors=selection.lots.map(lot=>{source(lot.id,'material',lot.head);const current=context.state.resources[lot.id];if(!current||current.head!==lot.head||current.ownerId!==context.actorId||current.quantity!==lot.quantity||current.kind!==lot.kind||current.spent||context.state.reservations[lot.id])throw Error('creation_resource_stale');const {head,...basis}=current;return sealConstructionProof({...basis,schema:'wildz.creation-material-custody.v1',parentHead:head,spent:true,spentBy:context.operationId,embeddedIn:context.instanceId});});
  if(!context.workers.length||context.workers.length>32||new Set(context.workers.map(w=>w.subjectId)).size!==context.workers.length||context.workers.some(w=>!w.ready)||plan.requiredTechniques.some(t=>!context.workers.some(w=>w.techniques.includes(t))))throw Error('creation_worker_capability_unavailable');
- const mandates:CreationWorkerMandate[]=[],workerAllocations:{workerId:string;work:number}[]=[];let remaining=plan.requiredWork;
- context.workers.forEach((worker,index)=>{source(worker.subjectId,'creature',worker.head);const match=context.mandates.filter(m=>m.workerId===worker.subjectId&&m.ownerId===context.actorId&&!m.revoked&&m.expiresKaiUPulse>=context.kaiUPulse&&worker.techniques.every(t=>m.techniques.includes(t)));if(match.length!==1)throw Error('creation_worker_mandate_unavailable');const mandate=match[0],work=Math.ceil(remaining/(context.workers.length-index));if(!Number.isSafeInteger(mandate.workCeiling)||mandate.workCeiling<work)throw Error('creation_worker_work_ceiling');source(mandate.id,'mandate',mandate.head);mandates.push(mandate);workerAllocations.push({workerId:worker.subjectId,work});remaining-=work;});
+ const tasks=planCreationTasks(plan,context.workers);
+ const mandates:CreationWorkerMandate[]=[],workerAllocations:{workerId:string;work:number}[]=[];
+ context.workers.forEach(worker=>{source(worker.subjectId,'creature',worker.head);const match=context.mandates.filter(m=>m.workerId===worker.subjectId&&m.ownerId===context.actorId&&!m.revoked&&m.expiresKaiUPulse>=context.kaiUPulse&&worker.techniques.every(t=>m.techniques.includes(t)));if(match.length!==1)throw Error('creation_worker_mandate_unavailable');const mandate=match[0],work=tasks.filter(t=>t.workerId===worker.subjectId).reduce((total,t)=>total+t.work,0);if(!Number.isSafeInteger(mandate.workCeiling)||mandate.workCeiling<work)throw Error('creation_worker_work_ceiling');source(mandate.id,'mandate',mandate.head);mandates.push(mandate);workerAllocations.push({workerId:worker.subjectId,work});});
  // Functional component state must come from a registered deterministic law, never prompt stats.
  if(definition.nodes.some(n=>n.behaviors.length>0))throw Error('creation_component_initialization_law_unavailable');
  const planned=createCreationInstance({instanceId:context.instanceId,definition,ownerId:context.actorId,worldId:plan.worldId,spaceId:plan.spaceId,pose:plan.pose,kaiUPulse:context.kaiUPulse}),{head,...instanceBasis}=planned;
@@ -59,19 +71,19 @@ function structurallyBound(operation:CreationOperation,outcome:unknown):outcome 
 }
 /** Structural matching plus trusted-host authentication; digest text alone never admits. */
 export function verifyCreationAdmission(operation:CreationOperation,outcome:unknown):CreationAdmissionOutcome{
- if(!operationValid(operation)||!outcome||typeof outcome!=='object'||authenticatedOutcomes.get(outcome)!==operation.digest||!structurallyBound(operation,outcome))return pending(operation.operationId,'creation_admission_unverified');
+ if(!verifyCreationOperation(operation)||!outcome||typeof outcome!=='object'||authenticatedOutcomes.get(outcome)!==operation.digest||!structurallyBound(operation,outcome))return pending(operation.operationId,'creation_admission_unverified');
  return outcome;
 }
 /** Trusted host injection; transport JSON never supplies the authenticator. */
 export function createCreationAdmissionPort(input:Readonly<{executeRaw:(operation:CreationOperation)=>Promise<unknown>;lookupRaw:(operationId:string)=>Promise<unknown>;authenticate:(operation:CreationOperation,outcome:unknown)=>Promise<boolean>;operationForLookup?:(operationId:string)=>Promise<CreationOperation|null>}>):CreationAdmissionPort{
  const operations=new Map<string,CreationOperation>();
  async function admit(operation:CreationOperation,raw:unknown):Promise<CreationAdmissionOutcome>{
-  if(!operationValid(operation)||!structurallyBound(operation,raw))return pending(operation.operationId,'creation_outcome_unknown');
+  if(!verifyCreationOperation(operation)||!structurallyBound(operation,raw))return pending(operation.operationId,'creation_outcome_unknown');
   const copy=freezeConstructionProof(JSON.parse(JSON.stringify(raw))) as Exclude<CreationAdmissionOutcome,{status:'unknown'}>;
   if(!await input.authenticate(operation,copy))return pending(operation.operationId,'creation_outcome_authentication_failed');
   authenticatedOutcomes.set(copy,operation.digest);return verifyCreationAdmission(operation,copy);
  }
- return Object.freeze({async execute(operation){if(!operationValid(operation))return pending(operation.operationId,'creation_operation_invalid');const copy=freezeConstructionProof(JSON.parse(JSON.stringify(operation))) as CreationOperation;operations.set(copy.operationId,copy);return admit(copy,await input.executeRaw(copy));},async lookup(operationId){const operation=operations.get(operationId)||await input.operationForLookup?.(operationId);if(!operation)return pending(operationId,'creation_operation_lookup_binding_unavailable');return admit(operation,await input.lookupRaw(operationId));}});
+ return Object.freeze({async execute(operation){if(!verifyCreationOperation(operation))return pending(operation.operationId,'creation_operation_invalid');const copy=freezeConstructionProof(JSON.parse(JSON.stringify(operation))) as CreationOperation;operations.set(copy.operationId,copy);return admit(copy,await input.executeRaw(copy));},async lookup(operationId){const operation=operations.get(operationId)||await input.operationForLookup?.(operationId);if(!operation)return pending(operationId,'creation_operation_lookup_binding_unavailable');return admit(operation,await input.lookupRaw(operationId));}});
 }
 /** No dispatch occurs in this port; the explicit local blocker is a zero-write result. */
 export function createUnavailableCreationAdmissionPort(reason:string):CreationAdmissionPort{
@@ -79,7 +91,7 @@ export function createUnavailableCreationAdmissionPort(reason:string):CreationAd
 }
 export async function commitCreation(operation:CreationOperation,port:CreationAdmissionPort,journal:CreationOperationJournal):Promise<CreationCommitResult>{
  const unknown=():CreationCommitResult=>({status:'unknown',operationId:operation.operationId}),reject=(reason:string):CreationCommitResult=>({status:'rejected',reason,writes:0});
- if(!operationValid(operation))return reject('creation_operation_invalid');
+ if(!verifyCreationOperation(operation))return reject('creation_operation_invalid');
  operation=freezeConstructionProof(JSON.parse(JSON.stringify(operation))) as CreationOperation;
  let row:CreationOperationJournalRow|null;
  try{row=await journal.read(operation.operationId);if(row&&row.operation.digest!==operation.digest)return reject('creation_operation_identity_collision');
