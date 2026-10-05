@@ -41,6 +41,7 @@ function useStableEvent<Arguments extends unknown[]>(handler: (...args: Argument
 export function WildzWorldControls({
   capabilityControls: suppliedCapabilityControls,
   onBeginConstruction,
+  onOpenCreation,
   onOpenCrew,
   buildingActive=false,
   nearbyCards,
@@ -77,6 +78,7 @@ export function WildzWorldControls({
   onAerialToggle: _onAerialToggle
 }: {
   onBeginConstruction?:()=>void;
+  onOpenCreation?:()=>void;
   onOpenCrew?: () => void;
   buildingActive?:boolean;
   nearbyCards: readonly PortableCardAsset[];
@@ -207,9 +209,10 @@ export function WildzWorldControls({
   }, [overlayDispatch, worldHomesEnabled]);
   const handleOpenConstruction = useCallback(() => {
     if (!worldHomesEnabled) return;
+    if(onOpenCreation){onOpenCreation();return;}
     if(onBeginConstruction){onBeginConstruction();return;}
     overlayDispatch({ type: "panel", key: "construction" });
-  }, [onBeginConstruction, overlayDispatch, worldHomesEnabled]);
+  }, [onBeginConstruction, onOpenCreation, overlayDispatch, worldHomesEnabled]);
   const handleMovementModeChange = useCallback(() => {
     if (worldHomesEnabled) changeMovementMode(movementMode === "walk" ? "run" : "walk");
   }, [changeMovementMode, movementMode, worldHomesEnabled]);
@@ -322,11 +325,11 @@ export function WildzWorldControls({
           />
           <button aria-label="Open creature crew" title="Creature crew" disabled={!worldHomesEnabled} onClick={onOpenCrew} type="button"><Icons.roam aria-hidden="true" size={21} /></button>
           <button
-            aria-label={`Open Living Construction. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
+            aria-label={`${onOpenCreation ? "Create with creatures" : "Open Living Construction"}. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
             className="wildz-construction-control"
             disabled={!worldHomesEnabled}
             onClick={handleOpenConstruction}
-            title="Living Construction"
+            title={onOpenCreation ? "Create with creatures" : "Living Construction"}
             type="button"
           >
             <span className="wildz-construction-label"><Icons.construction aria-hidden="true" size={16} />Build</span>

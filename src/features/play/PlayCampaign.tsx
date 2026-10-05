@@ -20,6 +20,9 @@ import { requestWildsDive } from "./wilds-vertical-traversal";
 import { resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
+import type { CreationPreview } from "./creation/preview";
+import type { CreationCompileContext } from "./creation/compiler";
+const CreationSession=dynamic(()=>import("./creation/CreationSession"),{ssr:false});
 import { WildsVisitedSurface } from "./WildsVisitedSurface";
 import { buildWildsRoamingPresenceUploads, projectWildsRemoteRoamingMarkers, type WildsRoamingPresenceUpload } from "./wilds-roaming-presence";
 import { createWildsPlayStateSourceAdmission, retainWildsLocalPosition, admitWildsForwardPosition } from "./wilds-play-state-source";
@@ -329,6 +332,10 @@ export function PlayCampaign({
     currentPlayState: PlayState
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
+  const [creationOpen,setCreationOpen]=useState(false);
+  const [creationPreview,setCreationPreview]=useState<CreationPreview|null>(null);
+  const creationPoint=useRef<((pose:CreationCompileContext["pose"])=>void)|null>(null);
+  const [creationContext,setCreationContext]=useState<CreationCompileContext|null>(null);
   const [state, setState] = useState(() => initialState);
   const crewPreferences = useMemo(() => sanitizeWildsCrewPreferences(state.crewPreferences, state.inventory, ownerReceizId, crewCustody), [state.crewPreferences, state.inventory, ownerReceizId, crewCustody]);
   const admittedSourceStateRef = useRef(initialState);
@@ -681,6 +688,7 @@ export function PlayCampaign({
       return null;
     }
   }, [activeAsset, currentVaultAdmission]);
+  const creationCardAdmissions=useMemo(()=>creationOpen?Object.fromEntries(crewCards.map(card=>{try{return [card.id,createWildzVaultCardMembershipProof(currentVaultAdmission,card)];}catch{return [card.id,null];}})):{},[creationOpen,crewCards,currentVaultAdmission]);
   const roamingPresenceReader = useRef<() => readonly WildsRoamingPresenceUpload[]>(() => []);
   const multiplayer = useWildsMultiplayer({
     // Global presence is available to every internet-connected explorer.
@@ -775,6 +783,11 @@ export function PlayCampaign({
     exclusiveOriginRef,
     claimExclusiveOwner
   } = useWorldOverlayDirector({ dismissSignal: commandDismissSignal, exclusiveOwner: modalOwner });
+  const closeCreation=useCallback(()=>{setCreationOpen(false);setCreationPreview(null);},[]);
+  const manualCreationAction=useRef(()=>{});
+  const openManualFromCreation=useCallback(()=>{setCreationOpen(false);setCreationPreview(null);manualCreationAction.current();},[]);
+  useEffect(()=>{setCreationOpen(false);setCreationPreview(null);},[ownerReceizId,state.siteSpace.spaceId]);
+  useEffect(()=>{if(modalOwner!=="none"){setCreationOpen(false);setCreationPreview(null);}},[modalOwner]);
   const commandPanelOpen = modalOwner === "none" && worldOverlayState.panelKey !== null;
   const exclusiveOwner = commandPanelOpen ? "command" : modalOwner;
   useEffect(() => {
@@ -1486,6 +1499,7 @@ export function PlayCampaign({
     continuousBuilder.begin(); continuousBuilder.selectKind(kind);
     dispatchStageOverlay({ type: "panel", key: null });
   };
+  manualCreationAction.current=()=>selectLivingBuildPiece(continuousBuilder.kind);
   const openLivingConstruction = (focus: "tools" | "storage" | null = null) => {
     continuousBuilder.close(); setConstructionFocus(focus);
     dispatchStageOverlay({ type: "panel", key: "construction" });
@@ -2767,6 +2781,7 @@ export function PlayCampaign({
               activeWorkSource={activeWorkSource}
               stewardPlacementPreview={stewardPlacementPreview}
               burrowPreview={burrowBuilder.preview ? {...burrowBuilder.preview,blocker:burrowBuilder.blocker} : null}
+              creationPreview={creationPreview}
               constructionPreview={continuousBuilder.preview}
               constructionSelectionEnabled={continuousBuilder.selectionEnabled && worldInteractionEnabled}
               onSelectConstruction={continuousBuilder.selectComponent}
@@ -2792,7 +2807,7 @@ export function PlayCampaign({
               onAerialEnergyChange={setAerialEnergy}
               onVerticalReadoutChange={publishVerticalReadout}
               onCameraHeadingChange={updateCameraHeading}
-              searchEnabled={worldInteractionEnabled && (discoveryActive || Boolean(stewardPlacementMode) || continuousBuilder.open || burrowBuilder.open)}
+              searchEnabled={worldInteractionEnabled && (creationOpen || discoveryActive || Boolean(stewardPlacementMode) || continuousBuilder.open || burrowBuilder.open)}
               resourcePending={Boolean(livingWorld.pendingCommand)}
               resourceCompanionReady={Boolean(activeCondition && activeCondition.fatigue < 85 && activeCondition.injuries.length < 4)}
               livingWorld={livingWorld.snapshot}
@@ -2811,6 +2826,7 @@ export function PlayCampaign({
               trainers={sagaTrainers}
               onSelectTrainer={(trainer) => openTrainerEncounter(trainer, "world")}
               onSearchPoint={(point) => {
+                if(creationOpen){creationPoint.current?.({position:{x:point.x,y:point.surfaceWorldY,z:point.z},yaw:creationPreview?.plan.pose.yaw||0});return;}
                 if (burrowBuilder.open) { burrowBuilder.point(point); return; }
                 if (continuousBuilder.open) { continuousBuilder.point(point); return; }
                 if (stewardPlacementMode) {
@@ -3020,7 +3036,20 @@ export function PlayCampaign({
               onRequestReceive={(amountPhiMicro) => { void walletController.requestReceive(amountPhiMicro); }}
             /> : null}
 
+            {creationOpen && creationContext ? <CreationSession
+              key={`${ownerReceizId}:${state.siteSpace.spaceId}`}
+              ownerId={ownerReceizId} spaceId={state.siteSpace.spaceId} cards={crewCards} conditions={state.adventureConditions}
+              lots={availableMaterialLots} context={creationContext}
+              cardAdmissions={creationCardAdmissions}
+              placementRef={creationPoint} onPreview={setCreationPreview} onClose={closeCreation}
+              onManualBuild={openManualFromCreation}
+            /> : null}
             <WildzWorldControls
+              onOpenCreation={()=>{
+                continuousBuilder.close();burrowBuilder.close();dispatchStageOverlay({type:'dismiss'});
+                setCreationContext({worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId,sourceHead:sha256PortableBasis(livingWorld.snapshot?.cursor?.eventId||'wilds:creation:unadmitted'),pose:{position:{x:state.player.x+3,y:state.siteSpace.position.y,z:state.player.z},yaw:0},budget:{...stewardMaterials},techniques:[],physical:[],quality:qualityProfile.tier==='low'?'low':'high'});
+                setCreationOpen(true);
+              }}
               onOpenCrew={() => setRequestedCommand("crew")}
               onBeginConstruction={()=>selectLivingBuildPiece(continuousBuilder.kind)}
               buildingActive={continuousBuilder.open||burrowBuilder.open}

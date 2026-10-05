@@ -14,6 +14,9 @@ import { WildsHomeResidents, type WildsHomeResidentsInput } from "./WildsHomeRes
 import { projectWildsHomeResidents } from "./wilds-home-residents";
 import type { WildsBurrowPreview } from "./wilds-burrow";
 import { WildsBurrowGhost } from "./WildsBurrowGhost";
+import type { CreationPreview } from "./creation/preview";
+import dynamic from "next/dynamic";
+const WildsCreationPreview=dynamic(()=>import("./creation/WildsCreationPreview"),{ssr:false});
 import { WildsContinuousConstruction } from "./WildsContinuousConstruction";
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type MutableRefObject, type ReactNode } from "react";
@@ -130,6 +133,7 @@ export function WildsWorldCanvas({
   stewardPlacementPreview,
   burrowPreview,
   constructionPreview,
+  creationPreview,
   constructionSelectionEnabled,
   onSelectConstruction,
   onDragConstruction,
@@ -185,6 +189,7 @@ export function WildsWorldCanvas({
   stewardPlacementPreview?: WildsStewardPlacement | null;
   burrowPreview?: WildsBurrowPreview | null;
   constructionPreview?: WildsBlueprintPlacement | null;
+  creationPreview?: CreationPreview | null;
   constructionSelectionEnabled?: boolean;
   onSelectConstruction?: (id: string) => void;
   activeConstructionId?:string;
@@ -260,7 +265,7 @@ export function WildsWorldCanvas({
         <Suspense fallback={null}>
           <WildsFirstFrame onReady={onWorldReady} />
           <WildsShaderPrewarm />
-          <WildsScene suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
+          <WildsScene suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} creationPreview={creationPreview} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>
     </div>
@@ -280,6 +285,7 @@ function WildsScene({
   stewardPlacementPreview,
   burrowPreview,
   constructionPreview,
+  creationPreview,
   constructionSelectionEnabled,
   onSelectConstruction,
   onDragConstruction,
@@ -333,6 +339,7 @@ function WildsScene({
   stewardPlacementPreview?: WildsStewardPlacement | null;
   burrowPreview?: WildsBurrowPreview | null;
   constructionPreview?: WildsBlueprintPlacement | null;
+  creationPreview?: CreationPreview | null;
   constructionSelectionEnabled?: boolean;
   onSelectConstruction?: (id: string) => void;
   activeConstructionId?:string;
@@ -489,6 +496,7 @@ function WildsScene({
         <WildsAmbientLife enabled={siteSpace.spaceId === "wildz.space.outer.v1"} player={state.player} qualityProfile={qualityProfile} siteRuntime={siteRuntime} terrainElevation={activeFloorY} />
         <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} worldMode={worldMode} />
         <WildsRegenerativeGroveEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} />
+        {creationPreview ? <WildsCreationPreview preview={creationPreview} /> : null}
         <WildsContinuousConstruction spaceId={siteSpace.spaceId} world={livingWorld} player={state.player} terrainElevation={activeFloorY} preview={constructionPreview} selectable={constructionSelectionEnabled} onSelect={onSelectConstruction} onDrag={onDragConstruction} activeComponentId={activeConstructionId} />
         <WildsStewardEnvironment
           activeWorkSource={activeWorkSource}
