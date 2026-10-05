@@ -324,3 +324,10 @@ export function canCreatureUseBurrow(runtime: CreatureRuntimeCapabilities, condi
     && !condition.injuries.some(injury => injury.kind === "limb" && injury.severity >= 2)
     && runtime.abilities.some(ability => ability.available && ability.descriptor.tags.includes("burrow"));
 }
+
+/** Versioned planning projection. Advanced craft grants require their own admitted progression laws. */
+export function projectCreatureCreationTechniquesV1(asset: PortableCardAsset, condition: AdventureCardCondition): readonly string[] {
+  if (condition.assetId !== asset.id || condition.life !== 'alive' || condition.fatigue >= 80 || condition.injuries.some(injury => injury.severity === 3)
+    || !['sealed_local', 'verified'].includes(asset.status)) return Object.freeze([]);
+  return Object.freeze(['assembly']);
+}
