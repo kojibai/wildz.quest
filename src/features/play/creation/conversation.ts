@@ -6,11 +6,12 @@ export function initialCreationConversation(ownerId:string,spaceId:string,pose:C
 export function reduceCreationConversation(state:CreationConversationState,event:CreationConversationEvent):CreationConversationState {
  const invalidate={requestId:null,plan:null,status:'idle' as const,reason:null};
  if(event.type==='environment'){if(event.ownerId===state.ownerId&&event.spaceId===state.spaceId)return state;return {...initialCreationConversation(event.ownerId,event.spaceId,state.placement),open:state.open};}
- if(event.type==='invalidate')return {...state,...invalidate};
+ if(event.type==='invalidate')return ['committing','recovering'].includes(state.status)?state:{...state,...invalidate};
  if(event.type==='close')return {...state,open:false,minimized:false,...(state.status==='planning'?invalidate:{})};
  if(event.type==='open')return {...state,open:true,minimized:false};
  if(event.type==='minimize')return {...state,minimized:!state.minimized};
  if(event.type==='draft')return {...state,draft:event.text.slice(0,4000)};
+ if(event.type==='unknown')return {...state,status:'recovering',operationId:event.operationId,reason:'Checking the existing build outcome. Resources remain reserved.'};
  if(state.status==='recovering'||state.status==='committing'){
   if(event.type==='admitted')return {...state,status:'idle',instance:event.instance,operationId:null,reason:null,requestId:null,plan:null};
   if(event.type==='blocked')return {...state,status:'blocked',reason:event.reason};
@@ -26,6 +27,5 @@ export function reduceCreationConversation(state:CreationConversationState,event
  if(event.type==='compiled'){if(event.requestId!==state.requestId||event.plan.definitionDigest!==state.definition?.digest)return state;return {...state,plan:event.plan,status:'preview',draft:'',minimized:event.minimize?true:state.minimized};}
  if(event.type==='blocked'){if(event.requestId&&event.requestId!==state.requestId)return state;return {...state,status:'blocked',reason:event.reason};}
  if(event.type==='commit')return state.plan?{...state,status:'committing',reason:null}:state;
- if(event.type==='unknown')return {...state,status:'recovering',operationId:event.operationId,reason:'Checking the existing build outcome. Resources remain reserved.'};
  return state;
 }

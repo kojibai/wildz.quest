@@ -1,0 +1,8 @@
+import type {CreationInstance} from './instance';
+import type {CreationDefinition} from './types';
+import type {CreationPlan} from './compiler';
+import type {CreationPhysicalProjection} from './projection';
+export function createCreationPhysicalWorkerClient(){let worker:Worker|null=null,closed=false;const pending=new Map<string,{resolve:(p:CreationPhysicalProjection)=>void;reject:(e:Error)=>void;timer:ReturnType<typeof setTimeout>}>();function stop(reason:string){worker?.terminate();worker=null;for(const task of pending.values()){clearTimeout(task.timer);task.reject(Error(reason));}pending.clear();}
+ return {project(instance:CreationInstance,definition:CreationDefinition,plan:CreationPlan):Promise<CreationPhysicalProjection>{if(closed||pending.size>=8)return Promise.reject(Error('creation_projection_capacity'));if(!worker){try{worker=new Worker(new URL('./physical-worker.ts',import.meta.url),{type:'module'});worker.onmessage=({data})=>{const task=pending.get(data.requestId);if(!task)return;pending.delete(data.requestId);clearTimeout(task.timer);if(data.projection)task.resolve(data.projection);else task.reject(Error(data.error||'creation_projection_failed'));};worker.onerror=e=>{e.preventDefault();stop('creation_projection_worker_failed');};}catch{return Promise.reject(Error('creation_projection_worker_unavailable'));}}
+ return new Promise((resolve,reject)=>{const id=crypto.randomUUID(),timer=setTimeout(()=>stop('creation_projection_timeout'),15000);pending.set(id,{resolve,reject,timer});try{worker!.postMessage({requestId:id,instance,definition,plan});}catch{stop('creation_projection_worker_failed');}});},close(){closed=true;stop('creation_projection_worker_closed');}};
+}
