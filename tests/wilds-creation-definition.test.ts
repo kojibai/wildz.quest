@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { createCreationDefinition, parseCreationDefinition, verifyCreationDefinition } from '../src/features/play/creation/definition';
+import { applyCreationPatch } from '../src/features/play/creation/patch';
+const node = {id:'room',parentId:null,pose:{position:{x:0,y:0,z:0},yaw:0},shape:{kind:'box' as const,width:4,height:3,depth:5},material:'timber',attachments:[],supports:[],behaviors:[]};
+const basis = () => ({schema:'wildz.creation-definition.v1' as const,grammarVersion:1 as const,seed:'seed',creatorId:'owner',nodes:[structuredClone(node)],assets:[]});
+test('seals deterministic detached definitions', () => { const input=basis(); const d=createCreationDefinition(input); input.nodes[0].shape.width=99; assert.equal(d.nodes[0].shape.width,4); assert.equal(d.digest,createCreationDefinition(basis()).digest); assert.ok(verifyCreationDefinition(d)); assert.ok(Object.isFrozen(d.nodes[0])); });
+test('rejects a stale definition patch',()=>{const d=createCreationDefinition(basis());assert.throws(()=>applyCreationPatch(d,{baseDigest:'old',operations:[]}),/creation_patch_stale/);});
+test('patches are immutable and replay deterministically',()=>{const d=createCreationDefinition(basis());const patch={baseDigest:d.digest,operations:[{op:'update' as const,id:'room',changes:{material:'stone'}}]};const next=applyCreationPatch(d,patch);assert.equal(next.nodes[0].material,'stone');assert.equal(d.nodes[0].material,'timber');assert.deepEqual(next,applyCreationPatch(d,patch));});
+test('rejects forged digests and unsupported schemas',()=>{const d=createCreationDefinition(basis());assert.equal(verifyCreationDefinition({...d,digest:'forged'}),false);assert.throws(()=>parseCreationDefinition({...d,schema:'next'}));});
+test('rejects duplicate references cycles and invalid dimensions',()=>{const d=basis();for(const nodes of [[node,node],[{...node,parentId:'missing'}],[{...node,attachments:['room']}],[{...node,shape:{...node.shape,width:NaN}}],[{...node,shape:{...node.shape,height:-1}}]])assert.throws(()=>createCreationDefinition({...d,nodes}));});
+test('rejects prototype keys and oversized node complexity',()=>{const d=basis();assert.throws(()=>createCreationDefinition({...d,constructor:'poison'}));assert.throws(()=>createCreationDefinition({...d,nodes:[{...node,attachments:Array.from({length:129},()=> 'room')}]}));});
+test('permits a graph with more than one bounded page',()=>{const d=createCreationDefinition({...basis(),nodes:Array.from({length:129},(_,i)=>({...node,id:`n${i}`}))});assert.equal(d.nodes.length,129);});
