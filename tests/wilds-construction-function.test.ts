@@ -81,8 +81,11 @@ it("resting in a completed nearby bed restores more energy and rejects distant o
   const bed = resolveWildsConstructionFunction(world, component.componentId, "bed")!;
   const state = { ...structuredClone(initialPlayState), energy: 10, player: { x: bed.position.x, z: bed.position.z } };
   state.siteSpace = { ...state.siteSpace, position: { ...state.siteSpace.position, y: bed.position.y } };
-  assert.equal(applyWildsInput(state, { type: "rest" }).energy, 45);
-  assert.equal(applyWildsInput(state, { type: "rest", bed }).energy, 65);
+  const camp=applyWildsInput(state,{type:"rest",kaiUPulse:100_000_000});
+  const restingBed=applyWildsInput(state,{type:"rest",bed,kaiUPulse:100_000_000});
+  assert.equal(camp.energy,10);assert.equal(restingBed.energy,10);
+  const later=200_000_000;
+  assert.ok(applyWildsInput(restingBed,{type:"energy-tick",kaiUPulse:later}).energy>applyWildsInput(camp,{type:"energy-tick",kaiUPulse:later}).energy);
   const distant = { ...state, player: { x: 100, z: 100 } };
   assert.equal(applyWildsInput(distant, { type: "rest", bed }), distant);
   assert.equal(applyWildsInput(state, { type: "rest", bed: { ...bed, work: [] } }), state);

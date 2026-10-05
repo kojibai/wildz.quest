@@ -1,3 +1,4 @@
+import {createPlayerBreaths,restorePlayerBreaths,isPlayerBreaths,advancePlayerBreaths,spendPlayerBreaths,playerBreathEnergy,PLAYER_BREATHS_PER_DAY} from "./player-breath-energy";
 import { nextWildsPartyTravelRevision } from "./wilds-party-transport";
 import { sanitizeWildsCrewPreferences, type WildsCrewPreferences } from "./wilds-crew-preferences";
 import { verifyWildsConstructionFunctionSource, type WildsConstructionFunctionSource } from "./wilds-construction-function";
@@ -119,6 +120,7 @@ export type WildsInput = (
   | { type: "site-portal"; direction: "enter" | "exit"; siteKey: string; siteRuntime: WildsSiteRuntimeProjection }
   | { type: "apply-rift-grant"; grant: RiftTravelGrant; playerId: string }
   | { type: "record-world-activity"; activity: WildsActivityEntry }
+  | { type: "energy-tick" }
   | { type: "discover" }
   | { type: "capture"; encounterId: string; capturedAt: string; ownerReceizId: string }
   | { type: "search-point"; x: number; z: number; surfaceWorldY?: number; searchedAt: string; ownerReceizId: string; verticalLayer?: WildsEncounterInteractionLayer; verticalWorldY?: number; verticalMinWorldY?: number; verticalMaxWorldY?: number; traversalCapabilities?: readonly WildsTraversalCapability[]; siteKey?: string | null; siteSpaceId?: string }
@@ -200,6 +202,8 @@ export type WildsOwnedWorldAdditions = Partial<WildsConstructionPersistence> & {
 };
 
 export type PlayState = {
+  playerBreaths?: import("./player-breath-energy").PlayerBreaths;
+  playerRestRecovery?: {assetId:string;settledKaiUPulse:number;bed:boolean};
   /** Changes only on an admitted transport, never ordinary movement. */
   partyTravelRevision?: number;
   crewPreferences?: WildsCrewPreferences;
@@ -735,6 +739,9 @@ export function restorePlayState(
       crewPreferences: sanitizeWildsCrewPreferences(saved.crewPreferences, migratedInventory, ownerReceizId),
       partyTravelRevision: Number.isSafeInteger(saved.partyTravelRevision) && saved.partyTravelRevision! >= 0 ? saved.partyTravelRevision : 0,
       actionHistory: normalizeWildsActivityHistory(saved.actionHistory),
+      playerRestRecovery: saved.playerRestRecovery&&typeof saved.playerRestRecovery.assetId==='string'&&saved.playerRestRecovery.assetId.length<=512&&Number.isSafeInteger(saved.playerRestRecovery.settledKaiUPulse)&&saved.playerRestRecovery.settledKaiUPulse>=0&&typeof saved.playerRestRecovery.bed==='boolean'?saved.playerRestRecovery:undefined,
+      playerBreaths: isPlayerBreaths(saved.playerBreaths) ? saved.playerBreaths : undefined,
+      energy: isPlayerBreaths(saved.playerBreaths) ? playerBreathEnergy(saved.playerBreaths) : Math.max(0,Math.min(100,typeof saved.energy==='number'&&Number.isFinite(saved.energy)?saved.energy:84)),
       player: restoredPlayer,
       siteSpace: restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
       explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, restoredPlayer),
@@ -1211,8 +1218,8 @@ function advanceLivingMission(state: PlayState, amount: number): PlayState {
 
 export function applyWildsInput(state: PlayState, input: WildsInput): PlayState {
   if (input.type === "record-world-activity") return { ...state, actionHistory: appendWildsActivity(state.actionHistory, input.activity) };
-  const next = reduceWildsInput(state, input);
-  const quiet = ["reset", "dismiss-reveal", "finish-transformation", "finish-lineage-reveal", "advance-encounter", "mark-synced", "settle-pending-travel-growth"];
+  const next = reduceWildsInputWithBreaths(state,input);
+  const quiet = ["reset", "dismiss-reveal", "finish-transformation", "finish-lineage-reveal", "advance-encounter", "mark-synced", "settle-pending-travel-growth", "energy-tick"];
   if (next === state || quiet.includes(input.type) || !Number.isSafeInteger(input.kaiUPulse)) return next;
   const moving = input.type === "move" || input.type === "move-vector";
   if (moving && next.player.x === state.player.x && next.player.z === state.player.z) return next;
@@ -1227,6 +1234,45 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
     uPulse: input.kaiUPulse!, authority: "local"
   };
   return { ...next, actionHistory: appendWildsActivity(state.actionHistory, entry) };
+}
+
+function reduceWildsInputWithBreaths(state:PlayState,input:WildsInput):PlayState{
+  if(!['move','move-vector','rest','train','capture','battle-action','use-field-ability','record-steward-work','energy-tick'].includes(input.type))return reduceWildsInput(state,input);
+  if(input.type==='reset')return reduceWildsInput(state,input);
+  const inputKai=input.kaiUPulse??state.playerBreaths?.lastKaiUPulse??0;
+  if(!Number.isSafeInteger(inputKai)||inputKai<0)return state;
+  if(state.playerBreaths?.clockRooted&&inputKai<state.playerBreaths.lastKaiUPulse){if(input.type==='energy-tick')return state;throw Error('creature_history_kai_regression');}
+  const breathState=isPlayerBreaths(state.playerBreaths)?state.playerBreaths:createPlayerBreaths(inputKai,state.energy,input.kaiUPulse!==undefined);
+  const inBed=input.type==='rest'&&Boolean(input.bed&&verifyWildsConstructionFunctionSource(input.bed,'bed')&&Math.hypot(input.bed.position.x-state.player.x,input.bed.position.z-state.player.z)<=2.5&&(input.bed.component.evidence.spaceId??'wildz.space.outer.v1')===state.siteSpace.spaceId&&Math.abs(input.bed.position.y-state.siteSpace.position.y)<2);
+  if(input.type==='rest'&&input.bed&&!inBed)return state;
+  let breaths=advancePlayerBreaths(breathState,inputKai,input.type==='rest'?(inBed?'bed':'camp'):breathState.mode,input.kaiUPulse!==undefined||breathState.clockRooted);
+  let cost=input.type==='train'?100:input.type==='use-field-ability'?64*(input.abilityIndex+1):input.type==='battle-action'?96:input.type==='capture'?40:input.type==='record-steward-work'?64:0;
+  if(cost>0&&breaths.reserveMicroBreaths<Math.round(cost*1_000_000))return {...state,playerBreaths:breaths,energy:playerBreathEnergy(breaths),lastEvent:'Take a breath and rest at camp before more strenuous work.'};
+  const base=state.energy===playerBreathEnergy(breaths)?state:{...state,energy:playerBreathEnergy(breaths)};
+  const reduced=input.type==='rest'?{...state,activeAction:'explore' as const,combo:0,lastEvent:inBed?'Resting in your bed. Energy recovers with each Kai breath.':'Camp is ready. Rest here to recover with each Kai breath.'}:input.type==='energy-tick'?state:reduceWildsInput(base,input);
+  if(reduced===base&&input.type!=='energy-tick')return state;
+  if(input.type==='train'&&reduced.cardXp===state.cardXp&&reduced.inventory===state.inventory)cost=0;
+  if((input.type==='move'||input.type==='move-vector')&&reduced!==base){const distance=Math.hypot(reduced.player.x-state.player.x,reduced.player.z-state.player.z),rise=Math.max(0,reduced.siteSpace.position.y-state.siteSpace.position.y);cost=distance*(input.type==='move-vector'&&input.mode==='run'?2:1)+rise*3;}
+  else if(reduced===base||reduced===state||input.type==='rest'||input.type==='energy-tick')cost=0;
+  if(Math.round(cost*1_000_000)>breaths.reserveMicroBreaths)return {...state,playerBreaths:breaths,energy:playerBreathEnergy(breaths),lastEvent:'Rest at camp to recover the breaths needed for this action.'};
+  breaths=spendPlayerBreaths(breaths,cost);
+  if(reduced===state&&state.playerBreaths===breaths)return state;
+  return settlePlayerRestFromBreaths(state,{...reduced,playerBreaths:breaths,energy:playerBreathEnergy(breaths)},inputKai,input.type==='rest');
+}
+
+/** One shared elapsed-breath recovery; rest taps never issue creature history by themselves. */
+function settlePlayerRestFromBreaths(before:PlayState,next:PlayState,kaiUPulse:number,entering:boolean):PlayState{
+ const mode=next.playerBreaths?.mode;if(mode!=='camp'&&mode!=='bed')return next;
+ const leader=selectedAsset(next);if(!leader)return next;
+ let marker=before.playerRestRecovery;
+ if(!marker||marker.assetId!==leader.id||before.playerBreaths?.mode==='active'||before.playerBreaths?.mode===undefined){return {...next,playerRestRecovery:{assetId:leader.id,settledKaiUPulse:kaiUPulse,bed:mode==='bed'}};}
+ const interval=(marker.bed?40:64)*1_000_000;
+ const units=Math.floor((kaiUPulse-marker.settledKaiUPulse)/interval);
+ if(units<=0)return entering&&marker.bed!==(mode==='bed')?{...next,playerRestRecovery:{...marker,settledKaiUPulse:kaiUPulse,bed:mode==='bed'}}:next;
+ const amount=Math.min(100,units),at=kaiUPulseToISOString(kaiUPulse),healed=healWildBattleCard(leader,amount,at,kaiUPulse),condition=next.adventureConditions[leader.id];
+ marker={assetId:leader.id,settledKaiUPulse:marker.settledKaiUPulse+units*interval,bed:mode==='bed'};
+ const recoveredCondition=condition?{...condition,fatigue:Math.max(0,condition.fatigue-amount)}:null;
+ return {...next,playerRestRecovery:marker,inventory:healed!==leader?admitLocallySealedWildsInventory(next.inventory.map(asset=>asset.id===leader.id?healed:asset)):next.inventory,livingProgress:healed!==leader&&isLivingCardAsset(healed)?{...next.livingProgress,[leader.id]:currentRevision(healed).growth}:next.livingProgress,pendingSyncAssetIds:healed!==leader?[...new Set([...next.pendingSyncAssetIds,leader.id])]:next.pendingSyncAssetIds,adventureConditions:recoveredCondition?{...next.adventureConditions,[leader.id]:recoveredCondition}:next.adventureConditions,hearttreeConditions:recoveredCondition?{...next.hearttreeConditions,[leader.id]:adventureConditionToHearttree(recoveredCondition)}:next.hearttreeConditions};
 }
 
 function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
@@ -1397,7 +1443,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       ...state,
       activeAction: "explore",
       companionProgress: { ...state.companionProgress, [familyId]: next },
-      energy: Math.max(0, state.energy - input.abilityIndex - 1),
+      energy: state.energy,
       lastEvent: `${asset.manifest.name} used ${ability.name}. ${ability.text}`
     };
     const grown = applyRecordedGrowth(nextState, asset, {
@@ -2178,7 +2224,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     const moved: PlayState = {
       ...state,
       activeAction: "explore",
-      energy: Math.max(0, state.energy - 1),
+      energy: state.energy,
       explorationAtlas,
       siteSpace: currentSpace.spaceId === "wildz.space.outer.v1" ? {
         version: "wildz.site-space-state.v1",
@@ -2218,45 +2264,6 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     return queued;
   }
 
-  if (input.type === "rest") {
-    const bed = input.bed;
-    const inBed = Boolean(bed && verifyWildsConstructionFunctionSource(bed, "bed")
-      && Math.hypot(bed.position.x - state.player.x, bed.position.z - state.player.z) <= 2.5
-      && (bed.component.evidence.spaceId ?? "wildz.space.outer.v1") === state.siteSpace.spaceId
-      && Math.abs(bed.position.y - state.siteSpace.position.y) < 2);
-    if (bed && !inBed) return state;
-    const recovery = inBed ? 55 : 35;
-    const leader = selectedAsset(state);
-    const maxVitality = leader && isLivingCardAsset(leader) ? currentRevision(leader).growth.life?.maxVitality : null;
-    const recovered = leader && input.at
-      ? healWildBattleCard(leader, Math.max(1, Math.round((maxVitality ?? 20) * (inBed ? .35 : .25))), input.at, input.kaiUPulse)
-      : leader;
-    const exactRecovery = Boolean(recovered && recovered !== leader && isLivingCardAsset(recovered));
-    const priorCondition = leader ? state.adventureConditions[leader.id] ?? emptyAdventureCondition(leader.id) : null;
-    const recoveredCondition = priorCondition ? { ...priorCondition, fatigue: Math.max(0, priorCondition.fatigue - recovery) } : null;
-    return {
-      ...state,
-      inventory: recovered
-        ? admitLocallySealedWildsInventory(state.inventory.map((asset) => asset.id === recovered.id ? recovered : asset))
-        : state.inventory,
-      livingProgress: exactRecovery && recovered && isLivingCardAsset(recovered)
-        ? { ...state.livingProgress, [recovered.id]: currentRevision(recovered).growth }
-        : state.livingProgress,
-      pendingSyncAssetIds: exactRecovery && recovered
-        ? Array.from(new Set([...state.pendingSyncAssetIds, recovered.id]))
-        : state.pendingSyncAssetIds,
-      adventureConditions: recoveredCondition && leader
-        ? { ...state.adventureConditions, [leader.id]: recoveredCondition }
-        : state.adventureConditions,
-      hearttreeConditions: recoveredCondition && leader
-        ? { ...state.hearttreeConditions, [leader.id]: adventureConditionToHearttree(recoveredCondition) }
-        : state.hearttreeConditions,
-      activeAction: "explore",
-      combo: 0,
-      energy: Math.min(100, state.energy + recovery),
-      lastEvent: inBed ? "Rested in your bed: restored 55 energy, eased fatigue, and recovered companion vitality." : recovered !== leader ? "Camp restored 35 energy and recovered 25% companion vitality." : "Camp restored 35 energy. Your expedition combo reset."
-    };
-  }
 
   if (input.type === "discover" || input.type === "capture") {
     const nearest = nearestCreature(state);
@@ -2338,7 +2345,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
   if (input.type === "train") {
     const targetCardId = input.cardId ?? state.selectedCardId;
     if (!state.discoveredCardIds.includes(targetCardId)) return state;
-    if (state.energy < 6) {
+    if (state.energy < 100/PLAYER_BREATHS_PER_DAY*100) {
       return { ...state, lastEvent: "Not enough energy to train. Make camp before the next session." };
     }
     const selectedTarget = state.inventory.find((asset) => asset.id === state.selectedAssetId
@@ -2371,7 +2378,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       combo: state.combo + 1,
       companionProgress: { ...state.companionProgress, [targetCardId]: nextProgress },
       bondCooldowns: { ...state.bondCooldowns, [targetAsset.id]: new Date(Date.parse(trainedAt) + 10 * 60 * 1000).toISOString() },
-      energy: Math.max(0, state.energy - 6),
+      energy: state.energy,
       lastEvent: leveledUp
         ? `${targetAsset.manifest.name} reached Level ${nextProgress.level}. A new mastery tier is active.`
         : `${targetAsset.manifest.name} gained 40 XP and strengthened your bond.`,

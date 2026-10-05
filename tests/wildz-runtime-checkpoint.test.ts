@@ -39,7 +39,9 @@ test("runtime checkpoints persist gameplay without serializing verified Vault ca
     playState: base
   });
   assert.deepEqual(restored.player, moved.player);
-  assert.equal(restored.energy, 63);
+  assert.equal(restored.energy,moved.energy);
+  assert.ok(restored.energy>63.9&&restored.energy<64);
+  assert.deepEqual(restored.playerBreaths,moved.playerBreaths);
   assert.equal(restored.inventory, base.inventory);
   assert.deepEqual(restored.explorationAtlas, moved.explorationAtlas);
 });

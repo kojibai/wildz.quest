@@ -1072,6 +1072,7 @@ export function PlayCampaign({
     mode: livingWorld.mode,
     cursor: livingWorld.snapshot?.cursor ?? null
   }), [kaiUPulse, livingWorld.mode, livingWorld.snapshot?.cursor]);
+  useEffect(()=>{if(!enabled)return;setState(current=>applyWildsInput(current,{type:'energy-tick',kaiUPulse:kaiMoment.uPulse}));},[enabled,kaiMoment.uPulse]);
   const roamingBattle = useWildsRoamingBattle({
     enabled: enabled && networkEnabled,
     selfId: multiplayer.selfId,
@@ -2574,7 +2575,7 @@ export function PlayCampaign({
       status: `${state.beans} beans · ${state.fusionSparks} sparks`,
       content: (
         <div className="wilds-command-content wilds-satchel">
-          <WildzCommandInsight label="Trail preparation" value={`${state.energy} energy`} detail="Use what you gathered now; every action updates the same live explorer state used in the world.">
+          <WildzCommandInsight label="Trail preparation" value={`${Math.round(state.energy)}% energy`} detail="Use what you gathered now; every action updates the same live explorer state used in the world.">
             <button onClick={() => dispatch({ type: "rest", at: new Date().toISOString() })} type="button">Make camp</button>
             <button onClick={() => dispatch({ type: "train", at: new Date().toISOString() })} type="button">Train leader</button>
             <button aria-pressed={visualSettings.lanternEnabled} onClick={() => setVisualSettings(current => ({ ...current, lanternEnabled: !current.lanternEnabled }))} type="button">{visualSettings.lanternEnabled ? "Stow lantern" : "Equip lantern"}</button>

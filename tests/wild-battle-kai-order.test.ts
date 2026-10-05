@@ -76,12 +76,14 @@ test("camp recovery preserves the exact gameplay pulse after capture damage", ()
   const captured = applyWildsInput(state, { type: "battle-action", action: { type: "capture" }, kaiUPulse: uPulse });
   const prior = captured.inventory.find(card => card.id === leaderId)!;
   assert.ok(isLivingCardAsset(prior));
-  const rested = applyWildsInput(captured, { type: "rest", kaiUPulse: uPulse });
+  const camp = applyWildsInput(captured, { type: "rest", kaiUPulse: uPulse });
+  const recoveryPulse=uPulse+64_000_000;
+  const rested=applyWildsInput(camp,{type:"energy-tick",kaiUPulse:recoveryPulse});
   const healed = rested.inventory.find(card => card.id === leaderId)!;
   assert.ok(isLivingCardAsset(healed));
   assert.ok(currentRevision(healed).growth.life!.vitality > currentRevision(prior).growth.life!.vitality);
-  assert.equal(healed.manifest.history?.events.at(-1)?.kai.uPulse, uPulse);
-  assert.equal(currentRevision(healed).kaiPulse, String(uPulse));
+  assert.equal(healed.manifest.history?.events.at(-1)?.kai.uPulse, recoveryPulse);
+  assert.equal(currentRevision(healed).kaiPulse, String(recoveryPulse));
   assert.equal(verifyAnyWildsCard(healed).ok, true);
 });
 

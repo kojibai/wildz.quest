@@ -37,7 +37,8 @@ describe("creature work capability meters", () => {
     const worked = applyWildsInput(state, { type: "record-steward-work", assetId: active.id });
     assert.equal(worked.adventureConditions[active.id]?.fatigue, 3);
     assert.equal(worked.hearttreeConditions[active.id]?.fatigue, 3);
-    const rested = applyWildsInput(worked, { type: "rest", at: "2026-08-25T12:01:00.000Z" });
+    const camp=applyWildsInput(worked,{type:"rest",kaiUPulse:100_000_000});
+    const rested=applyWildsInput(camp,{type:"energy-tick",kaiUPulse:300_000_000});
     assert.equal(rested.adventureConditions[active.id]?.fatigue, 0);
   });
 

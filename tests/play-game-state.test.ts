@@ -894,7 +894,10 @@ describe("Receiz Wilds game state", () => {
 
     assert.equal(blocked.missionProgress, exhausted.missionProgress);
     assert.match(blocked.lastEvent, /Earn expedition progress/i);
-    assert.equal(rested.energy, 35);
+    assert.equal(rested.energy,0);
+    const clocked=applyWildsInput(rested,{type:"energy-tick",kaiUPulse:100_000_000});
+    const recovering=applyWildsInput(clocked,{type:"energy-tick",kaiUPulse:200_000_000});
+    assert.ok(recovering.energy>0);
     assert.equal(rested.combo, 0);
   });
 
