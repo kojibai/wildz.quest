@@ -2,7 +2,7 @@
 
 Date: 2026-10-05
 
-Status: Proposed architecture for review. This document adds no gameplay implementation.
+Status: Approved for implementation planning by the player's “execution” reply on 2026-10-05. Product implementation follows review of the written plans. This document adds no gameplay implementation.
 
 ## Intended outcome
 
@@ -217,6 +217,6 @@ Meaningful unit/integration tests cover deterministic compile/replay, collision/
 
 ## Review decisions
 
-The proposed defaults are the compact conversational HUD, graph-based composition, actual creature skill/resource constraints, preserved manual building, free public use with explicit optional funded charges, destruction governed by target permissions/contested areas, and streamed large creations/spaces. These defaults are design choices for review, not assumptions that the player already approved every mechanical or economic detail.
+The approved architecture defaults are the compact conversational HUD, graph-based composition, actual creature skill/resource constraints, preserved manual building, free public use with explicit optional funded charges, destruction governed by target permissions/contested areas, and streamed large creations/spaces. Concrete execution contracts, mechanical parameters, and delivery tasks are specified in the implementation plans for review.
 
-The written architecture requires review before implementation planning. No production service, new runtime capability, complete generator, globally atomic creation system, or performance result is claimed by this document.
+The written architecture was approved for implementation planning. The written implementation plans require review before product implementation. No production service, new runtime capability, complete generator, globally atomic creation system, or performance result is claimed by this document.
