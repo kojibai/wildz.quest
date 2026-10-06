@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { availableWildsFood, describeWildsFoodItem, wildsNourishmentDigestionAt, WILDS_NOURISHMENT_PACK_CAPACITY, type WildsFoodItem, type WildsNourishmentState, type projectWildsNourishmentPlants } from './wilds-nourishment';
 import { PLAYER_BREATH_CAPACITY_MICRO } from './player-breath-energy';
 import type { projectWildsWildAnimals, projectWildsOwnedLivestock } from './wilds-livestock';
+import { wildsFoodEatingBlocker } from './wilds-nourishment-quick-use';
 
 export type WildsNourishmentPlantProjection = ReturnType<typeof projectWildsNourishmentPlants>[number];
 export type WildsWildAnimalProjection = ReturnType<typeof projectWildsWildAnimals>[number];
@@ -20,6 +21,7 @@ export type WildsNourishmentPanelProps = Readonly<{
   huntBlocker?: string | null;
   captureBlocker?: string | null;
   inspectedId?: string | null;
+  focusStoredFoodSignal?: number;
   onGather?: (plant: WildsNourishmentPlantProjection) => void;
   onEat?: (item: WildsFoodItem) => void;
   onHunt?: (animal: WildsWildAnimalProjection) => void;
@@ -32,8 +34,10 @@ const NO_LIVESTOCK: readonly WildsOwnedLivestockProjection[] = [];
 
 /** Projections and callbacks only: the reducer owns every finite source transition. */
 export function WildsNourishmentPanel({ nourishment, kaiUPulse, fuelPercent, plants = NO_PLANTS, animals = NO_ANIMALS, livestock = NO_LIVESTOCK,
-  player, pending = false, huntBlocker = null, captureBlocker = null, inspectedId = null, onGather, onEat, onHunt, onCapture, onProduce }: WildsNourishmentPanelProps) {
+  player, pending = false, huntBlocker = null, captureBlocker = null, inspectedId = null, focusStoredFoodSignal = 0, onGather, onEat, onHunt, onCapture, onProduce }: WildsNourishmentPanelProps) {
   const inspectedRow = useRef<HTMLElement | null>(null);
+  const foodHeader = useRef<HTMLElement | null>(null);
+  useEffect(() => { if (focusStoredFoodSignal) foodHeader.current?.scrollIntoView({ block: 'start' }); }, [focusStoredFoodSignal]);
   const inspectedCategory = plants.some(plant => plant.sourceId === inspectedId) ? 'plant'
     : livestock.some(animal => animal.animalId === inspectedId) ? 'livestock'
     : animals.some(animal => animal.animalId === inspectedId && animal.status === 'wild') ? 'wild' : null;
@@ -56,7 +60,7 @@ export function WildsNourishmentPanel({ nourishment, kaiUPulse, fuelPercent, pla
     .sort((a, b) => selectedFirst(a.animalId, b.animalId)).slice(0, 8);
   const fuel = Number.isFinite(fuelPercent) ? Math.max(0, Math.min(100, fuelPercent)) : 100;
   return <section className="wilds-steward-craft wilds-nourishment-panel" aria-label="Food and husbandry">
-    <header className="wilds-steward-craft-header">
+    <header ref={foodHeader} className="wilds-steward-craft-header">
       <span><small>Food & farm</small><strong>{food.length ? `${food.length} food in your pack` : 'Gather something to eat'}</strong></span>
       <span aria-label={`${Math.round(fuel)} percent fuel, ${Math.round(digestion.fullnessPercent)} percent fullness`}>
         <small>{Math.round(fuel)}% fuel · {Math.round(digestion.fullnessPercent)}% fullness</small>
@@ -66,9 +70,7 @@ export function WildsNourishmentPanel({ nourishment, kaiUPulse, fuelPercent, pla
     <p className="wilds-satchel-note">Food restores fuel. Strain eases with rest, and sleep restores fatigue. Your body needs Kai time between meals.</p>
     {groups.size ? <div className="wilds-steward-tool-grid wilds-food-pack" aria-label="Stored food">
       {[...groups.entries()].map(([kind, group]) => {
-        const amount = Math.min(Math.round((100 - fuel) / 100 * PLAYER_BREATH_CAPACITY_MICRO), Math.round(group.fuelBreaths * 1_000_000));
-        const blocker = fuel >= 100 ? 'Your fuel is full. Keep this food for later.'
-          : amount > digestion.remainingFuelMicroBreaths ? 'Let your meal digest before eating more.' : !onEat ? 'Eating is unavailable.' : null;
+        const blocker = wildsFoodEatingBlocker(group.first, nourishment!, kaiUPulse, fuel, digestion.remainingFuelMicroBreaths) ?? (!onEat ? 'Eating is unavailable.' : null);
         return <article key={kind}><span><strong>{group.label}</strong><small>{group.count} stored · {Math.round(group.fuelBreaths / (PLAYER_BREATH_CAPACITY_MICRO / 1_000_000) * 100)}% fuel each</small></span>
           <button type="button" disabled={pending || Boolean(blocker)} title={blocker ?? `Eat one ${group.label.toLowerCase()}`} onClick={() => onEat?.(group.first)}>Eat one</button></article>;
       })}

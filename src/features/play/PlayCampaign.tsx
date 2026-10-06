@@ -220,7 +220,7 @@ import { selectCreationBedAtPlayer } from './creation/bed';
 import { saveWorldCreationProofImage } from './creation/world-image';
 import { WildsBodyReadout } from './command-center/WildsBodyReadout';
 import { WildsNourishmentPanel, type WildsNourishmentPlantProjection, type WildsWildAnimalProjection, type WildsOwnedLivestockProjection } from './WildsNourishmentPanel';
-import { projectWildsNourishmentPlants, wildsNourishmentSourceAt, availableWildsFood, WILDS_NOURISHMENT_GATHER_REACH, WILDS_NOURISHMENT_VERTICAL_REACH, WILDS_NOURISHMENT_PACK_CAPACITY } from './wilds-nourishment';
+import { projectWildsNourishmentPlants, wildsNourishmentSourceAt, availableWildsFood, WILDS_NOURISHMENT_GATHER_REACH, WILDS_NOURISHMENT_VERTICAL_REACH, WILDS_NOURISHMENT_PACK_CAPACITY, type WildsFoodItem } from './wilds-nourishment';
 import { projectWildsWildAnimals, projectWildsOwnedLivestock, selectWildsLivestockShelter, selectWildsHuntingSupport, WILDS_ANIMAL_INTERACTION_REACH } from './wilds-livestock';
 import { projectWildsWildAnimalPosition } from './wilds-animal-ecology';
 import { projectWildsWorkCapabilityMeters, selectNearestWildsWorkSource, selectWildsResourceWorkPartner, type WildsVisibleWorkFamily } from "@/features/play/wilds-work-capability";
@@ -634,6 +634,7 @@ export function PlayCampaign({
   const [trainerEncounter, setTrainerEncounter] = useState<TrainerEncounterState | null>(null);
   const [kaiUPulse, setKaiUPulse] = useState(0);
   const [inspectedNourishmentId, setInspectedNourishmentId] = useState<string | null>(null);
+  const [storedFoodFocusSignal, setStoredFoodFocusSignal] = useState(0);
   const kaiRuntimeClockRef = useRef<ReturnType<typeof createWildsKaiRuntimeClock> | null>(null);
   const readActionKaiUPulse=useCallback(()=>kaiRuntimeClockRef.current?.read(performance.now(),observeWildsKaiUPulse())??observeWildsKaiUPulse(),[]);
   const worldProgression = projectWorldProgression(state.worldMastery);
@@ -839,6 +840,9 @@ export function PlayCampaign({
   useEffect(()=>{setCreationOpen(false);setCreationPlacing(false);setCreationPreview(null);},[ownerReceizId,state.siteSpace.spaceId]);
   useEffect(()=>{if(modalOwner!=="none"){setCreationOpen(false);setCreationPlacing(false);setCreationPreview(null);}},[modalOwner]);
   const commandPanelOpen = modalOwner === "none" && worldOverlayState.panelKey !== null;
+  useEffect(() => {
+    if (worldOverlayState.panelKey !== 'satchel') setStoredFoodFocusSignal(0);
+  }, [worldOverlayState.panelKey]);
   const exclusiveOwner = commandPanelOpen ? "command" : modalOwner;
   useEffect(() => {
     if (exclusiveOwner === "none") return;
@@ -1966,8 +1970,20 @@ export function PlayCampaign({
   };
   worldInputDispatcherRef.current = dispatchWorldInput;
   const canForage = () => interactionEnabled && !state.battle && modalOwner === 'none' && (canUseWorldStage() || worldOverlayState.panelKey === 'satchel');
+  const eatFood = (item: WildsFoodItem) => {
+    if (!canForage()) return;
+    beginWorldActionFeedback();
+    dispatch({ type: 'eat-food', ownerReceizId, itemId: item.itemId, kaiUPulse: readActionKaiUPulse() });
+  };
+  const openNourishmentSatchel = () => {
+    if (!canForage()) return;
+    setInspectedNourishmentId(null);
+    setStoredFoodFocusSignal(signal => signal + 1);
+    setRequestedCommand('satchel');
+  };
   const inspectNourishment = (source: WildsNourishmentPlantProjection | WildsWildAnimalProjection | WildsOwnedLivestockProjection) => {
     if (!canForage()) return;
+    setStoredFoodFocusSignal(0);
     setInspectedNourishmentId('sourceId' in source ? source.sourceId : source.animalId);
     setRequestedCommand('satchel');
     showWorldFeedback(`${source.label} · ${'sourceId' in source ? 'Gather within reach, then eat from your food pack.' : 'status' in source ? 'Choose Hunt or Capture in Food & farm.' : 'Collect eggs or milk in Food & farm.'}`);
@@ -2756,11 +2772,11 @@ export function PlayCampaign({
         <div className="wilds-command-content wilds-satchel">
           <WildsBodyReadout body={playerBreathReadout(livePlayerEnergy.playerBreaths)} onSleep={sleepHere} onWake={() => dispatch({ type: 'wake' })} />
           <WildsNourishmentPanel nourishment={state.playerNourishment} kaiUPulse={nourishmentKaiUPulse} fuelPercent={playerBreathReadout(livePlayerEnergy.playerBreaths).fuelPercent}
-            plants={nourishmentPlants} animals={wildAnimals} livestock={ownedLivestock} player={nourishmentPlayer} inspectedId={inspectedNourishmentId}
+            plants={nourishmentPlants} animals={wildAnimals} livestock={ownedLivestock} player={nourishmentPlayer} inspectedId={inspectedNourishmentId} focusStoredFoodSignal={storedFoodFocusSignal}
             huntBlocker={foodPackFull ? 'Your food pack is full. Eat a portion before hunting.' : huntingSupport.blocker}
             captureBlocker={captureBlocker}
             onGather={gatherFood} onHunt={huntAnimal} onCapture={captureLivestock} onProduce={collectLivestockFood}
-            onEat={item => { if (canForage()) { beginWorldActionFeedback(); dispatch({type:'eat-food', ownerReceizId, itemId:item.itemId, kaiUPulse:readActionKaiUPulse()}); } }} />
+            onEat={eatFood} />
 
           <WildzCommandInsight label="Trail preparation" value={`${Math.round(livePlayerEnergy.energy)}% energy`} detail="Use what you gathered now; every action updates the same live explorer state used in the world.">
             <button onClick={() => dispatch({ type: "rest", at: new Date().toISOString() })} type="button">Make camp</button>
@@ -3267,6 +3283,7 @@ export function PlayCampaign({
               cardOrder={cardOrder}
               commandItems={commandItems}
               materialCounts={stewardMaterials}
+              nourishment={{ state: state.playerNourishment, kaiUPulse: nourishmentKaiUPulse, fuelPercent: playerBreathReadout(livePlayerEnergy.playerBreaths).fuelPercent, onEat: eatFood, onOpen: openNourishmentSatchel }}
               companionProgress={state.companionProgress}
               dismissSignal={commandDismissSignal}
               exclusiveOwner={exclusiveOwner}

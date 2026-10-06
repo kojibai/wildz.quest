@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, type MutableRefObject, type RefObject } from "react";
 import { useBuildGesture } from "./creation/use-build-gesture";
+import { WildsNourishmentPill, type WildsNourishmentPillProps } from './WildsNourishmentPill';
 import { Icons } from "@/components/icons";
 import type { WildzCardSort } from "./card-sort";
 import type { PlayState, WildsInput } from "./game-state";
@@ -54,6 +55,7 @@ export function WildzWorldControls({
   cardOrder,
   commandItems,
   materialCounts = { hay: 0, timber: 0, stone: 0 },
+  nourishment,
   dismissSignal,
   exclusiveOwner,
   overlayState,
@@ -92,6 +94,7 @@ export function WildzWorldControls({
   cardOrder: WildzCardSort;
   commandItems: readonly WildsCommandItem[];
   materialCounts?: Readonly<{ hay: number; timber: number; stone: number }>;
+  nourishment?: WildsNourishmentPillProps;
   dismissSignal: number;
   exclusiveOwner: WorldOverlayOwner;
   overlayState: WorldOverlayState;
@@ -366,6 +369,7 @@ export function WildzWorldControls({
       </div>
 
       <div aria-hidden={movementHomeBlocked} className="wildz-construction-home wildz-quick-utilities" inert={movementHomeBlocked ? true : undefined}>
+          {nourishment ? <WildsNourishmentPill {...nourishment} enabled={worldHomesEnabled} cancelSignal={gestureCancelSignal} /> : null}
           <button
             aria-label={`${onOpenCreation ? "Create with creatures" : "Open Living Construction"}. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
             className="wildz-construction-control"

@@ -2,6 +2,7 @@ import {
   BarChart3,
   PawPrint,
   Archive,
+  Apple,
   Anchor,
   ArrowDownToLine,
   AudioWaveform,
@@ -67,6 +68,7 @@ import {
   TreePine,
   User,
   Users,
+  Utensils,
   Waves,
   Wind,
   WalletCards,
@@ -74,6 +76,8 @@ import {
 } from "lucide-react";
 
 export const Icons = {
+  food: Apple,
+  eat: Utensils,
   archive: Archive,
   analytics: BarChart3,
   waveform: AudioWaveform,
