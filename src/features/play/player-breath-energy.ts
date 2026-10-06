@@ -20,3 +20,11 @@ export function advancePlayerBreaths(state:PlayerBreaths,kaiUPulse:number,mode:P
 export function spendPlayerBreaths(state:PlayerBreaths,breaths:number):PlayerBreaths{if(!isPlayerBreaths(state)||!Number.isFinite(breaths)||breaths<0||breaths>1_000_000)throw Error('player_breath_cost_invalid');const cost=Math.min(state.reserveMicroBreaths,Math.round(breaths*1_000_000));if(cost===0)return state;return {...state,reserveMicroBreaths:state.reserveMicroBreaths-cost,spentMicroBreaths:Math.min(Number.MAX_SAFE_INTEGER,state.spentMicroBreaths+cost),spentTodayMicroBreaths:Math.min(Number.MAX_SAFE_INTEGER,state.spentTodayMicroBreaths+cost),mode:state.mode==='camp'||state.mode==='bed'?'active':state.mode};}
 export function playerBreathEnergy(state:PlayerBreaths){return state.reserveMicroBreaths/PLAYER_BREATH_CAPACITY_MICRO*100;}
 export function playerBreathReadout(state:PlayerBreaths,kaiUPulse=state.lastKaiUPulse){if(!validKai(kaiUPulse))throw Error('player_breath_time_invalid');const kai=BigInt(kaiUPulse),elapsed=Number(kai%KAI_N_DAY_MICRO*BigInt(PLAYER_BREATHS_PER_DAY)/KAI_N_DAY_MICRO);return {breathsPerDay:PLAYER_BREATHS_PER_DAY,elapsedBreaths:elapsed,remainingDayBreaths:PLAYER_BREATHS_PER_DAY-elapsed,reserveBreaths:Math.floor(state.reserveMicroBreaths/1_000_000),spentTodayBreaths:Math.floor(state.spentTodayMicroBreaths/1_000_000),energyPercent:playerBreathEnergy(state),day:Number(kai/KAI_N_DAY_MICRO),mode:state.mode};}
+
+/** A bounded recovery amount; only an admitted gameplay consequence may adopt the resulting state. */
+export function recoverPlayerBreaths(state: PlayerBreaths, breaths: number): PlayerBreaths {
+ if (!isPlayerBreaths(state) || !Number.isFinite(breaths) || breaths < 0 || breaths > 1_000_000) throw Error('player_breath_recovery_invalid');
+ const amount = Math.min(PLAYER_BREATH_CAPACITY_MICRO - state.reserveMicroBreaths, Math.round(breaths * 1_000_000));
+ if (!amount) return state;
+ return { ...state, reserveMicroBreaths: state.reserveMicroBreaths + amount, restoredMicroBreaths: Math.min(Number.MAX_SAFE_INTEGER, state.restoredMicroBreaths + amount) };
+}

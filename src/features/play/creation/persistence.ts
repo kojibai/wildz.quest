@@ -1,4 +1,5 @@
 import { verifyCreationOccupancyGrant } from './occupancy';
+import { verifyCreationMetabolismSource } from './consumption';
 import { assertCreationData, parseCreationDefinition } from './definition';
 import { verifyCreationInstance, type CreationInstance } from './instance';
 import { emptyCreationState, type CreationState, type CreationSourceRef } from './state';
@@ -13,6 +14,7 @@ export type CreationPersistence = Readonly<{
     reservations: CreationState['reservations'];
     receipts: CreationState['receipts'];
     events: CreationState['events'];
+    metabolism?: CreationState['metabolism'];
     occupancyGrants?: CreationState['occupancyGrants'];
     contributions?: CreationState['contributions'];
 }>;
@@ -26,7 +28,7 @@ export type CreationRestoreResult = Readonly<{
     unsupported: readonly unknown[];
 }>;
 /** An unsealed additive checkpoint. Portable authority requires the enclosing Receiz seal and source family. */
-export function exportCreationPersistence(state: CreationState): CreationPersistence { return freezeConstructionProof(JSON.parse(JSON.stringify({ schema: 'wildz.creation-persistence.v1', definitions: Object.values(state.definitions), instances: Object.values(state.instances), resources: state.resources, custody: state.custody, reservations: state.reservations, receipts: state.receipts, events: state.events, occupancyGrants: state.occupancyGrants, contributions: state.contributions })) as CreationPersistence); }
+export function exportCreationPersistence(state: CreationState): CreationPersistence { return freezeConstructionProof(JSON.parse(JSON.stringify({ schema: 'wildz.creation-persistence.v1', definitions: Object.values(state.definitions), instances: Object.values(state.instances), resources: state.resources, custody: state.custody, reservations: state.reservations, receipts: state.receipts, events: state.events, metabolism: state.metabolism, occupancyGrants: state.occupancyGrants, contributions: state.contributions })) as CreationPersistence); }
 export async function restoreCreationPersistence(value: unknown, verifySource: CreationSourceVerifier, verifyAsset?: (asset: CreationAssetRef) => Promise<boolean>): Promise<CreationRestoreResult> {
     const empty = emptyCreationState();
     if (value === undefined || value === null)
@@ -41,11 +43,11 @@ export async function restoreCreationPersistence(value: unknown, verifySource: C
             return { state: empty, retained: [], unsupported: [value] };
         parsed = freezeConstructionProof(JSON.parse(JSON.stringify(raw))) as CreationPersistence;
         const required = ['schema', 'definitions', 'instances', 'resources', 'custody', 'reservations', 'receipts', 'events'];
-        if (required.some(key => !Object.hasOwn(parsed, key)) || Object.keys(parsed).some(key => ![...required, 'occupancyGrants', 'contributions'].includes(key)))
+        if (required.some(key => !Object.hasOwn(parsed, key)) || Object.keys(parsed).some(key => ![...required, 'metabolism', 'occupancyGrants', 'contributions'].includes(key)))
             throw Error('creation_persistence_invalid');
         if (!Array.isArray(parsed.definitions) || !Array.isArray(parsed.instances) || parsed.instances.length > 16384 || parsed.definitions.length > 16384 || !parsed.resources || !parsed.custody || !parsed.reservations || !parsed.receipts || !Array.isArray(parsed.events))
             throw Error('creation_persistence_invalid');
-        for (const map of [parsed.resources, parsed.custody, parsed.reservations, parsed.receipts, ...(parsed.occupancyGrants !== undefined ? [parsed.occupancyGrants] : []), ...(parsed.contributions !== undefined ? [parsed.contributions] : [])])
+        for (const map of [parsed.resources, parsed.custody, parsed.reservations, parsed.receipts, ...(parsed.metabolism !== undefined ? [parsed.metabolism] : []), ...(parsed.occupancyGrants !== undefined ? [parsed.occupancyGrants] : []), ...(parsed.contributions !== undefined ? [parsed.contributions] : [])])
             if (!map || typeof map !== 'object' || Array.isArray(map) || Object.keys(map).length > 16384)
                 throw Error('creation_persistence_invalid');
         if (parsed.events.length > 65536)
@@ -121,6 +123,13 @@ export async function restoreCreationPersistence(value: unknown, verifySource: C
     const events = parsed.events.filter(e => Object.hasOwn(receipts, e.operationId));
     // Pending reservations are retained, never promoted to physical success by restoration.
     const reservations = Object.fromEntries(Object.entries(parsed.reservations).filter(([id, operation]) => resources[id] && typeof operation === 'string' && !resources[id].spent));
+    const metabolism: NonNullable<CreationState['metabolism']> = {};
+    for (const [id, source] of Object.entries(parsed.metabolism || {})) {
+        try {
+            if (!verifyCreationMetabolismSource(source) || source.id !== id || !await verifySource({ id, head: source.head, kind: 'player-metabolism' }, source)) throw Error('unverified');
+            (metabolism as Record<string, typeof source>)[id] = source;
+        } catch { retained.push({ value: source, reason: 'creation_metabolism_unverified' }); }
+    }
     const occupancyGrants: NonNullable<CreationState['occupancyGrants']> = {}, contributions: NonNullable<CreationState['contributions']> = {};
     for (const [id, grant] of Object.entries(parsed.occupancyGrants || {})) {
         try {
@@ -143,5 +152,5 @@ export async function restoreCreationPersistence(value: unknown, verifySource: C
             retained.push({ value: contribution, reason: 'creation_contribution_unverified' });
         }
     }
-    return { state: freezeConstructionProof({ definitions, instances, resources, custody, reservations, receipts, events, ...(parsed.occupancyGrants !== undefined ? { occupancyGrants } : {}), ...(parsed.contributions !== undefined ? { contributions } : {}) }), retained, unsupported: [] };
+    return { state: freezeConstructionProof({ definitions, instances, resources, custody, reservations, receipts, events, ...(parsed.metabolism !== undefined ? { metabolism } : {}), ...(parsed.occupancyGrants !== undefined ? { occupancyGrants } : {}), ...(parsed.contributions !== undefined ? { contributions } : {}) }), retained, unsupported: [] };
 }

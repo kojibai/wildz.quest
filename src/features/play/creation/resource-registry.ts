@@ -32,3 +32,43 @@ export function verifyCreationResourceLot(value: unknown): value is CreationReso
         return false;
     }
 }
+/** Current finite custody retains the immutable extraction/harvest lot and every consumed head. */
+export type CreationResourceCustody = Readonly<{
+    schema: 'wildz.creation-resource-custody.v1';
+    id: string;
+    head: string;
+    kind: CreationResourceLot['kind'];
+    ownerId: string;
+    quantity: number;
+    spent: boolean;
+    originLot: CreationResourceLot;
+    containerId: string | null;
+    revision: number;
+    parentHead: string | null;
+    kaiUPulse: number;
+}>;
+function sealCustody(basis: Omit<CreationResourceCustody, 'head'>): CreationResourceCustody {
+    assertCreationData(basis);
+    if (Object.keys(basis).sort().join(',') !== ['schema', 'id', 'kind', 'ownerId', 'quantity', 'spent', 'originLot', 'containerId', 'revision', 'parentHead', 'kaiUPulse'].sort().join(',') || basis.schema !== 'wildz.creation-resource-custody.v1' || !verifyCreationResourceLot(basis.originLot) || basis.id !== basis.originLot.id || basis.kind !== basis.originLot.kind || !validConstructionId(basis.ownerId) || !Number.isSafeInteger(basis.quantity) || basis.quantity < 0 || basis.quantity > basis.originLot.quantity || basis.spent !== (basis.quantity === 0) || (basis.containerId !== null && !validConstructionId(basis.containerId)) || !Number.isSafeInteger(basis.revision) || basis.revision < 0 || !validConstructionKai(basis.kaiUPulse) || basis.kaiUPulse < basis.originLot.kaiUPulse || (basis.revision === 0 ? basis.parentHead !== null || basis.containerId !== null || basis.quantity !== basis.originLot.quantity || basis.ownerId !== basis.originLot.ownerId : !validConstructionHead(basis.parentHead)))
+        throw Error('creation_resource_custody_invalid');
+    return sealConstructionProof(basis);
+}
+export function createCreationResourceCustody(lot: CreationResourceLot): CreationResourceCustody {
+    return sealCustody({ schema: 'wildz.creation-resource-custody.v1', id: lot.id, kind: lot.kind, ownerId: lot.ownerId, quantity: lot.quantity, spent: false, originLot: lot, containerId: null, revision: 0, parentHead: null, kaiUPulse: lot.kaiUPulse });
+}
+export function verifyCreationResourceCustody(value: unknown): value is CreationResourceCustody {
+    try {
+        assertCreationData(value);
+        const { head, ...basis } = value as CreationResourceCustody;
+        return head === sealCustody(basis).head;
+    }
+    catch {
+        return false;
+    }
+}
+export function spendCreationResourceCustody(current: CreationResourceCustody, quantity: number, kaiUPulse: number): CreationResourceCustody {
+    if (!verifyCreationResourceCustody(current) || current.spent || current.containerId !== null || !Number.isSafeInteger(quantity) || quantity < 1 || quantity > current.quantity || !validConstructionKai(kaiUPulse) || kaiUPulse < current.kaiUPulse)
+        throw Error('creation_resource_spend_invalid');
+    const { head, ...basis } = current;
+    return sealCustody({ ...basis, quantity: current.quantity - quantity, spent: quantity === current.quantity, revision: current.revision + 1, parentHead: head, kaiUPulse });
+}

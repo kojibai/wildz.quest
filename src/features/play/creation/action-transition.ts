@@ -15,6 +15,7 @@ export function proposeCreationAction(state: CreationState, command: CreationAct
     id: string;
     head: string;
     stages?: readonly CreationInstance['stage'][];
+    genesisIds?: readonly string[];
 }>, permission: CreationAccessAction, apply: (current: CreationInstance) => CreationInstance): CreationTransition {
     const reject = (reason: string): CreationTransition => ({ status: 'rejected', state, reason, writes: 0 });
     try {
@@ -38,9 +39,15 @@ export function proposeCreationAction(state: CreationState, command: CreationAct
             return reject('creation_action_source_stale');
         if (!validConstructionHead(command.expectedHeads[`actor:${command.actorId}`]) || new Set(context.sources.map(s => s.id)).size !== context.sources.length)
             return reject('creation_action_actor_invalid');
+        const genesis = new Set(rule.genesisIds || []);
+        if (genesis.size > 32 || genesis.size !== (rule.genesisIds || []).length || [...genesis].some(id => !validConstructionId(id) || command.expectedHeads[id] !== null))
+            return reject('creation_action_genesis_invalid');
         for (const [id, head] of Object.entries(command.expectedHeads)) {
-            if (head === null)
-                return reject('creation_action_unexpected_genesis');
+            if (head === null) {
+                if (!genesis.has(id) || context.sources.some(source => source.id === id))
+                    return reject('creation_action_unexpected_genesis');
+                continue;
+            }
             if (!context.sources.some(s => s.id === id && s.head === head && context.verifySource(s)))
                 return reject('creation_action_source_unverified');
         }

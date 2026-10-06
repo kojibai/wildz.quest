@@ -37,3 +37,12 @@ test('a receipt verification outage is retained without failing a valid object r
     assert.equal(Object.keys(restored.state.receipts).length, 0);
     assert.equal(restored.retained.at(-1)?.reason, 'creation_receipt_unverified');
 });
+
+test('checkpoint metabolism requires its exact authenticated source and never restores JSON energy alone', async () => {
+ const { sealCreationMetabolismSource } = await import('../src/features/play/creation/consumption');
+ const { createPlayerBreaths } = await import('../src/features/play/player-breath-energy');
+ const source=sealCreationMetabolismSource({schema:'wildz.creation-metabolism.v1',id:'metabolism:owner',actorId:'owner',revision:0,parentHead:null,kaiUPulse:100,breaths:createPlayerBreaths(100,50)});
+ const state={...emptyCreationState(),metabolism:{[source.id]:source}}, exported=exportCreationPersistence(state);
+ const denied=await restoreCreationPersistence(exported,async()=>false);assert.deepEqual(denied.state.metabolism,{});assert.equal(denied.retained[0].reason,'creation_metabolism_unverified');
+ const restored=await restoreCreationPersistence(exported,async ref=>ref.id===source.id&&ref.head===source.head&&ref.kind==='player-metabolism');assert.equal(restored.state.metabolism?.[source.id].head,source.head);
+});
