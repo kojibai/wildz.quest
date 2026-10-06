@@ -2,7 +2,7 @@ import {resolveCreationMovement,resolveCreationFlight,type CreationNavigation} f
 import {createPlayerBreaths,restorePlayerBreaths,isPlayerBreaths,advancePlayerBreaths,spendPlayerBreaths,playerBreathEnergy,PLAYER_BREATHS_PER_DAY} from "./player-breath-energy";
 import { nextWildsPartyTravelRevision } from "./wilds-party-transport";
 import { sanitizeWildsCrewPreferences, type WildsCrewPreferences } from "./wilds-crew-preferences";
-import { verifyWildsConstructionFunctionSource, type WildsConstructionFunctionSource } from "./wilds-construction-function";
+import { canSleepInWildsBed, type WildsConstructionFunctionSource } from "./wilds-construction-function";
 import { applyWildsFlightWind, createWildsKaiWeatherSample, writeWildsKaiWeather } from "./wilds-kai-wind";
 import { sanitizeWildsJourneyJournal, type WildsJourneyJournal } from "./wilds-journey";
 import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
@@ -155,6 +155,7 @@ export type WildsInput = (
   | { type: "use-field-ability"; assetId: string; abilityIndex: number; usedAt: string }
   | { type: "record-steward-work"; assetId: string }
   | { type: "mission" }
+  | { type: "wake" }
   | { type: "rest"; at?: string; bed?: WildsConstructionFunctionSource }
   | { type: "select-card"; cardId: string }
   | { type: "select-asset"; assetId: string }
@@ -203,6 +204,7 @@ export type WildsOwnedWorldAdditions = Partial<WildsConstructionPersistence> & {
 };
 
 export type PlayState = {
+  playerBedRest?: Readonly<{ componentId: string; componentHead: string; spaceId: string }>;
   playerBreaths?: import("./player-breath-energy").PlayerBreaths;
   playerRestRecovery?: {assetId:string;settledKaiUPulse:number;bed:boolean};
   /** Changes only on an admitted transport, never ordinary movement. */
@@ -740,6 +742,7 @@ export function restorePlayState(
       crewPreferences: sanitizeWildsCrewPreferences(saved.crewPreferences, migratedInventory, ownerReceizId),
       partyTravelRevision: Number.isSafeInteger(saved.partyTravelRevision) && saved.partyTravelRevision! >= 0 ? saved.partyTravelRevision : 0,
       actionHistory: normalizeWildsActivityHistory(saved.actionHistory),
+      playerBedRest: saved.playerBedRest && typeof saved.playerBedRest.componentId === "string" && saved.playerBedRest.componentId.length <= 512 && /^sha256:[a-f0-9]{64}$/.test(saved.playerBedRest.componentHead) && typeof saved.playerBedRest.spaceId === "string" && saved.playerBedRest.spaceId.length <= 512 ? saved.playerBedRest : undefined,
       playerRestRecovery: saved.playerRestRecovery&&typeof saved.playerRestRecovery.assetId==='string'&&saved.playerRestRecovery.assetId.length<=512&&Number.isSafeInteger(saved.playerRestRecovery.settledKaiUPulse)&&saved.playerRestRecovery.settledKaiUPulse>=0&&typeof saved.playerRestRecovery.bed==='boolean'?saved.playerRestRecovery:undefined,
       playerBreaths: isPlayerBreaths(saved.playerBreaths) ? saved.playerBreaths : undefined,
       energy: isPlayerBreaths(saved.playerBreaths) ? playerBreathEnergy(saved.playerBreaths) : Math.max(0,Math.min(100,typeof saved.energy==='number'&&Number.isFinite(saved.energy)?saved.energy:84)),
@@ -1238,7 +1241,7 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
 }
 
 function reduceWildsInputWithBreaths(state:PlayState,input:WildsInput):PlayState{
-  if(!['move','move-vector','rest','train','capture','battle-action','use-field-ability','record-steward-work','energy-tick'].includes(input.type))return reduceWildsInput(state,input);
+  if(!['move','move-vector','rest','train','capture','battle-action','use-field-ability','record-steward-work','energy-tick','wake'].includes(input.type))return reduceWildsInput(state,input);
   if(input.type==='reset')return reduceWildsInput(state,input);
   if(input.energyActivity&&!['active','swim','flight','glide'].includes(input.energyActivity))return state;
   if(input.type==='rest'&&input.energyActivity&&input.energyActivity!=='active')return {...state,lastEvent:'Return to solid ground before making camp.'};
@@ -1246,14 +1249,14 @@ function reduceWildsInputWithBreaths(state:PlayState,input:WildsInput):PlayState
   if(!Number.isSafeInteger(inputKai)||inputKai<0)return state;
   if(state.playerBreaths?.clockRooted&&inputKai<state.playerBreaths.lastKaiUPulse){if(input.type==='energy-tick')return state;throw Error('creature_history_kai_regression');}
   const breathState=isPlayerBreaths(state.playerBreaths)?state.playerBreaths:createPlayerBreaths(inputKai,state.energy,input.kaiUPulse!==undefined);
-  const inBed=input.type==='rest'&&Boolean(input.bed&&verifyWildsConstructionFunctionSource(input.bed,'bed')&&Math.hypot(input.bed.position.x-state.player.x,input.bed.position.z-state.player.z)<=2.5&&(input.bed.component.evidence.spaceId??'wildz.space.outer.v1')===state.siteSpace.spaceId&&Math.abs(input.bed.position.y-state.siteSpace.position.y)<2);
+  const inBed=input.type==='rest'&&Boolean(input.bed&&!state.battle&&canSleepInWildsBed(input.bed,state.player,state.siteSpace));
   if(input.type==='rest'&&input.bed&&!inBed)return state;
   const activityMode=input.energyActivity&&(input.type!=='energy-tick'||!['camp','bed'].includes(breathState.mode)||input.energyActivity!=='active')?input.energyActivity:breathState.mode;
-  let breaths=advancePlayerBreaths(breathState,inputKai,input.type==='rest'?(inBed?'bed':'camp'):activityMode,input.kaiUPulse!==undefined||breathState.clockRooted);
+  let breaths=advancePlayerBreaths(breathState,inputKai,input.type==='rest'?(inBed?'bed':'camp'):input.type==='wake'?'active':activityMode,input.kaiUPulse!==undefined||breathState.clockRooted);
   let cost=input.type==='train'?100:input.type==='use-field-ability'?64*(input.abilityIndex+1):input.type==='battle-action'?96:input.type==='capture'?40:input.type==='record-steward-work'?64:0;
   if(cost>0&&breaths.reserveMicroBreaths<Math.round(cost*1_000_000))return {...state,playerBreaths:breaths,energy:playerBreathEnergy(breaths),lastEvent:'Take a breath and rest at camp before more strenuous work.'};
   const base=state.energy===playerBreathEnergy(breaths)?state:{...state,energy:playerBreathEnergy(breaths)};
-  const reduced=input.type==='rest'?{...state,activeAction:'explore' as const,combo:0,lastEvent:inBed?'Resting in your bed. Energy recovers with each Kai breath.':'Camp is ready. Rest here to recover with each Kai breath.'}:input.type==='energy-tick'?state:reduceWildsInput(base,input);
+  const reduced=input.type==='rest'?{...state,activeAction:'explore' as const,combo:0,playerBedRest:inBed&&input.type==='rest'&&input.bed?{componentId:input.bed.component.componentId,componentHead:input.bed.head,spaceId:state.siteSpace.spaceId}:undefined,lastEvent:inBed?'Sleeping in bed. Energy recovers with each Kai breath.':'Camp is ready. Rest here to recover with each Kai breath.'}:input.type==='wake'?{...state,playerBedRest:undefined,lastEvent:'Awake and ready to explore.'}:input.type==='energy-tick'?state:reduceWildsInput(base,input);
   if(reduced===base&&input.type!=='energy-tick')return state;
   if(input.type==='train'&&reduced.cardXp===state.cardXp&&reduced.inventory===state.inventory)cost=0;
   if(input.type==='capture'&&reduced.inventory===state.inventory)cost=0;
@@ -1264,7 +1267,7 @@ function reduceWildsInputWithBreaths(state:PlayState,input:WildsInput):PlayState
   if(Math.round(cost*1_000_000)>breaths.reserveMicroBreaths)return {...state,playerBreaths:breaths,energy:playerBreathEnergy(breaths),lastEvent:'Rest at camp to recover the breaths needed for this action.'};
   breaths=spendPlayerBreaths(breaths,cost);
   if(reduced===state&&state.playerBreaths===breaths)return state;
-  return settlePlayerRestFromBreaths(state,{...reduced,playerBreaths:breaths,energy:playerBreathEnergy(breaths)},inputKai,input.type==='rest');
+  return settlePlayerRestFromBreaths(state,{...reduced,playerBedRest:breaths.mode==='bed'?reduced.playerBedRest:undefined,playerBreaths:breaths,energy:playerBreathEnergy(breaths)},inputKai,input.type==='rest');
 }
 
 /** One shared elapsed-breath recovery; rest taps never issue creature history by themselves. */

@@ -47,7 +47,7 @@ export function WildzReferenceHud({ model, crewMapSource, remoteCrewMarkers, hea
         <div>
           <small>Explorer · Lv. {model.player.level}</small>
           <strong>{explorerName}<i>✓</i></strong>
-          <span aria-label={`Explorer energy ${model.energy.current}%`} aria-valuemax={model.energy.maximum} aria-valuemin={0} aria-valuenow={model.energy.current} className="wildz-explorer-energy" title={model.energy.breaths?`${model.energy.breaths.reserveBreaths.toLocaleString()} / 17,491 breath reserve · ${model.energy.breaths.spentTodayBreaths.toLocaleString()} used today · ${model.energy.breaths.mode==='active'?'Active':model.energy.breaths.mode==='bed'?'Resting in bed':'Resting at camp'}`:undefined} role="progressbar"><i style={{ width: `${model.energy.current}%` }} /><b>{model.energy.current}%</b></span>
+          <span aria-label={`Explorer energy ${model.energy.current}%`} aria-valuemax={model.energy.maximum} aria-valuemin={0} aria-valuenow={model.energy.current} className="wildz-explorer-energy" title={model.energy.breaths?`${model.energy.breaths.reserveBreaths.toLocaleString()} / 17,491 breath reserve · ${model.energy.breaths.spentTodayBreaths.toLocaleString()} used today · ${model.energy.breaths.mode==='active'?'Active':model.energy.breaths.mode==='bed'?'Sleeping in bed':'Resting at camp'}`:undefined} role="progressbar"><i style={{ width: `${model.energy.current}%` }} /><b>{model.energy.current}%</b></span>
         </div>
       </button>
     </div>

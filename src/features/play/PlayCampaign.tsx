@@ -17,7 +17,7 @@ import { composeWildsBurrowPhysical } from "./wilds-burrow";
 import { useWildsBurrowBuilder } from "./use-wilds-burrow-builder";
 import { WildsBurrowBuilderPanel } from "./WildsBurrowBuilderPanel";
 import { requestWildsDive } from "./wilds-vertical-traversal";
-import { resolveWildsConstructionFunction } from "./wilds-construction-function";
+import { canSleepInWildsBed, selectWildsBedAtPlayer, resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
 import type {CreationNavigation} from './creation/navigation';
@@ -1499,6 +1499,18 @@ export function PlayCampaign({
   const unfinishedConstructionSites = useMemo(() => Object.values(livingWorld.snapshot?.constructionSites ?? {})
     .filter(site => site.stage !== "complete"), [livingWorld.snapshot?.constructionSites]);
   const nearbyFunctionalPieces = useMemo(() => ownedFunctionalPieces.filter(component => Math.hypot(component.transform.position.x - state.player.x, component.transform.position.z - state.player.z) <= 6), [ownedFunctionalPieces, state.player.x, state.player.z]);
+  const availableBed = useMemo(() => livingWorld.snapshot && !state.battle && aerialMode === "ground" && aquaticPresentation.mode !== "swim"
+    ? selectWildsBedAtPlayer(livingWorld.snapshot, state.player, state.siteSpace) : null,
+  [livingWorld.snapshot, state.battle, state.player, state.siteSpace, aerialMode, aquaticPresentation.mode]);
+  const sleepingInBed = Boolean(availableBed && state.playerBreaths?.mode === "bed" && state.playerBedRest?.componentId === availableBed.component.componentId && state.playerBedRest.componentHead === availableBed.head);
+  useEffect(() => {
+    // A physical source change is meaningful; display-clock ticks never publish this state.
+    if (!livingWorld.snapshot || state.playerBreaths?.mode !== "bed" || sleepingInBed) return;
+    const actionUPulse = readActionKaiUPulse();
+    setState(current => current.playerBreaths?.mode === "bed"
+      ? applyWildsInput(current, { type: "wake", kaiUPulse: actionUPulse }) : current);
+  }, [livingWorld.snapshot, sleepingInBed, state.playerBreaths?.mode, readActionKaiUPulse]);
+
   const nearbyStewardWorkbench = useMemo(() => ownedStructures.find(structure => structure.blueprint === "steward-workbench" && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6)
     ?? nearbyFunctionalPieces.filter(component => component.kind === "workshop").map(component => resolveWildsConstructionFunction(livingWorld.snapshot!, component.componentId, "workshop")).find(Boolean) ?? null, [livingWorld.snapshot, ownedStructures, nearbyFunctionalPieces, state.player.x, state.player.z]);
   const nearbyTrailCache = useMemo(() => ownedStructures.find(structure => structure.blueprint === "trail-cache" && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6)
@@ -2902,14 +2914,12 @@ export function PlayCampaign({
               if (kind !== "bed") { openLivingConstruction(kind === "workshop" ? "tools" : "storage"); return; }
               const selected = continuousBuilder.selected;
               const bed = selected && livingWorld.snapshot ? resolveWildsConstructionFunction(livingWorld.snapshot, selected.componentId, "bed") : null;
-              if (!bed || Math.hypot(bed.position.x - state.player.x, bed.position.z - state.player.z) > 2.5
-                || Math.abs(bed.position.y - state.siteSpace.position.y) >= 2
-                || (bed.component.evidence.spaceId ?? "wildz.space.outer.v1") !== state.siteSpace.spaceId) {
-                showWorldFeedback("Enter the room and move beside the finished bed to rest."); return;
+              if (!bed || !canSleepInWildsBed(bed, state.player, state.siteSpace)) {
+                showWorldFeedback("Move to the finished bed in this room to sleep."); return;
               }
               dispatch({ type: "rest", bed, at: kaiUPulseToISOString(kaiUPulse), kaiUPulse });
               continuousBuilder.close();
-              showWorldFeedback("Rested in bed. Energy and companion fatigue recover more than at an open camp.");
+              showWorldFeedback("Sleeping in bed. Breaths and companion fatigue recover as Kai time advances.");
             }} /> : null}
             {stewardPlacementPreview ? <WildsStewardPlacementHud
               blueprintLabel={stewardCraft.blueprints.find(blueprint => blueprint.id === stewardPlacementPreview.blueprintId)?.label ?? "Build"}
@@ -3123,6 +3133,10 @@ export function PlayCampaign({
               onInput={dispatchWorldInput}
               onMovementModeChange={setMovementMode}
               onRequestedCommandHandled={() => setRequestedCommand(null)}
+              bedSleep={availableBed ? { sleeping: sleepingInBed, onToggle: () => {
+                if (sleepingInBed) dispatchWorldInput({ type: "wake" });
+                else if (canSleepInWildsBed(availableBed, state.player, state.siteSpace)) dispatchWorldInput({ type: "rest", bed: availableBed });
+              } } : undefined}
               onRest={() => dispatchWorldInput({ type: "rest", at: new Date().toISOString() })}
               onRequestCapability={requestWildsCapability}
               onSelectCard={(assetId) => dispatchWorldInput({ type: "select-asset", assetId })}

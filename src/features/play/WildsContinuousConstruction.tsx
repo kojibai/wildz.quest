@@ -116,6 +116,11 @@ export function WildsContinuousConstruction({ world, player, terrainElevation, p
           } else cutaways.current.delete(solid.id);
         }} position={[solid.center.x, solid.center.y, solid.center.z]} geometry={surfaces.geometry(solid.halfExtents)} material={surfaces.material(component.kind, geometry.stage)} dispose={null}>
         </mesh>)}
+        {(geometry.stage === "functional" || geometry.stage === "finished") && component.kind === "bed" && <group name="finished-bed-mattress" position={[box.center.x, box.center.y + box.halfExtents.y, box.center.z]} rotation={[0, component.transform.rotationQuarterTurns * Math.PI / 2, 0]}>
+          <mesh castShadow receiveShadow position={[0, .055, 0]}><boxGeometry args={[1.92, .11, 1.02]} /><meshStandardMaterial color="#b8cdb1" roughness={.94} /></mesh>
+          <mesh castShadow position={[-.68, .14, 0]}><boxGeometry args={[.42, .12, .82]} /><meshStandardMaterial color="#e4e9d7" roughness={.96} /></mesh>
+          <mesh castShadow position={[.22, .12, 0]}><boxGeometry args={[1.3, .035, 1.04]} /><meshStandardMaterial color="#527e70" roughness={.96} /></mesh>
+        </group>}
         {!planned && component.kind === "water" && <mesh position={[box.center.x, box.center.y, box.center.z]}><boxGeometry args={[box.halfExtents.x * 2, .08, box.halfExtents.z * 2]} /><meshStandardMaterial color="#70cddd" transparent opacity={.7} /></mesh>}
         {(geometry.stage === "functional" || geometry.stage === "finished") && (component.kind === "light" || component.kind === "hearth") && <mesh position={[box.center.x, box.center.y + box.halfExtents.y, box.center.z]}><sphereGeometry args={[.16, 8, 6]} /><meshStandardMaterial color="#ffe7a4" emissive="#ffbf60" emissiveIntensity={2} /></mesh>}
       </group>;

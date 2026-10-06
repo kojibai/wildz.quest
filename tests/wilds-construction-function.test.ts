@@ -1,9 +1,11 @@
 import { applyWildsInput, initialPlayState } from "../src/features/play/game-state";
 import assert from "node:assert/strict";
 import { it } from "node:test";
+import * as THREE from "three";
 import { constructionProofDigest, createWildsConstructionProject } from "../src/features/play/wilds-construction-project";
 import { createWildsConstructionComponent, createWildsMaterialContribution, createWildsWorkContribution, projectWildsConstructionProgress } from "../src/features/play/wilds-construction-component";
 import { createWildsBlueprintPreview, previewWildsBlueprintPlacement } from "../src/features/play/wilds-world-construction";
+import * as functions from "../src/features/play/wilds-construction-function";
 import { resolveWildsConstructionFunction, verifyWildsConstructionFunctionSource } from "../src/features/play/wilds-construction-function";
 import { createWildsStewardTool, createWildsStewardToolOperation, createWildsStewardPhiAward, reviseWildsStewardToolAfterUse, verifyWildsStewardTool, type WildsMaterialLotV1 } from "../src/features/play/wilds-steward-construction";
 import { initialWildsWorldProjection, reduceWildsWorldEvent } from "../src/features/play/wilds-world-state";
@@ -15,11 +17,11 @@ function lot(index: number, kind: WildsMaterialLotV1["kind"]): WildsMaterialLotV
   const basis = { schema: "wildz.material-lot.v1" as const, lotId: `wildz:material:${kind}:${index.toString(16).padStart(64,"0")}`, kind, quantity: 1 as const, quality: 1 as const, ownerReceizId: "owner", source: { sourceId: "source:test", sourceHead: `sha256:${"a".repeat(64)}`, admittedSourceHead: `sha256:${"b".repeat(64)}`, kaiUPulse: 1 }, contributors: { explorerReceizId: "owner" }, authority: "source-proof-object" as const };
   return { ...basis, head: constructionProofDigest(basis) };
 }
-function fixture(kind: "workshop" | "storage" | "bed", amount: number) {
+function fixture(kind: "workshop" | "storage" | "bed", amount: number, rotationQuarterTurns = 0) {
   const project = createWildsConstructionProject({ ownerReceizId: "owner", name: "Functions", region: { x: 0, z: 0 }, kaiUPulse: 1 });
   const base = createWildsBlueprintPreview("blueprint:test", "wildz.excavation.region.v1:0:0");
   const foundation = previewWildsBlueprintPlacement({ blueprint: base, kind: "foundation", pointer: { x: 2, y: 0, z: 2 }, rotationQuarterTurns: 0, heightStep: 0, physical: { terrainY: 0, waterline: null, anchors: [], solids: [] } });
-  const evidence = { sourceBlueprint: { ...base, pieces: [foundation] }, pointer: { x: 2, y: .6, z: 2 }, rotationQuarterTurns: 0, heightStep: 0, surfaceSnap: true, physical: { terrainY: 0, waterline: null, anchors: foundation.anchors, solids: foundation.collisionSolids } };
+  const evidence = { sourceBlueprint: { ...base, pieces: [foundation] }, pointer: { x: 2, y: .6, z: 2 }, rotationQuarterTurns, heightStep: 0, surfaceSnap: true, physical: { terrainY: 0, waterline: null, anchors: foundation.anchors, solids: foundation.collisionSolids } };
   const component = createWildsConstructionComponent({ project, evidence, placement: previewWildsBlueprintPlacement({ blueprint: evidence.sourceBlueprint, kind, ...evidence }), ownerReceizId: "owner", kaiUPulse: 2 });
   let index = 0;
   const lots = component.recipe.stages.flatMap(stage => (["hay", "timber", "stone"] as const).flatMap(k => Array.from({length: stage.materials[k]}, () => lot(++index, k))));
@@ -108,4 +110,46 @@ it("walking reuses immutable function authority but a changed custody map invali
   assert.ok(resolveWildsConstructionFunction(mutable, component.componentId, "workshop"));
   mutable.consumedMaterialLots = {};
   assert.equal(resolveWildsConstructionFunction(mutable, component.componentId, "workshop"), null);
+});
+
+it("bed sleep requires the actual footprint and room, regardless of the bed owner", () => {
+  const canSleep = (functions as Record<string, unknown>).canSleepInWildsBed as (bed: unknown, player: { x: number; z: number }, space: typeof initialPlayState.siteSpace) => boolean;
+  assert.equal(typeof canSleep, "function");
+  const { world, component } = fixture("bed", 100);
+  const bed = resolveWildsConstructionFunction(world, component.componentId, "bed")!;
+  const player = { x: bed.position.x, z: bed.position.z };
+  const space = { ...initialPlayState.siteSpace, position: { ...bed.position } };
+  assert.equal(canSleep(bed, player, space), true);
+  assert.equal(canSleep(bed, { ...player, x: player.x + 2 }, space), false);
+  assert.equal(canSleep(bed, player, { ...space, spaceId: "other-room" }), false);
+  assert.equal(canSleep(bed, player, { ...space, position: { ...space.position, y: space.position.y + 1.2 } }), false);
+  assert.equal(canSleep({ ...bed, work: [] }, player, space), false);
+  const state = { ...structuredClone(initialPlayState), player, siteSpace: space, energy: 10 };
+  const sleeping = applyWildsInput(state, { type: "rest", bed, kaiUPulse: 100_000_000 });
+  assert.deepEqual(sleeping.playerBedRest, { componentId: component.componentId, componentHead: component.head, spaceId: space.spaceId });
+  assert.equal(sleeping.playerBreaths?.mode, "bed");
+  const awake = applyWildsInput(sleeping, { type: "wake", kaiUPulse: 110_000_000 });
+  assert.equal(awake.playerBreaths?.mode, "active");
+  assert.equal(awake.playerBedRest, undefined);
+  assert.ok(awake.energy > sleeping.energy);
+  const walking = applyWildsInput(sleeping, { type: "move-vector", x: 1, z: 0, kaiUPulse: 110_000_000 });
+  assert.equal(walking.playerBreaths?.mode, "active");
+  assert.equal(walking.playerBedRest, undefined);
+});
+
+it("sleep pose follows every bed rotation and lies face up along the mattress", () => {
+  for (const quarter of [0, 1, 2, 3]) {
+    const { world, component } = fixture("bed", 100, quarter);
+    const bed = resolveWildsConstructionFunction(world, component.componentId, "bed")!;
+    const pose = functions.projectWildsBedSleepPose(bed, bed.position, bed.position.y);
+    const rotation = new THREE.Euler(pose.pitch, pose.heading, 0, "YXZ");
+    const torso = new THREE.Vector3(0, 1, 0).applyEuler(rotation);
+    const face = new THREE.Vector3(0, 0, -1).applyEuler(rotation);
+    const pillowDirection = new THREE.Vector3(-1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), quarter * Math.PI / 2);
+    assert.ok(Math.abs(torso.y) < .00001, "body is horizontal");
+    assert.ok(face.y > .99999, "face looks upward");
+    assert.ok(torso.dot(pillowDirection) > .99999, "head follows the pillow");
+    assert.ok(pose.position[1] > bed.component.placement.geometry.halfExtents.y, "body clears the mattress");
+    assert.equal(functions.canSleepInWildsBed(bed, bed.position, { ...initialPlayState.siteSpace, position: bed.position }), true);
+  }
 });

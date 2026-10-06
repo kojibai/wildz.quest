@@ -41,6 +41,7 @@ import type { WildsPresence } from "@/features/play/multiplayer-core";
 import { createWildsKaiWeatherSample, writeWildsKaiWeather } from "./wilds-kai-wind";
 import { writeWildsWeatherExposure } from "./wilds-weather-exposure";
 import { WildsEnvironment } from "@/features/play/WildsEnvironment";
+import { canSleepInWildsBed, resolveWildsConstructionFunction, projectWildsBedSleepPose } from "./wilds-construction-function";
 import { WildsExplorer } from "@/features/play/WildsExplorer";
 import { WildsAtmosphere } from "@/features/play/WildsAtmosphere";
 import { WildsUnderwaterAtmosphere } from "@/features/play/WildsUnderwaterAtmosphere";
@@ -452,6 +453,12 @@ function WildsScene({
   const activeAppearance = useMemo(() => activeAsset ? projectCardKaiAppearance(activeAsset) : null, [activeAsset]);
   const swimming = (siteSpace.spaceId === "wildz.space.outer.v1" ? aquaticPresentation.mode === "swim" : siteSpace.flooded)
     && aerialCapabilities.includes("swim");
+  const sleepingBed = useMemo(() => {
+    const marker = state.playerBedRest;
+    if (!livingWorld || !marker || state.playerBreaths?.mode !== "bed" || swimming) return null;
+    const bed = resolveWildsConstructionFunction(livingWorld, marker.componentId, "bed");
+    return bed && bed.head === marker.componentHead && marker.spaceId === siteSpace.spaceId && canSleepInWildsBed(bed, state.player, siteSpace) ? bed : null;
+  }, [livingWorld, state.playerBedRest, state.playerBreaths?.mode, state.player, siteSpace, swimming]);
   const outdoorFloorY = useMemo(() => siteSpace.spaceId === "wildz.space.outer.v1"
     ? Math.max(wildsTerrainElevation(state.player.x, state.player.z), wildsSiteRuntimeGroundY(siteRuntime, siteSpace.spaceId, state.player.x, state.player.z, wildsTerrainElevation(state.player.x, state.player.z)))
     : siteSpace.position.y, [siteRuntime, siteSpace.spaceId, siteSpace.position.y, state.player.x, state.player.z]);
@@ -556,6 +563,7 @@ function WildsScene({
           aerialStateRef={aerialStateRef}
           character={character}
           identityKey={explorerIdentityKey}
+          sleepPose={sleepingBed ? projectWildsBedSleepPose(sleepingBed, state.player, activeFloorY) : undefined}
           locomotion={swimming ? "swim" : "ground"}
           scubaVisible={swimming}
           style={character.gender}

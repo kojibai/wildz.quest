@@ -3,7 +3,7 @@ import {mergeGeometries} from "three/addons/utils/BufferGeometryUtils.js";
 import type {WildsExplorerAnatomy} from "./wilds-explorer-anatomy";
 
 /** Face, eyes, lips, brows and ears share one vertex-colored mesh and one material. */
-export function createWildsExplorerFace(anatomy:WildsExplorerAnatomy,skin:string,hair:string,remote=false) {
+export function createWildsExplorerFace(anatomy:WildsExplorerAnatomy,skin:string,hair:string,remote=false,sleeping=false) {
   const parts:THREE.BufferGeometry[]=[];
   const add=(geometry:THREE.BufferGeometry,color:string,position:[number,number,number],scale:[number,number,number]=[1,1,1])=>{
     geometry.scale(...scale);geometry.translate(...position);
@@ -20,10 +20,15 @@ export function createWildsExplorerFace(anatomy:WildsExplorerAnatomy,skin:string
   const lip=new THREE.Color(skin).lerp(new THREE.Color("#9f4e4a"),.28).getStyle();
   for(const side of [-1,1]) {
     add(new THREE.SphereGeometry(anatomy.earSize,8,6),skin,[side*.217,-.02,.01],[.7,1.35,.65]);
+    if (sleeping) {
+      const lid = new THREE.CatmullRomCurve3([new THREE.Vector3(side * anatomy.eyeSpacing - .026, .018, -.202), new THREE.Vector3(side * anatomy.eyeSpacing, .012, -.209), new THREE.Vector3(side * anatomy.eyeSpacing + .026, .018, -.202)]);
+      add(new THREE.TubeGeometry(lid, 6, .004, 3, false), hair, [0, 0, 0]);
+    } else {
     add(new THREE.SphereGeometry(anatomy.eyeSize,10,8),"#e8e3d9",[side*anatomy.eyeSpacing,.018,-.196],[1,.62,.52]);
     add(new THREE.SphereGeometry(anatomy.eyeSize*.53,8,6),anatomy.iris,[side*anatomy.eyeSpacing,.018,-.211],[1,1,.23]);
     add(new THREE.SphereGeometry(anatomy.eyeSize*.26,7,5),"#181b1b",[side*anatomy.eyeSpacing,.018,-.216],[1,1,.2]);
     add(new THREE.SphereGeometry(.004,5,4),"#ffffff",[side*anatomy.eyeSpacing-.005,.024,-.219]);
+    }
     const brow=new THREE.CatmullRomCurve3([new THREE.Vector3(side*(anatomy.eyeSpacing-.032),.062,-.188),new THREE.Vector3(side*anatomy.eyeSpacing,.071+anatomy.browTilt*.04,-.201),new THREE.Vector3(side*(anatomy.eyeSpacing+.035),.06,-.18)]);
     add(new THREE.TubeGeometry(brow,6,.006,3,false),hair,[0,0,0]);
     add(new THREE.SphereGeometry(.007,6,4),"#4a3028",[side*anatomy.noseWidth*.62,-.048,-.213-anatomy.noseLength*.35],[1,.45,.6]);
