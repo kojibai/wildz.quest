@@ -502,7 +502,7 @@ describe("Receiz Wilds rendering contract", () => {
     const css = await readFile("app/globals.css", "utf8");
 
     assert.doesNotMatch(controls, /wildz-play-control-rail|wildz-social-actions/);
-    assert.match(controls, /className="wildz-quick-utilities"/);
+    assert.match(controls, /className=(?:"|\{`)[^\n]*wildz-quick-utilities/);
     assert.match(controls, /<WildzDpad/);
     assert.match(controls, /<WildsCompanionCommand/);
     assert.match(css, /\.wildz-world-controls\s*\{[^}]*position:\s*absolute/s);

@@ -302,13 +302,14 @@ export function WildzWorldControls({
   return (
     <section className={`wildz-world-controls${panelOpen ? " is-panel-open" : ""}${buildingActive ? " is-building" : ""}`} aria-label="World controls">
       <div aria-hidden={movementHomeBlocked} className="wildz-movement-home" inert={movementHomeBlocked ? true : undefined}>
-        <div className="wildz-quick-utilities" aria-label="Quick utilities">
+        <div className={`wildz-quick-utilities${(3 + capabilityControls.length) % 2 ? " has-odd-actions" : ""}`} aria-label="Quick utilities">
           {traversalCapabilities.includes("swim") || traversalCapabilities.includes("climb") ? (
             <div className="wildz-passive-capabilities" aria-label="Active companion passive abilities">
               {traversalCapabilities.includes("swim") ? <span role="img" aria-label="Automatic swimming" title="Your active companion can swim in deep water automatically."><Icons.swim aria-hidden="true" size={13} /></span> : null}
               {traversalCapabilities.includes("climb") ? <span role="img" aria-label="Automatic climbing" title="Your active companion can climb suitable terrain automatically."><Icons.climb aria-hidden="true" size={13} /></span> : null}
             </div>
           ) : null}
+          <button aria-label="Open creature crew" className="wildz-crew-control" title="Creature crew" disabled={!worldHomesEnabled} onClick={onOpenCrew} type="button"><Icons.roam aria-hidden="true" size={21} /></button>
           <button aria-label="Make camp and recover" disabled={!worldHomesEnabled} onClick={handleRest} type="button"><Icons.camp size={20} /></button>
           <button
             aria-label={movementMode === "walk" ? "Switch to running" : "Switch to walking"}
@@ -371,7 +372,6 @@ export function WildzWorldControls({
       </div>
 
       <div aria-hidden={movementHomeBlocked} className="wildz-construction-home wildz-quick-utilities" inert={movementHomeBlocked ? true : undefined}>
-          <button aria-label="Open creature crew" title="Creature crew" disabled={!worldHomesEnabled} onClick={onOpenCrew} type="button"><Icons.roam aria-hidden="true" size={21} /></button>
           <button
             aria-label={`${onOpenCreation ? "Create with creatures" : "Open Living Construction"}. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
             className="wildz-construction-control"

@@ -17380,3 +17380,9 @@ html, body, body * {
 @media(max-height:560px) and (orientation:landscape){.wildz-construction-home.wildz-quick-utilities{bottom:calc(max(var(--wildz-bottom-home-gap),env(safe-area-inset-bottom)) + 78px + 8px);width:78px;}}
 @media(display-mode:standalone) and (pointer:coarse){@supports not (-webkit-touch-callout:none){.wildz-construction-home.wildz-quick-utilities{bottom:calc(max(56px,calc(env(safe-area-inset-bottom) + 12px)) + clamp(72px,22vw,94px) + 8px);}}}
 .wildz-construction-home.wildz-quick-utilities > button:not(.wildz-construction-control){width:44px;justify-self:center;}
+
+/* Keep utility pairs nearest the pad; an odd set starts with a centered crew action. */
+.wildz-movement-home > .wildz-quick-utilities.has-odd-actions > .wildz-crew-control {
+  grid-column: 1 / -1;
+  justify-self: center;
+}
