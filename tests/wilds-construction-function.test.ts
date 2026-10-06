@@ -153,3 +153,64 @@ it("sleep pose follows every bed rotation and lies face up along the mattress", 
     assert.equal(functions.canSleepInWildsBed(bed, bed.position, { ...initialPlayState.siteSpace, position: bed.position }), true);
   }
 });
+
+import { sealCollectedCard } from '../src/features/play/portable-card';
+import { startWildBattle } from '../src/features/play/battle-engine';
+import { settleWildBattleCard } from '../src/features/play/wild-battle-life';
+import { currentRevision } from '../src/features/play/living-card-proof';
+import { isLivingCardAsset } from '../src/features/play/living-card-types';
+
+function injuredRestFixture() {
+  const card = sealCollectedCard({ formId: 'mintcub-1', ownerReceizId: 'owner', encounterId: 'rest-recovery', capturedAt: '2026-10-01T12:00:00.000Z' });
+  const battle = startWildBattle({ encounterSeed: 'rest-injury', player: { assetId: card.id, name: card.manifest.name, ...card.manifest.stats, health: 100, currentHealth: 34 }, wild: { formId: 'voltray-1', name: 'Wild', health: 100, power: 10, guard: 10, speed: 10 } });
+  const injured = settleWildBattleCard(card, { ...battle, phase: 'captured' }, '2026-10-01T12:05:00.000Z');
+  if (!isLivingCardAsset(injured)) throw Error('fixture requires living card');
+  const startKai = Number(currentRevision(injured).kaiPulse) + 1;
+  const state = { ...structuredClone(initialPlayState), inventory: [injured], selectedAssetId: injured.id, selectedCardId: injured.manifest.familyId, pendingSyncAssetIds: [], energy: 20, adventureConditions: { [injured.id]: { ...initialPlayState.adventureConditions[initialPlayState.selectedAssetId], assetId: injured.id, fatigue: 50 } } };
+  return { injured, state, startKai };
+}
+
+for (const mode of ['camp', 'bed'] as const) {
+  for (const action of ['wake', 'move'] as const) {
+    it(`${action} settles visibly elapsed ${mode} companion recovery without a periodic tick`, () => {
+      const { injured, state, startKai } = injuredRestFixture();
+      const { world, component } = fixture('bed', 100);
+      const bed = resolveWildsConstructionFunction(world, component.componentId, 'bed')!;
+      state.player = { x: bed.position.x, z: bed.position.z };
+      state.siteSpace = { ...state.siteSpace, position: { ...bed.position } };
+      const resting = applyWildsInput(state, { type: 'rest', ...(mode === 'bed' ? { bed } : {}), kaiUPulse: startKai });
+      assert.equal(resting.inventory, state.inventory, 'entering rest does not heal immediately');
+      const endKai = startKai + 128_000_000;
+      const input = action === 'wake' ? { type: 'wake' as const, kaiUPulse: endKai } : { type: 'move-vector' as const, x: .1, z: 0, energyActivity: 'active' as const, kaiUPulse: endKai };
+      const awake = applyWildsInput(resting, input);
+      const recovered = awake.inventory[0];
+      if (!isLivingCardAsset(recovered)) throw Error('recovered living card required');
+      const units = mode === 'bed' ? 3 : 2;
+      assert.equal(currentRevision(recovered).growth.life?.vitality, 34 + units);
+      assert.equal(awake.adventureConditions[injured.id].fatigue, 50 - units);
+      assert.equal(awake.playerBreaths?.mode, 'active');
+      assert.equal(awake.playerBedRest, undefined);
+      assert.equal(awake.playerRestRecovery, undefined);
+      assert.ok(awake.pendingSyncAssetIds.includes(injured.id));
+      assert.ok(awake.energy > resting.energy);
+      assert.equal(currentRevision(recovered).kaiPulse, String(endKai));
+      const tickedThenAwake = applyWildsInput(applyWildsInput(resting, { type: 'energy-tick', kaiUPulse: endKai }), input);
+      assert.deepEqual(awake.inventory, tickedThenAwake.inventory);
+      assert.deepEqual(awake.adventureConditions, tickedThenAwake.adventureConditions);
+      const later = applyWildsInput(awake, { type: 'energy-tick', kaiUPulse: endKai + 128_000_000 });
+      assert.equal(later.inventory, awake.inventory, 'awake time grants no further recovery');
+      assert.equal(later.adventureConditions, awake.adventureConditions);
+    });
+  }
+}
+
+it('leaving rest consumes only complete recovery intervals and a new rest cannot reuse awake time', () => {
+  const { state, startKai, injured } = injuredRestFixture();
+  const camp = applyWildsInput(state, { type: 'rest', kaiUPulse: startKai });
+  const awake = applyWildsInput(camp, { type: 'wake', kaiUPulse: startKai + 63_000_000 });
+  assert.equal(awake.inventory, state.inventory);
+  const secondCamp = applyWildsInput(awake, { type: 'rest', kaiUPulse: startKai + 200_000_000 });
+  const shortRest = applyWildsInput(secondCamp, { type: 'wake', kaiUPulse: startKai + 201_000_000 });
+  assert.equal(shortRest.inventory, state.inventory);
+  assert.equal(shortRest.adventureConditions[injured.id].fatigue, 50);
+});

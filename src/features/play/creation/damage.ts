@@ -28,6 +28,8 @@ export function resolveCreationDamage(state: CreationState, attack: CreationAtta
                 throw Error('creation_demolition_owner_required');
         }
         else {
+            if (attack.equipmentId === current.instanceId)
+                throw Error('creation_damage_self_target_unavailable');
             const equipped = attack.equipmentId && state.instances[attack.equipmentId], request = attack.equipment;
             if (!equipped || !request || request.actionId !== attack.operationId || request.actorId !== attack.actorId || request.targetId !== current.instanceId || request.targetHead !== current.head || request.kaiUPulse !== attack.kaiUPulse || attack.expectedHeads[equipped.instanceId] !== equipped.head || !context.sources.some(s => s.id === equipped.instanceId && s.head === equipped.head && s.kind === 'creation' && context.verifySource(s)))
                 throw Error('creation_damage_equipment_unverified');

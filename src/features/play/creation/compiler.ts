@@ -1,4 +1,5 @@
 import {mergeCreationMaterialBuffers} from './material-buffers';
+import { creationRegionIds } from './index';
 import { constructionProofDigest } from '../wilds-construction-project';
 import { assertCreationData, parseCreationDefinition } from './definition';
 import { CREATION_BEHAVIORS, CREATION_MATERIALS, CREATION_PAGE_SIZE } from './registry';
@@ -34,11 +35,16 @@ export function compileCreation(input:CreationDefinition, context:CreationCompil
    let page=0,pageNodes:string[]=[],solids:CreationSolid[]=[],walkable:CreationSurface[]=[],interiors:CreationBounds[]=[],connections:CreationConnection[]=[],positions:number[]=[],normals:number[]=[],materials:{start:number;count:number;material:string}[]=[];
    const flush=()=>{if(!pageNodes.length)return;const [x,z]=regionKey.split(':').map(Number),bounds={min:{x:Infinity,y:Infinity,z:Infinity},max:{x:-Infinity,y:-Infinity,z:-Infinity}};
     for(let i=0;i<positions.length;i+=3)for(const [axis,offset] of [['x',0],['y',1],['z',2]] as const){bounds.min[axis]=Math.min(bounds.min[axis],positions[i+offset]);bounds.max[axis]=Math.max(bounds.max[axis],positions[i+offset]);}
-    chunks.push({id:`${definition.digest}:${regionKey}:${page++}`,region:{x,z},bounds,nodeIds:pageNodes,solids,walkable,interiors,connections,...mergeCreationMaterialBuffers(positions,normals,materials)});
+    try {
+     // A render page must also fit the physical discovery index before it can be quoted as ready.
+     creationRegionIds(bounds);
+     chunks.push({id:`${definition.digest}:${regionKey}:${page++}`,region:{x,z},bounds,nodeIds:pageNodes,solids,walkable,interiors,connections,...mergeCreationMaterialBuffers(positions,normals,materials)});
+    } catch(error) { block('region',error instanceof Error?error.message:'Invalid chunk region coverage'); }
     pageNodes=[];solids=[];walkable=[];interiors=[];connections=[];positions=[];normals=[];materials=[];
    };
    for(const n of nodes){
     try{const g=deriveCreationGeometry(n,poseFor(n.id)),mat=CREATION_MATERIALS[n.material],amount=g.volume*mat.density;
+     if(!g.positions.length)throw Error('creation_geometry_empty');
      if(g.positions.length/3>maximumPageVertices){block('page','This individual shape exceeds a page upload budget; divide its path into connected parts.',n.id);continue;}
      if(pageNodes.length>=CREATION_PAGE_SIZE||positions.length/3+g.positions.length/3>maximumPageVertices)flush();
      if(changed.has(n.id)){costs[n.material]=(costs[n.material]||0)+amount;work+=amount*mat.work;}rawWork.set(n.id,changed.has(n.id)?amount*mat.work:0);

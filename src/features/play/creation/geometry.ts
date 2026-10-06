@@ -7,7 +7,8 @@ export type CreationSurface=Readonly<{id:string;center:CreationPoint;halfExtents
 export type CreationConnection=Readonly<{id:string;position:CreationPoint;destination:string|null;width:number;height:number;yaw:number}>;
 export function overlapsCreationSolids(a:CreationSolid,b:CreationSolid):boolean {
  if(Math.abs(a.center.y-b.center.y)>=a.halfExtents.y+b.halfExtents.y-.00001)return false;
- for(const angle of [a.yaw,a.yaw+Math.PI/2,b.yaw,b.yaw+Math.PI/2]) {const dx=Math.cos(angle),dz=Math.sin(angle),radius=(s:CreationSolid)=>Math.abs(Math.cos(s.yaw)*dx-Math.sin(s.yaw)*dz)*s.halfExtents.x+Math.abs(Math.sin(s.yaw)*dx+Math.cos(s.yaw)*dz)*s.halfExtents.z;if(Math.abs((a.center.x-b.center.x)*dx+(a.center.z-b.center.z)*dz)>=radius(a)+radius(b)-.00001)return false;}return true;
+ // Local geometry uses x'=x*cos+z*sin, z'=-x*sin+z*cos, so its world axes rotate by -yaw.
+ for(const angle of [-a.yaw,-a.yaw+Math.PI/2,-b.yaw,-b.yaw+Math.PI/2]) {const dx=Math.cos(angle),dz=Math.sin(angle),radius=(s:CreationSolid)=>Math.abs(Math.cos(s.yaw)*dx-Math.sin(s.yaw)*dz)*s.halfExtents.x+Math.abs(Math.sin(s.yaw)*dx+Math.cos(s.yaw)*dz)*s.halfExtents.z;if(Math.abs((a.center.x-b.center.x)*dx+(a.center.z-b.center.z)*dz)>=radius(a)+radius(b)-.00001)return false;}return true;
 }
 const corners=[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]];
 const faces=[[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,4,7],[0,7,3],[1,2,6],[1,6,5],[3,7,6],[3,6,2],[0,1,5],[0,5,4]];

@@ -64,7 +64,7 @@ export function createCreationSpatialIndex(input: readonly CreationIndexEntry[])
 export function selectCreationNeighborhood(index: CreationSpatialIndex, query: CreationNeighborhoodQuery): readonly CreationIndexEntry[] {
     if (![query.worldId, query.spaceId].every(validConstructionId) || !query.position || ![query.position.x, query.position.y, query.position.z, query.radius].every(Number.isFinite) || query.radius < 0 || query.radius > 256 || !Number.isSafeInteger(query.limit) || query.limit < 1 || query.limit > 128)
         throw Error('creation_index_query_invalid');
-    const p = query.position, r = query.radius, cells = creationRegionIds({ min: { x: p.x - r, y: p.y - r, z: p.z - r }, max: { x: p.x + r, y: p.y + r, z: p.z + r } }), found = new Set<string>(), near: CreationIndexEntry[] = [];
+    const p = query.position, r = query.radius, cells = creationRegionIds({ min: { x: p.x - r, y: p.y - r, z: p.z - r }, max: { x: p.x + r, y: p.y + r, z: p.z + r } }), found = new Set<string>(), near: { entry: CreationIndexEntry; distanceSquared: number }[] = [];
     for (const cell of cells)
         for (const id of index.regions.get(JSON.stringify([query.worldId, query.spaceId, cell])) || []) {
             if (found.has(id))
@@ -74,8 +74,9 @@ export function selectCreationNeighborhood(index: CreationSpatialIndex, query: C
             if (!entry || entry.worldId !== query.worldId || entry.spaceId !== query.spaceId)
                 continue;
             const b = entry.bounds, dx = Math.max(b.min.x - p.x, 0, p.x - b.max.x), dy = Math.max(b.min.y - p.y, 0, p.y - b.max.y), dz = Math.max(b.min.z - p.z, 0, p.z - b.max.z);
-            if (dx * dx + dy * dy + dz * dz <= r * r)
-                near.push(entry);
+            const distanceSquared = dx * dx + dy * dy + dz * dz;
+            if (distanceSquared <= r * r)
+                near.push({ entry, distanceSquared });
         }
-    return near.sort((a, b) => Math.hypot(a.bounds.min.x - p.x, a.bounds.min.z - p.z) - Math.hypot(b.bounds.min.x - p.x, b.bounds.min.z - p.z) || a.instanceId.localeCompare(b.instanceId)).slice(0, query.limit);
+    return near.sort((a, b) => a.distanceSquared - b.distanceSquared || a.entry.instanceId.localeCompare(b.entry.instanceId)).slice(0, query.limit).map(({ entry }) => entry);
 }

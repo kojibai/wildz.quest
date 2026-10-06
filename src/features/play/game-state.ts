@@ -1251,6 +1251,9 @@ function reduceWildsInputWithBreaths(state:PlayState,input:WildsInput):PlayState
   const breathState=isPlayerBreaths(state.playerBreaths)?state.playerBreaths:createPlayerBreaths(inputKai,state.energy,input.kaiUPulse!==undefined);
   const inBed=input.type==='rest'&&Boolean(input.bed&&!state.battle&&canSleepInWildsBed(input.bed,state.player,state.siteSpace));
   if(input.type==='rest'&&input.bed&&!inBed)return state;
+  // Settle the prior rest interval while its mode and companion source are still current.
+  // Waking or exerting work below must not discard recovery between durable actions.
+  state=settlePlayerRestFromBreaths(state,state,inputKai,false);
   const activityMode=input.energyActivity&&(input.type!=='energy-tick'||!['camp','bed'].includes(breathState.mode)||input.energyActivity!=='active')?input.energyActivity:breathState.mode;
   let breaths=advancePlayerBreaths(breathState,inputKai,input.type==='rest'?(inBed?'bed':'camp'):input.type==='wake'?'active':activityMode,input.kaiUPulse!==undefined||breathState.clockRooted);
   // Creature actions use their own condition; the explorer records only directing effort.
@@ -1273,10 +1276,10 @@ function reduceWildsInputWithBreaths(state:PlayState,input:WildsInput):PlayState
 
 /** One shared elapsed-breath recovery; rest taps never issue creature history by themselves. */
 function settlePlayerRestFromBreaths(before:PlayState,next:PlayState,kaiUPulse:number,entering:boolean):PlayState{
- const mode=next.playerBreaths?.mode;if(mode!=='camp'&&mode!=='bed')return next;
+ const mode=next.playerBreaths?.mode;if(mode!=='camp'&&mode!=='bed')return next.playerRestRecovery?{...next,playerRestRecovery:undefined}:next;
  const leader=selectedAsset(next);if(!leader)return next;
  let marker=before.playerRestRecovery;
- if(!marker||marker.assetId!==leader.id||before.playerBreaths?.mode==='active'||before.playerBreaths?.mode===undefined){return {...next,playerRestRecovery:{assetId:leader.id,settledKaiUPulse:kaiUPulse,bed:mode==='bed'}};}
+ if(!marker||marker.assetId!==leader.id||!['camp','bed'].includes(before.playerBreaths?.mode||'')){return {...next,playerRestRecovery:{assetId:leader.id,settledKaiUPulse:kaiUPulse,bed:mode==='bed'}};}
  const interval=(marker.bed?40:64)*1_000_000;
  const units=Math.floor((kaiUPulse-marker.settledKaiUPulse)/interval);
  if(units<=0)return entering&&marker.bed!==(mode==='bed')?{...next,playerRestRecovery:{...marker,settledKaiUPulse:kaiUPulse,bed:mode==='bed'}}:next;
