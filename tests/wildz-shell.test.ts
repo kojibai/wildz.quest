@@ -170,9 +170,9 @@ test("refresh restores the latest runtime position even before a durable play sn
   const preservation = source.slice(source.indexOf("const flushLatestRuntimeCheckpoint"), source.indexOf("const connect", source.indexOf("const flushLatestRuntimeCheckpoint")));
 
   assert.match(initialize, /const checkpointBaseline = snapshot\.playState \?\? createOwnerBoundInitialPlayState/);
-  assert.match(initialize, /snapshot\.playState = readWildzRuntimeCheckpoint/);
-  assert.doesNotMatch(initialize, /if \(snapshot\.playState\) snapshot\.playState = readWildzRuntimeCheckpoint/);
-  assert.match(preservation, /writeWildzRuntimeCheckpoint\(window\.localStorage/);
+  assert.match(initialize, /snapshot\.playState = await runtimeCheckpointStore\.read/);
+  assert.doesNotMatch(initialize, /if \(snapshot\.playState\) snapshot\.playState = await runtimeCheckpointStore\.read/);
+  assert.match(preservation, /runtimeCheckpointStore\.write\(/);
   assert.match(preservation, /window\.addEventListener\("pagehide", flushLatestRuntimeCheckpoint\)/);
   assert.match(preservation, /document\.visibilityState === "hidden"/);
   assert.match(preservation, /if \(exitPreservationStarted\) return/);

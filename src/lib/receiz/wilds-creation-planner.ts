@@ -1,10 +1,13 @@
 import { createReceizClient } from '@receiz/sdk';
 import { normalizeCreatureTwinReply } from '../../features/play/creature-consciousness';
 import { CREATION_BEHAVIORS, CREATION_MATERIALS } from '../../features/play/creation/registry';
-import type { CreationPlannerPort } from '../../features/play/creation/planner';
+import { planCreation, type CreationPlannerPort, type CreationPlannerRequest, type CreationPlannerResult } from '../../features/play/creation/planner';
+import { applyCreationPatch } from '../../features/play/creation/patch';
+import { initializeCreationComponents } from '../../features/play/creation/components';
+import { LocalCreationPlannerError, proposeLocalCreation } from './wilds-local-creation-planner';
 import { WILDZ_RECEIZ_APPLICATION_ID } from './wildz-application';
 import { qualifyWildzV124Operations, WILDZ_V124_TWIN_OPERATIONS } from './v124-runtime-policy';
-export function createReceizCreationPlanner(actor:{actorId:string;accessToken?:string}):CreationPlannerPort {
+function createQualifiedReceizCreationPlanner(actor:{actorId:string;accessToken?:string}):CreationPlannerPort {
  return {async propose(request,signal){
   if(!actor.accessToken||actor.actorId!==request.actorId)throw Error('creation_generation_authority_unavailable');
   const client=createReceizClient({applicationId:WILDZ_RECEIZ_APPLICATION_ID,accessToken:actor.accessToken,...(process.env.RECEIZ_BASE_URL?{baseUrl:process.env.RECEIZ_BASE_URL}:{})});
@@ -21,4 +24,39 @@ export function createReceizCreationPlanner(actor:{actorId:string;accessToken?:s
   if(signal.aborted||response.ok!==true)throw Error('creation_generation_unavailable');
   return normalizeCreatureTwinReply(response.reply);
  }};
+}
+
+/** Local proposals require verified ownership, never delegated write authority.
+ * Receiz enhancement is explicitly opt-in and must qualify; failure keeps the local draft.
+ */
+export function createReceizCreationPlanner(actor:{actorId:string;accessToken?:string}):CreationPlannerPort {
+ return {async propose(request,signal){
+  if(actor.actorId!==request.actorId)throw new LocalCreationPlannerError('Creation owner changed. Your draft is saved.');
+  const local=proposeLocalCreation(request,signal);
+  if(!actor.accessToken||process.env.RECEIZ_CREATION_REMOTE_ENHANCEMENT!=='true')return local;
+  const remoteAbort=new AbortController(),cancel=()=>remoteAbort.abort();
+  signal.addEventListener('abort',cancel,{once:true});
+  const timer=setTimeout(cancel,4000);
+  try {
+   const remote=await planCreation(request,createQualifiedReceizCreationPlanner(actor),remoteAbort.signal);
+   if(remote.status==='proposed'){
+    const definition='definition'in remote.proposal?remote.proposal.definition:request.selected?applyCreationPatch(request.selected,remote.proposal.patch):null;
+    if(definition){
+     if(request.selected&&(definition.seed!==request.selected.seed||request.selected.nodes.some(n=>!definition.nodes.some(next=>next.id===n.id))))return local;
+     initializeCreationComponents(definition,0);
+     return remote.proposal;
+    }
+   }
+  }catch{ /* A qualified remote enhancement is optional; the deterministic proposal remains usable. */ }
+  finally{clearTimeout(timer);signal.removeEventListener('abort',cancel);}
+  if(signal.aborted)throw Error('creation_generation_cancelled');
+  return local;
+ }};
+}
+
+/** Preserve a local grammar explanation through the shared provider boundary. */
+export async function planWildsCreation(request:CreationPlannerRequest,actor:{actorId:string;accessToken?:string},signal:AbortSignal):Promise<CreationPlannerResult>{
+ const planner=createReceizCreationPlanner(actor);let reason:string|undefined;
+ const result=await planCreation(request,{async propose(input,abort){try{return await planner.propose(input,abort);}catch(error){if(error instanceof LocalCreationPlannerError)reason=error.message;throw error;}}},signal);
+ return reason&&result.status==='unavailable'&&!signal.aborted?{status:'blocked',reason}:result;
 }

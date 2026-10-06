@@ -318,8 +318,9 @@ export function useWildsWorld(input: {
     commandPending.current = true;
     let canonical = base;
     let nextMode: WildsWorldClientMode = initialMode;
-    let entries = await readWildsWorldOutbox(input.actorId);
+    let entries: WildsWorldOutboxEntry[] = [];
     try {
+      entries = await readWildsWorldOutbox(input.actorId);
       while (entries.length > 0 && shouldAttemptWildsNetwork()) {
         const queued = entries[0]!;
         const entry = prepareWildsWorldOutboxPublication(queued, command => planWildsMaterialHarvest({
@@ -405,7 +406,7 @@ export function useWildsWorld(input: {
   ) => {
     if (!input.enabled) throw new Error("wilds_world_session_required");
     const kaiAuthority = mode === "receiz_live" || mode === "kai_live" ? "world" : "local";
-    const rootedCommand = crewAdmission ? withWildsWorldCommandKai(command,verifyWildsWorldCommandKai(command)) : withWildsWorldCommandKai(command, createKaiTemporalRoot(
+    const rootedCommand = crewAdmission && command.type !== "creation.construct" && command.type !== "creation.evolve" ? withWildsWorldCommandKai(command,verifyWildsWorldCommandKai(command)) : withWildsWorldCommandKai(command, createKaiTemporalRoot(
       deriveKaiKlokMomentFromUPulse({ uPulse: input.kaiUPulse, authority: kaiAuthority })
     ));
     const authorityCard = authority === null ? null : authority?.card ?? input.activeCard;
@@ -420,8 +421,8 @@ export function useWildsWorld(input: {
       ...(authorityCardAdmission ? { cardAdmission: authorityCardAdmission } : {}),
       queuedAt: new Date().toISOString()
     };
-    if(crewAdmission&&!authorityCard)throw new Error("wilds_crew_worker_card_required");
-    const entry=crewAdmission?bindWildsCrewOutboxIdentity(unboundEntry,authorityCard!):unboundEntry;
+    if(crewAdmission&&!authorityCard&&rootedCommand.type!=="creation.construct"&&rootedCommand.type!=="creation.evolve")throw new Error("wilds_crew_worker_card_required");
+    const entry=crewAdmission&&authorityCard?bindWildsCrewOutboxIdentity(unboundEntry,authorityCard):unboundEntry;
     if (isWildsEdgeImmediateConstructionCommand(rootedCommand)) {
       try {
         await restoreSession();
@@ -630,6 +631,16 @@ export function useWildsWorld(input: {
     }),
     /** Exact crew command; preparation and mandate verification happen before this port.
      * The queued source transition retains its Kai root and idempotency identity. */
+    currentSource: edgeQueue.current,
+    /** The existing durable edge source admits one exact finite aggregate before rendering. */
+    admitCreation: async (
+      command: Extract<WildsWorldCommand, {type:"creation.construct"|"creation.evolve"}>,
+      beforeAdmit: () => Promise<void>
+    ) => {
+      const events: WildsWorldEvent[] = [];
+      const projection = await post(command, null, { beforeAdmit, onAdmitted: (_projection, admitted) => { events.push(...admitted); } });
+      return { projection, events };
+    },
     admitCrewHarvest: async (
       command:Extract<WildsWorldCommand,{type:"resource.material.harvest"}>,
       authority:Readonly<{card:PortableCardAsset;cardAdmission?:WildzVaultCardMembershipProof|null}>,

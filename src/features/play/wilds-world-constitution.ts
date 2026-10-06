@@ -5,6 +5,8 @@ import { constitutionalDigest, constitutionalPredicate as predicate, deriveConst
 
 /** Adding a command requires choosing its bounded source law at compile time. */
 export const WILDS_COMMAND_LAW = {
+  "creation.construct": "materials.create",
+  "creation.evolve": "materials.create",
   "community.transition": "community.adopted-procedures",
   "construction.project.create": "commons.plan", "construction.component.place": "project.plan", "construction.burrow.dig": "project.plan", "construction.component.adjust": "project.plan",
   "construction.component.maintain": "project.work",

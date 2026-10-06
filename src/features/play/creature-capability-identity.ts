@@ -5,6 +5,7 @@ import { currentCreatureHistoryProjection, currentRevision } from "./living-card
 import { isLivingCardAsset } from "./living-card-types";
 import { canonicalPortableCardJson, type PortableCardAsset } from "./portable-card";
 import type { WildsTraversalCapability } from "./wilds-traversal-capabilities";
+import { projectWildsCreatureWorkFamilies } from './wilds-steward-construction';
 
 export type CreatureSpecialtyFamily = "flight" | "glide" | "swim" | "dive" | "current" | "climb" | "burrow" | "balance" | "light" | "camouflage" | "track" | "break" | "resist" | "anchor" | "rescue";
 
@@ -325,9 +326,17 @@ export function canCreatureUseBurrow(runtime: CreatureRuntimeCapabilities, condi
     && runtime.abilities.some(ability => ability.available && ability.descriptor.tags.includes("burrow"));
 }
 
-/** Versioned planning projection. Advanced craft grants require their own admitted progression laws. */
+/** Registered local game grants derived from the exact canonical card affinity.
+ * Runtime condition can suppress these source grants, never manufacture an affinity. */
+export const CREATURE_CREATION_TECHNIQUE_RULE_V1 = Object.freeze({ id: 'wildz.creature-creation-techniques.v1', quarry: 'masonry', lumber: 'carpentry', affinities: Object.freeze({ Grove: 'cultivation', Tide: 'water', Spark: 'engineering', Ember: 'forging' }), affinityAbility: 'exact-canonical-family-pulse', base: 'assembly' });
 export function projectCreatureCreationTechniquesV1(asset: PortableCardAsset, condition: AdventureCardCondition): readonly string[] {
-  if (condition.assetId !== asset.id || condition.life !== 'alive' || condition.fatigue >= 80 || condition.injuries.some(injury => injury.severity === 3)
+  if (condition.assetId !== asset.id || condition.life !== 'alive' || condition.retiredAt || condition.fatigue >= 80 || condition.injuries.some(injury => injury.severity === 3)
     || !['sealed_local', 'verified'].includes(asset.status)) return Object.freeze([]);
-  return Object.freeze(['assembly']);
+  const form = creatureForm(asset.manifest.formId);
+  if (!form) return Object.freeze([]);
+  const techniques = new Set<string>(['assembly']);
+  for (const family of projectWildsCreatureWorkFamilies(form.element)) techniques.add(family === 'quarry' ? 'masonry' : 'carpentry');
+  const grant = CREATURE_CREATION_TECHNIQUE_RULE_V1.affinities[form.element as keyof typeof CREATURE_CREATION_TECHNIQUE_RULE_V1.affinities];
+  if (grant && projectCreatureCapabilityIdentity(asset).abilities.some(ability => ability.name === `${form.element} Pulse` && ability.tags.includes('family') && ability.tags.includes(form.element.toLowerCase()))) techniques.add(grant);
+  return Object.freeze([...techniques].sort());
 }

@@ -1,10 +1,13 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "../portable-card";
 import type { KaiKlokMoment } from "../kai-klok-moment";
+import type { playerBreathReadout } from "../player-breath-energy";
 
 export type WildsCommandAction =
   | { type: "open-mission" }
   | { type: "open-field-guide" }
   | { type: "open-satchel" }
+  | { type: "sleep" }
+  | { type: "wake" }
   | { type: "open-trail-pack" }
   | { type: "open-vault" }
   | { type: "open-map" }
@@ -28,6 +31,7 @@ export type WildsCommandCenterInput = {
   connected: boolean;
   worldRevision: number;
   energy: number;
+  body?: ReturnType<typeof playerBreathReadout>;
   creature: {
     assetId: string;
     name: string;
@@ -54,6 +58,7 @@ export type WildsCommandCenterModel = {
   causalId: string;
   isNew: boolean;
   moment: KaiKlokMoment;
+  body?: ReturnType<typeof playerBreathReadout>;
   palette: { primary: string; hue: number; sides: number; gate: string };
   now: WildsCommandPriority;
   priorities: WildsCommandPriority[];
@@ -235,6 +240,7 @@ export function projectWildsCommandCenter(input: WildsCommandCenterInput): Wilds
     causalId,
     isNew: !input.acknowledgedCausalIds.includes(causalId),
     moment: input.moment,
+    body: input.body,
     palette: {
       primary: input.moment.accent,
       hue: input.moment.hue,

@@ -6,6 +6,7 @@ import { mergeWildsConstructionPersistence, projectWildsConstructionPersistence,
 import { verifyWildsConstructionSite } from "./wilds-construction-site";
 import { verifyWildsHarvestedSourceState, verifyWildsMaterialLot, verifyWildsStructure } from "./wilds-steward-construction";
 import { wildsMaterialCustodian, type WildsWorldProjection } from "./wilds-world-state";
+import { projectWildsCreationPersistence, mergeWorldCreationSourceRows, type WildsCreationPersistence } from "./creation/world-source";
 
 const ownedProofCache = createWildsExactProofCache();
 
@@ -33,7 +34,7 @@ function mergeMaterialLifecycle(
 }
 
 export function projectWildsOwnedWorldAdditions(
-  world: Pick<WildsWorldProjection, "constructionSites" | "structures" | "harvestedSources" | "materialLots" | "materialCustody" | "consumedMaterialLots" | "reservedMaterialLots" | "storedMaterialLots"> & Partial<WildsConstructionPersistence>,
+  world: Pick<WildsWorldProjection, "constructionSites" | "structures" | "harvestedSources" | "materialLots" | "materialCustody" | "consumedMaterialLots" | "reservedMaterialLots" | "storedMaterialLots"> & Partial<WildsConstructionPersistence> & Partial<WildsCreationPersistence>,
   ownerReceizId: string
 ): WildsOwnedWorldAdditions {
   const materialLots = sortedRecord(Object.entries(world.materialLots).filter(([lotId, lot]) =>
@@ -42,8 +43,10 @@ export function projectWildsOwnedWorldAdditions(
   const ownedSourceIds = new Set(Object.values(materialLots).map((lot) => lot.source.sourceId));
   const materialState = (state: Record<string, string>) => sortedRecord(Object.entries(state)
     .filter(([lotId, targetId]) => ownedLotIds.has(lotId) && typeof targetId === "string" && targetId.length > 0));
+  const creation = projectWildsCreationPersistence(world, ownerReceizId), construction = projectWildsConstructionPersistence(world, ownerReceizId);
   return {
-    ...projectWildsConstructionPersistence(world, ownerReceizId),
+    ...construction, ...creation,
+    constructionCommandReceipts: { ...construction.constructionCommandReceipts, ...creation.constructionCommandReceipts },
     constructionSites: sortedRecord(Object.entries(world.constructionSites).filter(([siteId, site]) =>
       siteId === site.siteId && ownedProofCache.verify(site, verifyWildsConstructionSite)
       && sameOwner(site.placedByReceizId, ownerReceizId))),
@@ -86,9 +89,12 @@ export function mergeWildsOwnedWorldAdditions(
     if (!current || current.revision < saved.revision) harvestedSources[sourceId] = saved;
   }
   const materialLifecycle = mergeMaterialLifecycle(world, owned);
+  const construction = mergeWildsConstructionPersistence(owned, world);
+  const creation = projectWildsCreationPersistence({ ...mergeWorldCreationSourceRows(world, owned), materialLots, materialCustody: { ...world.materialCustody, ...owned.materialCustody }, consumedMaterialLots: materialLifecycle.consumedMaterialLots });
   return {
     ...world,
-    ...mergeWildsConstructionPersistence(owned, world),
+    ...construction, ...creation,
+    constructionCommandReceipts: { ...construction.constructionCommandReceipts, ...creation.constructionCommandReceipts },
     constructionSites,
     structures,
     harvestedSources,
@@ -123,8 +129,11 @@ export function mergeWildsOwnedAdditionSets(
     if (ownedProofCache.verify(candidate, verifyWildsHarvestedSourceState) && (!current || current.revision < candidate.revision)) harvestedSources[sourceId] = candidate;
   }
   const materialLifecycle = mergeMaterialLifecycle(left, right);
+  const construction = mergeWildsConstructionPersistence(left, right);
+  const creation = projectWildsCreationPersistence({ ...mergeWorldCreationSourceRows(left, right), materialLots, materialCustody: { ...left.materialCustody, ...right.materialCustody }, consumedMaterialLots: materialLifecycle.consumedMaterialLots });
   return {
-    ...mergeWildsConstructionPersistence(left, right),
+    ...construction, ...creation,
+    constructionCommandReceipts: { ...construction.constructionCommandReceipts, ...creation.constructionCommandReceipts },
     constructionSites,
     structures,
     harvestedSources,

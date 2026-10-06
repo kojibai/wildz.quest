@@ -1,4 +1,6 @@
 import { projectWildsConstructionWeather, resolveWildsMaintenance, type WildsMaintenanceCommand, type WildsConstructionCondition } from "./wilds-construction-weather";
+import { resolveWorldCreationBuild, type WildsCreationSourceRecord } from "./creation/world-source";
+import type { WildsWorldEvent } from "./wilds-world-event";
 import { transitionCommunity, type CommunityRequest, type WildsCommunity } from "./wilds-community";
 import { settleWildsConstructionWork, WILDS_CONSTRUCTION_WORK_REWARD_POLICY } from "./wilds-construction-work-reward";
 import { createWildsBurrow, verifyWildsBurrow, type WildsBurrowV1 } from "./wilds-burrow";
@@ -139,6 +141,8 @@ export type WildsTrainerWorldProjection = { id: string; [key: string]: unknown }
 export type WildsTournamentWorldProjection = { id: string; phase?: string; [key: string]: unknown };
 
 export type WildsWorldProjection = {
+  creations?: Record<string, WildsCreationSourceRecord>;
+  creationEvents?: Record<string, WildsWorldEvent>;
   communities?: Record<string, WildsCommunity>;
   constitutionalCommandReceipts?: Record<string, { digest: string; actorId: string; type: string; eventIds: string[] }>;
   constitutionalClaims?: Record<string, { id: string; claimant: string; subject: string; proposition: string; status: "ALLEGED"; sourceEventId: string }>;
@@ -211,6 +215,8 @@ export function wildsMaterialCustodian(projection: Pick<WildsWorldProjection, "m
 
 export function initialWildsWorldProjection(): WildsWorldProjection {
   return {
+    creations: {},
+    creationEvents: {},
     schema: "receiz.wilds_world_projection.v3",
     worldId: WILDS_WORLD_ID,
     revision: 0,
@@ -398,6 +404,20 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
   const payload = recordPayload(event.payload);
 
   switch (event.kind) {
+    case "creation.constructed":
+    case "creation.evolved": {
+      if (!("uPulse" in event)) throw new Error("creation_world_temporal_source_required");
+      const source = payload.record as WildsCreationSourceRecord;
+      if (!source?.command || source.command.type !== (event.kind === "creation.constructed" ? "creation.construct" : "creation.evolve") || source.command.commandId !== event.causeId || payload.commandDigest !== constructionProofDigest(source.command)) throw new Error("creation_world_event_binding_invalid");
+      const expected = resolveWorldCreationBuild(state, source.command, event.actorId, event.uPulse).record;
+      if (constructionProofDigest(source) !== constructionProofDigest(expected)) throw new Error("creation_world_successor_invalid");
+      return appendEvent(state, event, {
+        creations: { ...state.creations, [source.instance.instanceId]: source },
+        creationEvents: { ...state.creationEvents, ...(state.creationEvents?.[source.instance.instanceId] ? { [state.creationEvents[source.instance.instanceId].eventId]: state.creationEvents[source.instance.instanceId] } : {}), [source.instance.instanceId]: event, [event.eventId]: event },
+        consumedMaterialLots: { ...state.consumedMaterialLots, ...Object.fromEntries(source.command.resources.map(lot => [lot.id, source.instance.instanceId])) },
+        constructionCommandReceipts: { ...state.constructionCommandReceipts, [event.causeId]: { commandDigest: payload.commandDigest as string, eventPayloadDigest: constructionProofDigest(event.payload), actorId: event.actorId, kind: event.kind } }
+      });
+    }
     case "construction.weathered": {
       if (!("uPulse" in event) || event.actorId !== "receiz:pulse" || !Array.isArray(payload.conditions) || payload.conditions.length > 16) throw new Error("wilds_weather_authority_invalid");
       const conditions = { ...state.constructionConditions };
@@ -978,7 +998,7 @@ export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], c
 }
 
 function isContinuousConstructionEvent(kind: string) {
-  return ["construction.component_maintained", "construction.burrow_dug", "construction.project_created", "construction.component_adjusted", "construction.component_placed", "construction.material_contributed", "construction.work_contributed"].includes(kind);
+  return ["creation.constructed", "creation.evolved", "construction.component_maintained", "construction.burrow_dug", "construction.project_created", "construction.component_adjusted", "construction.component_placed", "construction.material_contributed", "construction.work_contributed"].includes(kind);
 }
 
 export function projectWildsConstructionProgressFromWorld(world: WildsWorldProjection, componentId: string) {

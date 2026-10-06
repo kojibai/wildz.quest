@@ -6,6 +6,8 @@ import { canonicalWildzProfilePath, type PublicWildzProfile } from "@/features/p
 import NextLink from "next/link";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { WildzProfileVaultGallery } from "./WildzProfileVaultGallery";
+import { WildsBodyReadout } from '../play/command-center/WildsBodyReadout';
+import { useWildsBodyReadout, type WildsBodyReadoutInput } from '../play/use-wilds-body-readout';
 import { Camera, Check, CloudUpload, Download, Link, LoaderCircle, Pencil, Share2, Upload, X } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
@@ -44,13 +46,14 @@ async function profileImageFromFile(file: File) {
   }
 }
 
-export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile, publishing = false, publicationMessage, publicationFailure, onRetryPublication }: {
+export function WildzProfileSheet({ profile, vaultAssets, bodyState, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile, publishing = false, publicationMessage, publicationFailure, onRetryPublication }: {
   profile: PublicWildzProfile;
   publishing?: boolean;
   publicationMessage?: string;
   publicationFailure?: string;
   onRetryPublication?: () => void;
   vaultAssets?: readonly PortableCardAsset[];
+  bodyState?: WildsBodyReadoutInput;
   publicationStatus?: "local" | "published";
   shareEnabled?: boolean;
   editable?: boolean;
@@ -59,6 +62,7 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
   onSaveIdentitySeal?: () => Promise<void>;
   onSaveProfile?: (input: { username: string; displayName: string; avatarImageUrl: string | null }) => Promise<void>;
 }) {
+  const body = useWildsBodyReadout(bodyState);
   const [shareResult, setShareResult] = useState<WildzShareResult | null>(null);
   const [profileLinkAction, setProfileLinkAction] = useState<{ kind: "share" | "copy"; phase: "working" | "success" | "error" } | null>(null);
   const [publicationDetailsOpen, setPublicationDetailsOpen] = useState(false);
@@ -172,6 +176,7 @@ export function WildzProfileSheet({ profile, vaultAssets, publicationStatus = "p
       </span> : null}</p>
     </div>{editable ? <button className="wildz-profile-edit-trigger" aria-label="Edit profile" aria-pressed={editing} onClick={() => setEditing((value) => !value)} type="button"><Pencil aria-hidden="true" size={18} /></button> : null}</header>
 
+    {body ? <WildsBodyReadout body={body} /> : null}
     {editable && publicationDetailsOpen && publicationStatus !== "published" ? <section className="wildz-profile-publication" aria-label="Profile publication">
       <p role="status" aria-live="polite">{publicationFailure || publicationMessage}</p>
       {onRetryPublication ? <button type="button" disabled={publishing} onClick={onRetryPublication}>{publishing ? "Syncing…" : "Retry sync"}</button> : null}

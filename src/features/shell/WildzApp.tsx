@@ -98,13 +98,10 @@ import { projectWildzContinuityExplorer } from "@/features/play/wildz-explorer-p
 import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
 import {
   clearWildzPendingInventoryCheckpoint,
-  clearWildzRuntimeCheckpoint,
   prepareWildzRuntimeCheckpoint,
-  readWildzRuntimeCheckpoint,
-  writeWildzPendingInventoryCheckpoint,
-  writePreparedWildzRuntimeCheckpoint,
-  writeWildzRuntimeCheckpoint
+  writeWildzPendingInventoryCheckpoint
 } from "@/features/play/wildz-runtime-checkpoint";
+import { createWildzRuntimeCheckpointStore } from '@/features/play/wildz-runtime-checkpoint-store';
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -174,6 +171,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const lastRemotePlayerDigestRef = useRef("");
   const adoptingRemotePlayStateRef = useRef<PlayState | null>(null);
   const playStateSaveSchedulerRef = useRef<WildzPlayStatePersistenceCoordinator<PendingPlayStateSave> | null>(null);
+  const [runtimeCheckpointStore] = useState(() => createWildzRuntimeCheckpointStore({
+    database: defaultContinuityDatabase, getStorage: () => window.localStorage
+  }));
 
   if (!playStateSaveSchedulerRef.current) {
     playStateSaveSchedulerRef.current = createWildzPlayStatePersistenceCoordinator({
@@ -193,14 +193,14 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           playState
         });
         const serialized = await wildzJsonSerializer.serialize(prepared.checkpoint);
-        await wildzGameplayBackground.run(() => {
+        await wildzGameplayBackground.run(async () => {
           const latest = continuityRef.current;
           if (!latest || !isCurrentWildzGameplaySource(latest, snapshot)
             || (latest.playState && hasLaterWildsPlayerLedger(latest.playState, playState))) return;
           if (serialized) {
-            writePreparedWildzRuntimeCheckpoint(window.localStorage, { key: prepared.key, serialized });
+            await runtimeCheckpointStore.writePrepared({ key: prepared.key, serialized });
           } else {
-            writeWildzRuntimeCheckpoint(window.localStorage, {
+            await runtimeCheckpointStore.write({
               keyId: snapshot.session.keyId,
               actorId: snapshot.session.actorId,
               playState
@@ -273,6 +273,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     () => continuity?.playState ?? (identity ? createOwnerBoundInitialPlayState(identity.actorId, identity.createdAt) : initialPlayState),
     [continuity?.playState, identity]
   );
+  const readCurrentBodyState = useCallback(() => continuityRef.current?.playState ?? undefined, []);
   const publishableOwnerAssets = useMemo(() => {
     if (!identity || typeof window === "undefined") return ownerPlayState.inventory;
     const locallyClaimed = new Set(locallyClaimedWildzAssetIds(
@@ -466,11 +467,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       const current = continuityRef.current;
       if (current?.playState) {
         try {
-          writeWildzRuntimeCheckpoint(window.localStorage, {
+          void runtimeCheckpointStore.write({
             keyId: current.session.keyId,
             actorId: current.session.actorId,
             playState: current.playState
-          });
+          }).catch(() => undefined);
         } catch {
           // The debounced durable path remains queued if browser storage is unavailable.
         }
@@ -497,7 +498,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       document.removeEventListener("visibilitychange", flushWhenHidden);
       flushLatestRuntimeCheckpoint();
     };
-  }, []);
+  }, [runtimeCheckpointStore]);
 
   useEffect(() => {
     if (!identity || !vaultAdmission) return;
@@ -657,11 +658,12 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         snapshot.session.actorId,
         snapshot.session.createdAt
       );
-      snapshot.playState = readWildzRuntimeCheckpoint(window.localStorage, {
+      snapshot.playState = await runtimeCheckpointStore.read({
         keyId: snapshot.session.keyId,
         actorId: snapshot.session.actorId,
         playState: checkpointBaseline
       });
+      if (!active) return;
       acceptSnapshot(snapshot);
       if (snapshot.playState.inventory !== checkpointBaseline.inventory && snapshot.playerContinuity) {
         void saveWildzContinuityPlayState(
@@ -683,7 +685,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       if (active) setIdentityError(cause instanceof Error ? cause.message : "Unable to prepare your Receiz ID.");
     });
     return () => { active = false; };
-  }, [acceptSnapshot]);
+  }, [acceptSnapshot, runtimeCheckpointStore]);
 
   const completeGenesis = useCallback(async (next: WildzCharacterGenesis) => {
     const current = continuityRef.current;
@@ -857,10 +859,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         throw new Error("The capture was saved for its keeper. Its downloaded artifact can be reopened in that account.");
     }
     const next = commitWildzArtifactContinuity(outcome);
-    clearWildzRuntimeCheckpoint(window.localStorage, {
+    void runtimeCheckpointStore.clear({
       keyId: outcome.session.keyId,
       actorId: outcome.session.actorId
-    });
+    }).catch(() => undefined);
     clearWildzPendingInventoryCheckpoint(window.localStorage, {
       keyId: outcome.session.keyId,
       actorId: outcome.session.actorId
@@ -878,7 +880,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       channel.close();
     }
     return outcome;
-  }, [acceptSnapshot]);
+  }, [acceptSnapshot, runtimeCheckpointStore]);
 
   const restoreRoamingCapture = useCallback(async (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState) => {
     const current = continuityRef.current;
@@ -1040,7 +1042,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     lastRemotePlayerDigestRef.current = record.sourceDigest;
     adoptingRemotePlayStateRef.current = playState;
     acceptSnapshot(snapshot);
-    writeWildzRuntimeCheckpoint(window.localStorage, {
+    await runtimeCheckpointStore.write({
       keyId: snapshot.session.keyId,
       actorId: snapshot.session.actorId,
       playState
@@ -1051,7 +1053,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       snapshot.playerContinuity!,
       snapshot.character
     ).catch(() => null);
-  }, [acceptSnapshot]);
+  }, [acceptSnapshot, runtimeCheckpointStore]);
 
   const queueGlobalPlayerStateSync = useCallback((snapshot: WildzContinuitySnapshot) => {
     if (!proofSessionConnected || !snapshot.playState || !snapshot.playerContinuity) return;
@@ -1402,6 +1404,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           {overlay.kind === "profile" ? (viewingOwnProfile ? ownerSourceProfile : remoteProfile) ? <WildzProfileSheet
             profile={(viewingOwnProfile ? ownerSourceProfile : remoteProfile)!}
             vaultAssets={viewingOwnProfile ? ownerPlayState.inventory : undefined}
+            bodyState={viewingOwnProfile ? readCurrentBodyState : undefined}
             publicationStatus={viewingOwnProfile && ownerPublicationStatus !== "ready" ? "local" : "published"}
             shareEnabled={!viewingOwnProfile || ownerPublicationStatus === "ready"}
             publicationFailure={viewingOwnProfile ? ownerPublicationFailure?.message : undefined}

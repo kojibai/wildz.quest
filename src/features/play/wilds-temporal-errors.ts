@@ -4,6 +4,10 @@ const TEMPORAL_CONTINUITY_CODES = new Set([
 ]);
 
 const ACTIONABLE_WORLD_ERRORS: Record<string, string> = {
+  wilds_world_worker_interrupted: "Your device paused this work. Reopen your Satchel to check the saved harvest before gathering again.",
+  wildz_indexed_db_open_timeout: "Your device is taking too long to open its saved world. Reopen the game, then check your Satchel before gathering again.",
+  wildz_indexed_db_transaction_timeout: "Your device paused saving. Reopen your Satchel to check the exact saved harvest before gathering again.",
+  wildz_indexed_db_open_blocked: "Another game window is holding saved-world storage. Close that window, then reopen your Satchel.",
   wilds_resource_kai_order_invalid: "This resource has a newer update. Wait a moment, then gather again.",
   wilds_world_resource_mandate_invalid: "Choose a rested companion whose card shows the work this source needs.",
   wilds_world_active_card_required: "Bring a living companion beside the source, then touch it.",

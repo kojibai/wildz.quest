@@ -1,4 +1,6 @@
 "use client";
+import { WildsNourishmentEnvironment, type WildsNourishmentEnvironmentProps } from './WildsNourishmentEnvironment';
+import { projectCreationBedSleepPose, type CreationBedSource } from './creation/bed';
 import { WildsFirstFrame } from "./WildsFirstFrame";
 import { WildsShaderPrewarm } from "./WildsShaderPrewarm";
 import { projectWildsTraversalCapabilities } from "./wilds-traversal-capabilities";
@@ -134,6 +136,8 @@ const EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD = Object.freeze({ tileX: 0, tileZ: 0, o
 export function WildsWorldCanvas({
   homeResidents,
   activeWorkSource,
+  sleepingCreationBed,
+  nourishment,
   activeCapabilityFamily = null,
   stewardPlacementPreview,
   burrowPreview,
@@ -195,6 +199,8 @@ export function WildsWorldCanvas({
 }: {
   homeResidents?: WildsHomeResidentsInput;
   activeWorkSource?: WildsActiveWorkSource | null;
+  sleepingCreationBed?: CreationBedSource | null;
+  nourishment?: Omit<WildsNourishmentEnvironmentProps, 'origin' | 'kaiUPulse' | 'spaceId'>;
   activeCapabilityFamily?: WildsWorldCapabilityFamily | null;
   stewardPlacementPreview?: WildsStewardPlacement | null;
   burrowPreview?: WildsBurrowPreview | null;
@@ -280,7 +286,7 @@ export function WildsWorldCanvas({
         <Suspense fallback={null}>
           <WildsFirstFrame onReady={onWorldReady} />
           <WildsShaderPrewarm />
-          <WildsScene suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} creationPreview={creationPreview} creationProjections={creationProjections} creationNavigation={creationNavigation} creationSource={creationSource} creationWorldId={creationWorldId} onCreationNavigation={onCreationNavigation} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
+          <WildsScene nourishment={nourishment} sleepingCreationBed={sleepingCreationBed} suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} creationPreview={creationPreview} creationProjections={creationProjections} creationNavigation={creationNavigation} creationSource={creationSource} creationWorldId={creationWorldId} onCreationNavigation={onCreationNavigation} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>
     </div>
@@ -296,6 +302,8 @@ function WildsScene({
   suspended = false,
   homeResidents,
   activeWorkSource,
+  sleepingCreationBed,
+  nourishment,
   activeCapabilityFamily,
   stewardPlacementPreview,
   burrowPreview,
@@ -355,6 +363,8 @@ function WildsScene({
   suspended?: boolean;
   homeResidents?: WildsHomeResidentsInput;
   activeWorkSource?: WildsActiveWorkSource | null;
+  sleepingCreationBed?: CreationBedSource | null;
+  nourishment?: Omit<WildsNourishmentEnvironmentProps, 'origin' | 'kaiUPulse' | 'spaceId'>;
   activeCapabilityFamily: WildsWorldCapabilityFamily | null;
   stewardPlacementPreview?: WildsStewardPlacement | null;
   burrowPreview?: WildsBurrowPreview | null;
@@ -544,6 +554,7 @@ function WildsScene({
           siteSpaceId={siteSpace.spaceId}
           terrainElevation={activeFloorY}
         />
+        {nourishment ? <WildsNourishmentEnvironment {...nourishment} origin={{...state.player,y:activeFloorY}} kaiUPulse={kaiMoment.uPulse} spaceId={siteSpace.spaceId} /> : null}
         <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} terrainElevation={activeFloorY} />
         <EncounterSequence onSearchPoint={onSearchPoint} state={state} terrainElevation={activeFloorY} siteRuntime={siteRuntime} siteSpace={siteSpace} />
         {visibleRemotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />)}
@@ -565,7 +576,7 @@ function WildsScene({
           identityKey={explorerIdentityKey}
           kaiUPulse={kaiMoment.uPulse}
           bodyReadiness={state.energy}
-          sleepPose={sleepingBed ? projectWildsBedSleepPose(sleepingBed, state.player, activeFloorY) : undefined}
+          sleepPose={sleepingBed ? projectWildsBedSleepPose(sleepingBed, state.player, activeFloorY) : sleepingCreationBed ? projectCreationBedSleepPose(sleepingCreationBed, state.player, activeFloorY, explorerIdentityKey || '', kaiMoment.uPulse) || undefined : state.playerBreaths?.mode === 'sleep' && !swimming && aerialStateRef.current.mode === 'ground' ? {position: [.72, .24, 0], heading: -Math.PI / 2, pitch: Math.PI / 2} : undefined}
           locomotion={swimming ? "swim" : "ground"}
           scubaVisible={swimming}
           style={character.gender}

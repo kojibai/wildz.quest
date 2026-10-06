@@ -17,3 +17,17 @@ test("large checkpoint JSON is produced by the worker boundary", async () => {
 
   assert.equal(await serializer.serialize({ player: { x: 4, z: 9 } }), "{\"player\":{\"x\":4,\"z\":9}}");
 });
+
+test("a silent checkpoint worker releases the save queue through the existing fallback", async () => {
+  let deadline: (() => void) | undefined, terminated = 0;
+  const worker = { onmessage: null, onerror: null, postMessage() {}, terminate() { terminated += 1; } };
+  const options = { createWorker: () => worker, createId: () => "silent-checkpoint",
+    setTimer: (callback: () => void) => { deadline = callback; return 1; }, clearTimer() {}, timeoutMs: 5_000 };
+  const serializer = createWildzJsonSerializer(options);
+  const saving = serializer.serialize({ playerBreaths: { mode: "sleep" }, playerNourishment: { items: { food: {} } } });
+  assert.ok(deadline, "Every checkpoint serialization must have a deadline");
+  deadline();
+  assert.equal(await saving, null);
+  assert.equal(terminated, 1);
+  assert.equal(await serializer.serialize({ next: true }), null);
+});

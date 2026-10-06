@@ -164,3 +164,28 @@ test("production adapter reopens after its connection receives versionchange", a
   assert.equal(await database.read("meta", "status"), "ready");
   assert.equal(controlled.openCount(), 2);
 });
+
+test("a silent mobile database open expires and a later call opens a fresh connection", async () => {
+  const fake = createFakeIndexedDb();
+  let opens = 0;
+  const factory = { open(name: string, version?: number) {
+    if (++opens === 1) return new EventTarget() as IDBOpenDBRequest;
+    return fake.factory.open(name, version);
+  }} as IDBFactory;
+  const database = createWildzContinuityDatabase({ factory, name: "silent-open", timeoutMs: 15 });
+  await assert.rejects(database.read("meta", "harvest"), /wildz_indexed_db_open_timeout/);
+  assert.equal(await database.read("meta", "harvest"), null);
+  assert.equal(opens, 2);
+});
+
+test("a stalled mobile write is aborted without publishing its uncommitted material", async () => {
+  const fake = createFakeIndexedDb();
+  const database = createWildzContinuityDatabase({ factory: fake.factory, name: "silent-completion", timeoutMs: 25 });
+  const completion = fake.gateNextCompletion();
+  const pending = database.transaction(["meta"], "readwrite", tx => tx.put("meta", "material", "harvest"));
+  await completion.completionReached;
+  await assert.rejects(pending, /wildz_indexed_db_transaction_timeout/);
+  completion.releaseCompletion();
+  assert.equal(await database.read("meta", "harvest"), null);
+  assert.equal(fake.abortedTransactions, 1);
+});

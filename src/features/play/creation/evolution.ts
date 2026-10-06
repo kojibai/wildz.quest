@@ -9,7 +9,8 @@ import type {WildsMaterialLotV1} from '../wilds-steward-construction';
 import {constructionProofDigest,freezeConstructionProof,sealConstructionProof,validConstructionHead,validConstructionId,validConstructionKai} from '../wilds-construction-project';
 import {assertCreationData,parseCreationDefinition} from './definition';
 import {initializeCreationComponents,CREATION_COMPONENT_RULE_HEAD} from './components';
-import {sealCreationInstance,verifyCreationInstance,type CreationNodeState} from './instance';
+import {sealCreationInstance,verifyCreationInstance,type CreationNodeState,type CreationInstance} from './instance';
+import type {CreationSelectedLot} from './resources';
 import {planCreationTasks} from './crew';
 export const CREATION_EVOLUTION_RULE_ID='creation.evolve.v1';
 export const CREATION_EVOLUTION_RULE_HEAD=constructionProofDigest({id:CREATION_EVOLUTION_RULE_ID,version:1,components:CREATION_COMPONENT_RULE_HEAD,identity:'same-instance-next-head',material:'full-rebuild-changed-node-no-salvage',state:'preserve-components-and-embedded-history',occupied:'unchanged-geometry-required',removal:'separate-relocation-and-salvage-law'});
@@ -27,6 +28,20 @@ function contract(node:CreationNodeState){
   case 'logic':return {...body,counter:0,consumedEventIds:[]};
   default:return body;
  }
+}
+/** Deterministic component successor shared by aggregate source admission and
+ * the Native transaction proposal. Authentication belongs to each host boundary. */
+export function reviseCreationInstance(current:CreationInstance,previousInput:CreationDefinition,definitionInput:CreationDefinition,resources:readonly CreationSelectedLot[],kaiUPulse:number):CreationInstance{
+ const previous=parseCreationDefinition(previousInput),definition=parseCreationDefinition(definitionInput);
+ if(!verifyCreationInstance(current)||!['functional','finished'].includes(current.stage)||previous.digest!==current.definitionDigest||definition.creatorId!==current.creatorId||previous.creatorId!==current.creatorId||previous.seed!==definition.seed||constructionProofDigest(previous.assets)!==constructionProofDigest(definition.assets)||!validConstructionKai(kaiUPulse)||kaiUPulse<current.kaiUPulse)throw Error('creation_evolution_binding_changed');
+ if(Object.keys(current.nodeStates).length!==previous.nodes.length||previous.nodes.some(n=>!current.nodeStates[n.id]||constructionProofDigest(current.nodeStates[n.id].supportIds)!==constructionProofDigest(n.supports))||previous.nodes.some(n=>!definition.nodes.some(next=>next.id===n.id)))throw Error('creation_evolution_component_or_removal_unavailable');
+ const occupied=Object.values(current.nodeStates).some(n=>(n.kind==='bed'||n.kind==='habitat')&&n.occupantIds.length);
+ if(occupied&&previous.nodes.some(n=>constructionProofDigest(n)!==constructionProofDigest(definition.nodes.find(next=>next.id===n.id))))throw Error('creation_evolution_occupied_replacement_required');
+ const initialized=initializeCreationComponents(definition,kaiUPulse),nodeStates:Record<string,CreationNodeState>={...initialized};
+ for(const node of previous.nodes){const before=current.nodeStates[node.id],after=initialized[node.id];if(constructionProofDigest(contract(before))!==constructionProofDigest(contract(after)))throw Error('creation_evolution_component_conversion_required');if(before.kind==='storage'&&before.lotIds.length&&constructionProofDigest(node)!==constructionProofDigest(definition.nodes.find(n=>n.id===node.id)))throw Error('creation_evolution_contents_replacement_required');nodeStates[node.id]={...before,supportIds:after.supportIds};}
+ if(resources.some(r=>current.embeddedResources.some(old=>old.id===r.id)))throw Error('creation_evolution_material_unavailable');
+ const {head,...body}=current;
+ return sealCreationInstance({...body,definitionDigest:definition.digest,nodeStates,embeddedResources:[...current.embeddedResources,...resources],parentHead:head,revision:current.revision+1,kaiUPulse});
 }
 /** Pure exact-head proposal. A Native transaction must still authenticate every participant. */
 export function prepareCreationEvolution(state:CreationState,command:CreationEvolutionCommand,context:CreationEvolutionContext):CreationTransition{

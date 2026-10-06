@@ -4,6 +4,8 @@ import { deriveKaiKlokMoment } from "./kai-klok-moment";
 export const WILDS_WORLD_ID = "wilds:global:v3" as const;
 
 export type WildsWorldEventKind =
+  | "creation.constructed"
+  | "creation.evolved"
   | "community.transitioned"
   | "site.spawned"
   | "site.phase_changed"
@@ -96,6 +98,8 @@ type WildsWorldEventInput<T> = Omit<WildsWorldEvent<T>, "schema" | "worldId" | "
 };
 
 const eventKinds = new Set<WildsWorldEventKind>([
+  "creation.constructed",
+  "creation.evolved",
   "community.transitioned",
   "site.spawned",
   "site.phase_changed",

@@ -4,6 +4,39 @@ import { KAI_N_DAY_MICRO } from '../src/features/play/kai-klok-moment';
 import { createPlayerBreaths, advancePlayerBreaths, spendPlayerBreaths, playerBreathEnergy, playerBreathReadout, restorePlayerBreaths } from '../src/features/play/player-breath-energy';
 import { applyWildsInput, initialPlayState, serializePlayState, restorePlayState } from '../src/features/play/game-state';
 const DAY = Number(KAI_N_DAY_MICRO), BASE = DAY * 100;
+test('sleeping on the ground restores fuel and fatigue without an instant award; beds recover faster', () => {
+    const body = { ...createPlayerBreaths(BASE, 20), strainMicroPercent: 60_000_000, fatigueMicroPercent: 60_000_000 };
+    const ground = advancePlayerBreaths(body, BASE, 'sleep');
+    assert.equal(ground.reserveMicroBreaths, body.reserveMicroBreaths);
+    const recovered = advancePlayerBreaths(ground, BASE + Math.floor(DAY / 10));
+    const bed = advancePlayerBreaths(advancePlayerBreaths(body, BASE, 'bed'), BASE + Math.floor(DAY / 10));
+    assert.ok(recovered.reserveMicroBreaths > body.reserveMicroBreaths);
+    assert.ok(recovered.schema === 'wildz.player-breaths.v2' && recovered.fatigueMicroPercent < body.fatigueMicroPercent);
+    assert.ok(bed.schema === 'wildz.player-breaths.v2' && recovered.schema === 'wildz.player-breaths.v2' && bed.fatigueMicroPercent < recovered.fatigueMicroPercent);
+    assert.equal(advancePlayerBreaths(recovered, recovered.lastKaiUPulse, 'active').reserveMicroBreaths, recovered.reserveMicroBreaths);
+});
+test('ground sleep remains analytical across saves and movement wakes the explorer', () => {
+    const start = { ...initialPlayState, playerBreaths: createPlayerBreaths(BASE, 20), energy: 20 };
+    const sleeping = applyWildsInput(start, { type: 'sleep', kaiUPulse: BASE });
+    assert.equal(sleeping.playerBreaths?.mode, 'sleep');
+    assert.equal(sleeping.energy, 20);
+    assert.equal(restorePlayState(serializePlayState(sleeping)).playerBreaths?.mode, 'sleep');
+    const moved = applyWildsInput(sleeping, { type: 'move', direction: 'east', kaiUPulse: BASE + 100_000_000 });
+    assert.equal(moved.playerBreaths?.mode, 'active');
+    assert.ok(moved.energy > sleeping.energy);
+    assert.notDeepEqual(moved.player, sleeping.player);
+});
+test('the live body readout distinguishes recovered strain from fuel and missed sleep', () => {
+    const source = { ...createPlayerBreaths(BASE, 40), strainMicroPercent: 95_000_000, fatigueMicroPercent: 20_000_000 };
+    const readout = playerBreathReadout(source, BASE + 10_000_000);
+    assert.ok('fuelPercent' in readout);
+    assert.ok(Number(readout.fuelPercent) < 40);
+    assert.ok(readout.energyPercent > 5);
+    assert.ok(readout.strainPercent < 95);
+    assert.ok(readout.fatiguePercent > 20);
+    assert.equal(source.strainMicroPercent, 95_000_000);
+    assert.equal(source.lastKaiUPulse, BASE);
+});
 test('17491 breath allocation follows the exact existing Kai day without clock drift', () => { const s = createPlayerBreaths(BASE, 100); assert.equal(playerBreathReadout(s, BASE).breathsPerDay, 17491); assert.equal(playerBreathReadout(s, BASE + DAY - 1).elapsedBreaths, 17491); assert.equal(playerBreathReadout(s, BASE + DAY).elapsedBreaths, 0); assert.equal(playerBreathReadout(s, BASE + DAY).day, 101); });
 test('split clock advancement conserves fractional recovery and never multiplies it', () => { let split = spendPlayerBreaths(createPlayerBreaths(BASE, 100), 1000); split = advancePlayerBreaths(split, BASE, 'camp'); const start = split, end = BASE + 1000000; for (let i = 1; i <= 100; i++)
     split = advancePlayerBreaths(split, BASE + i * 10000); const once = advancePlayerBreaths(start, end); assert.deepEqual(split, once); assert.ok(split.reserveMicroBreaths > start.reserveMicroBreaths); });
@@ -12,6 +45,15 @@ test('active offline time drains only analytical metabolism and rest is bounded 
 test('actual walking distance costs the same across input rates and blocked input costs nothing', () => { const a = spendPlayerBreaths(createPlayerBreaths(BASE, 100), 10), b = Array.from({ length: 20 }).reduce<ReturnType<typeof spendPlayerBreaths>>(s => spendPlayerBreaths(s, .5), createPlayerBreaths(BASE, 100)); assert.equal(a.reserveMicroBreaths, b.reserveMicroBreaths); const state = { ...initialPlayState, playerBreaths: createPlayerBreaths(BASE, 84) }; const blocked = applyWildsInput(state, { type: 'move-vector', x: 0, z: 0, kaiUPulse: BASE }); assert.equal(blocked.energy, 84); assert.equal(blocked.playerBreaths!.spentMicroBreaths, 0); });
 test('gameplay movement replaces one-energy-per-input and the reserve persists through save restoration', () => { const s = { ...initialPlayState, playerBreaths: createPlayerBreaths(BASE, 84) }, next = applyWildsInput(s, { type: 'move', direction: 'east', kaiUPulse: BASE }); assert.ok(next.energy > 83.9 && next.energy < 84); assert.ok(next.playerBreaths!.spentMicroBreaths > 0); const restored = restorePlayState(serializePlayState(next)); assert.equal(restored.playerBreaths!.reserveMicroBreaths, next.playerBreaths!.reserveMicroBreaths); });
 test('camp cannot repeatedly heal or refill the player at one pulse', () => { const start = { ...initialPlayState, energy: 20, playerBreaths: createPlayerBreaths(BASE, 20) }; const once = applyWildsInput(start, { type: 'rest', kaiUPulse: BASE }), twice = applyWildsInput(once, { type: 'rest', kaiUPulse: BASE }); assert.equal(once.energy, 20); assert.equal(twice.energy, 20); assert.equal(once.inventory, start.inventory); assert.equal(twice.inventory, start.inventory); const recovered = applyWildsInput(twice, { type: 'energy-tick', kaiUPulse: BASE + 100000000 }); assert.ok(recovered.energy > 20); assert.equal(recovered.actionHistory.length, twice.actionHistory.length); });
+test('releasing a movement control while opening a panel preserves sleep until actual movement', () => {
+    const start = { ...initialPlayState, energy: 40, playerBreaths: createPlayerBreaths(BASE, 40) };
+    const sleeping = applyWildsInput(start, { type: 'sleep', kaiUPulse: BASE });
+    const released = applyWildsInput(sleeping, { type: 'move-vector', x: 0, z: 0, energyActivity: 'active', kaiUPulse: BASE + 1_000_000 });
+    assert.equal(released.playerBreaths!.mode, 'sleep');
+    const moved = applyWildsInput(released, { type: 'move', direction: 'east', energyActivity: 'active', kaiUPulse: BASE + 2_000_000 });
+    assert.equal(moved.playerBreaths!.mode, 'active');
+    assert.notDeepEqual(moved.player, released.player);
+});
 test('save migration preserves legacy energy and rejects invalid breath state', () => { const migrated = restorePlayerBreaths(undefined, BASE, 42); assert.equal(playerBreathEnergy(migrated), 42); const altered = restorePlayerBreaths({ ...migrated, reserveMicroBreaths: Infinity }, BASE, 42); assert.equal(playerBreathEnergy(altered), 42); assert.equal(restorePlayerBreaths(migrated, BASE, 1), migrated); });
 test('untimed legacy housekeeping cannot charge time from Kai genesis on its first clock observation', () => { const housekeeping = applyWildsInput(initialPlayState, { type: 'dismiss-reveal' }); const rooted = applyWildsInput(housekeeping, { type: 'energy-tick', kaiUPulse: BASE }); assert.equal(rooted.energy, initialPlayState.energy); assert.equal(rooted.playerBreaths!.lastKaiUPulse, BASE); });
 test('a nearly empty reserve never prevents gentle walking', () => { const start = { ...initialPlayState, energy: .000001, playerBreaths: createPlayerBreaths(BASE, .000001) }; const moved = applyWildsInput(start, { type: 'move', direction: 'east', kaiUPulse: BASE }); assert.notDeepEqual(moved.player, start.player); assert.equal(moved.playerBreaths!.reserveMicroBreaths, 0); });

@@ -22,11 +22,14 @@ import { canSleepInWildsBed, selectWildsBedAtPlayer, resolveWildsConstructionFun
 import dynamic from "next/dynamic";
 import type {CreationNavigation} from './creation/navigation';
 import type {CreationController} from "./creation/controller";
+import {createWorldCreationController,type WorldCreationControllerInput} from "./creation/world-controller";
+import {creationWorldSourceHead} from "./creation/world-source";
+import {createCreationPhysicalWorkerClient} from "./creation/physical-worker-client";
 import type {CreationObjectLibraryInput} from "./creation/library-session";
 import type {CreationPhysicalSnapshot} from "./creation/physical-store";
 import type { CreationPreview } from "./creation/preview";
 import {projectCreationCompilePhysical} from "./creation/compile-environment";
-import {projectPlayerBreathState} from "./player-breath-energy";
+import {projectPlayerBreathState, playerBreathReadout} from "./player-breath-energy";
 import type { CreationCompileContext } from "./creation/compiler";
 import creationPanelClasses from "./creation/creation.module.css";
 const CreationSession=dynamic(()=>import("./creation/CreationSession"),{ssr:false});
@@ -212,6 +215,12 @@ import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, sel
 import { projectWildsResourcePresentationAvailability as projectWildsResourceAvailability, projectWildsResourceRegion, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
 import { projectWildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
 import { wildsHarvestPresentationRemaining, type WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
+import { selectCreationBedAtPlayer } from './creation/bed';
+import { saveWorldCreationProofImage } from './creation/world-image';
+import { WildsBodyReadout } from './command-center/WildsBodyReadout';
+import { WildsNourishmentPanel, type WildsNourishmentPlantProjection, type WildsWildAnimalProjection, type WildsOwnedLivestockProjection } from './WildsNourishmentPanel';
+import { projectWildsNourishmentPlants } from './wilds-nourishment';
+import { projectWildsWildAnimals, projectWildsOwnedLivestock, selectWildsLivestockShelter } from './wilds-livestock';
 import { projectWildsWorkCapabilityMeters, selectNearestWildsWorkSource, selectWildsResourceWorkPartner, type WildsVisibleWorkFamily } from "@/features/play/wilds-work-capability";
 import { projectWildsCapabilityControls, projectWildsQuickCapabilityControls } from "@/features/play/wilds-world-capability-controls";
 import { projectWildsCapabilityContext } from "@/features/play/wilds-world-capability-context";
@@ -274,7 +283,7 @@ const EMPTY_CREATION_WORLD:Omit<CreationPhysicalSnapshot,'navigation'>&{navigati
 const subscribeEmptyCreation=()=>()=>{};
 export function PlayCampaign({
   campaignName = "Reward Challenge",
-  creationController,
+  creationController: suppliedCreationController,
   creationLibrary,
   enabled,
   interactionEnabled = true,
@@ -345,6 +354,25 @@ export function PlayCampaign({
     currentPlayState: PlayState
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
+  const creationRuntime=useRef<Omit<WorldCreationControllerInput,'project'>|null>(null);
+  const creationCommitContext=useRef<CreationCompileContext|null>(null);
+  const localCreation=useMemo(()=>{
+    const worker=createCreationPhysicalWorkerClient();
+    const controller=createWorldCreationController({
+      environment:()=>creationRuntime.current?.environment()||{ownerId:ownerReceizId,worldId:'wilds:global:v3',spaceId:initialState.siteSpace.spaceId},
+      world:()=>creationRuntime.current?.world()||null,
+      crew:()=>creationRuntime.current?.crew()||{cards:[],conditions:{}},
+      position:()=>creationRuntime.current?.position()||{x:0,y:0,z:0},
+      compileContext:plan=>creationRuntime.current?.compileContext(plan)||null,
+      admit:(command,fence)=>creationRuntime.current?creationRuntime.current.admit(command,fence):Promise.reject(Error('creation_world_not_ready')),
+      project:worker.project
+    });
+    return {controller,worker,mounted:false};
+    // The callbacks read the latest admitted source through creationRuntime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[ownerReceizId]);
+  const creationController=suppliedCreationController||localCreation.controller;
+  useEffect(()=>{localCreation.mounted=true;return()=>{localCreation.mounted=false;queueMicrotask(()=>{if(!localCreation.mounted){localCreation.controller.close();localCreation.worker.close();}});};},[localCreation]);
   const creationPhysical=useSyncExternalStore(creationController?.subscribe||subscribeEmptyCreation,()=>creationController?.scope().ownerId===ownerReceizId?creationController.snapshot():EMPTY_CREATION_WORLD,()=>EMPTY_CREATION_WORLD);
   const [creationScene,setCreationScene]=useState<{source:typeof creationPhysical;navigation:CreationNavigation|null}|null>(null);
   const creationNavigation=creationScene?.source===creationPhysical?creationScene.navigation:null;
@@ -952,6 +980,17 @@ export function PlayCampaign({
   }, [livingWorld.snapshot, ownerReceizId]);
   const [activeWorkSource, setActiveWorkSource] = useState<WildsActiveWorkSource | null>(null);
   const workPresentationTimerRef = useRef<number | null>(null);
+  const harvestPendingRef = useRef(false);
+  useEffect(() => {
+    if (!activeWorkSource || activeWorkSource.settledAtMs !== null) return;
+    const startedAt = activeWorkSource.startedAtMs;
+    // The deadline starts with the gesture, even if durable admission is still waiting.
+    const deadline = window.setTimeout(() => {
+      setActiveWorkSource(current => current?.startedAtMs === startedAt ? null : current);
+      showWorldFeedback("Your companion has finished working. Checking the saved harvest before updating your Satchel…");
+    }, Math.max(0, startedAt + 8000 - performance.now()));
+    return () => window.clearTimeout(deadline);
+  }, [activeWorkSource, showWorldFeedback]);
   useEffect(() => () => {
     if (workPresentationTimerRef.current !== null) window.clearTimeout(workPresentationTimerRef.current);
   }, []);
@@ -1025,9 +1064,20 @@ export function PlayCampaign({
     [siteRegion.x, siteRegion.z, worldGeometry]
   );
   const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
-  const creationWorldHead=useMemo(()=>sha256PortableBasis(livingWorld.snapshot?.cursor?.eventId||'wilds:creation:unadmitted'),[livingWorld.snapshot?.cursor?.eventId]);
+  const currentCreationWorldSource=livingWorld.currentSource;
+  const creationWorldSnapshot=livingWorld.snapshot;
+  const creationWorldHead=useMemo(()=>{void creationWorldSnapshot;return creationWorldSourceHead(currentCreationWorldSource());},[creationWorldSnapshot,currentCreationWorldSource]);
   const creationCompilePhysical=useMemo(()=>projectCreationCompilePhysical({worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId,sourceHead:creationWorldHead,projections:creationPhysical.projections,obstacles:livingPhysicalObstacles,sites:sitePhysical}),[state.siteSpace.spaceId,creationWorldHead,creationPhysical.projections,livingPhysicalObstacles,sitePhysical]);
   const liveCreationContext=useMemo(()=>creationContext?{...creationContext,spaceId:state.siteSpace.spaceId,sourceHead:creationWorldHead,physical:creationCompilePhysical}:null,[creationContext,state.siteSpace.spaceId,creationWorldHead,creationCompilePhysical]);
+  creationRuntime.current={
+    environment:()=>({ownerId:ownerReceizId,worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId}),
+    world:livingWorld.currentSource,
+    crew:()=>({cards:crewCards,conditions:state.adventureConditions}),
+    position:()=>({x:state.player.x,y:state.siteSpace.position.y,z:state.player.z}),
+    compileContext:plan=>liveCreationContext&&creationCommitContext.current?{...liveCreationContext,...(creationCommitContext.current.evolution?{evolution:creationCommitContext.current.evolution}:{}),pose:plan.pose,budget:creationCommitContext.current.budget,techniques:creationCommitContext.current.techniques}:null,
+    admit:livingWorld.admitCreation
+  };
+  useEffect(()=>{if(!suppliedCreationController)void localCreation.controller.restore();},[localCreation,suppliedCreationController,livingWorld.snapshot?.creations,state.siteSpace.spaceId]);
   const accompanyingCrew = useMemo(() => state.inventory.filter(card => card.id === state.selectedAssetId || state.supportAssetIds.includes(card.id)).slice(0, 3), [state.inventory, state.selectedAssetId, state.supportAssetIds]);
   const crewControlScope = useRef({ owner: ownerReceizId, inventory: state.inventory, custody: crewCustody });
   crewControlScope.current = { owner: ownerReceizId, inventory: state.inventory, custody: crewCustody };
@@ -1095,6 +1145,15 @@ export function PlayCampaign({
   }), [kaiUPulse, livingWorld.mode, livingWorld.snapshot?.cursor]);
   const livePlayerEnergy=useMemo(()=>projectPlayerBreathState({energy:state.energy,playerBreaths:state.playerBreaths},kaiMoment.uPulse),[state.energy,state.playerBreaths,kaiMoment.uPulse]);
   const presentationState=useMemo(()=>({...state,...livePlayerEnergy}),[state,livePlayerEnergy]);
+  // An action settles at the live clock between display ticks. Its source must
+  // not appear invalid/depleted while the displayed pulse catches up.
+  const nourishmentKaiUPulse = Math.max(kaiUPulse, state.playerNourishment?.lastKaiUPulse ?? 0, state.playerLivestock?.lastKaiUPulse ?? 0);
+  const nourishmentPlayer = useMemo(() => ({ ...state.player, y: state.siteSpace.position.y }), [state.player, state.siteSpace.position.y]);
+  const nourishmentPlants = useMemo(() => projectWildsNourishmentPlants({ player: nourishmentPlayer, radius: 28, kaiUPulse:nourishmentKaiUPulse, sourceStates: state.playerNourishment?.sources, spaceId: state.siteSpace.spaceId }), [nourishmentPlayer, nourishmentKaiUPulse, state.playerNourishment?.sources, state.siteSpace.spaceId]);
+  const wildAnimals = useMemo(() => projectWildsWildAnimals({ player: nourishmentPlayer, radius: 28, kaiUPulse:nourishmentKaiUPulse, sourceStates: state.playerLivestock?.animals, spaceId: state.siteSpace.spaceId }), [nourishmentPlayer, nourishmentKaiUPulse, state.playerLivestock?.animals, state.siteSpace.spaceId]);
+  const ownedLivestock = useMemo(() => livingWorld.snapshot ? projectWildsOwnedLivestock(state.playerLivestock, livingWorld.snapshot, nourishmentKaiUPulse) : [], [state.playerLivestock, livingWorld.snapshot, nourishmentKaiUPulse]);
+  const livestockShelter = useMemo(() => livingWorld.snapshot ? selectWildsLivestockShelter(livingWorld.snapshot, state.player, ownerReceizId, state.siteSpace.spaceId) : null, [livingWorld.snapshot, state.player, ownerReceizId, state.siteSpace.spaceId]);
+
   const energyActivity=aerialMode!=='ground'?aerialMode:verticalReadout.layer==='water'?'swim':'active';
   // Persist elapsed energy on lifecycle/activity changes. The display clock is read-only.
   useEffect(()=>{
@@ -1506,7 +1565,17 @@ export function PlayCampaign({
   const availableBed = useMemo(() => livingWorld.snapshot && !state.battle && aerialMode === "ground" && aquaticPresentation.mode !== "swim"
     ? selectWildsBedAtPlayer(livingWorld.snapshot, state.player, state.siteSpace) : null,
   [livingWorld.snapshot, state.battle, state.player, state.siteSpace, aerialMode, aquaticPresentation.mode]);
-  const sleepingInBed = Boolean(availableBed && state.playerBreaths?.mode === "bed" && state.playerBedRest?.componentId === availableBed.component.componentId && state.playerBedRest.componentHead === availableBed.head);
+  const availableCreationBed = useMemo(() => creationController.snapshot().revision === creationPhysical.revision && !state.battle && aerialMode === 'ground' && aquaticPresentation.mode !== 'swim'
+    ? selectCreationBedAtPlayer(creationController.snapshot, state.player, state.siteSpace, ownerReceizId, kaiUPulse) : null,
+  [creationController, creationPhysical, state.battle, state.player, state.siteSpace, ownerReceizId, kaiUPulse, aerialMode, aquaticPresentation.mode]);
+  const sleepingInBed = state.playerBreaths?.mode === 'bed' && Boolean(
+    availableBed && state.playerBedRest?.componentId === availableBed.component.componentId && state.playerBedRest.componentHead === availableBed.head
+    || availableCreationBed && state.playerBedRest?.instanceId === availableCreationBed.instanceId && state.playerBedRest.nodeId === availableCreationBed.nodeId && state.playerBedRest.componentHead === availableCreationBed.head);
+  const sleepHere = () => {
+    if (availableCreationBed) dispatch({ type: 'rest', creationBed: availableCreationBed });
+    else if (availableBed) dispatch({ type: 'rest', bed: availableBed });
+    else dispatch({ type: 'sleep' });
+  };
   useEffect(() => {
     // A physical source change is meaningful; display-clock ticks never publish this state.
     if (!livingWorld.snapshot || state.playerBreaths?.mode !== "bed" || sleepingInBed) return;
@@ -1597,7 +1666,7 @@ export function PlayCampaign({
   };
 
   const gatherStewardResource = async (source: WildsResourceSource, admittedHudAction = false) => {
-    if ((!admittedHudAction && !canUseWorldStage()) || livingWorld.pendingCommand) {
+    if ((!admittedHudAction && !canUseWorldStage()) || livingWorld.pendingCommand || harvestPendingRef.current) {
       if (admittedHudAction) showWorldFeedback("Your current work is settling. The satchel count will update here before the next source can be gathered.");
       return;
     }
@@ -1650,6 +1719,7 @@ export function PlayCampaign({
       setActiveWorkSource({ arrival, sourceId: source.sourceId, kind: source.kind === "timber" ? "timber" : "stone", position: source.position, startedAtMs: workStartedAtMs, settledAtMs: null });
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
       markPlaytest("harvest", "start");
+      harvestPendingRef.current = true;
       const projection = await livingWorld.harvestMaterial(source, current.head, state.player, mandate, partner ? { card: partner, cardAdmission: partnerAdmission } : null);
       markPlaytest("harvest", "success");
       rememberJourney({ kind: "harvest", subjectId: source.sourceId, companionId: partner?.id, companionName: partner?.manifest.name, label: partner ? `Gathered ${source.kind} together` : `Gathered ${source.kind}`, position: source.position });
@@ -1676,6 +1746,8 @@ export function PlayCampaign({
       markPlaytest("harvest", "failure");
       setActiveWorkSource((active) => active?.sourceId === source.sourceId ? null : active);
       handleStoryCommandError(error, `That ${source.kind === "timber" ? "tree" : source.kind === "hay" ? "hay patch" : "stone"} cannot be gathered from this position. Move inside its bright ring and tap again.`);
+    } finally {
+      harvestPendingRef.current = false;
     }
   };
 
@@ -1894,6 +1966,30 @@ export function PlayCampaign({
     dispatch(input);
   };
   worldInputDispatcherRef.current = dispatchWorldInput;
+  const canForage = () => interactionEnabled && !state.battle && modalOwner === 'none' && (canUseWorldStage() || worldOverlayState.panelKey === 'satchel');
+  const gatherFood = (plant: WildsNourishmentPlantProjection) => {
+    if (!canForage()) return;
+    beginWorldActionFeedback();
+    dispatch({ type: 'gather-food', ownerReceizId, sourceId: plant.sourceId, expectedSourceHead: plant.head, kaiUPulse: readActionKaiUPulse(), verticalWorldY: verticalTraversalRef.current.worldY });
+  };
+  const huntAnimal = (animal: WildsWildAnimalProjection) => {
+    if (!canForage() || !livingWorld.snapshot) return;
+    beginWorldActionFeedback();
+    const index = activeAsset ? creatureForm(activeAsset.manifest.formId)?.abilities.findIndex(ability => ability.power > 0) ?? -1 : -1;
+    dispatch({ type: 'hunt-animal', ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: readActionKaiUPulse(), verticalWorldY: verticalTraversalRef.current.worldY,
+      hunter: activeAsset && index >= 0 ? { kind: 'creature', assetId: activeAsset.id, abilityIndex: index } : {kind:'tool'}, toolWorld: livingWorld.snapshot });
+  };
+  const captureLivestock = (animal: WildsWildAnimalProjection) => {
+    if (!canForage() || !livingWorld.snapshot || !livestockShelter) return;
+    beginWorldActionFeedback();
+    dispatch({ type: 'capture-livestock', ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: readActionKaiUPulse(), verticalWorldY: verticalTraversalRef.current.worldY, shelterId: livestockShelter.shelterId, husbandryWorld: livingWorld.snapshot });
+  };
+  const collectLivestockFood = (animal: WildsOwnedLivestockProjection) => {
+    if (!canForage() || !livingWorld.snapshot) return;
+    beginWorldActionFeedback();
+    dispatch({ type: 'collect-livestock', ownerReceizId, animalId: animal.animalId, kaiUPulse: readActionKaiUPulse(), husbandryWorld: livingWorld.snapshot });
+  };
+
   const dispatchLayeredSearch = (point: { x: number; z: number; surfaceWorldY?: number }, fromJourney = false) => {
     if (fromJourney ? (!interactionEnabled || modalOwner !== "none" || worldOverlayState.panelKey !== "mission") : !canUseWorldStage()) return;
     beginWorldActionFeedback();
@@ -2231,6 +2327,7 @@ export function PlayCampaign({
     connected: livingWorld.mode === "receiz_live",
     worldRevision: livingWorld.snapshot?.revision ?? 0,
     energy: livePlayerEnergy.energy,
+    body: playerBreathReadout(livePlayerEnergy.playerBreaths),
     creature: activeAsset ? {
       assetId: activeAsset.id,
       name: activeAsset.manifest.name,
@@ -2434,6 +2531,8 @@ export function PlayCampaign({
     if (action.type === "open-mission") setRequestedCommand("mission");
     else if (action.type === "open-field-guide") setRequestedCommand("fieldGuide");
     else if (action.type === "open-satchel") setRequestedCommand("satchel");
+    else if (action.type === "sleep") { sleepHere(); dispatchStageOverlay({ type: 'panel', key: null }); }
+    else if (action.type === "wake") dispatch({ type: 'wake' });
     else if (action.type === "open-trail-pack") setRequestedCommand("deck");
     else if (action.type === "open-vault") setRequestedCommand("vault");
     else if (action.type === "open-map") openWorldMapFromCommandPanel();
@@ -2630,6 +2729,13 @@ export function PlayCampaign({
       status: `${state.beans} beans · ${state.fusionSparks} sparks`,
       content: (
         <div className="wilds-command-content wilds-satchel">
+          <WildsBodyReadout body={playerBreathReadout(livePlayerEnergy.playerBreaths)} onSleep={sleepHere} onWake={() => dispatch({ type: 'wake' })} />
+          <WildsNourishmentPanel nourishment={state.playerNourishment} kaiUPulse={nourishmentKaiUPulse} fuelPercent={playerBreathReadout(livePlayerEnergy.playerBreaths).fuelPercent}
+            plants={nourishmentPlants} animals={wildAnimals} livestock={ownedLivestock} player={nourishmentPlayer}
+            captureBlocker={livestockShelter ? null : 'Finish a nearby room, habitat or garden to shelter livestock.'}
+            onGather={gatherFood} onHunt={huntAnimal} onCapture={captureLivestock} onProduce={collectLivestockFood}
+            onEat={item => { if (canForage()) { beginWorldActionFeedback(); dispatch({type:'eat-food', ownerReceizId, itemId:item.itemId, kaiUPulse:readActionKaiUPulse()}); } }} />
+
           <WildzCommandInsight label="Trail preparation" value={`${Math.round(livePlayerEnergy.energy)}% energy`} detail="Use what you gathered now; every action updates the same live explorer state used in the world.">
             <button onClick={() => dispatch({ type: "rest", at: new Date().toISOString() })} type="button">Make camp</button>
             <button onClick={() => dispatch({ type: "train", at: new Date().toISOString() })} type="button">Train leader</button>
@@ -2836,6 +2942,8 @@ export function PlayCampaign({
               homeResidents={homeResidents}
               activeCapabilityFamily={burrowBuilder.busy ? "burrow" : activeWorldCapability}
               activeWorkSource={activeWorkSource}
+              sleepingCreationBed={sleepingInBed ? availableCreationBed : null}
+              nourishment={{plants:nourishmentPlants, animals:wildAnimals, livestock:ownedLivestock, onGather:gatherFood, onHunt:huntAnimal, onCapture:captureLivestock, onProduce:collectLivestockFood}}
               stewardPlacementPreview={stewardPlacementPreview}
               burrowPreview={burrowBuilder.preview ? {...burrowBuilder.preview,blocker:burrowBuilder.blocker} : null}
               creationPreview={creationPreview}
@@ -3099,7 +3207,13 @@ export function PlayCampaign({
             {creationOpen && liveCreationContext ? <CreationSession
               key={`${ownerReceizId}:${state.siteSpace.spaceId}`}
               displayName={playerDisplayName} ownerId={ownerReceizId} spaceId={state.siteSpace.spaceId} cards={crewCards} conditions={state.adventureConditions}
-              objectLibrary={creationLibrary} classes={creationPanelClasses} lots={availableMaterialLots} context={liveCreationContext} commit={creationController?.commit} objects={Object.values(creationPhysical.instances).flatMap(instance=>creationPhysical.definitions[instance.definitionDigest]?[{instance,definition:creationPhysical.definitions[instance.definitionDigest]}]:[])}
+              recover={suppliedCreationController ? undefined : localCreation.controller.recover}
+              onSaveObject={async instanceId => {
+                const saved = await saveWorldCreationProofImage({ instanceId, resolve: localCreation.controller.resolve, world: livingWorld.currentSource, library: () => creationLibrary || null });
+                const url = URL.createObjectURL(new Blob([saved.bytes.slice().buffer as ArrayBuffer], {type: saved.mimeType}));
+                const link = document.createElement('a'); link.href = url; link.download = saved.filename; link.click();
+                window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+              }} objectLibrary={creationLibrary} classes={creationPanelClasses} lots={availableMaterialLots} context={liveCreationContext} commit={async(definition,plan,workerIds,selected,context)=>{creationCommitContext.current=context||null;return creationController.commit(definition,plan,workerIds,selected);}} objects={Object.values(creationPhysical.instances).flatMap(instance=>creationPhysical.definitions[instance.definitionDigest]?[{instance,definition:creationPhysical.definitions[instance.definitionDigest]}]:[])}
               cardAdmissions={creationCardAdmissions}
               onMovementInput={dispatchWorldInput} headingRef={cameraHeadingRef} onPlacementModeChange={setCreationPlacing}
               placementRef={creationPoint} onPreview={setCreationPreview} onClose={closeCreation}
@@ -3142,9 +3256,9 @@ export function PlayCampaign({
               onInput={dispatchWorldInput}
               onMovementModeChange={setMovementMode}
               onRequestedCommandHandled={() => setRequestedCommand(null)}
-              bedSleep={availableBed ? { sleeping: sleepingInBed, onToggle: () => {
-                if (sleepingInBed) dispatchWorldInput({ type: "wake" });
-                else if (canSleepInWildsBed(availableBed, state.player, state.siteSpace)) dispatchWorldInput({ type: "rest", bed: availableBed });
+              bedSleep={availableBed || availableCreationBed || state.playerBreaths?.mode === 'sleep' ? { sleeping: sleepingInBed || state.playerBreaths?.mode === 'sleep', onToggle: () => {
+                if (sleepingInBed || state.playerBreaths?.mode === 'sleep') dispatchWorldInput({ type: "wake" });
+                else sleepHere();
               } } : undefined}
               onRest={() => dispatchWorldInput({ type: "rest", at: new Date().toISOString() })}
               onRequestCapability={requestWildsCapability}

@@ -9,6 +9,10 @@ export type CreationPlannerRequest=Readonly<{requestId:string;actorId:string;mes
 export type CreationPlannerProposal={requestId:string;reply:string;definition:CreationDefinition}|{requestId:string;reply:string;patch:CreationPatch};
 export type CreationPlannerPort={propose(request:CreationPlannerRequest,signal:AbortSignal):Promise<unknown>};
 export type CreationPlannerResult={status:'proposed';proposal:CreationPlannerProposal}|{status:'unavailable'|'blocked';reason:string};
+/** A useful proposal refusal, distinct from an unavailable service or arbitrary provider error. */
+export class CreationPlannerBlockedError extends Error {
+ constructor(reason:string){super(reason.slice(0,4000));this.name='CreationPlannerBlockedError';}
+}
 export async function planCreation(request:CreationPlannerRequest,port:CreationPlannerPort,signal:AbortSignal):Promise<CreationPlannerResult>{
  try {assertCreationData(request);validateCreationBudget(request.context.budget);if(!request.requestId||request.requestId.length>160||!request.actorId||!request.message.trim()||request.message.length>4000||!request.workers.length||request.workers.some(w=>!w.ready))throw Error('Select ready creatures and enter a creation prompt.');if(request.selected)parseCreationDefinition(request.selected);}
  catch(error){return {status:'blocked',reason:error instanceof Error?error.message:'Invalid creation request'};}
@@ -19,7 +23,7 @@ export async function planCreation(request:CreationPlannerRequest,port:CreationP
  timer=setTimeout(()=>{abort.abort();rejectAbort?.(Error('The planner took too long. Your draft is saved.'));},20000);
  let raw:unknown;
  try {raw=await Promise.race([port.propose(request,abort.signal),cancelled]);}
- catch {return {status:'unavailable',reason:signal.aborted?'Request cancelled. Your draft is saved.':'The creation planner is unavailable. Your draft is saved.'};}
+ catch(error) {return signal.aborted?{status:'unavailable',reason:'Request cancelled. Your draft is saved.'}:error instanceof CreationPlannerBlockedError?{status:'blocked',reason:error.message}:{status:'unavailable',reason:'The creation planner is unavailable. Your draft is saved.'};}
  finally {clearTimeout(timer);signal.removeEventListener('abort',cancel);}
  try {
   if(typeof raw==='string'){if(raw.length>262144)throw Error('Proposal is too large.');raw=JSON.parse(raw.replace(/^```(?:json)?\s*/,'').replace(/\s*```$/,''));}

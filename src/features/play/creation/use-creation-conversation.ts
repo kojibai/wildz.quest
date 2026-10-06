@@ -10,7 +10,7 @@ import {constructionProofDigest} from '../wilds-construction-project';
 import type { CreationWorker } from './capabilities';
 import type { CreationCompileContext, CreationPlan } from './compiler';
 import type { CreationCommitResult, CreationDefinition, CreationInstanceRef } from './types';
-export function useCreationConversation(input:{starterPrompt?:string;ownerId:string;spaceId:string;workers:readonly CreationWorker[];context:CreationCompileContext;planner:CreationPlannerPort;restoreObject?:(ref:CreationInstanceRef)=>Promise<CreationDraftObject|null>;commit?:(plan:CreationPlan,definition:CreationDefinition,workerIds:readonly string[],selected?:CreationInstanceRef|null)=>Promise<CreationCommitResult>}) {
+export function useCreationConversation(input:{starterPrompt?:string;ownerId:string;spaceId:string;workers:readonly CreationWorker[];context:CreationCompileContext;planner:CreationPlannerPort;restoreObject?:(ref:CreationInstanceRef)=>Promise<CreationDraftObject|null>;recover?:(operationId:string,plan:CreationPlan)=>Promise<CreationCommitResult>;commit?:(plan:CreationPlan,definition:CreationDefinition,workerIds:readonly string[],selected?:CreationInstanceRef|null,context?:CreationCompileContext)=>Promise<CreationCommitResult>}) {
  const [state,dispatch]=useReducer(reduceCreationConversation,undefined,()=>initialCreationConversation(input.ownerId,input.spaceId,input.context.pose));
  const workerRef=useRef<ReturnType<typeof createCreationWorkerClient>|null>(null);
  const getClient=useCallback(()=>workerRef.current||(workerRef.current=createCreationWorkerClient()),[]);
@@ -18,6 +18,22 @@ export function useCreationConversation(input:{starterPrompt?:string;ownerId:str
  const compiledEnvironmentRef=useRef<string|null>(null);
  const environmentRef=useRef({ownerId:input.ownerId,spaceId:input.spaceId,head:environmentHead});environmentRef.current={ownerId:input.ownerId,spaceId:input.spaceId,head:environmentHead};
  const active=useRef<{id:string;abort:AbortController}|null>(null),stateRef=useRef(state);stateRef.current=state;
+ const recoveryRef=useRef(input.recover);recoveryRef.current=input.recover;
+ useEffect(()=>{
+  if(state.status!=='recovering'||!state.operationId||!state.plan||!input.recover)return;
+  const operationId=state.operationId,plan=state.plan,ownerId=state.ownerId,spaceId=state.spaceId;
+  let cancelled=false,timer:ReturnType<typeof setTimeout>|undefined;
+  const check=async()=>{
+   try{
+    const result=await recoveryRef.current?.(operationId,plan);
+    if(cancelled||environmentRef.current.ownerId!==ownerId||environmentRef.current.spaceId!==spaceId)return;
+    if(result?.status==='admitted'){dispatch({type:'admitted',instance:result.instance});return;}
+    if(result?.status==='rejected'){dispatch({type:'blocked',reason:result.reason});return;}
+   }catch{/* Keep the same admitted operation reserved while its read-only lookup recovers. */}
+   if(!cancelled)timer=setTimeout(()=>void check(),2000);
+  };
+  void check();return()=>{cancelled=true;if(timer)clearTimeout(timer);};
+ },[state.status,state.operationId,state.plan,state.ownerId,state.spaceId,input.recover]);
  const cancel=useCallback(()=>{const r=active.current;if(r){r.abort.abort();workerRef.current?.cancel(r.id);active.current=null;}},[]);
  const fence=input.workers.map(w=>`${w.assetId}:${w.head}:${w.ready}`).join('|');
  useEffect(()=>{cancel();compiledEnvironmentRef.current=null;dispatch({type:'environment',ownerId:input.ownerId,spaceId:input.spaceId});dispatch({type:'invalidate'});},[input.ownerId,input.spaceId,fence,environmentHead,cancel]);
@@ -49,6 +65,6 @@ export function useCreationConversation(input:{starterPrompt?:string;ownerId:str
    if(compiled.status==='ready'){compiledEnvironmentRef.current=head;dispatch({type:'compiled',requestId:id,plan:compiled.plan,minimize:true});}else dispatch({type:'blocked',requestId:id,reason:compiled.blockers.map(b=>b.message).join(' ')});
   }catch(error){dispatch({type:'blocked',requestId:id,reason:error instanceof Error?error.message:'Could not preview this draft.'});}
  },[cancel,input,getClient,environmentHead]);
- const build=useCallback(async()=>{const current=stateRef.current;if(compiledEnvironmentRef.current!==environmentRef.current.head||!current.plan||!current.definition||['committing','recovering'].includes(current.status))return;if(!input.commit){dispatch({type:'blocked',reason:'Live construction is awaiting authenticated world admission. Your preview is saved.'});return;}dispatch({type:'commit'});try{const result=await input.commit(current.plan,current.definition,current.workerIds,current.instance);if(environmentRef.current.ownerId!==current.ownerId||environmentRef.current.spaceId!==current.spaceId)return;if(result.status==='admitted')dispatch({type:'admitted',instance:result.instance});else if(result.status==='unknown')dispatch({type:'unknown',operationId:result.operationId});else dispatch({type:'blocked',reason:result.reason});}catch{if(environmentRef.current.ownerId===current.ownerId&&environmentRef.current.spaceId===current.spaceId)dispatch({type:'unknown',operationId:current.plan.digest});}},[input]);
+ const build=useCallback(async()=>{const current=stateRef.current;if(compiledEnvironmentRef.current!==environmentRef.current.head||!current.plan||!current.definition||['committing','recovering'].includes(current.status))return;if(!input.commit){dispatch({type:'blocked',reason:'Live construction is awaiting authenticated world admission. Your preview is saved.'});return;}dispatch({type:'commit'});try{const workers=input.workers.filter(worker=>current.workerIds.includes(worker.assetId));const context={...creationCompileContextForConversation(current,input.context),pose:current.placement,budget:current.budget,techniques:[...new Set(workers.flatMap(worker=>worker.techniques))]};const result=await input.commit(current.plan,current.definition,current.workerIds,current.instance,context);if(environmentRef.current.ownerId!==current.ownerId||environmentRef.current.spaceId!==current.spaceId)return;if(result.status==='admitted')dispatch({type:'admitted',instance:result.instance});else if(result.status==='unknown')dispatch({type:'unknown',operationId:result.operationId});else dispatch({type:'blocked',reason:result.reason});}catch{if(environmentRef.current.ownerId===current.ownerId&&environmentRef.current.spaceId===current.spaceId)dispatch({type:'unknown',operationId:current.plan.digest});}},[input]);
  return {state,change,ask,build,canBuild:Boolean(input.commit)&&state.status==='preview'&&compiledEnvironmentRef.current===environmentHead,cancel};
 }

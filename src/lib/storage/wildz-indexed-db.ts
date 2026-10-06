@@ -56,8 +56,11 @@ function transactionPort(transaction: IDBTransaction): WildzContinuityTransactio
 export function createWildzContinuityDatabase(options: {
   factory?: IDBFactory;
   name?: string;
+  /** A paused mobile storage process must not hold gameplay indefinitely. */
+  timeoutMs?: number;
 } = {}): WildzContinuityDatabase {
   let openPromise: Promise<IDBDatabase> | null = null;
+  const timeoutMs = options.timeoutMs ?? 20_000;
 
   const open = () => {
     if (openPromise) return openPromise;
@@ -68,6 +71,17 @@ export function createWildzContinuityDatabase(options: {
         return;
       }
       const request = factory.open(options.name ?? DEFAULT_DATABASE_NAME, DATABASE_VERSION);
+      let settled = false;
+      const deadline = setTimeout(() => {
+        settled = true;
+        reject(new Error("wildz_indexed_db_open_timeout"));
+      }, timeoutMs);
+      const fail = (cause: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadline);
+        reject(cause);
+      };
       request.addEventListener("upgradeneeded", () => {
         for (const store of STORE_NAMES) {
           if (!request.result.objectStoreNames.contains(store)) request.result.createObjectStore(store);
@@ -75,14 +89,17 @@ export function createWildzContinuityDatabase(options: {
       });
       request.addEventListener("success", () => {
         const database = request.result;
+        if (settled) { database.close(); return; }
+        settled = true;
+        clearTimeout(deadline);
         database.addEventListener("versionchange", () => {
           if (openPromise === pendingOpen) openPromise = null;
           database.close();
         }, { once: true });
         resolve(database);
       }, { once: true });
-      request.addEventListener("error", () => reject(request.error ?? new Error("wildz_indexed_db_open_failed")), { once: true });
-      request.addEventListener("blocked", () => reject(new Error("wildz_indexed_db_open_blocked")), { once: true });
+      request.addEventListener("error", () => fail(request.error ?? new Error("wildz_indexed_db_open_failed")), { once: true });
+      request.addEventListener("blocked", () => fail(new Error("wildz_indexed_db_open_blocked")), { once: true });
     });
     openPromise = pendingOpen;
     void pendingOpen.catch(() => {
@@ -104,6 +121,20 @@ export function createWildzContinuityDatabase(options: {
       const database = await open();
       const transaction = database.transaction([...new Set(stores)], mode);
       const completion = transactionCompletion(transaction);
+      // Attach a rejection handler immediately, including when a request itself stalls.
+      void completion.catch(() => undefined);
+      let timedOut = false;
+      let deadline: ReturnType<typeof setTimeout>;
+      const expiry = new Promise<never>((_, reject) => {
+        deadline = setTimeout(() => {
+          timedOut = true;
+          if (openPromise) openPromise = null;
+          try { transaction.abort(); } catch { /* It may already have committed; callers reconcile its exact source. */ }
+          database.close();
+          reject(new Error("wildz_indexed_db_transaction_timeout"));
+        }, timeoutMs);
+      });
+      const work = async () => {
       try {
         const result = await operation(transactionPort(transaction));
         await completion;
@@ -114,9 +145,12 @@ export function createWildzContinuityDatabase(options: {
         } catch {
           // The request failure may already have aborted the transaction.
         }
-        await completion.catch(() => undefined);
+        if (!timedOut) await completion.catch(() => undefined);
         throw cause;
       }
+      };
+      try { return await Promise.race([work(), expiry]); }
+      finally { clearTimeout(deadline!); }
     }
   };
 

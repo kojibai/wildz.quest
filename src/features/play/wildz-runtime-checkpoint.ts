@@ -49,7 +49,7 @@ type PendingInventoryJournal = {
   deltas: PendingInventoryDelta[];
 };
 
-function runtimeKey(keyId: string, actorId: string) {
+export function wildzRuntimeCheckpointKey(keyId: string, actorId: string) {
   return `${RUNTIME_KEY_PREFIX}:${keyId}:${actorId}`;
 }
 
@@ -87,7 +87,7 @@ export function prepareWildzRuntimeCheckpoint(input: {
     vaultRoot: vaultRoot(inventory),
     playState
   };
-  return { key: runtimeKey(input.keyId, input.actorId), checkpoint };
+  return { key: wildzRuntimeCheckpointKey(input.keyId, input.actorId), checkpoint };
 }
 
 export function writePreparedWildzRuntimeCheckpoint(
@@ -98,7 +98,7 @@ export function writePreparedWildzRuntimeCheckpoint(
 }
 
 export function clearWildzRuntimeCheckpoint(storage: RuntimeStorage, input: { keyId: string; actorId: string }) {
-  storage.removeItem(runtimeKey(input.keyId, input.actorId));
+  storage.removeItem(wildzRuntimeCheckpointKey(input.keyId, input.actorId));
 }
 
 export function writeWildzPendingInventoryCheckpoint(storage: RuntimeStorage, input: {
@@ -248,7 +248,7 @@ export function readWildzRuntimeCheckpoint(storage: RuntimeStorage, input: {
   actorId: string;
   playState: PlayState;
 }) {
-  const key = runtimeKey(input.keyId, input.actorId);
+  const key = wildzRuntimeCheckpointKey(input.keyId, input.actorId);
   const serialized = storage.getItem(key);
   if (!serialized) return input.playState;
   try {

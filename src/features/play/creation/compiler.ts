@@ -48,7 +48,7 @@ export function compileCreation(input:CreationDefinition, context:CreationCompil
      if(g.positions.length/3>maximumPageVertices){block('page','This individual shape exceeds a page upload budget; divide its path into connected parts.',n.id);continue;}
      if(pageNodes.length>=CREATION_PAGE_SIZE||positions.length/3+g.positions.length/3>maximumPageVertices)flush();
      if(changed.has(n.id)){costs[n.material]=(costs[n.material]||0)+amount;work+=amount*mat.work;}rawWork.set(n.id,changed.has(n.id)?amount*mat.work:0);
-     for(const solid of g.solids)if(context.physical.some(c=>c.solids.some((other:CreationSolid)=>overlapsCreationSolids(solid,other))))block('overlap','This placement intersects an existing physical object.',n.id);
+     for(const solid of g.solids)if(context.physical.some(c=>(!context.evolution||c.instanceId!==context.evolution.instanceId)&&c.solids.some((other:CreationSolid)=>overlapsCreationSolids(solid,other))))block('overlap','This placement intersects an existing physical object.',n.id);
      pageNodes.push(n.id);solids.push(...g.solids);walkable.push(...g.walkable);interiors.push(...g.interiors);connections.push(...g.connections);materials.push({start:positions.length/3,count:g.positions.length/3,material:n.material});positions.push(...g.positions);normals.push(...g.normals);
     }catch(error){block('geometry',error instanceof Error?error.message:'Unsupported geometry',n.id);}
    }

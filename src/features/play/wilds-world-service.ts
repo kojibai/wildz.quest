@@ -1,4 +1,5 @@
 import { projectWildsConstructionWeather, resolveWildsMaintenance, type WildsMaintenanceCommand } from "./wilds-construction-weather";
+import { resolveWorldCreationBuild, type WildsCreationBuildCommand } from "./creation/world-source";
 import type { CommunityRequest } from "./wilds-community";
 import { settleWildsConstructionWork } from "./wilds-construction-work-reward";
 import { createWildsBurrow, type WildsBurrowRequest } from "./wilds-burrow";
@@ -85,6 +86,7 @@ import { previewWildsConstructionAdjustment, projectWildsProductionPlacementEvid
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
 
 export type WildsWorldCommand = (
+  | WildsCreationBuildCommand
   | { type: "community.transition"; request: CommunityRequest; commandId: string }
   | { type: "construction.project.create"; name: string; region: { x: number; z: number }; commandId: string }
   | { type: "construction.component.place"; projectId: string; placement: WildsBlueprintPlacement; request: WildsConstructionPlacementRequest; actorPosition: { x: number; z: number }; commandId: string }
@@ -530,7 +532,10 @@ export class WildsWorldService {
     }
 
     const kaiUPulse = authorityMoment(authority).uPulse;
-    if (command.type === "construction.project.create") {
+    if (command.type === "creation.construct" || command.type === "creation.evolve") {
+      const { record } = resolveWorldCreationBuild(this.projection, command, authority.actorId, kaiUPulse);
+      events.push(this.append(command.type === "creation.construct" ? "creation.constructed" : "creation.evolved", { record, commandDigest }, authority, command.commandId));
+    } else if (command.type === "construction.project.create") {
       const project = createWildsConstructionProject({ ownerReceizId: authority.actorId, name: command.name, region: command.region, commandId: command.commandId, kaiUPulse });
       events.push(this.append("construction.project_created", { project, commandDigest }, authority, command.commandId));
     } else if (command.type === "construction.component.place") {

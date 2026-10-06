@@ -6,7 +6,7 @@ export const PLAYER_BREATH_CAPACITY_MICRO = PLAYER_BREATHS_PER_DAY * 1_000_000;
 const MICRO = 1_000_000n;
 const PERCENT_CAPACITY = 100_000_000;
 const DENOMINATOR = KAI_N_DAY_MICRO * 20n;
-const MODES = ['active', 'camp', 'bed', 'swim', 'flight', 'glide'] as const;
+const MODES = ['active', 'camp', 'bed', 'sleep', 'swim', 'flight', 'glide'] as const;
 type BodyMode = typeof MODES[number];
 type CommonState = Readonly<{
     clockRooted: boolean;
@@ -92,9 +92,9 @@ export function advancePlayerBreaths(source: PlayerBreaths, kaiUPulse: number, m
     if (kaiUPulse === state.lastKaiUPulse && mode === state.mode) return state;
     // Rates describe the previous interval; switching activity never rewrites its history.
     const load = effortRate(state.mode);
-    const reserveRate = state.mode === 'bed' ? 240n : state.mode === 'camp' ? 160n : state.mode === 'swim' ? -61n : state.mode === 'flight' ? -101n : state.mode === 'glide' ? -11n : -1n;
-    const strainRate = state.mode === 'bed' ? -1_500_000n : state.mode === 'camp' ? -1_000_000n : load * 3n / 4n - 350_000n;
-    const fatigueRate = state.mode === 'bed' ? -300_000_000n : state.mode === 'camp' ? 60_000_000n : 120_000_000n + load * KAI_N_DAY_MICRO / (MICRO * 500n);
+    const reserveRate = state.mode === 'bed' ? 240n : state.mode === 'sleep' ? 200n : state.mode === 'camp' ? 160n : state.mode === 'swim' ? -61n : state.mode === 'flight' ? -101n : state.mode === 'glide' ? -11n : -1n;
+    const strainRate = state.mode === 'bed' ? -1_500_000n : state.mode === 'sleep' ? -1_250_000n : state.mode === 'camp' ? -1_000_000n : load * 3n / 4n - 350_000n;
+    const fatigueRate = state.mode === 'bed' ? -300_000_000n : state.mode === 'sleep' ? -180_000_000n : state.mode === 'camp' ? 60_000_000n : 120_000_000n + load * KAI_N_DAY_MICRO / (MICRO * 500n);
     let reserve = state.reserveMicroBreaths, timeCarry = state.timeRemainder, spent = state.spentMicroBreaths,
         restored = state.restoredMicroBreaths, today = state.spentTodayMicroBreaths, strain = state.strainMicroPercent,
         strainCarry = state.strainRemainder, fatigue = state.fatigueMicroPercent, fatigueCarry = state.fatigueRemainder,
@@ -129,7 +129,7 @@ export function spendPlayerBreaths(state: PlayerBreaths, reserveUnits: number): 
     const cost = Math.min(state.reserveMicroBreaths, Math.round(reserveUnits * 1_000_000));
     if (!cost) return state;
     return { ...state, reserveMicroBreaths: state.reserveMicroBreaths - cost, spentMicroBreaths: add(state.spentMicroBreaths, cost),
-        spentTodayMicroBreaths: add(state.spentTodayMicroBreaths, cost), mode: state.mode === 'camp' || state.mode === 'bed' ? 'active' : state.mode };
+        spentTodayMicroBreaths: add(state.spentTodayMicroBreaths, cost), mode: state.mode === 'camp' || state.mode === 'bed' || state.mode === 'sleep' ? 'active' : state.mode };
 }
 /** Actual successful work, in effort units, inside the current breath. Works even at zero reserve. */
 export function recordPlayerExertion(source: PlayerBreaths, effort: number, wakesBody = true): PlayerBreaths {
@@ -145,7 +145,7 @@ export function recordPlayerExertion(source: PlayerBreaths, effort: number, wake
         spentTodayMicroBreaths: add(state.spentTodayMicroBreaths, cost), effortMicro: add(state.effortMicro, micro), effortTodayMicro: add(state.effortTodayMicro, micro),
         strainMicroPercent: immediate.value, fatigueMicroPercent: deep.value, strainRemainder: immediate.carry,
         fatigueRemainder: deep.carry, pulseEffortNumerator: String(pulse > cap ? cap : pulse),
-        mode: wakesBody && (state.mode === 'bed' || state.mode === 'camp') ? 'active' : state.mode };
+        mode: wakesBody && (state.mode === 'bed' || state.mode === 'camp' || state.mode === 'sleep') ? 'active' : state.mode };
 }
 export function playerBreathEnergy(source: PlayerBreaths) {
     const state = upgrade(source);
@@ -164,6 +164,7 @@ export function playerBreathReadout(source: PlayerBreaths, kaiUPulse = source.la
     return { breathsPerDay: PLAYER_BREATHS_PER_DAY, cycleBreaths: cycle, elapsedBreaths: elapsed, remainingDayBreaths: cycle - elapsed,
         pulseNumber: Number(kai / MICRO), pulseFractionMicro: Number(kai % MICRO), pulseEffort: Number(BigInt(state.pulseEffortNumerator) / MICRO) / 1_000_000,
         effortToday: state.effortTodayMicro / 1_000_000, strainPercent: state.strainMicroPercent / 1_000_000, fatiguePercent: state.fatigueMicroPercent / 1_000_000,
+        fuelPercent: state.reserveMicroBreaths / PLAYER_BREATH_CAPACITY_MICRO * 100,
         energyPercent: playerBreathEnergy(state), condition: playerBodyCondition(state), day: Number(day), mode: state.mode };
 }
 /** An admitted nourishment consequence restores fuel; it cannot erase strain or missed sleep. */

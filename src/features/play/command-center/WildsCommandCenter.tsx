@@ -9,11 +9,14 @@ import type {
   WildsCommandPriority
 } from "./director";
 import { WildsKaiMomentInspector } from "./WildsKaiMomentInspector";
+import { WildsBodyReadout } from "./WildsBodyReadout";
 
 const actionLabels: Record<WildsCommandAction["type"], string> = {
   "open-mission": "Open mission",
   "open-field-guide": "Open Field Guide",
   "open-satchel": "Open Satchel",
+  sleep: "Sleep here",
+  wake: "Wake up",
   "open-trail-pack": "Open Trail Pack",
   "open-vault": "Open Card Vault",
   "open-map": "Open world atlas",
@@ -82,6 +85,8 @@ export function WildsCommandCenter({ model, onAction }: {
       <div className="wilds-command-chakra"><i aria-hidden="true" /><span><small>{model.moment.weekday}</small><strong>{model.moment.chakra} · {model.moment.gate}</strong></span></div>
       <span className="wilds-command-authority">{model.moment.authority === "local" ? "Local continuity" : "Shared world coordinate"} · {model.connection}</span>
     </header>
+
+    {model.body ? <WildsBodyReadout body={model.body} onOpenSatchel={() => onAction({type:"open-satchel"})} onSleep={() => onAction({type:'sleep'})} onWake={() => onAction({type:'wake'})} /> : null}
 
     <section className="wilds-command-now" aria-labelledby="wilds-command-now-title" data-urgency={model.now.urgency}>
       <span className="wilds-neural-now-orbit" aria-hidden="true"><i /><i /><i /></span>

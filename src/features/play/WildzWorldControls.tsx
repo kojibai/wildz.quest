@@ -298,7 +298,7 @@ export function WildzWorldControls({
       : null;
 
   useEffect(() => {
-    if (requestedCommand && exclusiveOwner !== "none") requestHandled();
+    if (requestedCommand && exclusiveOwner !== "none" && exclusiveOwner !== "command") requestHandled();
   }, [exclusiveOwner, requestHandled, requestedCommand]);
 
   return (
@@ -391,7 +391,7 @@ export function WildzWorldControls({
           panelKey={controlsEnabled ? overlayState.panelKey : null}
           onToolsOpenChange={handleToolsOpenChange}
           onPanelKeyChange={handlePanelKeyChange}
-          requestedKey={exclusiveOwner === "none" ? requestedCommand : null}
+          requestedKey={controlsEnabled ? requestedCommand : null}
           dismissSignal={dismissSignal}
           exclusiveOwner={exclusiveOwner}
           onRequestHandled={requestHandled}

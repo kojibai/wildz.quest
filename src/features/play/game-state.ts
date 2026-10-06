@@ -1,5 +1,10 @@
 import {resolveCreationMovement,resolveCreationFlight,type CreationNavigation} from './creation/navigation';
-import {createPlayerBreaths,restorePlayerBreaths,isPlayerBreaths,advancePlayerBreaths,recordPlayerExertion,playerBreathEnergy} from "./player-breath-energy";
+import {createPlayerBreaths,restorePlayerBreaths,isPlayerBreaths,advancePlayerBreaths,recordPlayerExertion,playerBreathEnergy,recoverPlayerBreaths} from "./player-breath-energy";
+import { canSleepInCreationBed, type CreationBedSource } from './creation/bed';
+import { projectWildsCreationPersistence, type WildsCreationSourceRecord } from './creation/world-source';
+import type { WildsWorldEvent } from './wilds-world-event';
+import { createWildsNourishmentState, restoreWildsNourishmentState, gatherWildsNourishment, consumeWildsNourishment, creditWildsAnimalFood, retainWildsAnimalFoodSources, type WildsNourishmentState } from "./wilds-nourishment";
+import { createWildsLivestockState, restoreWildsLivestockState, huntWildsAnimal, captureWildsLivestock, collectWildsLivestock, type WildsLivestockState, type WildsHusbandryWorld, type WildsHuntingToolWorld } from "./wilds-livestock";
 import { nextWildsPartyTravelRevision } from "./wilds-party-transport";
 import { sanitizeWildsCrewPreferences, type WildsCrewPreferences } from "./wilds-crew-preferences";
 import { canSleepInWildsBed, type WildsConstructionFunctionSource } from "./wilds-construction-function";
@@ -122,6 +127,11 @@ export type WildsInput = (
   | { type: "apply-rift-grant"; grant: RiftTravelGrant; playerId: string }
   | { type: "record-world-activity"; activity: WildsActivityEntry }
   | { type: "energy-tick" }
+  | { type: "gather-food"; ownerReceizId: string; sourceId: string; expectedSourceHead: string; kaiUPulse: number; verticalWorldY?: number }
+  | { type: "eat-food"; ownerReceizId: string; itemId: string; kaiUPulse: number }
+  | { type: "hunt-animal"; ownerReceizId: string; animalId: string; expectedAnimalHead: string; kaiUPulse: number; verticalWorldY?: number; hunter: { kind: 'creature'; assetId: string; abilityIndex: number } | { kind: 'tool' }; toolWorld?: WildsHuntingToolWorld }
+  | { type: "capture-livestock"; ownerReceizId: string; animalId: string; expectedAnimalHead: string; kaiUPulse: number; verticalWorldY?: number; shelterId: string; husbandryWorld: WildsHusbandryWorld }
+  | { type: "collect-livestock"; ownerReceizId: string; animalId: string; kaiUPulse: number; husbandryWorld: WildsHusbandryWorld }
   | { type: "discover" }
   | { type: "capture"; encounterId: string; capturedAt: string; ownerReceizId: string }
   | { type: "search-point"; x: number; z: number; surfaceWorldY?: number; searchedAt: string; ownerReceizId: string; verticalLayer?: WildsEncounterInteractionLayer; verticalWorldY?: number; verticalMinWorldY?: number; verticalMaxWorldY?: number; traversalCapabilities?: readonly WildsTraversalCapability[]; siteKey?: string | null; siteSpaceId?: string }
@@ -156,7 +166,8 @@ export type WildsInput = (
   | { type: "record-steward-work"; assetId: string }
   | { type: "mission" }
   | { type: "wake" }
-  | { type: "rest"; at?: string; bed?: WildsConstructionFunctionSource }
+  | { type: "rest"; at?: string; bed?: WildsConstructionFunctionSource; creationBed?: CreationBedSource }
+  | { type: "sleep" }
   | { type: "select-card"; cardId: string }
   | { type: "select-asset"; assetId: string }
   | { type: "assign-support"; slot: 0 | 1; assetId: string | null }
@@ -193,6 +204,8 @@ export type RewardCard = {
 };
 
 export type WildsOwnedWorldAdditions = Partial<WildsConstructionPersistence> & {
+  creations?: Record<string, WildsCreationSourceRecord>;
+  creationEvents?: Record<string, WildsWorldEvent>;
   constructionSites: Record<string, WildsConstructionSiteV1>;
   structures: Record<string, WildsStructureV1>;
   harvestedSources: Record<string, WildsHarvestedSourceStateV1>;
@@ -204,7 +217,10 @@ export type WildsOwnedWorldAdditions = Partial<WildsConstructionPersistence> & {
 };
 
 export type PlayState = {
-  playerBedRest?: Readonly<{ componentId: string; componentHead: string; spaceId: string }>;
+  /** Finite, owner-bound gameplay food; never a Native authentication or proof claim. */
+  playerNourishment?: WildsNourishmentState;
+  playerLivestock?: WildsLivestockState;
+  playerBedRest?: Readonly<{ componentId: string; componentHead: string; spaceId: string; instanceId?: string; nodeId?: string }>;
   playerBreaths?: import("./player-breath-energy").PlayerBreaths;
   playerRestRecovery?: {assetId:string;settledKaiUPulse:number;bed:boolean};
   /** Changes only on an admitted transport, never ordinary movement. */
@@ -468,6 +484,8 @@ export function createOwnerBoundInitialPlayState(ownerReceizId: string, createdA
   const starter = admitLegacyCard(legacyStarter, legacyStarter.manifest.capturedAt);
   return {
     ...structuredClone(initialPlayState),
+    playerNourishment: createWildsNourishmentState(owner),
+    playerLivestock: createWildsLivestockState(owner),
     discoveredCardIds: [starter.manifest.familyId],
     inventory: admitLocallySealedWildsInventory([{ ...starter, status: "verified", synchronizedAt: starter.manifest.capturedAt }]),
     lastEvent: `${starter.manifest.name} joined your deck. Walk near another wild companion.`,
@@ -565,8 +583,11 @@ function normalizeOwnedWorldAdditions(value: unknown, ownerReceizId?: string): W
   const materialState = (value: Record<string, string> | undefined) => Object.fromEntries(Object.entries(value ?? {})
     .filter(([lotId, targetId]) => ownedLotIds.has(lotId) && typeof targetId === "string" && targetId.length > 0)
     .sort(([left], [right]) => left.localeCompare(right)));
+  const construction = projectWildsConstructionPersistence(input, ownerReceizId);
+  const creation = projectWildsCreationPersistence({ ...input, materialLots, consumedMaterialLots: materialState(input.consumedMaterialLots) }, ownerReceizId);
   return {
-    ...projectWildsConstructionPersistence(input, ownerReceizId),
+    ...construction, ...creation,
+    constructionCommandReceipts: { ...construction.constructionCommandReceipts, ...creation.constructionCommandReceipts },
     constructionSites,
     structures,
     harvestedSources,
@@ -735,9 +756,13 @@ export function restorePlayState(
       z: clamp(saved.player.z, worldBounds.min, worldBounds.max)
     };
     const restoredWorldAdditions = normalizeOwnedWorldAdditions(saved.ownedWorldAdditions,ownerReceizId);
+    const restoredLivestock = restoreWildsLivestockState(saved.playerLivestock, ownerReceizId);
+    const restoredNourishment = retainWildsAnimalFoodSources(restoreWildsNourishmentState(saved.playerNourishment, ownerReceizId), restoredLivestock);
     return withWorldProgress({
       ...fallback,
       ...saved,
+      playerNourishment: restoredNourishment,
+      playerLivestock: restoredLivestock,
       journeyJournal: sanitizeWildsJourneyJournal(saved.journeyJournal, ownerReceizId),
       crewPreferences: sanitizeWildsCrewPreferences(saved.crewPreferences, migratedInventory, ownerReceizId),
       partyTravelRevision: Number.isSafeInteger(saved.partyTravelRevision) && saved.partyTravelRevision! >= 0 ? saved.partyTravelRevision : 0,
@@ -1241,45 +1266,119 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
 }
 
 function reduceWildsInputWithBreaths(state:PlayState,input:WildsInput):PlayState{
-  if(!['move','move-vector','rest','train','capture','battle-action','use-field-ability','record-steward-work','energy-tick','wake'].includes(input.type))return reduceWildsInput(state,input);
+  if(input.type==='gather-food'||input.type==='eat-food')return reduceWildsNourishmentInput(state,input);
+  if(input.type==='hunt-animal'||input.type==='capture-livestock'||input.type==='collect-livestock')return reduceWildsLivestockInput(state,input);
+  if(!['move','move-vector','rest','train','capture','battle-action','use-field-ability','record-steward-work','energy-tick','wake','sleep'].includes(input.type))return reduceWildsInput(state,input);
   if(input.type==='reset')return reduceWildsInput(state,input);
   if(input.energyActivity&&!['active','swim','flight','glide'].includes(input.energyActivity))return state;
-  if(input.type==='rest'&&input.energyActivity&&input.energyActivity!=='active')return {...state,lastEvent:'Return to solid ground before making camp.'};
+  const inCombat=Boolean(state.battle&&!['captured','fled','defeated'].includes(state.battle.phase));
+  if((input.type==='rest'||input.type==='sleep')&&((input.energyActivity&&input.energyActivity!=='active')||inCombat))return {...state,lastEvent:inCombat?'Finish this encounter before resting.':'Return to solid ground before resting.'};
   const inputKai=input.kaiUPulse??state.playerBreaths?.lastKaiUPulse??0;
   if(!Number.isSafeInteger(inputKai)||inputKai<0)return state;
   if(state.playerBreaths?.clockRooted&&inputKai<state.playerBreaths.lastKaiUPulse){if(input.type==='energy-tick')return state;throw Error('creature_history_kai_regression');}
   const breathState=isPlayerBreaths(state.playerBreaths)?state.playerBreaths:createPlayerBreaths(inputKai,state.energy,input.kaiUPulse!==undefined);
-  const inBed=input.type==='rest'&&Boolean(input.bed&&!state.battle&&canSleepInWildsBed(input.bed,state.player,state.siteSpace));
-  if(input.type==='rest'&&input.bed&&!inBed)return state;
+  const actor=state.playerNourishment?.ownerReceizId??selectedAsset(state)?.manifest.ownerReceizId??state.inventory[0]?.manifest.ownerReceizId;
+  const inCreationBed=input.type==='rest'&&Boolean(input.creationBed&&actor&&!inCombat&&canSleepInCreationBed(input.creationBed,state.player,state.siteSpace,actor,inputKai));
+  const inBed=inCreationBed||input.type==='rest'&&Boolean(input.bed&&!inCombat&&canSleepInWildsBed(input.bed,state.player,state.siteSpace));
+  if(input.type==='rest'&&(input.bed||input.creationBed)&&!inBed)return state;
   // Settle the prior rest interval while its mode and companion source are still current.
   // Waking or exerting work below must not discard recovery between durable actions.
   state=settlePlayerRestFromBreaths(state,state,inputKai,false);
-  const activityMode=input.energyActivity&&(input.type!=='energy-tick'||!['camp','bed'].includes(breathState.mode)||input.energyActivity!=='active')?input.energyActivity:breathState.mode;
-  let breaths=advancePlayerBreaths(breathState,inputKai,input.type==='rest'?(inBed?'bed':'camp'):input.type==='wake'?'active':activityMode,input.kaiUPulse!==undefined||breathState.clockRooted);
+  const resting=['camp','bed','sleep'].includes(breathState.mode);
+  // Ground activity describes the environment, not whether the player moved.
+  // Successful bodily effort below wakes rest; a released control must not.
+  const activityMode=input.energyActivity&&!(resting&&input.energyActivity==='active')?input.energyActivity:breathState.mode;
+  let breaths=advancePlayerBreaths(breathState,inputKai,input.type==='sleep'?'sleep':input.type==='rest'?(inBed?'bed':'camp'):input.type==='wake'?'active':activityMode,input.kaiUPulse!==undefined||breathState.clockRooted);
   // Creature actions use their own condition; the explorer records only directing effort.
   let cost=input.type==='train'?3:input.type==='use-field-ability'?.15*(input.abilityIndex+1):input.type==='battle-action'?(input.action.type==='ability'?.25:0):input.type==='capture'?1:input.type==='record-steward-work'?.15:0;
   if(input.type==='train'&&playerBreathEnergy(breaths)<20)return {...state,playerBreaths:breaths,energy:playerBreathEnergy(breaths),lastEvent:'Your body needs rest before training. You can still explore and direct your creatures.'};
   if(input.type==='move-vector'&&input.mode==='run'&&playerBreathEnergy(breaths)<20)input={...input,mode:'walk'};
   const base=state.energy===playerBreathEnergy(breaths)?state:{...state,energy:playerBreathEnergy(breaths)};
-  const reduced=input.type==='rest'?{...state,activeAction:'explore' as const,combo:0,playerBedRest:inBed&&input.type==='rest'&&input.bed?{componentId:input.bed.component.componentId,componentHead:input.bed.head,spaceId:state.siteSpace.spaceId}:undefined,lastEvent:inBed?'Sleeping in bed. Strain eases and sleep restores your body with Kai time.':'Resting at camp. Strain eases; bed sleep restores deeper fatigue.'}:input.type==='wake'?{...state,playerBedRest:undefined,lastEvent:'Awake and ready to explore.'}:input.type==='energy-tick'?state:reduceWildsInput(base,input);
+  const reduced=input.type==='rest'?{...state,activeAction:'explore' as const,combo:0,playerBedRest:inCreationBed&&input.creationBed?{componentId:input.creationBed.structureId,componentHead:input.creationBed.head,spaceId:state.siteSpace.spaceId,instanceId:input.creationBed.instanceId,nodeId:input.creationBed.nodeId}:inBed&&input.type==='rest'&&input.bed?{componentId:input.bed.component.componentId,componentHead:input.bed.head,spaceId:state.siteSpace.spaceId}:undefined,lastEvent:inBed?'Sleeping in bed. Strain eases and sleep restores your body with Kai time.':'Resting at camp. Strain eases; bed sleep restores deeper fatigue.'}:input.type==='sleep'?{...state,activeAction:'explore' as const,combo:0,playerBedRest:undefined,lastEvent:'Sleeping here. Your body and companion recover with Kai time; a bed offers deeper rest.'}:input.type==='wake'?{...state,playerBedRest:undefined,lastEvent:'Awake and ready to explore.'}:input.type==='energy-tick'?state:reduceWildsInput(base,input);
   if(reduced===base&&input.type!=='energy-tick')return state;
   if(input.type==='train'&&reduced.cardXp===state.cardXp&&reduced.inventory===state.inventory)cost=0;
   if(input.type==='capture'&&reduced.inventory===state.inventory)cost=0;
   if(input.type==='battle-action'&&reduced.battle===state.battle)cost=0;
   if(input.type==='use-field-ability'&&reduced.inventory===state.inventory&&reduced.companionProgress===state.companionProgress)cost=0;
   if((input.type==='move'||input.type==='move-vector')&&reduced!==base){const distance=Math.hypot(reduced.player.x-state.player.x,reduced.player.z-state.player.z),rise=Math.max(0,reduced.siteSpace.position.y-state.siteSpace.position.y);cost=distance*(input.type==='move-vector'&&input.mode==='run'?.09:.03)+rise*.2;}
-  else if(reduced===base||reduced===state||input.type==='rest'||input.type==='energy-tick')cost=0;
+  else if(reduced===base||reduced===state||input.type==='rest'||input.type==='sleep'||input.type==='energy-tick')cost=0;
   breaths=recordPlayerExertion(breaths,cost,!['use-field-ability','record-steward-work','battle-action'].includes(input.type));
   if(reduced===state&&state.playerBreaths===breaths)return state;
-  return settlePlayerRestFromBreaths(state,{...reduced,playerBedRest:breaths.mode==='bed'?reduced.playerBedRest:undefined,playerBreaths:breaths,energy:playerBreathEnergy(breaths)},inputKai,input.type==='rest');
+  return settlePlayerRestFromBreaths(state,{...reduced,playerBedRest:breaths.mode==='bed'?reduced.playerBedRest:undefined,playerBreaths:breaths,energy:playerBreathEnergy(breaths)},inputKai,input.type==='rest'||input.type==='sleep');
+}
+
+function reduceWildsNourishmentInput(state: PlayState, input: Extract<WildsInput, { type: 'gather-food' | 'eat-food' }>): PlayState {
+  const owner = state.playerNourishment?.ownerReceizId ?? selectedAsset(state)?.manifest.ownerReceizId ?? state.inventory[0]?.manifest.ownerReceizId;
+  if (!owner || owner.length > 512 || owner.trim() !== owner || owner !== input.ownerReceizId || !Number.isSafeInteger(input.kaiUPulse) || input.kaiUPulse < 0
+    || (state.playerBreaths?.clockRooted && input.kaiUPulse < state.playerBreaths.lastKaiUPulse)) return state;
+  const source = state.playerNourishment ?? createWildsNourishmentState(owner);
+  const breathSource = isPlayerBreaths(state.playerBreaths) ? state.playerBreaths : createPlayerBreaths(input.kaiUPulse, state.energy);
+  const advanced = advancePlayerBreaths(breathSource, input.kaiUPulse);
+  const consequence = input.type === 'gather-food'
+    ? gatherWildsNourishment({ state: source, ownerReceizId: owner, sourceId: input.sourceId, expectedSourceHead: input.expectedSourceHead,
+      kaiUPulse: input.kaiUPulse, spaceId: state.siteSpace.spaceId,
+      player: { x: state.player.x, z: state.player.z, y: input.verticalWorldY ?? state.siteSpace.position.y } })
+    : consumeWildsNourishment({ state: source, ownerReceizId: owner, itemId: input.itemId, kaiUPulse: input.kaiUPulse, reserveMicroBreaths: advanced.reserveMicroBreaths });
+  // A rejected or replayed food action is entirely inert, including its body checkpoint.
+  if (!consequence.ok) return state;
+  const settled = settlePlayerRestFromBreaths(state, state, input.kaiUPulse, false);
+  const breaths = 'fuelBreaths' in consequence
+    ? recoverPlayerBreaths(advanced, consequence.fuelBreaths)
+    : recordPlayerExertion(advanced, .15);
+  const next = { ...settled, playerNourishment: consequence.state, playerBreaths: breaths, energy: playerBreathEnergy(breaths),
+    playerBedRest: breaths.mode === 'bed' ? settled.playerBedRest : undefined,
+    lastEvent: input.type === 'gather-food' ? `${consequence.plant.label} gathered. One finite harvest is stored in your food pack.`
+      : `${consequence.plant.label} eaten. Its fuel replenishes your body; sleep still restores fatigue.` };
+  return settlePlayerRestFromBreaths(settled, next, input.kaiUPulse, false);
+}
+
+function reduceWildsLivestockInput(state: PlayState, input: Extract<WildsInput, { type: 'hunt-animal' | 'capture-livestock' | 'collect-livestock' }>): PlayState {
+  const owner = state.playerLivestock?.ownerReceizId ?? state.playerNourishment?.ownerReceizId ?? selectedAsset(state)?.manifest.ownerReceizId ?? state.inventory[0]?.manifest.ownerReceizId;
+  if (!owner || owner.length > 512 || owner.trim() !== owner || owner !== input.ownerReceizId || !Number.isSafeInteger(input.kaiUPulse) || input.kaiUPulse < 0
+    || (state.playerBreaths?.clockRooted && input.kaiUPulse < state.playerBreaths.lastKaiUPulse)) return state;
+  const livestock = state.playerLivestock ?? createWildsLivestockState(owner);
+  const player = { x: state.player.x, z: state.player.z, y: 'verticalWorldY' in input ? input.verticalWorldY ?? state.siteSpace.position.y : state.siteSpace.position.y };
+  const common = { state: livestock, ownerReceizId: owner, animalId: input.animalId, kaiUPulse: input.kaiUPulse, player, spaceId: state.siteSpace.spaceId };
+  let huntingAsset: PortableCardAsset | undefined;
+  const consequence = input.type === 'collect-livestock'
+    ? collectWildsLivestock({ ...common, world: input.husbandryWorld })
+    : input.type === 'capture-livestock'
+      ? captureWildsLivestock({ ...common, expectedAnimalHead: input.expectedAnimalHead, shelterId: input.shelterId, world: input.husbandryWorld })
+      : (() => {
+        const hunter = input.hunter;
+        if (hunter.kind === 'tool') return input.toolWorld ? huntWildsAnimal({ ...common, expectedAnimalHead: input.expectedAnimalHead, hunter: { kind: 'tool', world: input.toolWorld } }) : null;
+        huntingAsset = state.inventory.find(asset => asset.id === hunter.assetId);
+        if (!huntingAsset || !isPlayableAsset(state, huntingAsset.id)) return null;
+        return huntWildsAnimal({ ...common, expectedAnimalHead: input.expectedAnimalHead, hunter: { kind: 'creature', asset: huntingAsset,
+          abilityIndex: hunter.abilityIndex, condition: state.adventureConditions[huntingAsset.id] } });
+      })();
+  if (!consequence?.ok) return state;
+  const nourishment = state.playerNourishment ?? createWildsNourishmentState(owner);
+  const food = consequence.foodReceipt ? creditWildsAnimalFood(nourishment, consequence.foodReceipt) : null;
+  if (food && !food.ok) return state;
+  let settled = settlePlayerRestFromBreaths(state, state, input.kaiUPulse, false);
+  if (huntingAsset && input.type === 'hunt-animal' && input.hunter.kind === 'creature') {
+    const condition = settled.adventureConditions[huntingAsset.id] ?? emptyAdventureCondition(huntingAsset.id);
+    const nextCondition = applyWildsCompanionWork(condition);
+    settled = { ...settled, adventureConditions: { ...settled.adventureConditions, [huntingAsset.id]: nextCondition },
+      hearttreeConditions: { ...settled.hearttreeConditions, [huntingAsset.id]: adventureConditionToHearttree(nextCondition) } };
+  }
+  const breathSource = isPlayerBreaths(state.playerBreaths) ? state.playerBreaths : createPlayerBreaths(input.kaiUPulse, state.energy);
+  const breaths = recordPlayerExertion(advancePlayerBreaths(breathSource, input.kaiUPulse), input.type === 'hunt-animal' ? .6 : .2);
+  const next = { ...settled, playerLivestock: consequence.state, playerNourishment: food?.ok ? food.state : nourishment,
+    playerBreaths: breaths, energy: playerBreathEnergy(breaths), playerBedRest: breaths.mode === 'bed' ? settled.playerBedRest : undefined,
+    lastEvent: input.type === 'hunt-animal' ? `${consequence.animal.label} hunted. This individual is depleted and its meat is stored.`
+      : input.type === 'capture-livestock' ? `${consequence.animal.label} led into your functional farm. Kai time now governs its produce.`
+        : `${consequence.animal.label} produce collected. One finite yield is stored.` };
+  return settlePlayerRestFromBreaths(settled, next, input.kaiUPulse, false);
 }
 
 /** One shared elapsed-breath recovery; rest taps never issue creature history by themselves. */
 function settlePlayerRestFromBreaths(before:PlayState,next:PlayState,kaiUPulse:number,entering:boolean):PlayState{
- const mode=next.playerBreaths?.mode;if(mode!=='camp'&&mode!=='bed')return next.playerRestRecovery?{...next,playerRestRecovery:undefined}:next;
+ const mode=next.playerBreaths?.mode;if(mode!=='camp'&&mode!=='bed'&&mode!=='sleep')return next.playerRestRecovery?{...next,playerRestRecovery:undefined}:next;
  const leader=selectedAsset(next);if(!leader)return next;
  let marker=before.playerRestRecovery;
- if(!marker||marker.assetId!==leader.id||!['camp','bed'].includes(before.playerBreaths?.mode||'')){return {...next,playerRestRecovery:{assetId:leader.id,settledKaiUPulse:kaiUPulse,bed:mode==='bed'}};}
+ if(!marker||marker.assetId!==leader.id||!['camp','bed','sleep'].includes(before.playerBreaths?.mode||'')){return {...next,playerRestRecovery:{assetId:leader.id,settledKaiUPulse:kaiUPulse,bed:mode==='bed'}};}
  const interval=(marker.bed?40:64)*1_000_000;
  const units=Math.floor((kaiUPulse-marker.settledKaiUPulse)/interval);
  if(units<=0)return entering&&marker.bed!==(mode==='bed')?{...next,playerRestRecovery:{...marker,settledKaiUPulse:kaiUPulse,bed:mode==='bed'}}:next;

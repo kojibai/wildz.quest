@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { applyWildsInput, createOwnerBoundInitialPlayState } from "../src/features/play/game-state.js";
+import { wildsNourishmentPlantsForTile, wildsNourishmentSourceAt } from "../src/features/play/wilds-nourishment.js";
+import { KAI_N_DAY_MICRO } from "../src/features/play/kai-klok-moment.js";
 import {
   readWildzRuntimeCheckpoint,
   writeWildzRuntimeCheckpoint
@@ -12,6 +14,24 @@ class MemoryStorage implements Pick<Storage, "getItem" | "setItem" | "removeItem
   setItem(key: string, value: string) { this.values.set(key, value); }
   removeItem(key: string) { this.values.delete(key); }
 }
+
+test("the runtime checkpoint preserves finite food and ground sleep against the prior owner Vault", () => {
+  const actorId = "runtime_keeper", keyId = "runtime-key", kaiUPulse = Number(KAI_N_DAY_MICRO) * 100;
+  const base = createOwnerBoundInitialPlayState(actorId);
+  const plant = Array.from({ length: 9 }, (_, x) => Array.from({ length: 9 }, (_, z) => wildsNourishmentPlantsForTile(x - 4, z - 4)).flat()).flat()[0]!;
+  assert.ok(plant);
+  const positioned = { ...base, player: { x: plant.position.x, z: plant.position.z }, siteSpace: { ...base.siteSpace, position: plant.position } };
+  const gathered = applyWildsInput(positioned, { type: "gather-food", ownerReceizId: actorId, sourceId: plant.sourceId,
+    expectedSourceHead: wildsNourishmentSourceAt(plant, undefined, kaiUPulse).head, kaiUPulse });
+  assert.equal(Object.keys(gathered.playerNourishment!.items).length, 1);
+  const sleeping = applyWildsInput(gathered, { type: "sleep", kaiUPulse: kaiUPulse + 1_000_000, energyActivity: "active" });
+  const storage = new MemoryStorage();
+  writeWildzRuntimeCheckpoint(storage, { keyId, actorId, playState: sleeping });
+  const restored = readWildzRuntimeCheckpoint(storage, { keyId, actorId, playState: base });
+  assert.deepEqual(restored.playerNourishment, sleeping.playerNourishment);
+  assert.deepEqual(restored.playerBreaths, sleeping.playerBreaths);
+  assert.equal(restored.playerBreaths!.mode, "sleep");
+});
 
 test("runtime checkpoints persist gameplay without serializing verified Vault cards", () => {
   const storage = new MemoryStorage();
