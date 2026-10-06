@@ -1,4 +1,6 @@
 "use client";
+import {createWildzCreationLibrary} from "@/lib/receiz/wildz-creation-library";
+import {defaultContinuityDatabase} from "@/lib/receiz/wildz-active-identity";
 import { scheduleAfterPaint } from "../play/schedule-after-paint";
 import { readWildzLocalSealerReadiness } from "../../lib/receiz/local-seal/browser";
 import { hasLaterWildsPlayerLedger } from "@/features/play/wilds-play-state-source";
@@ -282,6 +284,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }, [identity, ownerPlayState.inventory]);
   const ownerUsername = identity?.username ?? identity?.actorId ?? "explorer";
   const ownerActorId = identity?.actorId;
+  const creationLibrary = useMemo(()=>createWildzCreationLibrary({database:defaultContinuityDatabase,sources:defaultWildzProofSourceRepository}),[]);
+  const creationAccountLibrary = useMemo(()=>identity?{scope:{keyId:identity.keyId,actorId:ownerUsername},port:creationLibrary}:undefined,[identity,ownerUsername,creationLibrary]);
   const admittedVault = useMemo(() => ownerActorId ? admitWildzVaultProofObjects({
     cards: ownerPlayState.inventory,
     playerHandle: ownerActorId
@@ -1325,6 +1329,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           onWorldReady={() => setPaintedWorldKey(worldKey)}
           worldVisible={worldPainted}
           campaignName="Wildz"
+          creationLibrary={creationAccountLibrary}
           character={campaignCharacter}
           enabled={true}
           interactionEnabled={Boolean(campaignCharacter)}

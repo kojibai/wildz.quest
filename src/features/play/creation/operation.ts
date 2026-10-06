@@ -39,6 +39,7 @@ export function verifyCreationOperation(operation:CreationOperation):boolean{
 }
 /** Pure candidate preparation. Invoke in a worker/server boundary, never a frame/input callback. */
 export function prepareCreationOperation(plan:CreationPlan,context:CreationOperationContext):CreationOperation{
+ if(context.compileContext.evolution||plan.evolution)throw Error('creation_evolution_cannot_construct_copy');
  const definition=parseCreationDefinition(context.definition),fresh=compileCreation(definition,context.compileContext);
  if(fresh.status!=='ready'||fresh.plan.digest!==plan.digest||constructionProofDigest(fresh.plan.requiredResources)!==constructionProofDigest(plan.requiredResources)||fresh.plan.requiredWork!==plan.requiredWork||constructionProofDigest(fresh.plan.pose)!==constructionProofDigest(plan.pose)||constructionProofDigest(fresh.plan.chunks.map(c=>c.bounds))!==constructionProofDigest(plan.chunks.map(c=>c.bounds)))throw Error('creation_plan_stale_or_changed');
  plan=fresh.plan;

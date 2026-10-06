@@ -22,6 +22,7 @@ import { resolveWildsConstructionFunction } from "./wilds-construction-function"
 import dynamic from "next/dynamic";
 import type {CreationNavigation} from './creation/navigation';
 import type {CreationController} from "./creation/controller";
+import type {CreationObjectLibraryInput} from "./creation/library-session";
 import type {CreationPhysicalSnapshot} from "./creation/physical-store";
 import type { CreationPreview } from "./creation/preview";
 import type { CreationCompileContext } from "./creation/compiler";
@@ -272,6 +273,7 @@ const subscribeEmptyCreation=()=>()=>{};
 export function PlayCampaign({
   campaignName = "Reward Challenge",
   creationController,
+  creationLibrary,
   enabled,
   interactionEnabled = true,
   networkEnabled,
@@ -305,6 +307,7 @@ export function PlayCampaign({
 }: {
   campaignName?: string;
   creationController?:CreationController;
+  creationLibrary?:CreationObjectLibraryInput;
   enabled: boolean;
   interactionEnabled?: boolean;
   networkEnabled: boolean;
@@ -3060,7 +3063,7 @@ export function PlayCampaign({
             {creationOpen && creationContext ? <CreationSession
               key={`${ownerReceizId}:${state.siteSpace.spaceId}`}
               ownerId={ownerReceizId} spaceId={state.siteSpace.spaceId} cards={crewCards} conditions={state.adventureConditions}
-              classes={creationPanelClasses} lots={availableMaterialLots} context={creationContext} commit={creationController?.commit} objects={Object.values(creationPhysical.instances).flatMap(instance=>creationPhysical.definitions[instance.definitionDigest]?[{instance,definition:creationPhysical.definitions[instance.definitionDigest]}]:[])}
+              objectLibrary={creationLibrary} classes={creationPanelClasses} lots={availableMaterialLots} context={creationContext} commit={creationController?.commit} objects={Object.values(creationPhysical.instances).flatMap(instance=>creationPhysical.definitions[instance.definitionDigest]?[{instance,definition:creationPhysical.definitions[instance.definitionDigest]}]:[])}
               cardAdmissions={creationCardAdmissions}
               onMovementInput={dispatchWorldInput} headingRef={cameraHeadingRef} onPlacementModeChange={setCreationPlacing}
               placementRef={creationPoint} onPreview={setCreationPreview} onClose={closeCreation}

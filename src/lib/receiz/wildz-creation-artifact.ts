@@ -15,6 +15,8 @@ export type WildzCreationArtifact = Readonly<{
     nativeOwnerReceizId: string | null;
 }>;
 type CreationArtifactOpener = (input: Parameters<typeof openWildzSealedCard>[0]) => Promise<Pick<Awaited<ReturnType<typeof openWildzSealedCard>>, 'payloadBytes' | 'compatibility' | 'ownerReceizId'>>;
+const verifiedArtifacts = new WeakMap<WildzCreationArtifact, 'current-native' | 'verified-document'>();
+export function readWildzCreationArtifactVerification(artifact:WildzCreationArtifact){return verifiedArtifacts.get(artifact) ?? null;}
 const custody = new WeakMap<WildzCreationArtifact, Readonly<{
     ownerReceizId: string;
     instanceId: string;
@@ -44,6 +46,8 @@ export function createWildzCreationArtifactReader(open: CreationArtifactOpener =
         if (!await verifyCreationImageAssets(payload))
             throw Error('wildz_creation_asset_bytes_invalid');
         const artifact: WildzCreationArtifact = Object.freeze({ kind: 'wildz.creation-proof-object.v1', payload: freezeConstructionProof(payload), filename: captured.name || 'wildz-creation.png', mimeType: captured.mimeType, artifactSha256: await sha256WildzArtifactBytes(bytes), get artifactBytes() { return bytes.slice(); }, nativeOwnerReceizId: owner });
+        if (compatibility !== 'current-native' && compatibility !== 'verified-document') throw Error('creation_artifact_profile_unsupported');
+        verifiedArtifacts.set(artifact, compatibility);
         if (compatibility === 'current-native' && owner)
             custody.set(artifact, Object.freeze({ ownerReceizId: owner, instanceId: payload.instanceId, head: payload.checkpoint.instances[0]!.head, artifactSha256: artifact.artifactSha256 }));
         return artifact;

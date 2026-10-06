@@ -17375,6 +17375,7 @@ html, body, body * {
 
 /* Prompt placement clears the HUD; the creation session owns its icon and pad. */
 .wilds-stage.is-creation-placement > :not(.wilds-canvas-wrap) { visibility: hidden; pointer-events: none; }
+body:has(.wilds-stage.is-creation-placement) .wildz-pwa-notice { visibility: hidden; pointer-events: none; }
 
 .wildz-construction-home.wildz-quick-utilities { left:auto;inset-inline-start:auto;right:max(var(--wildz-bottom-home-gap),env(safe-area-inset-right));bottom:calc(max(var(--wildz-bottom-home-gap),env(safe-area-inset-bottom)) + clamp(72px,22vw,94px) + 8px);width:clamp(72px,22vw,94px);grid-template-columns:1fr;transform-origin:bottom right; }
 @media(max-height:560px) and (orientation:landscape){.wildz-construction-home.wildz-quick-utilities{bottom:calc(max(var(--wildz-bottom-home-gap),env(safe-area-inset-bottom)) + 78px + 8px);width:78px;}}

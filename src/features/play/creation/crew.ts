@@ -16,6 +16,7 @@ export function planCreationTasks(plan:CreationPlan,workers:readonly CreationWor
   const groups=new Map<string,{nodeIds:string[];work:number}>();
   for(const nodeId of nodeIds){
    const node=plan.nodeWork.find(n=>n.nodeId===nodeId);if(!node)throw Error('creation_crew_node_work_missing');
+   if(node.work===0)continue;
    let remaining=node.work;
    node.techniques.forEach((technique:string,index:number)=>{const work=Math.ceil(remaining/(node.techniques.length-index));remaining-=work;const group=groups.get(technique)??{nodeIds:[],work:0};group.nodeIds.push(nodeId);group.work+=work;groups.set(technique,group);});
   }

@@ -7,7 +7,9 @@ import type { CreationCrewJournal, CreationCrewAuthorize } from './scheduler';
 import { createCreationScheduler } from './scheduler';
 import { verifyCreationCrewBatch } from './crew';
 import { createCreationPhysicalStore } from './physical-store';
-import type { createCreationCurrentSourcePort } from './current-source';
+import {verifyCurrentCreationSource,type CreationCurrentSource,type createCreationCurrentSourcePort} from './current-source';
+import {verifyCreationPlan} from './compiler';
+import {constructionProofDigest,validConstructionId} from '../wilds-construction-project';
 export type CreationControllerInput = Readonly<{
     environment: () => Readonly<{
         ownerId: string;
@@ -21,6 +23,9 @@ export type CreationControllerInput = Readonly<{
     project: Parameters<typeof createCreationPhysicalStore>[0]['project'];
     canReplace?: Parameters<typeof createCreationPhysicalStore>[0]['canReplace'];
     currentSources?: ReturnType<typeof createCreationCurrentSourcePort>;
+    /** Stages exact durable transaction bytes without executing. The execute adapter must use
+     * the fence in its final Native dispatch callback and retain this operation ID for lookup. */
+    prepareEvolution?: (input:Readonly<{definition:CreationDefinition;plan:CreationPlan;workerIds:readonly string[];source:CreationCurrentSource}>)=>Promise<Readonly<{operationId:string;execute:(fence:()=>Promise<boolean>)=>Promise<CreationCommitResult>}>>;
 }>;
 export type CreationController = ReturnType<typeof createCreationController>;
 export function createCreationController(input: CreationControllerInput) {
@@ -49,6 +54,31 @@ export function createCreationController(input: CreationControllerInput) {
             return { status: 'unknown', operationId: batch.operation.operationId };
         return { status: 'admitted', instance: outcome.instance };
     }
+    async function evolve(definition:CreationDefinition,plan:CreationPlan,workerIds:readonly string[],selected:CreationInstanceRef):Promise<CreationCommitResult>{
+        const reject=(reason:string):CreationCommitResult=>({status:'rejected',reason,writes:0});
+        if(closed||!input.prepareEvolution||!input.currentSources)return reject('Evolving this object requires its current source and an authenticated evolution transaction. The selected object remains intact.');
+        const scope=input.environment(),query={instanceId:selected.instanceId,worldId:scope.worldId,spaceId:scope.spaceId};
+        const exact=(source:CreationCurrentSource)=>same(scope)&&source.instance.head===selected.head&&source.instance.definitionDigest===selected.definitionDigest&&source.instance.ownerId===scope.ownerId;
+        let before:Awaited<ReturnType<typeof input.currentSources.read>>;
+        try{before=await input.currentSources.read(query);}catch{return reject('The selected object could not be reopened.');}
+        if(before.status!=='available'||!exact(before)||plan.worldId!==scope.worldId||plan.spaceId!==scope.spaceId||!verifyCreationPlan(plan)||plan.definitionDigest!==definition.digest||plan.evolution?.instanceId!==selected.instanceId||plan.evolution?.head!==selected.head||plan.evolution?.definitionDigest!==selected.definitionDigest||definition.creatorId!==before.instance.creatorId||definition.seed!==before.definition.seed||constructionProofDigest(plan.pose)!==constructionProofDigest(before.instance.pose)||!workerIds.length||workerIds.length>32||new Set(workerIds).size!==workerIds.length)return reject('The selected object or its placement changed. Reopen it before applying this edit.');
+        let prepared:Awaited<ReturnType<NonNullable<CreationControllerInput['prepareEvolution']>>>;
+        try{prepared=await input.prepareEvolution({definition,plan,workerIds:[...workerIds],source:before});}catch{return reject('Current sources, crew mandates and evolution admission must be verified before changing this object.');}
+        if(!same(scope)||!validConstructionId(prepared.operationId))return reject('The creation account or transaction binding changed before dispatch.');
+        const unknown=():CreationCommitResult=>({status:'unknown',operationId:prepared.operationId});
+        const fence=async()=>{if(!same(scope))return false;const source=await input.currentSources!.read(query);return source.status==='available'&&exact(source)&&await verifyCurrentCreationSource(source)&&same(scope);};
+        let result:CreationCommitResult;
+        try{result=await prepared.execute(fence);}catch{return unknown();}
+        if(result.status==='unknown')return unknown();
+        if(result.status==='rejected')return result;
+        if(!same(scope)||result.instance.instanceId!==selected.instanceId||result.instance.definitionDigest!==definition.digest)return unknown();
+        try{
+            const after=await input.currentSources.read(query);
+            if(after.status!=='available'||!same(scope)||after.instance.head!==result.instance.head||after.instance.parentHead!==selected.head||after.instance.revision!==before.instance.revision+1||after.instance.creatorId!==before.instance.creatorId||after.instance.ownerId!==scope.ownerId||after.instance.definitionDigest!==definition.digest||after.planDigest!==plan.digest)return unknown();
+            if(!await physical.adoptCurrent(after,plan,()=>same(scope))||!same(scope))return unknown();
+            return {status:'admitted',instance:after.instance};
+        }catch{return unknown();}
+    }
     return { scope: input.environment, snapshot: physical.snapshot, subscribe: physical.subscribe,
         async hydrate(instanceId: string, plan: CreationPlan): Promise<boolean> {
             if (closed || !input.currentSources) return false;
@@ -59,7 +89,7 @@ export function createCreationController(input: CreationControllerInput) {
         },
         async commit(definition: CreationDefinition, plan: CreationPlan, workerIds: readonly string[], selected?: CreationInstanceRef | null): Promise<CreationCommitResult> {
             if (selected)
-                return { status: 'rejected', reason: 'Evolving this object requires its current source and an authenticated evolution transaction. The selected object remains intact.', writes: 0 };
+                return evolve(definition,plan,workerIds,selected);
             const scope = input.environment();
             if (closed || scope.ownerId !== definition.creatorId || scope.worldId !== plan.worldId || scope.spaceId !== plan.spaceId)
                 return { status: 'rejected', reason: 'Creation ownership or location changed.', writes: 0 };

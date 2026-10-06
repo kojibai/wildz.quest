@@ -29,3 +29,5 @@
 .menus summary>span{display:inline;}
 .menus summary>span:not([data-count]){display:none;}.menus details[open] summary>span:not([data-count]){display:inline;}
 @media(hover:hover) and (pointer:fine){.composer textarea{font-size:14px;}}
+
+.objects [data-creation-library]{display:grid;gap:6px;}.objects [data-library-actions],.objects [data-library-object]{display:flex;align-items:center;gap:5px;}.objects [data-library-actions] button,.objects [data-library-object]>button:last-child{display:flex;align-items:center;gap:5px;}.objects [data-library-object]>button:first-child{flex:1;min-width:0;}.objects [data-library-object] small{display:block;font-size:10px;}.objects [data-library-object]>button[aria-label^="Export"]{flex:0 0 32px;justify-content:center;}
