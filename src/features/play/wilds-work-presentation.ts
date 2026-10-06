@@ -158,10 +158,3 @@ export function projectWildsWorkPresentation(input: Readonly<{
     })
   });
 }
-
-/** Keep a brief visible harvest at the source, independent of request speed.
- * An unreachable source cannot retain the presentation indefinitely. */
-export function wildsHarvestPresentationRemaining(now: number, startedAt: number, arrivedAt: number | null): number {
-  const remaining = arrivedAt === null ? 100 : Math.max(0, arrivedAt + 450 - now);
-  return Math.min(remaining, Math.max(0, startedAt + 8000 - now));
-}

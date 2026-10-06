@@ -70,6 +70,7 @@ export function WildsNourishmentPanel({ nourishment, kaiUPulse, fuelPercent, pla
       })}</div> : <p className="wilds-satchel-note">Explore beyond the trails to find fruit trees and wild plants.</p>}
     </section>
     {nearbyAnimals.length ? <section className="wilds-steward-workshop" aria-label="Wild landscape animals"><header><span><small>Landscape animals</small><strong>Hunt or raise livestock</strong></span></header>
+      <p className="wilds-satchel-note">These are landscape wildlife. Discoverable creature companions have their own glowing signals.</p>
       <div className="wilds-steward-tool-grid">{nearbyAnimals.map(animal => {
         const reachBlocker = !animal.canInteract ? 'Move within reach on the same ground.' : null;
         const huntReason = reachBlocker ?? huntBlocker ?? (!onHunt ? 'An equipped axe or ready companion ability is needed.' : null);

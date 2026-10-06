@@ -8,7 +8,7 @@ import {
   type ReceizOfflineProofQueueStorage
 } from "@receiz/sdk";
 import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
-import { createWildzContinuityDatabase } from "@/lib/storage/wildz-indexed-db";
+import { createWildzContinuityDatabase, type WildzContinuityTransaction } from "@/lib/storage/wildz-indexed-db";
 import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "./portable-card";
 import { WildsWorldService, type WildsWorldCommand } from "./wilds-world-service";
 import { checkpointWildsWorld, reduceWildsWorldEvent, replayWildsWorld, type WildsWorldCheckpoint, type WildsWorldProjection } from "./wilds-world-state";
@@ -58,29 +58,41 @@ function queueKey(actorId: string) {
   return `${OUTBOX_META_PREFIX}${actorId}`;
 }
 
-function defaultStorage(actorId: string): ReceizOfflineProofQueueStorage {
+function defaultStorage(actorId: string, transaction?: WildzContinuityTransaction): ReceizOfflineProofQueueStorage {
   const key = queueKey(actorId);
-  return {
-    read: () => continuity.read<ReceizOfflineProofQueueSnapshot>("meta", key),
-    write: (snapshot) => continuity.transaction(["meta"], "readwrite", async (tx) => {
-      const before = await tx.get<ReceizOfflineProofQueueSnapshot>("meta", key);
-      assertWildsCreationOutboxContinuity(before, snapshot);
-      const previousIds = new Set([...(before?.pending ?? []), ...(before?.settled ?? [])].map(item => item.id));
-      for (const item of [...snapshot.pending, ...snapshot.settled]) {
-        const entry = item.payload.entry as WildsWorldOutboxEntry | undefined;
-        if (previousIds.has(item.id) || !entry || !isCreationBuild(entry.command)) continue;
-        for (const source of entry.command.workerSources) {
-          const workerId = `creature:${sha256PortableBasis(source.card.id).slice(0, 32)}`;
-          if (await tx.get("meta", JSON.stringify(["wildz.crew.v1", actorId, "creation-lease", workerId]))) throw Error("creation_world_worker_reserved");
-          if (await tx.get("meta", JSON.stringify(["wildz.crew.jobs.v1", actorId, "worker", workerId]))) throw Error("creation_world_worker_busy");
-          const head = await tx.get<string>("meta", JSON.stringify(["wildz.crew.v1", actorId, "worker", workerId]));
-          const event = head ? await tx.get<{phase:string}>("meta", JSON.stringify(["wildz.crew.v1", actorId, "event", head])) : null;
-          if (event && ["proposed", "pending"].includes(event.phase)) throw Error("creation_world_worker_pending");
-        }
+  let readSnapshot: ReceizOfflineProofQueueSnapshot | null = null;
+  let readInTransaction = false;
+  const write = async (tx: WildzContinuityTransaction, snapshot: ReceizOfflineProofQueueSnapshot) => {
+    // The SDK has already read this exact queue in the same readwrite
+    // transaction. No other realm can change it before this write commits.
+    const before = readInTransaction ? readSnapshot : await tx.get<ReceizOfflineProofQueueSnapshot>("meta", key);
+    assertWildsCreationOutboxContinuity(before, snapshot);
+    const previousIds = new Set([...(before?.pending ?? []), ...(before?.settled ?? [])].map(item => item.id));
+    for (const item of [...snapshot.pending, ...snapshot.settled]) {
+      const entry = item.payload.entry as WildsWorldOutboxEntry | undefined;
+      if (previousIds.has(item.id) || !entry || !isCreationBuild(entry.command)) continue;
+      for (const source of entry.command.workerSources) {
+        const workerId = `creature:${sha256PortableBasis(source.card.id).slice(0, 32)}`;
+        if (await tx.get("meta", JSON.stringify(["wildz.crew.v1", actorId, "creation-lease", workerId]))) throw Error("creation_world_worker_reserved");
+        if (await tx.get("meta", JSON.stringify(["wildz.crew.jobs.v1", actorId, "worker", workerId]))) throw Error("creation_world_worker_busy");
+        const head = await tx.get<string>("meta", JSON.stringify(["wildz.crew.v1", actorId, "worker", workerId]));
+        const event = head ? await tx.get<{phase:string}>("meta", JSON.stringify(["wildz.crew.v1", actorId, "event", head])) : null;
+        if (event && ["proposed", "pending"].includes(event.phase)) throw Error("creation_world_worker_pending");
       }
-      await tx.put("meta", snapshot, key);
-    }),
-    remove: () => continuity.transaction(["meta"], "readwrite", (tx) => tx.delete("meta", key))
+    }
+    await tx.put("meta", snapshot, key);
+    readSnapshot = snapshot;
+    readInTransaction = Boolean(transaction);
+  };
+  return {
+    async read() {
+      if (!transaction) return continuity.read<ReceizOfflineProofQueueSnapshot>("meta", key);
+      readSnapshot = await transaction.get<ReceizOfflineProofQueueSnapshot>("meta", key);
+      readInTransaction = true;
+      return readSnapshot;
+    },
+    write: (snapshot) => transaction ? write(transaction, snapshot) : continuity.transaction(["meta"], "readwrite", tx => write(tx, snapshot)),
+    remove: () => transaction ? transaction.delete("meta", key) : continuity.transaction(["meta"], "readwrite", (tx) => tx.delete("meta", key))
   };
 }
 
@@ -89,7 +101,10 @@ function defaultStorage(actorId: string): ReceizOfflineProofQueueStorage {
 export function assertWildsCreationOutboxContinuity(before: ReceizOfflineProofQueueSnapshot | null, next: ReceizOfflineProofQueueSnapshot) {
   const rows = (snapshot: ReceizOfflineProofQueueSnapshot | null) => [...(snapshot?.pending ?? []), ...(snapshot?.settled ?? [])].map(item => item.payload.entry).filter((entry): entry is WildsWorldOutboxEntry => Boolean(entry && typeof entry === "object" && (entry as WildsWorldOutboxEntry).command && isCreationBuild((entry as WildsWorldOutboxEntry).command)));
   const previous = rows(before), current = rows(next);
-  for (const entry of previous) if (!current.some(candidate => candidate.command.commandId === entry.command.commandId && constructionProofDigest(candidate) === constructionProofDigest(entry))) throw Error("creation_world_durable_source_changed");
+  // SDK flush retains the entries read in this transaction. Identical objects
+  // already have identical contents; independently supplied rows still compare exact digests.
+  for (const entry of previous) if (!current.some(candidate => candidate.command.commandId === entry.command.commandId
+    && (candidate === entry || constructionProofDigest(candidate) === constructionProofDigest(entry)))) throw Error("creation_world_durable_source_changed");
   const spent = new Map<string, string>();
   for (const entry of current) {
     if (!isCreationBuild(entry.command)) continue;
@@ -209,7 +224,9 @@ function withOutboxMutation<T>(actorId: string, storage: ReceizOfflineProofQueue
     if (!storageMutationTails.has(storage)) storageMutationTails.set(storage, new Map());
     tails = storageMutationTails.get(storage)!;
   }
-  const next = (tails.get(actorId) ?? Promise.resolve()).catch(() => undefined).then(() => action(storage ?? defaultStorage(actorId)));
+  const next = (tails.get(actorId) ?? Promise.resolve()).catch(() => undefined).then(() => storage
+    ? action(storage)
+    : continuity.transaction(["meta"], "readwrite", tx => action(defaultStorage(actorId, tx))));
   tails.set(actorId, next);
   void next.finally(() => { if (tails.get(actorId) === next) tails.delete(actorId); }).catch(() => undefined);
   return next;

@@ -7,10 +7,10 @@ import { projectWildsResourceRegion } from '../src/features/play/wilds-resource-
 import { createWildsMaterialHarvest, initialWildsHarvestedSourceState } from '../src/features/play/wilds-steward-construction';
 import { initialWildsWorldProjection, checkpointWildsWorld, replayWildsWorld, reduceWildsWorldEvent } from '../src/features/play/wilds-world-state';
 import { WildsWorldService } from '../src/features/play/wilds-world-service';
-import { createWildsWorldEdgeAdmissionQueue, persistWildsWorldCommandDurably, restoreWildsWorldEdgeSource, preserveWildsConstructionHistory, type WildsWorldOutboxEntry } from '../src/features/play/wilds-world-outbox';
+import { assertWildsCreationOutboxContinuity, createWildsWorldEdgeAdmissionQueue, persistWildsWorldCommandDurably, restoreWildsWorldEdgeSource, preserveWildsConstructionHistory, type WildsWorldOutboxEntry } from '../src/features/play/wilds-world-outbox';
 import { createWildsWorldEvent } from '../src/features/play/wilds-world-event';
 import { createWorldCreationController } from '../src/features/play/creation/world-controller';
-import { creationWorldSourceHead, creationWorldAvailability, compileWorldCreationSource, projectWildsCreationPersistence, resolveWorldCreationLivestockShelter, isWorldCreationSuccessor, type WildsCreationConstructCommand, type WildsCreationEvolveCommand, type WildsCreationBuildCommand } from '../src/features/play/creation/world-source';
+import { createWorldCreationSourceCompiler, creationWorldSourceHead, creationWorldAvailability, compileWorldCreationSource, projectWildsCreationPersistence, resolveWorldCreationLivestockShelter, isWorldCreationSuccessor, type WildsCreationConstructCommand, type WildsCreationEvolveCommand, type WildsCreationBuildCommand } from '../src/features/play/creation/world-source';
 import { createCreationDefinition } from '../src/features/play/creation/definition';
 import { compileCreation, type CreationCompileContext, type CreationPlan } from '../src/features/play/creation/compiler';
 import { selectCreationResources } from '../src/features/play/creation/resources';
@@ -24,6 +24,9 @@ import { constructionProofDigest } from '../src/features/play/wilds-construction
 import { projectWildsOwnedWorldAdditions, mergeWildsOwnedWorldAdditions, mergeWildsOwnedAdditionSets } from '../src/features/play/wilds-player-world-additions';
 import { worldCreationImagePayload } from '../src/features/play/creation/world-image';
 import { validateCreationImage } from '../src/features/play/creation/image';
+import { createWildzContinuityDatabase } from '../src/lib/storage/wildz-indexed-db';
+import { createFakeIndexedDb } from './support/fake-indexed-db';
+import type { ReceizOfflineProofQueueSnapshot } from '@receiz/sdk';
 
 const actorId = 'owner:creation-world', pulse = '2026-10-06T12:00:00.000Z';
 const authority = { actorId, canonical: true, pulse, occurredAt: pulse, uPulse: 20 };
@@ -41,6 +44,39 @@ function fixture() {
   return { world, card, condition, definition, context, plan: compiled.plan, command, lotId: harvested.lot.lotId };
 }
 const entry = (command: WildsCreationBuildCommand): WildsWorldOutboxEntry => ({ schema: 'receiz.wilds_world_outbox_entry.v1', actorId, guestId: 'guest:creation-source', command, queuedAt: pulse });
+
+test('unchanged complete creation source reuses compilation while returned geometry and nested mutations remain isolated', () => {
+  const f = fixture(), result = new WildsWorldService({ checkpoint: checkpointWildsWorld(f.world) }).execute(f.command, authority);
+  const source = result.projection.creations![f.command.instanceId];
+  const compiler = createWorldCreationSourceCompiler({ maxEntries: 1, maxBytes: 1024 * 1024 });
+  const first = compiler.compile(source), second = compiler.compile(structuredClone(source));
+  assert.equal(first.digest, f.plan.digest);
+  assert.equal(second.digest, f.plan.digest);
+  assert.equal(compiler.stats().compilations, 1, 'an exact unchanged source must not rebuild its geometry and proof ancestry');
+  assert.equal(compiler.stats().reused, 1);
+  const originalPosition = second.chunks[0].positions[0];
+  first.chunks[0].positions[0] = 123456;
+  second.chunks[0].positions[0] = 654321;
+  assert.equal(compiler.compile(source).chunks[0].positions[0], originalPosition);
+  const altered = structuredClone(source);
+  (altered.command.workerSources[0].condition as { fatigue: number }).fatigue = 100;
+  assert.throws(() => compiler.compile(altered), /record_invalid/);
+  assert.equal(compiler.stats().entries, 1);
+  const other = new WildsWorldService({ checkpoint: checkpointWildsWorld(f.world) }).execute({ ...f.command, commandId: 'creation:cache:replacement' }, authority).projection.creations![f.command.instanceId];
+  compiler.compile(other);
+  assert.equal(compiler.stats().entries, 1);
+  assert.ok(compiler.stats().bytes <= 1024 * 1024);
+  compiler.compile(source);
+  assert.equal(compiler.stats().compilations, 3, 'evicted exact source must be checked again');
+  const uncached = createWorldCreationSourceCompiler({ maxBytes: 0 });
+  uncached.compile(source); uncached.compile(source);
+  assert.equal(uncached.stats().compilations, 2);
+  assert.equal(uncached.stats().entries, 0);
+  assert.equal(Object.keys(projectWildsCreationPersistence(result.projection).creations).length, 1);
+  assert.equal(Object.keys(projectWildsCreationPersistence({ ...result.projection, creationEvents: {} }).creations).length, 0);
+  assert.equal(Object.keys(projectWildsCreationPersistence({ ...result.projection, consumedMaterialLots: {} }).creations).length, 0);
+  assert.equal(Object.keys(projectWildsCreationPersistence({ ...result.projection, creations: { [f.command.instanceId]: altered } }).creations).length, 0);
+});
 
 test('registered source admission consumes exact finite materials, replays and deduplicates one functional instance', () => {
   const f = fixture(), service = new WildsWorldService({ checkpoint: checkpointWildsWorld(f.world) });
@@ -128,6 +164,36 @@ test('durable aggregate lot conflict rejects a second stale-device source before
   await first.admit(entry(f.command));
   await assert.rejects(stale.admit(entry({ ...f.command, commandId: 'creation:command:stale-device', instanceId: 'creation:instance:stale-device' })), /durable_material_conflict/);
   assert.equal(Object.keys(stale.current().creations ?? {}).length, 0);
+});
+
+test('default atomic admission retains creation continuity, finite consumption and worker lease authority', async () => {
+  const f = fixture(), fake = createFakeIndexedDb(), previousFactory = globalThis.indexedDB;
+  const database = createWildzContinuityDatabase({ factory: fake.factory });
+  const workerId = projectCreationWorkers([f.card], { [f.card.id]: f.condition })[0].subjectId;
+  const leaseKey = JSON.stringify(['wildz.crew.v1', actorId, 'creation-lease', workerId]);
+  Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: fake.factory });
+  try {
+    await database.transaction(['meta'], 'readwrite', tx => tx.put('meta', { commandId: 'creation:reserved' }, leaseKey));
+    const queue = createWildsWorldEdgeAdmissionQueue({ initialProjection: f.world, persist: persistWildsWorldCommandDurably });
+    await assert.rejects(queue.admit(entry(f.command)), /worker_reserved/);
+    assert.equal(queue.current().revision, 0);
+    await database.transaction(['meta'], 'readwrite', tx => tx.delete('meta', leaseKey));
+    await queue.admit(entry(f.command));
+    assert.equal(queue.current().consumedMaterialLots[f.lotId], f.command.instanceId);
+
+    const stale = createWildsWorldEdgeAdmissionQueue({ initialProjection: f.world, persist: persistWildsWorldCommandDurably });
+    await assert.rejects(stale.admit(entry({ ...f.command, commandId: 'creation:default:stale', instanceId: 'creation:default:stale-instance' })), /durable_material_conflict/);
+    assert.equal(stale.current().revision, 0);
+    const snapshot = fake.dump('meta').find(([key]) => key === `receiz:wilds-world-outbox:v1:${actorId}`)![1] as ReceizOfflineProofQueueSnapshot;
+    assertWildsCreationOutboxContinuity(snapshot, structuredClone(snapshot));
+    assert.throws(() => assertWildsCreationOutboxContinuity(snapshot, { ...snapshot, pending: [] }), /durable_source_changed/);
+    const altered = structuredClone(snapshot);
+    (altered.pending[0].payload.entry as unknown as WildsWorldOutboxEntry).guestId = 'guest:altered-under-same-command';
+    assert.throws(() => assertWildsCreationOutboxContinuity(snapshot, altered), /durable_source_changed/);
+  } finally {
+    if (previousFactory) Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: previousFactory });
+    else Reflect.deleteProperty(globalThis, 'indexedDB');
+  }
 });
 
 test('owned account continuity carries admitted creations, exact events and spent original material dependencies', async () => {

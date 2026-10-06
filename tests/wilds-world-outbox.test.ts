@@ -24,6 +24,7 @@ import { createWildsMaterialHarvest, initialWildsHarvestedSourceState } from "..
 import { mergeWildsOwnedWorldAdditions, projectWildsOwnedWorldAdditions } from "../src/features/play/wilds-player-world-additions.js";
 import { createOwnerBoundInitialPlayState, restorePlayState, serializePlayState } from "../src/features/play/game-state.js";
 import { acceptWildsWorldSnapshot } from "../src/features/play/use-wilds-world.js";
+import { createFakeIndexedDb } from "./support/fake-indexed-db.js";
 
 function entry(commandId = "command:team:create:offline"): WildsWorldOutboxEntry {
   return {
@@ -108,6 +109,58 @@ test("fused admission returns the exact entry committed by the fast durable appe
   const durable = JSON.parse(storage.readText()!);
   assert.deepEqual(durable.pending[0]?.payload.entry, prepared.entry);
   assert.equal((await readWildsWorldOutbox(prepared.entry.actorId, storage))[0]?.command.commandId, prepared.entry.command.commandId);
+});
+
+test("default durable append reads the exact queue once in the transaction that commits it", async () => {
+  const fake = createFakeIndexedDb();
+  const previousFactory = globalThis.indexedDB;
+  let queueReads = 0;
+  const factory = {
+    open(name: string, version?: number) {
+      const request = fake.factory.open(name, version);
+      request.addEventListener("success", () => {
+        const database = request.result;
+        const transaction = database.transaction.bind(database);
+        database.transaction = ((...args: Parameters<IDBDatabase["transaction"]>) => {
+          const tx = transaction(...args);
+          const objectStore = tx.objectStore.bind(tx);
+          tx.objectStore = (storeName: string) => {
+            const store = objectStore(storeName);
+            const get = store.get.bind(store);
+            store.get = (key: IDBValidKey | IDBKeyRange) => {
+              if (typeof key === "string" && key.startsWith("receiz:wilds-world-outbox:v1:")) queueReads++;
+              return get(key);
+            };
+            return store;
+          };
+          return tx;
+        }) as IDBDatabase["transaction"];
+      });
+      return request;
+    }
+  } as IDBFactory;
+  Object.defineProperty(globalThis, "indexedDB", { configurable: true, value: factory });
+  try {
+    const queued = entry("command:default:single-queue-read");
+    await persistWildsWorldCommandDurably(queued);
+    assert.equal(queueReads, 1, "admission must not clone the whole queue a second time");
+    assert.equal(fake.completedTransactions, 1, "the read and durable write must share their atomic boundary");
+    const saved = fake.dump("meta").find(([key]) => key === `receiz:wilds-world-outbox:v1:${queued.actorId}`)![1] as { pending: { payload: { entry: WildsWorldOutboxEntry } }[] };
+    assert.deepEqual(saved.pending[0]!.payload.entry, queued);
+
+    const completion = fake.gateNextCompletion();
+    let admitted = false;
+    const next = persistWildsWorldCommandDurably(entry("command:default:completion-fence"));
+    void next.then(() => { admitted = true; });
+    await completion.completionReached;
+    assert.equal(admitted, false, "append completion must still wait for the durable transaction");
+    completion.releaseCompletion();
+    await next;
+    assert.equal(admitted, true);
+  } finally {
+    if (previousFactory) Object.defineProperty(globalThis, "indexedDB", { configurable: true, value: previousFactory });
+    else Reflect.deleteProperty(globalThis, "indexedDB");
+  }
 });
 
 test("edge admission becomes authoritative only after the exact command is durably appended", async () => {

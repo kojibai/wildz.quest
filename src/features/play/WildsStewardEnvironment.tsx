@@ -275,7 +275,12 @@ function ResourceManifestation({ activeWorkSource, geometry, materials, onIntera
     impact.current.rotation.y = elapsedMs * .006;
     impact.current.scale.setScalar(.35 + work.impact * .9);
   });
-  return <group name={`steward-source-${source.sourceId}`} onClick={(event) => { event.stopPropagation(); if (!pending) onInteract?.(source); }} position={position} userData={{ affordance: affordance.state, availableCapacity, capacity: source.capacity }}>
+  return <group name={`steward-source-${source.sourceId}`} onClick={(event) => {
+    // Invisible resource proxies widen touch targets, but visible food/wildlife
+    // under the same touch owns its action rather than harvesting through it.
+    if (event.object.name === "resource-tap-proxy" && event.intersections.some(hit => hit.object.userData.nourishment)) return;
+    event.stopPropagation(); if (!pending) onInteract?.(source);
+  }} position={position} userData={{ affordance: affordance.state, availableCapacity, capacity: source.capacity }}>
     <Shared geometry={timber ? geometry.timberRing : geometry.stoneRing} material={material} position={[0, .055, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[.82 + ratio * .18, .82 + ratio * .18, 1]} />
     {hay ? <group name="hay-source-manifestation">
       {Array.from({ length: 9 }, (_, index) => { const angle = index / 9 * Math.PI * 2; return <Shared castShadow geometry={geometry.hayTuft} key={index} material={materials.hayBlade} position={[Math.cos(angle) * (.18 + index % 3 * .12), .34, Math.sin(angle) * (.18 + index % 3 * .12)]} rotation={[0, angle, (index % 2 ? 1 : -1) * .12]} />; })}
@@ -290,7 +295,7 @@ function ResourceManifestation({ activeWorkSource, geometry, materials, onIntera
         return <Shared geometry={geometry.workChip} key={index} material={timber ? materials.timberChip : materials.stoneChip} position={[Math.cos(angle) * (.2 + index * .035), .06 + (index % 3) * .08, Math.sin(angle) * (.2 + index * .035)]} rotation={[angle, angle * .5, 0]} />;
       })}
     </group>
-    <Shared geometry={geometry.sourceHit} material={materials.sourceHit} position={[0, hay ? .45 : 1.8, 0]} scale={timber ? [1, 1, 1] : [.72, hay ? .22 : .35, .72]} />
+    <Shared name="resource-tap-proxy" geometry={geometry.sourceHit} material={materials.sourceHit} position={[0, timber ? 1.8 : hay ? .45 : .38, 0]} scale={timber ? [1, 1, 1] : [.72, hay ? .22 : .2, .72]} />
   </group>;
 }
 

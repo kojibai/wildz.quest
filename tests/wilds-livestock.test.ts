@@ -49,10 +49,24 @@ function request(animal = animalFixture()) {
     player: projectWildsWildAnimalPosition(animal, BASE).position, spaceId: 'wildz.space.outer.v1' };
 }
 test('landscape fauna wander deterministically while keeping one finite individual identity', () => {
-  const animal = animalFixture(), first = projectWildsWildAnimalPosition(animal, BASE), later = projectWildsWildAnimalPosition(animal, BASE + 10_000_000);
+  const animal = animalFixture(), first = projectWildsWildAnimalPosition(animal, BASE), later = projectWildsWildAnimalPosition(animal, BASE + 1_000_000);
   assert.notDeepEqual(first.position, later.position);
   assert.deepEqual(projectWildsWildAnimalPosition(animal, BASE), first);
   assert.ok(Math.hypot(first.position.x - animal.anchor.x, first.position.z - animal.anchor.z) <= 1);
+});
+test('wildlife covers visible ground within a breath instead of barely drifting over minutes', () => {
+  const animals = [];
+  for (let z = -4; z <= 4; z++) for (let x = -4; x <= 4; x++) animals.push(...wildsWildAnimalsForTile(x, z));
+  for (const species of ['ground-bird', 'meadow-goat', 'hare'] as const) {
+    const animal = animals.find(a => a.species === species)!;
+    let travelled = 0;
+    for (let pulse = 0; pulse < 20; pulse++) {
+      const first = projectWildsWildAnimalPosition(animal, BASE + pulse * 1_000_000).position;
+      const next = projectWildsWildAnimalPosition(animal, BASE + (pulse + 1) * 1_000_000).position;
+      travelled += Math.hypot(first.x - next.x, first.z - next.z);
+    }
+    assert.ok(travelled / 20 > .3, `${species} must visibly roam between breaths, got ${travelled / 20}m`);
+  }
 });
 test('hunting needs an actual ready companion ability and settles each wild individual only once', () => {
   const input = request(), asset = initialPlayState.inventory[0]!;

@@ -22,6 +22,7 @@ import { verifyWildsWorldEvent, type WildsWorldEvent } from '../wilds-world-even
 import { verifyWildsMaterialLot } from '../wilds-steward-construction';
 import { sameWildzPlayerCoordinate } from '../../../lib/receiz/wildz-player-coordinate';
 import { CREATURE_CREATION_TECHNIQUE_RULE_V1 } from '../creature-capability-identity';
+import { createWildsExactProofCache } from '../wilds-exact-proof-cache';
 
 export const CREATION_WORLD_RULE = Object.freeze({ id: 'creation.world.construct.v1', componentRuleHead: CREATION_COMPONENT_RULE_HEAD, techniqueRule: CREATURE_CREATION_TECHNIQUE_RULE_V1, maximumWorkers: 32, maximumMaterialLots: 256, maximumTerrainTiles: 256, work: 'source-card-techniques', custody: 'exact-finite-lot-consumption', readiness: 'local-condition-restricts-source-capability', physical: 'canonical-terrain-discovery-burrows-construction-and-admitted-creations' });
 export type WildsCreationWorkerSource = Readonly<{ card: PortableCardAsset; condition: AdventureCardCondition }>;
@@ -210,8 +211,48 @@ function constructInstance(command: WildsCreationConstructCommand, kaiUPulse: nu
   return sealCreationInstance({ ...basis, stage: 'functional', nodeStates: initializeCreationComponents(command.definition, kaiUPulse), embeddedResources: command.resources });
 }
 
+/** Reuse only complete unchanged plain-data sources. Cached geometry is private
+ * and every caller receives its own plan, including its mutable mesh buffers. */
+export function createWorldCreationSourceCompiler(options: { maxEntries?: number; maxBytes?: number } = {}) {
+  const maxEntries = options.maxEntries ?? 64, maxBytes = options.maxBytes ?? 8 * 1024 * 1024;
+  const exact = createWildsExactProofCache({ maxEntries: 0, maxBytes });
+  const entries = new Map<string, { plan: CreationPlan; bytes: number }>();
+  let bytes = 0, compilations = 0, reused = 0;
+  return {
+    stats: () => ({ entries: entries.size, bytes, compilations, reused }),
+    compile(source: WildsCreationSourceRecord): CreationPlan {
+      const key = exact.exactKey(source), cached = key === null ? undefined : entries.get(key);
+      if (cached && key !== null) {
+        entries.delete(key); entries.set(key, cached); reused++;
+        return structuredClone(cached.plan);
+      }
+      const plan = compileWorldCreationSourceUncached(source);
+      compilations++;
+      if (key !== null && maxEntries > 0) {
+        const size = key.length * 2 + JSON.stringify(plan, (_key, value) => ArrayBuffer.isView(value) ? null : value).length * 2
+          + plan.chunks.reduce((sum, chunk) => sum + chunk.positions.byteLength + chunk.normals.byteLength, 0);
+        if (size <= maxBytes) {
+          while (entries.size >= maxEntries || bytes + size > maxBytes) {
+            const oldest = entries.keys().next().value;
+            if (oldest === undefined) break;
+            bytes -= entries.get(oldest)!.bytes; entries.delete(oldest);
+          }
+          entries.set(key, { plan: structuredClone(plan), bytes: size }); bytes += size;
+        }
+      }
+      return plan;
+    }
+  };
+}
+
+const worldCreationSourceCompiler = createWorldCreationSourceCompiler();
+
 /** Reconstruct exact geometry from the durable deterministic source; mesh buffers are never saved as authority. */
 export function compileWorldCreationSource(source: WildsCreationSourceRecord): CreationPlan {
+  return worldCreationSourceCompiler.compile(source);
+}
+
+function compileWorldCreationSourceUncached(source: WildsCreationSourceRecord): CreationPlan {
   assertCreationData(source);
   if ((source.history?.length ?? 0) > 64) throw Error('creation_world_history_budget');
   let prior: WildsCreationSourceRecord | null = null, lastPlan: CreationPlan | null = null;

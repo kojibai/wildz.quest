@@ -554,7 +554,7 @@ function WildsScene({
           siteSpaceId={siteSpace.spaceId}
           terrainElevation={activeFloorY}
         />
-        {nourishment ? <WildsNourishmentEnvironment {...nourishment} origin={{...state.player,y:activeFloorY}} kaiUPulse={kaiMoment.uPulse} spaceId={siteSpace.spaceId} /> : null}
+        {nourishment ? <WildsNourishmentEnvironment {...nourishment} qualityTier={qualityProfile.tier} harvestedSources={livingWorld?.harvestedSources} siteRuntime={siteRuntime} origin={{...state.player,y:activeFloorY}} kaiUPulse={kaiMoment.uPulse} spaceId={siteSpace.spaceId} /> : null}
         <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} terrainElevation={activeFloorY} />
         <EncounterSequence onSearchPoint={onSearchPoint} state={state} terrainElevation={activeFloorY} siteRuntime={siteRuntime} siteSpace={siteSpace} />
         {visibleRemotePlayers.map((player) => <RemoteExplorer key={player.playerId} player={player} localPlayer={state.player} onSelect={onSelectPlayer} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />)}

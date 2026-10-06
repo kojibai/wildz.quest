@@ -214,7 +214,7 @@ import { discoverWildsExplorationSite } from "@/features/play/wilds-exploration-
 import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, selectWildsTrailBridgeRotation } from "@/features/play/wilds-steward-construction";
 import { projectWildsResourcePresentationAvailability as projectWildsResourceAvailability, projectWildsResourceRegion, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
 import { projectWildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
-import { wildsHarvestPresentationRemaining, type WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
+import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
 import { selectCreationBedAtPlayer } from './creation/bed';
 import { saveWorldCreationProofImage } from './creation/world-image';
 import { WildsBodyReadout } from './command-center/WildsBodyReadout';
@@ -979,7 +979,6 @@ export function PlayCampaign({
       : { ...current, ownedWorldAdditions });
   }, [livingWorld.snapshot, ownerReceizId]);
   const [activeWorkSource, setActiveWorkSource] = useState<WildsActiveWorkSource | null>(null);
-  const workPresentationTimerRef = useRef<number | null>(null);
   const harvestPendingRef = useRef(false);
   useEffect(() => {
     if (!activeWorkSource || activeWorkSource.settledAtMs !== null) return;
@@ -991,9 +990,6 @@ export function PlayCampaign({
     }, Math.max(0, startedAt + 8000 - performance.now()));
     return () => window.clearTimeout(deadline);
   }, [activeWorkSource, showWorldFeedback]);
-  useEffect(() => () => {
-    if (workPresentationTimerRef.current !== null) window.clearTimeout(workPresentationTimerRef.current);
-  }, []);
   const stewardPhiAwards = useMemo(() => Object.values(livingWorld.snapshot?.stewardPhiAwards ?? {})
     .filter((award) => sameWildzPlayerCoordinate(award.ownerReceizId, ownerReceizId))
     .sort((left, right) => right.awardId.localeCompare(left.awardId)), [livingWorld.snapshot?.stewardPhiAwards, ownerReceizId]);
@@ -1713,7 +1709,6 @@ export function PlayCampaign({
       } catch {
         partnerAdmission = null;
       }
-      if (workPresentationTimerRef.current !== null) window.clearTimeout(workPresentationTimerRef.current);
       const workStartedAtMs = performance.now();
       const arrival = { atMs: partner ? null : workStartedAtMs } as { atMs: number | null };
       setActiveWorkSource({ arrival, sourceId: source.sourceId, kind: source.kind === "timber" ? "timber" : "stone", position: source.position, startedAtMs: workStartedAtMs, settledAtMs: null });
@@ -1724,17 +1719,9 @@ export function PlayCampaign({
       markPlaytest("harvest", "success");
       rememberJourney({ kind: "harvest", subjectId: source.sourceId, companionId: partner?.id, companionName: partner?.manifest.name, label: partner ? `Gathered ${source.kind} together` : `Gathered ${source.kind}`, position: source.position });
       if (partner) dispatch({ type: "record-steward-work", assetId: partner.id });
-      setActiveWorkSource((active) => active?.sourceId === source.sourceId ? { ...active, settledAtMs: performance.now() } : active);
-      const finishPresentation = () => {
-        const remaining = wildsHarvestPresentationRemaining(performance.now(), workStartedAtMs, arrival.atMs);
-        if (remaining > 0) {
-          workPresentationTimerRef.current = window.setTimeout(finishPresentation, remaining);
-          return;
-        }
-        setActiveWorkSource((active) => active?.startedAtMs === workStartedAtMs ? null : active);
-        workPresentationTimerRef.current = null;
-      };
-      finishPresentation();
+      // Durable admission completes this task. Return immediately; arrival animation
+      // cannot retain the creature after its material is already in the Satchel.
+      setActiveWorkSource((active) => active?.startedAtMs === workStartedAtMs ? null : active);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       const awardMessage = award ? `+Φ${formatWildsPhiExact(award.amountPhiMicro)} earned · ` : "";
       const satchelCount = Object.values(projection.materialLots).filter((lot) => lot.kind === source.kind
@@ -2943,7 +2930,7 @@ export function PlayCampaign({
               activeCapabilityFamily={burrowBuilder.busy ? "burrow" : activeWorldCapability}
               activeWorkSource={activeWorkSource}
               sleepingCreationBed={sleepingInBed ? availableCreationBed : null}
-              nourishment={{plants:nourishmentPlants, animals:wildAnimals, livestock:ownedLivestock, onGather:gatherFood, onHunt:huntAnimal, onCapture:captureLivestock, onProduce:collectLivestockFood}}
+              nourishment={{plants:nourishmentPlants, animals:wildAnimals, livestock:ownedLivestock, onInspect: animal => { setRequestedCommand("satchel"); showWorldFeedback(`${animal.label} · Landscape wildlife. Open Food & farm to hunt, raise livestock, or collect produce.`); }, onGather:gatherFood, onHunt:huntAnimal, onCapture:captureLivestock, onProduce:collectLivestockFood}}
               stewardPlacementPreview={stewardPlacementPreview}
               burrowPreview={burrowBuilder.preview ? {...burrowBuilder.preview,blocker:burrowBuilder.blocker} : null}
               creationPreview={creationPreview}
