@@ -13,6 +13,9 @@ test('interrupted pill gestures cannot eat or open from a residual pointer click
   assert.ok(gesture.start(2, { x: 100, y: 200 }, 0));
   assert.equal(gesture.release(2, { x: 100, y: 200 }), 'tap');
   assert.equal(gesture.click(1), null, 'Native click after pointerup must not eat twice');
+  assert.ok(gesture.start(3, { x: 100, y: 200 }, 0));
+  assert.equal(gesture.release(3, { x: 100, y: 200 }), 'tap', 'A second press must eat one more portion');
+  assert.equal(gesture.click(2), null, 'The second native click in a double-click must not eat again');
 });
 test('food taps and upward swipes remain separate actions and keyboard use remains available', () => {
   const gesture = createCreationBuildGesture();

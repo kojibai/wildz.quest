@@ -34,11 +34,10 @@ export function WildsNourishmentPill({ state, kaiUPulse, fuelPercent, onEat, onO
   const eat = () => {
     if (!enabled) return;
     if (food.item && !food.blocker) onEat(food.item);
-    else open();
   };
   const gesture = useBuildGesture(open, cancelSignal, eat, switchFood);
   const FoodIcon = category === 'fruit' ? Icons.food : Icons.vegetable;
-  const label = food.blocker ? `Open ${category} in nourishment Satchel` : `Eat one ${food.label.toLowerCase()}`;
+  const label = `Eat one ${food.label.toLowerCase()}`;
   return <div className={`wildz-nourishment-pill${!food.count ? ' is-empty' : ''}${food.blocker ? ' is-unavailable' : ''}`} role="group" aria-label="Nourishment shortcuts">
     <button type="button" className="wildz-nourishment-count" aria-label={label} disabled={!enabled} aria-describedby={helpId}
       title={`${category === 'fruit' ? 'Fruit & berries' : 'Vegetables'} · ${food.count} stored. ${food.blocker ?? 'Tap to eat one.'} Swipe sideways to switch; up for Satchel.`}

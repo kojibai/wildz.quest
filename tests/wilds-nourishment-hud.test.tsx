@@ -56,13 +56,15 @@ test('the nourishment pill reflects gathered and consumed food from the live pla
 });
 
 // Eating from the shortcut must be unavailable at the same body limits as the food panel/reducer.
-test('empty or full-fuel food opens the Satchel instead of offering to eat', () => {
+test('empty or full-fuel food keeps the eat action with its limit and separate swipe access to Satchel', () => {
   const food = gather();
-  assert.doesNotMatch(markup(food, 100), /aria-label="Eat one/);
+  assert.match(markup(food, 100), /aria-label="Eat one wild berries"/);
   assert.match(markup(food, 100), /Your fuel is full/);
   assert.match(markup(undefined), /Gather food to eat/);
-  assert.match(markup(food, 100), /aria-label="Open fruit in nourishment Satchel"/);
-  assert.doesNotMatch(markup(food), /<button[^>]*aria-label="Eat one[^>]*disabled/);
+  assert.match(markup(undefined), /aria-label="Eat one food"/);
+  assert.match(markup(food, 100), /swipe up to open the nourishment Satchel/);
+  assert.doesNotMatch(markup(food, 100), /<button[^>]*aria-label="Eat one[^>]*disabled/);
+  assert.doesNotMatch(markup(undefined), /<button[^>]*aria-label="Eat one[^>]*disabled/);
 });
 
 test('a full digestion window blocks quick eating without hiding stored food', () => {
@@ -84,7 +86,7 @@ test('a full digestion window blocks quick eating without hiding stored food', (
   }
   const html = markup(food);
   assert.match(html, /aria-label="1 food portions stored"/);
-  assert.doesNotMatch(html, /aria-label="Eat one/);
+  assert.match(html, /aria-label="Eat one wild berries"/);
   assert.match(html, /Let your meal digest/);
 });
 
