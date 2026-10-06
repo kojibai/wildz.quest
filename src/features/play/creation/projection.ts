@@ -1,3 +1,4 @@
+import {mergeCreationMaterialBuffers} from './material-buffers';
 import {parseCreationDefinition} from './definition';
 import {verifyCreationInstance,type CreationInstance} from './instance';
 import {deriveCreationGeometry,type CreationSolid,type CreationSurface,type CreationConnection,type CreationBounds} from './geometry';
@@ -20,7 +21,7 @@ export function projectCreationPhysical(instance:CreationInstance,input:Creation
  const chunks=plan.chunks.map(chunk=>{
   const solids:CreationSolid[]=[],walkable:CreationSurface[]=[],interiors:CreationBounds[]=[],connections:CreationConnection[]=[],positions:number[]=[],normals:number[]=[],materials:CreationChunk['materials'][number][]=[];
   for(const id of chunk.nodeIds){if(!live.has(id))continue;const node=nodes.get(id)!;const geometry=deriveCreationGeometry(node,poses.get(id)!);solids.push(...geometry.solids);walkable.push(...geometry.walkable);interiors.push(...geometry.interiors);connections.push(...geometry.connections);materials.push({start:positions.length/3,count:geometry.positions.length/3,material:node.material});positions.push(...geometry.positions);normals.push(...geometry.normals);}
-  return {...chunk,id:`${instance.instanceId}:${instance.head}:${chunk.id}`,nodeIds:chunk.nodeIds.filter(id=>live.has(id)),solids,walkable,interiors,connections,positions:new Float32Array(positions),normals:new Float32Array(normals),materials};
+  return {...chunk,id:`${instance.instanceId}:${instance.head}:${chunk.id}`,nodeIds:chunk.nodeIds.filter(id=>live.has(id)),solids,walkable,interiors,connections,...mergeCreationMaterialBuffers(positions,normals,materials)};
  }).filter(c=>c.nodeIds.length);
  return {instanceId:instance.instanceId,head:instance.head,definitionDigest:definition.digest,worldId:instance.worldId,spaceId:instance.spaceId,chunks,nodePoses:poses,solids:chunks.flatMap(c=>c.solids),walkable:chunks.flatMap(c=>c.walkable),interiors:chunks.flatMap(c=>c.interiors),connections:chunks.flatMap(c=>c.connections)};
 }

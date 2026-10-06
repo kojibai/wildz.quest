@@ -1,17 +1,18 @@
 import type { CreationDefinition } from './types';
+import type {CreationOccupancyGrant} from './occupancy';
 import {createCreationInstance,sealCreationInstance,verifyCreationInstance,type CreationInstance} from './instance';
 import {assertCreationData,parseCreationDefinition} from './definition';
 import {constructionProofDigest,freezeConstructionProof,validConstructionHead,validConstructionId,validConstructionKai} from '../wilds-construction-project';
 import {CREATION_ACTIONS,CREATION_STATE_RULE_ID,CREATION_STATE_RULE_HEAD} from './actions';
 export type CreationSourceRef=Readonly<{id:string;head:string;kind:string}>;
 export type CreationResourceSource=CreationSourceRef & Readonly<{ownerId:string;quantity:number;spent:boolean}>;
-export type CreationState=Readonly<{definitions:Readonly<Record<string,CreationDefinition>>;instances:Readonly<Record<string,CreationInstance>>;resources:Readonly<Record<string,CreationResourceSource>>;custody:Readonly<Record<string,string>>;reservations:Readonly<Record<string,string>>;receipts:Readonly<Record<string,Readonly<{operationId:string;commandDigest:string;instanceId:string;successorHead:string}>>>;events:readonly Readonly<{eventId:string;operationId:string;instanceId:string;action:string;kaiUPulse:number}>[]}>;
+export type CreationState=Readonly<{occupancyGrants?:Readonly<Record<string,CreationOccupancyGrant>>;contributions?:Readonly<Record<string,Readonly<{operationId:string;instanceId:string;actorId:string;workerIds:readonly string[];resourceRefs:readonly {id:string;head:string;quantity:number}[];nodeIds:readonly string[];head:string}>>>;definitions:Readonly<Record<string,CreationDefinition>>;instances:Readonly<Record<string,CreationInstance>>;resources:Readonly<Record<string,CreationResourceSource>>;custody:Readonly<Record<string,string>>;reservations:Readonly<Record<string,string>>;receipts:Readonly<Record<string,Readonly<{operationId:string;commandDigest:string;instanceId:string;successorHead:string}>>>;events:readonly Readonly<{eventId:string;operationId:string;instanceId:string;action:string;kaiUPulse:number}>[]}>;
 export type CreationCommand=Readonly<{operationId:string;actorId:string;instanceId:string;expectedHeads:Readonly<Record<string,string|null>>;kaiUPulse:number}> & (
  {action:'create';definitionDigest:string;worldId:string;spaceId:string;pose:CreationInstance['pose']}|
  {action:'advance';stage:'building'|'functional'|'finished'}|
  {action:'use';nodeId:string});
 export type CreationAuthorityContext=Readonly<{actorId:string;rules:Readonly<Record<string,string>>;sources:readonly CreationSourceRef[];verifySource:(source:CreationSourceRef)=>boolean;mandates:readonly Readonly<{id:string;head:string;actorId:string;ownerId:string;instanceId:string;actions:readonly string[];expiresKaiUPulse:number;revoked:boolean}>[]}>;
-export type CreationTransition={status:'rejected';state:CreationState;reason:string;writes:0}|{status:'proposed';state:CreationState;successorSources:readonly CreationInstance[];consequences:CreationState['events']};
+export type CreationTransition={status:'rejected';state:CreationState;reason:string;writes:0}|{status:'proposed';state:CreationState;successorSources:readonly (CreationInstance|CreationResourceSource)[];consequences:CreationState['events']};
 export function emptyCreationState():CreationState{return Object.freeze({definitions:{},instances:{},resources:{},custody:{},reservations:{},receipts:{},events:[]});}
 export function reduceCreationOperation(state:CreationState,command:CreationCommand,context:CreationAuthorityContext):CreationTransition{
  const reject=(reason:string):CreationTransition=>({status:'rejected',state,reason,writes:0});

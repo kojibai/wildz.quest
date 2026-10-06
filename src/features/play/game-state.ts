@@ -1,3 +1,4 @@
+import {resolveCreationMovement,resolveCreationFlight,type CreationNavigation} from './creation/navigation';
 import {createPlayerBreaths,restorePlayerBreaths,isPlayerBreaths,advancePlayerBreaths,spendPlayerBreaths,playerBreathEnergy,PLAYER_BREATHS_PER_DAY} from "./player-breath-energy";
 import { nextWildsPartyTravelRevision } from "./wilds-party-transport";
 import { sanitizeWildsCrewPreferences, type WildsCrewPreferences } from "./wilds-crew-preferences";
@@ -115,8 +116,8 @@ export type { WildsSupportAssetIds } from "./wilds-v3-contracts";
 export type GameAction = "explore" | "train" | "mission";
 export type MoveDirection = "north" | "south" | "west" | "east";
 export type WildsInput = (
-  | { type: "move"; direction: MoveDirection; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number; structureSupports?: readonly WildsStructureSupport[]; additionalObstacles?: readonly WildsTerrainObstacle[]; siteRuntime?: WildsSiteRuntimeProjection; siteMovementOutput?: WildsSiteMovementOutput; siteDiscoveryOutput?: WildsSiteDiscoveryOutput }
-  | { type: "move-vector"; x: number; z: number; mode?: WildsMovementMode; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number; structureSupports?: readonly WildsStructureSupport[]; additionalObstacles?: readonly WildsTerrainObstacle[]; siteRuntime?: WildsSiteRuntimeProjection; siteMovementOutput?: WildsSiteMovementOutput; siteDiscoveryOutput?: WildsSiteDiscoveryOutput }
+  | { type: "move"; direction: MoveDirection; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number; structureSupports?: readonly WildsStructureSupport[]; additionalObstacles?: readonly WildsTerrainObstacle[]; creationNavigation?:CreationNavigation; siteRuntime?: WildsSiteRuntimeProjection; siteMovementOutput?: WildsSiteMovementOutput; siteDiscoveryOutput?: WildsSiteDiscoveryOutput }
+  | { type: "move-vector"; x: number; z: number; mode?: WildsMovementMode; aerialMode?: "glide" | "flight"; verticalClearance?: number; verticalWorldY?: number; structureSupports?: readonly WildsStructureSupport[]; additionalObstacles?: readonly WildsTerrainObstacle[]; creationNavigation?:CreationNavigation; siteRuntime?: WildsSiteRuntimeProjection; siteMovementOutput?: WildsSiteMovementOutput; siteDiscoveryOutput?: WildsSiteDiscoveryOutput }
   | { type: "site-portal"; direction: "enter" | "exit"; siteKey: string; siteRuntime: WildsSiteRuntimeProjection }
   | { type: "apply-rift-grant"; grant: RiftTravelGrant; playerId: string }
   | { type: "record-world-activity"; activity: WildsActivityEntry }
@@ -159,7 +160,7 @@ export type WildsInput = (
   | { type: "select-asset"; assetId: string }
   | { type: "assign-support"; slot: 0 | 1; assetId: string | null }
   | { type: "reset" }
-) & { /** Exact local gameplay time authority. */ kaiUPulse?: number };
+) & { /** Exact local gameplay time authority. */ kaiUPulse?: number;energyActivity?:"active"|"swim"|"flight"|"glide" };
 
 export type Vec3 = readonly [number, number, number];
 
@@ -1239,19 +1240,25 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
 function reduceWildsInputWithBreaths(state:PlayState,input:WildsInput):PlayState{
   if(!['move','move-vector','rest','train','capture','battle-action','use-field-ability','record-steward-work','energy-tick'].includes(input.type))return reduceWildsInput(state,input);
   if(input.type==='reset')return reduceWildsInput(state,input);
+  if(input.energyActivity&&!['active','swim','flight','glide'].includes(input.energyActivity))return state;
+  if(input.type==='rest'&&input.energyActivity&&input.energyActivity!=='active')return {...state,lastEvent:'Return to solid ground before making camp.'};
   const inputKai=input.kaiUPulse??state.playerBreaths?.lastKaiUPulse??0;
   if(!Number.isSafeInteger(inputKai)||inputKai<0)return state;
   if(state.playerBreaths?.clockRooted&&inputKai<state.playerBreaths.lastKaiUPulse){if(input.type==='energy-tick')return state;throw Error('creature_history_kai_regression');}
   const breathState=isPlayerBreaths(state.playerBreaths)?state.playerBreaths:createPlayerBreaths(inputKai,state.energy,input.kaiUPulse!==undefined);
   const inBed=input.type==='rest'&&Boolean(input.bed&&verifyWildsConstructionFunctionSource(input.bed,'bed')&&Math.hypot(input.bed.position.x-state.player.x,input.bed.position.z-state.player.z)<=2.5&&(input.bed.component.evidence.spaceId??'wildz.space.outer.v1')===state.siteSpace.spaceId&&Math.abs(input.bed.position.y-state.siteSpace.position.y)<2);
   if(input.type==='rest'&&input.bed&&!inBed)return state;
-  let breaths=advancePlayerBreaths(breathState,inputKai,input.type==='rest'?(inBed?'bed':'camp'):breathState.mode,input.kaiUPulse!==undefined||breathState.clockRooted);
+  const activityMode=input.energyActivity&&(input.type!=='energy-tick'||!['camp','bed'].includes(breathState.mode)||input.energyActivity!=='active')?input.energyActivity:breathState.mode;
+  let breaths=advancePlayerBreaths(breathState,inputKai,input.type==='rest'?(inBed?'bed':'camp'):activityMode,input.kaiUPulse!==undefined||breathState.clockRooted);
   let cost=input.type==='train'?100:input.type==='use-field-ability'?64*(input.abilityIndex+1):input.type==='battle-action'?96:input.type==='capture'?40:input.type==='record-steward-work'?64:0;
   if(cost>0&&breaths.reserveMicroBreaths<Math.round(cost*1_000_000))return {...state,playerBreaths:breaths,energy:playerBreathEnergy(breaths),lastEvent:'Take a breath and rest at camp before more strenuous work.'};
   const base=state.energy===playerBreathEnergy(breaths)?state:{...state,energy:playerBreathEnergy(breaths)};
   const reduced=input.type==='rest'?{...state,activeAction:'explore' as const,combo:0,lastEvent:inBed?'Resting in your bed. Energy recovers with each Kai breath.':'Camp is ready. Rest here to recover with each Kai breath.'}:input.type==='energy-tick'?state:reduceWildsInput(base,input);
   if(reduced===base&&input.type!=='energy-tick')return state;
   if(input.type==='train'&&reduced.cardXp===state.cardXp&&reduced.inventory===state.inventory)cost=0;
+  if(input.type==='capture'&&reduced.inventory===state.inventory)cost=0;
+  if(input.type==='battle-action'&&reduced.battle===state.battle)cost=0;
+  if(input.type==='use-field-ability'&&reduced.inventory===state.inventory&&reduced.companionProgress===state.companionProgress)cost=0;
   if((input.type==='move'||input.type==='move-vector')&&reduced!==base){const distance=Math.hypot(reduced.player.x-state.player.x,reduced.player.z-state.player.z),rise=Math.max(0,reduced.siteSpace.position.y-state.siteSpace.position.y);cost=distance*(input.type==='move-vector'&&input.mode==='run'?2:1)+rise*3;}
   else if(reduced===base||reduced===state||input.type==='rest'||input.type==='energy-tick')cost=0;
   if(Math.round(cost*1_000_000)>breaths.reserveMicroBreaths)return {...state,playerBreaths:breaths,energy:playerBreathEnergy(breaths),lastEvent:'Rest at camp to recover the breaths needed for this action.'};
@@ -1430,6 +1437,8 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     const ability = form?.abilities[input.abilityIndex];
     if (!ability) return state;
     const familyId = asset.manifest.familyId;
+    const abilityEventId = `ability_mastery:${asset.id}:${input.abilityIndex}:${input.usedAt}`;
+    if (growthForAsset(state, asset).eventIds.includes(abilityEventId)) return state;
     const current = exactCompanionProgress(state, asset);
     const xpGain = Math.max(1, Math.round(ability.power / 12));
     const totalXp = current.xp + xpGain;
@@ -1447,7 +1456,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       lastEvent: `${asset.manifest.name} used ${ability.name}. ${ability.text}`
     };
     const grown = applyRecordedGrowth(nextState, asset, {
-      eventId: `ability_mastery:${asset.id}:${input.abilityIndex}:${input.usedAt}`,
+      eventId: abilityEventId,
       kind: "ability_mastery",
       path: "battle",
       amount: 1,
@@ -1455,7 +1464,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       kaiUPulse: input.kaiUPulse
     });
     return grown.lastEvent.endsWith("could not be verified.")
-      ? grown
+      ? { ...state, lastEvent: grown.lastEvent }
       : { ...grown, lastEvent: nextState.lastEvent };
   }
 
@@ -2196,14 +2205,18 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       const builtFloor = wildsStructureSupportAt({ x: siteMovement.x, z: siteMovement.z }, input.structureSupports, 0, currentSpace.position.y);
       if (builtFloor && builtFloor.deckY >= siteMovement.floorY && builtFloor.deckY + 1.55 <= siteMovement.ceilingY) siteMovement.floorY = builtFloor.deckY;
     }
-    const nextPlayer = siteMovement ? { x: siteMovement.x, z: siteMovement.z } : movement.position;
+    const proposedPlayer=siteMovement?{x:siteMovement.x,z:siteMovement.z}:movement.position;
+    const proposedY=siteMovement?.floorY??(currentSpace.spaceId==='wildz.space.outer.v1'?movement.elevation:currentSpace.position.y);
+    const creationMovement=input.creationNavigation?(admittedAirborne?resolveCreationFlight:resolveCreationMovement)(input.creationNavigation,currentSpace.spaceId,{x:state.player.x,y:admittedAirborne?(input.verticalWorldY??currentSpace.position.y):currentSpace.position.y,z:state.player.z},{x:proposedPlayer.x,y:admittedAirborne?(input.verticalWorldY??proposedY):proposedY,z:proposedPlayer.z}):null;
+    const nextPlayer=creationMovement?{x:creationMovement.position.x,z:creationMovement.position.z}:proposedPlayer;
+    const movementFloorY=creationMovement?.position.y??proposedY;
     const previousRegion = regionForPosition(state.player);
     const nextRegion = regionForPosition(nextPlayer);
     let explorationAtlas = previousRegion.x === nextRegion.x && previousRegion.z === nextRegion.z
       ? state.explorationAtlas
       : revealWildsExplorationAt(state.explorationAtlas, nextPlayer);
     if (input.siteRuntime) {
-      const discovery = writeWildsSiteRuntimeDiscovery(input.siteDiscoveryOutput ?? { siteKey: null }, input.siteRuntime, currentSpace.spaceId, nextPlayer.x, siteMovement?.floorY ?? movement.elevation, nextPlayer.z);
+      const discovery = writeWildsSiteRuntimeDiscovery(input.siteDiscoveryOutput ?? { siteKey: null }, input.siteRuntime, currentSpace.spaceId, nextPlayer.x, movementFloorY, nextPlayer.z);
       if (discovery.siteKey) explorationAtlas = discoverWildsExplorationSite(explorationAtlas, discovery.siteKey);
     }
     const nearest = nearestCreature({ player: nextPlayer });
@@ -2231,12 +2244,12 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
         spaceId: "wildz.space.outer.v1",
         siteKey: null,
         surfaceId: siteMovement?.surfaceId ?? null,
-        position: { x: nextPlayer.x, y: siteMovement?.floorY ?? movement.elevation, z: nextPlayer.z },
+        position: { x: nextPlayer.x, y: movementFloorY, z: nextPlayer.z },
         flooded: siteMovement?.flooded ?? false
       } : {
         ...currentSpace,
         surfaceId: siteMovement?.surfaceId ?? currentSpace.surfaceId,
-        position: { x: nextPlayer.x, y: siteMovement?.floorY ?? currentSpace.position.y, z: nextPlayer.z },
+        position: { x: nextPlayer.x, y: movementFloorY, z: nextPlayer.z },
         flooded: siteMovement?.flooded ?? currentSpace.flooded
       },
       lastEvent: nearbyText,

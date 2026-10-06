@@ -9,7 +9,58 @@ const key=(x:number,z:number)=>`${Math.floor(x/CELL)}:${Math.floor(z/CELL)}`;
 function insert<T extends CreationSolid|CreationSurface>(map:Map<string,Entry<T>[]>,entry:Entry<T>){const v=entry.value,c=Math.abs(Math.cos(v.yaw)),s=Math.abs(Math.sin(v.yaw)),x=c*v.halfExtents.x+s*v.halfExtents.z+.5,z=s*v.halfExtents.x+c*v.halfExtents.z+.5;const minX=Math.floor((v.center.x-x)/CELL),maxX=Math.floor((v.center.x+x)/CELL),minZ=Math.floor((v.center.z-z)/CELL),maxZ=Math.floor((v.center.z+z)/CELL);if((maxX-minX+1)*(maxZ-minZ+1)>4096)throw Error('creation_navigation_residency_required');for(let ix=minX;ix<=maxX;ix++)for(let iz=minZ;iz<=maxZ;iz++){const k=`${ix}:${iz}`,bucket=map.get(k)||[];bucket.push(entry);map.set(k,bucket);}}
 export function prepareCreationNavigation(projections:readonly CreationPhysicalProjection[]):CreationNavigation{const instances=new Map<string,string>(),spaces=new Map<string,SpaceIndex>();for(const p of projections){const previous=instances.get(p.instanceId);if(previous){if(previous!==p.head)throw Error('creation_projection_head_conflict');continue;}instances.set(p.instanceId,p.head);const index=spaces.get(p.spaceId)||{solids:new Map(),surfaces:new Map()};p.solids.forEach(value=>insert(index.solids,{instanceId:p.instanceId,value}));p.walkable.forEach(value=>insert(index.surfaces,{instanceId:p.instanceId,value}));spaces.set(p.spaceId,index);}return {instanceCount:instances.size,spaces};}
 function local(v:CreationSolid|CreationSurface,p:CreationPoint){const x=p.x-v.center.x,z=p.z-v.center.z,c=Math.cos(v.yaw),s=Math.sin(v.yaw);return {x:x*c-z*s,z:x*s+z*c};}
-function floor(index:SpaceIndex,p:CreationPoint){let y=p.y;for(const {value:s} of index.surfaces.get(key(p.x,p.z))||[]){const q=local(s,p);if(Math.abs(q.x)<=s.halfExtents.x&&Math.abs(q.z)<=s.halfExtents.z&&s.center.y<=p.y+STEP&&s.center.y>=p.y-STEP)y=Math.max(y,s.center.y);}return y;}
+function floor(index:SpaceIndex,p:CreationPoint,baseY:number,radius:number){let y=baseY;for(const {value:s} of index.surfaces.get(key(p.x,p.z))||[]){const q=local(s,p);if(Math.abs(q.x)<=s.halfExtents.x+radius&&Math.abs(q.z)<=s.halfExtents.z+radius&&s.center.y<=p.y+STEP&&s.center.y>=baseY)y=Math.max(y,s.center.y);}return y;}
 function blocked(index:SpaceIndex,p:CreationPoint,radius:number){return (index.solids.get(key(p.x,p.z))||[]).some(({value:s})=>{if(p.y>=s.center.y+s.halfExtents.y-.00001||p.y+HEIGHT<=s.center.y-s.halfExtents.y+.00001)return false;const q=local(s,p);return Math.abs(q.x)<s.halfExtents.x+radius&&Math.abs(q.z)<s.halfExtents.z+radius;});}
-export function resolveCreationMovement(runtime:CreationNavigation,spaceId:string,from:CreationPoint,to:CreationPoint,radius=.35){if(![from.x,from.y,from.z,to.x,to.y,to.z,radius].every(Number.isFinite)||radius<0||radius>.5)throw Error('creation_movement_invalid');const index=runtime.spaces.get(spaceId);if(!index)return {position:to,blocked:false};const distance=Math.hypot(to.x-from.x,to.z-from.z),steps=Math.max(1,Math.ceil(distance/.08));if(steps>256)return {position:from,blocked:true};let position=from;for(let i=1;i<=steps;i++){const next={x:from.x+(to.x-from.x)*i/steps,y:position.y,z:from.z+(to.z-from.z)*i/steps};next.y=floor(index,next);if(blocked(index,next,radius))return {position,blocked:true};position=next;}return {position,blocked:false};}
-export function findCreationRoute(runtime:CreationNavigation,spaceId:string,from:CreationPoint,to:CreationPoint){const index=runtime.spaces.get(spaceId);if(!index)return {reachable:false,points:[] as CreationPoint[]};const surfaces=[...new Map([...index.surfaces.values()].flat().map(e=>[`${e.instanceId}:${e.value.id}`,e.value])).values()];if(surfaces.length>2048)return {reachable:false,points:[] as CreationPoint[]};const nearest=(p:CreationPoint)=>surfaces.findIndex(s=>Math.hypot(s.center.x-p.x,s.center.y-p.y,s.center.z-p.z)<.01),start=nearest(from),end=nearest(to),previous=new Map<number,number>();if(start<0||end<0)return {reachable:false,points:[] as CreationPoint[]};const queue=[start];previous.set(start,-1);for(let cursor=0;cursor<queue.length&&!previous.has(end);cursor++){const a=surfaces[queue[cursor]];for(let j=0;j<surfaces.length;j++){if(previous.has(j))continue;const b=surfaces[j],point=b.center,q=local(a,point);if(Math.abs(a.center.y-b.center.y)>STEP||Math.abs(q.x)>a.halfExtents.x+b.halfExtents.x||Math.abs(q.z)>a.halfExtents.z+b.halfExtents.z)continue;const midpoint={x:(a.center.x+b.center.x)/2,y:Math.max(a.center.y,b.center.y),z:(a.center.z+b.center.z)/2};if(blocked(index,midpoint,.2))continue;previous.set(j,queue[cursor]);queue.push(j);}}if(!previous.has(end))return {reachable:false,points:[] as CreationPoint[]};const points:CreationPoint[]=[];for(let i=end;i>=0;i=previous.get(i)!)points.unshift(surfaces[i].center);return {reachable:true,points};}
+export function resolveCreationMovement(runtime:CreationNavigation,spaceId:string,from:CreationPoint,to:CreationPoint,radius=.35){if(![from.x,from.y,from.z,to.x,to.y,to.z,radius].every(Number.isFinite)||radius<0||radius>.5)throw Error('creation_movement_invalid');const index=runtime.spaces.get(spaceId);if(!index)return {position:to,blocked:false};const distance=Math.hypot(to.x-from.x,to.z-from.z),steps=Math.max(1,Math.ceil(distance/.08));if(steps>256)return {position:from,blocked:true};let position=from;for(let i=1;i<=steps;i++){const next={x:from.x+(to.x-from.x)*i/steps,y:position.y,z:from.z+(to.z-from.z)*i/steps};next.y=floor(index,next,from.y+(to.y-from.y)*i/steps,radius);if(blocked(index,next,radius))return {position,blocked:true};position=next;}return {position,blocked:false};}
+/** Cached regional queries only. A route that exceeds the local work budget is deferred. */
+export function findCreationRoute(runtime:CreationNavigation,spaceId:string,from:CreationPoint,to:CreationPoint){
+ const reject=()=>({reachable:false,points:[] as CreationPoint[]}),index=runtime.spaces.get(spaceId);
+ if(!index||![...Object.values(from),...Object.values(to)].every(Number.isFinite))return reject();
+ const identity=(e:Entry<CreationSurface>)=>`${e.instanceId}:${e.value.id}`;
+ const nearest=(p:CreationPoint)=>(index.surfaces.get(key(p.x,p.z))||[]).find(e=>Math.hypot(e.value.center.x-p.x,e.value.center.y-p.y,e.value.center.z-p.z)<.01);
+ const start=nearest(from),end=nearest(to);if(!start||!end)return reject();
+ const endKey=identity(end),queue=[start],previous=new Map<string,string|null>([[identity(start),null]]),visited=new Map([[identity(start),start]]);
+ let cells=0,candidates=0;
+ for(let cursor=0;cursor<queue.length&&!previous.has(endKey);cursor++){
+  if(queue.length>512)return reject();
+  const entry=queue[cursor],a=entry.value,c=Math.abs(Math.cos(a.yaw)),s=Math.abs(Math.sin(a.yaw));
+  const hx=c*a.halfExtents.x+s*a.halfExtents.z+.5,hz=s*a.halfExtents.x+c*a.halfExtents.z+.5;
+  const minX=Math.floor((a.center.x-hx)/CELL),maxX=Math.floor((a.center.x+hx)/CELL),minZ=Math.floor((a.center.z-hz)/CELL),maxZ=Math.floor((a.center.z+hz)/CELL);
+  const seen=new Set<string>();
+  for(let x=minX;x<=maxX;x++)for(let z=minZ;z<=maxZ;z++){
+   if(++cells>4096)return reject();
+   for(const neighbor of index.surfaces.get(`${x}:${z}`)||[]){
+    if(++candidates>16384)return reject();
+    const id=identity(neighbor);if(previous.has(id)||seen.has(id))continue;seen.add(id);
+    const b=neighbor.value,q=local(a,b.center),relative=b.yaw-a.yaw,bc=Math.abs(Math.cos(relative)),bs=Math.abs(Math.sin(relative));
+    if(Math.abs(a.center.y-b.center.y)>STEP||Math.abs(q.x)>a.halfExtents.x+bc*b.halfExtents.x+bs*b.halfExtents.z||Math.abs(q.z)>a.halfExtents.z+bs*b.halfExtents.x+bc*b.halfExtents.z)continue;
+    const height=Math.max(a.center.y,b.center.y),distance=Math.hypot(a.center.x-b.center.x,a.center.z-b.center.z),steps=Math.max(1,Math.ceil(distance/.08));
+    if(steps>256)continue;
+    let clear=true;for(let i=0;i<=steps;i++){if(blocked(index,{x:a.center.x+(b.center.x-a.center.x)*i/steps,y:height,z:a.center.z+(b.center.z-a.center.z)*i/steps},.2)){clear=false;break;}}
+    if(!clear)continue;previous.set(id,identity(entry));visited.set(id,neighbor);queue.push(neighbor);
+   }
+  }
+ }
+ if(!previous.has(endKey))return reject();
+ const points:CreationPoint[]=[];for(let id:string|null=endKey;id!==null;id=previous.get(id)!){points.unshift(visited.get(id)!.value.center);}
+ return {reachable:true,points};
+}
+/** Aerial motion never adopts a surface floor; all three axes are swept against cached solids. */
+export function resolveCreationFlight(runtime:CreationNavigation,spaceId:string,from:CreationPoint,to:CreationPoint,radius=.35){
+ if(![from.x,from.y,from.z,to.x,to.y,to.z,radius].every(Number.isFinite)||radius<0||radius>.5)throw Error('creation_movement_invalid');
+ const index=runtime.spaces.get(spaceId);if(!index)return {position:to,blocked:false};
+ const steps=Math.max(1,Math.ceil(Math.hypot(to.x-from.x,to.y-from.y,to.z-from.z)/.08));
+ if(steps>256)return {position:from,blocked:true};
+ let position=from;for(let i=1;i<=steps;i++){const next={x:from.x+(to.x-from.x)*i/steps,y:from.y+(to.y-from.y)*i/steps,z:from.z+(to.z-from.z)*i/steps};if(blocked(index,next,radius))return {position,blocked:true};position=next;}
+ return {position,blocked:false};
+}
+export function writeCreationAerialCollision(output:{obstacleTopY:number;ceilingY:number;protectedAirspace:boolean;blockerId:string|null;floorY:number},runtime:CreationNavigation,spaceId:string,point:CreationPoint,fallbackFloor:number,radius=.35,height=HEIGHT){
+ output.obstacleTopY=Number.NaN;output.ceilingY=Number.NaN;output.protectedAirspace=false;output.blockerId=null;output.floorY=fallbackFloor;
+ const index=runtime.spaces.get(spaceId);if(!index)return output;
+ output.floorY=floor(index,point,fallbackFloor,radius);
+ for(const {value:s} of index.solids.get(key(point.x,point.z))||[]){const q=local(s,point);if(Math.abs(q.x)>s.halfExtents.x+radius||Math.abs(q.z)>s.halfExtents.z+radius)continue;const min=s.center.y-s.halfExtents.y,max=s.center.y+s.halfExtents.y;
+  if(min>=point.y+height-.01){if(!Number.isFinite(output.ceilingY)||min<output.ceilingY){output.ceilingY=min;output.blockerId=s.id;}}
+  else if(point.y<max-.00001&&point.y+height>min+.00001&&(!Number.isFinite(output.obstacleTopY)||max>output.obstacleTopY)){output.obstacleTopY=max;output.blockerId=s.id;}
+ }
+ return output;
+}

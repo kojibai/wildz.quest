@@ -14,8 +14,12 @@ import { WildsHomeResidents, type WildsHomeResidentsInput } from "./WildsHomeRes
 import { projectWildsHomeResidents } from "./wilds-home-residents";
 import type { WildsBurrowPreview } from "./wilds-burrow";
 import { WildsBurrowGhost } from "./WildsBurrowGhost";
+import {writeCreationAerialCollision,type CreationNavigation} from './creation/navigation';
+import type {CreationPhysicalSnapshot} from './creation/physical-store';
+import type {CreationPhysicalProjection} from "./creation/projection";
 import type { CreationPreview } from "./creation/preview";
 import dynamic from "next/dynamic";
+const WildsCreations=dynamic(()=>import("./creation/WildsCreations"),{ssr:false});
 const WildsCreationPreview=dynamic(()=>import("./creation/WildsCreationPreview"),{ssr:false});
 import { WildsContinuousConstruction } from "./WildsContinuousConstruction";
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
@@ -134,6 +138,11 @@ export function WildsWorldCanvas({
   burrowPreview,
   constructionPreview,
   creationPreview,
+  creationProjections,
+  creationNavigation,
+  creationSource,
+  creationWorldId,
+  onCreationNavigation,
   constructionSelectionEnabled,
   onSelectConstruction,
   onDragConstruction,
@@ -190,6 +199,11 @@ export function WildsWorldCanvas({
   burrowPreview?: WildsBurrowPreview | null;
   constructionPreview?: WildsBlueprintPlacement | null;
   creationPreview?: CreationPreview | null;
+  creationProjections?:readonly CreationPhysicalProjection[];
+  creationNavigation?:CreationNavigation;
+  creationSource?:Pick<CreationPhysicalSnapshot,'projections'|'definitions'>;
+  creationWorldId?:string;
+  onCreationNavigation?:(navigation:CreationNavigation|null)=>void;
   constructionSelectionEnabled?: boolean;
   onSelectConstruction?: (id: string) => void;
   activeConstructionId?:string;
@@ -265,7 +279,7 @@ export function WildsWorldCanvas({
         <Suspense fallback={null}>
           <WildsFirstFrame onReady={onWorldReady} />
           <WildsShaderPrewarm />
-          <WildsScene suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} creationPreview={creationPreview} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
+          <WildsScene suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} creationPreview={creationPreview} creationProjections={creationProjections} creationNavigation={creationNavigation} creationSource={creationSource} creationWorldId={creationWorldId} onCreationNavigation={onCreationNavigation} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>
     </div>
@@ -286,6 +300,11 @@ function WildsScene({
   burrowPreview,
   constructionPreview,
   creationPreview,
+  creationProjections,
+  creationNavigation,
+  creationSource,
+  creationWorldId,
+  onCreationNavigation,
   constructionSelectionEnabled,
   onSelectConstruction,
   onDragConstruction,
@@ -340,6 +359,11 @@ function WildsScene({
   burrowPreview?: WildsBurrowPreview | null;
   constructionPreview?: WildsBlueprintPlacement | null;
   creationPreview?: CreationPreview | null;
+  creationProjections?:readonly CreationPhysicalProjection[];
+  creationNavigation?:CreationNavigation;
+  creationSource?:Pick<CreationPhysicalSnapshot,'projections'|'definitions'>;
+  creationWorldId?:string;
+  onCreationNavigation?:(navigation:CreationNavigation|null)=>void;
   constructionSelectionEnabled?: boolean;
   onSelectConstruction?: (id: string) => void;
   activeConstructionId?:string;
@@ -496,7 +520,8 @@ function WildsScene({
         <WildsAmbientLife enabled={siteSpace.spaceId === "wildz.space.outer.v1"} player={state.player} qualityProfile={qualityProfile} siteRuntime={siteRuntime} terrainElevation={activeFloorY} />
         <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} worldMode={worldMode} />
         <WildsRegenerativeGroveEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} />
-        {creationPreview ? <WildsCreationPreview preview={creationPreview} /> : null}
+        {creationSource?.projections.length&&creationWorldId&&onCreationNavigation?<WildsCreations source={creationSource} worldId={creationWorldId} spaceId={siteSpace.spaceId} position={{x:state.player.x,y:activeFloorY,z:state.player.z}} profile={qualityProfile} onNavigation={onCreationNavigation}/>:null}
+        {creationPreview ? <WildsCreationPreview preview={creationPreview} viewer={{x:state.player.x,y:activeFloorY,z:state.player.z}} /> : null}
         <WildsContinuousConstruction spaceId={siteSpace.spaceId} world={livingWorld} player={state.player} terrainElevation={activeFloorY} preview={constructionPreview} selectable={constructionSelectionEnabled} onSelect={onSelectConstruction} onDrag={onDragConstruction} activeComponentId={activeConstructionId} />
         <WildsStewardEnvironment
           activeWorkSource={activeWorkSource}
@@ -521,7 +546,7 @@ function WildsScene({
             : null
         ))}
       </SmoothWorldFrame>
-      <AerialPlayerFrame kaiUPulse={kaiMoment.uPulse} aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} flightEndurancePotential={flightEndurancePotential} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef} siteRuntime={siteRuntime} siteSpace={siteSpace}>
+      <AerialPlayerFrame creationNavigation={creationNavigation} kaiUPulse={kaiMoment.uPulse} aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} flightEndurancePotential={flightEndurancePotential} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef} siteRuntime={siteRuntime} siteSpace={siteSpace}>
         <WildsExplorer
           aerialPalette={{
             primary: activeAppearance?.palette.primary ?? "#c9fff0",
@@ -549,7 +574,11 @@ function WildsScene({
   );
 }
 
-function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, children, flightEndurancePotential, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, terrainObstacleNeighborhood, verticalIntentRef, verticalTraversalRef, siteRuntime, siteSpace }: {
+function AerialPlayerFrame({ creationNavigation, kaiUPulse, aquaticPresentation, capabilities, children, flightEndurancePotential, horizontalAllowedRef, liftPotential, livingPhysicalObstacles, pressurePotential, swimStamina, onEnergyChange, onModeChange, onLandingRequired, onVerticalReadoutChange, player, runtime, terrainObstacleNeighborhood, verticalIntentRef, verticalTraversalRef, siteRuntime, siteSpace }: {
+  creationNavigation?:CreationNavigation;
+  creationSource?:Pick<CreationPhysicalSnapshot,'projections'|'definitions'>;
+  creationWorldId?:string;
+  onCreationNavigation?:(navigation:CreationNavigation|null)=>void;
   aquaticPresentation: WildsAquaticPresentation;
   capabilities: readonly WildsTraversalCapability[];
   children: ReactNode;
@@ -581,6 +610,8 @@ function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, child
   const collisionSampleRef = useRef(createWildsAerialCollisionSample());
   const sampleAerialCollision = useMemo(createWildsAerialCollisionSampler, []);
   const siteCollisionSampleRef = useRef({ ...createWildsAerialCollisionSample(), floorY: Number.NaN, flooded: false, waterSurfaceY: Number.NaN });
+  const creationCollisionRef=useRef({...createWildsAerialCollisionSample(),floorY:0});
+  const creationCollisionPoint=useRef({x:0,y:0,z:0});
   const publishedLandingRequired = useRef(false);
   const runtimeStep = useRef<WildsAerialRuntimeStep>({
     deltaSeconds: 0, flightEndurancePotential: 0, groundElevation: 0, hasFlight: false, hasGlide: false,
@@ -625,6 +656,13 @@ function AerialPlayerFrame({ kaiUPulse, aquaticPresentation, capabilities, child
       groundElevation
     );
     mergeWildsAerialCollisionSample(collisionSample, siteCollision);
+    if(creationNavigation){
+      const point=creationCollisionPoint.current;point.x=player.x;point.z=player.z;point.y=currentVertical.layer==='air'?currentVertical.worldY:groundElevation+.35;
+      const creationCollision=writeCreationAerialCollision(creationCollisionRef.current,creationNavigation,siteSpace.spaceId,point,typeof siteCollision.floorY==='number'&&Number.isFinite(siteCollision.floorY)?siteCollision.floorY:groundElevation,WILDS_PLAYER_BODY_RADIUS,WILDS_PLAYER_BODY_HEIGHT);
+      mergeWildsAerialCollisionSample(collisionSample,creationCollision);
+      siteCollision.floorY=creationCollision.floorY;
+    }
+
     const activeGroundElevation = typeof siteCollision.floorY === "number" && Number.isFinite(siteCollision.floorY) ? siteCollision.floorY : groundElevation;
     const activeWaterSurfaceY = typeof siteCollision.waterSurfaceY === "number" && Number.isFinite(siteCollision.waterSurfaceY) ? siteCollision.waterSurfaceY : aquaticPresentation.waterSurfaceY;
     const aerialInput = runtimeStep.current;

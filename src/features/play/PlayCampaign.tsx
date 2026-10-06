@@ -20,8 +20,12 @@ import { requestWildsDive } from "./wilds-vertical-traversal";
 import { resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
+import type {CreationNavigation} from './creation/navigation';
+import type {CreationController} from "./creation/controller";
+import type {CreationPhysicalSnapshot} from "./creation/physical-store";
 import type { CreationPreview } from "./creation/preview";
 import type { CreationCompileContext } from "./creation/compiler";
+import creationPanelClasses from "./creation/creation.module.css";
 const CreationSession=dynamic(()=>import("./creation/CreationSession"),{ssr:false});
 import { WildsVisitedSurface } from "./WildsVisitedSurface";
 import { buildWildsRoamingPresenceUploads, projectWildsRemoteRoamingMarkers, type WildsRoamingPresenceUpload } from "./wilds-roaming-presence";
@@ -55,7 +59,7 @@ import {
   type PlayState,
   type WildsInput
 } from "@/features/play/game-state";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
 import { sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
@@ -263,8 +267,11 @@ function groveReason(reason: string | undefined) {
   } as Record<string, string>)[reason ?? ""] ?? "The grove is not ready for this yet.";
 }
 const MortalArenaExperience = dynamic(() => import("@/features/games/mortal-arena/MortalArenaExperience").then((mod) => mod.MortalArenaExperience), { ssr: false });
+const EMPTY_CREATION_WORLD:Omit<CreationPhysicalSnapshot,'navigation'>&{navigation:null}=Object.freeze({revision:0,projections:[],navigation:null,instances:{},definitions:{}});
+const subscribeEmptyCreation=()=>()=>{};
 export function PlayCampaign({
   campaignName = "Reward Challenge",
+  creationController,
   enabled,
   interactionEnabled = true,
   networkEnabled,
@@ -297,6 +304,7 @@ export function PlayCampaign({
   onRestoreRoamingCapture
 }: {
   campaignName?: string;
+  creationController?:CreationController;
   enabled: boolean;
   interactionEnabled?: boolean;
   networkEnabled: boolean;
@@ -332,6 +340,10 @@ export function PlayCampaign({
     currentPlayState: PlayState
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
+  const creationPhysical=useSyncExternalStore(creationController?.subscribe||subscribeEmptyCreation,()=>creationController?.scope().ownerId===ownerReceizId?creationController.snapshot():EMPTY_CREATION_WORLD,()=>EMPTY_CREATION_WORLD);
+  const [creationScene,setCreationScene]=useState<{source:typeof creationPhysical;navigation:CreationNavigation|null}|null>(null);
+  const creationNavigation=creationScene?.source===creationPhysical?creationScene.navigation:null;
+  const handleCreationNavigation=useCallback((navigation:CreationNavigation|null)=>setCreationScene({source:creationPhysical,navigation}),[creationPhysical]);
   const [creationOpen,setCreationOpen]=useState(false);
   const [creationPlacing,setCreationPlacing]=useState(false);
   const [creationPreview,setCreationPreview]=useState<CreationPreview|null>(null);
@@ -1072,7 +1084,7 @@ export function PlayCampaign({
     mode: livingWorld.mode,
     cursor: livingWorld.snapshot?.cursor ?? null
   }), [kaiUPulse, livingWorld.mode, livingWorld.snapshot?.cursor]);
-  useEffect(()=>{if(!enabled)return;setState(current=>applyWildsInput(current,{type:'energy-tick',kaiUPulse:kaiMoment.uPulse}));},[enabled,kaiMoment.uPulse]);
+  useEffect(()=>{if(!enabled)return;setState(current=>applyWildsInput(current,{type:'energy-tick',kaiUPulse:kaiMoment.uPulse,energyActivity:aerialStateRef.current.mode!=='ground'?aerialStateRef.current.mode:verticalTraversalRef.current.layer==='water'?'swim':'active'}));},[enabled,kaiMoment.uPulse]);
   const roamingBattle = useWildsRoamingBattle({
     enabled: enabled && networkEnabled,
     selfId: multiplayer.selfId,
@@ -1809,7 +1821,8 @@ export function PlayCampaign({
     // User actions share the live monotonic clock used by encounter timers;
     // the displayed pulse can lag those timers until its next UI update.
     const actionUPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
-    const rootedInput = rootWildsInputInKai(input, actionUPulse);
+    const energyActivity=aerialStateRef.current.mode!=='ground'?aerialStateRef.current.mode:verticalTraversalRef.current.layer==='water'?'swim':'active';
+    const rootedInput = rootWildsInputInKai({...input,energyActivity}, actionUPulse);
     setState((current) => {
       const next = applyWildsInput(current, rootedInput);
       if (!current.completed && next.completed) {
@@ -1835,6 +1848,7 @@ export function PlayCampaign({
         siteDiscoveryOutput: siteDiscoveryOutputRef.current,
         structureSupports: livingStructureSupports,
         additionalObstacles: livingPhysicalObstacles,
+        creationNavigation:creationNavigation||undefined,
         aerialMode: airborne ? liveAerialMode : undefined,
         verticalClearance: verticalTraversalRef.current.offset,
         verticalWorldY: verticalTraversalRef.current.worldY
@@ -2784,6 +2798,11 @@ export function PlayCampaign({
               stewardPlacementPreview={stewardPlacementPreview}
               burrowPreview={burrowBuilder.preview ? {...burrowBuilder.preview,blocker:burrowBuilder.blocker} : null}
               creationPreview={creationPreview}
+              creationProjections={creationPhysical.projections}
+              creationNavigation={creationNavigation||undefined}
+              creationSource={creationPhysical}
+              creationWorldId={creationController?.scope().worldId||'wilds:global:v3'}
+              onCreationNavigation={handleCreationNavigation}
               constructionPreview={continuousBuilder.preview}
               constructionSelectionEnabled={continuousBuilder.selectionEnabled && worldInteractionEnabled}
               onSelectConstruction={continuousBuilder.selectComponent}
@@ -3041,7 +3060,7 @@ export function PlayCampaign({
             {creationOpen && creationContext ? <CreationSession
               key={`${ownerReceizId}:${state.siteSpace.spaceId}`}
               ownerId={ownerReceizId} spaceId={state.siteSpace.spaceId} cards={crewCards} conditions={state.adventureConditions}
-              lots={availableMaterialLots} context={creationContext}
+              classes={creationPanelClasses} lots={availableMaterialLots} context={creationContext} commit={creationController?.commit} objects={Object.values(creationPhysical.instances).flatMap(instance=>creationPhysical.definitions[instance.definitionDigest]?[{instance,definition:creationPhysical.definitions[instance.definitionDigest]}]:[])}
               cardAdmissions={creationCardAdmissions}
               onMovementInput={dispatchWorldInput} headingRef={cameraHeadingRef} onPlacementModeChange={setCreationPlacing}
               placementRef={creationPoint} onPreview={setCreationPreview} onClose={closeCreation}

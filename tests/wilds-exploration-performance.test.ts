@@ -1,3 +1,4 @@
+import ts from 'typescript';
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
@@ -72,10 +73,14 @@ test("exploration, movement, and atlas rendering contain no verification or repe
     assert.doesNotMatch(source, /verifyAnyWildsCard|verifyPortableCard|setInterval|setTimeout|requestIdleCallback|fetch\(/);
   }
   assert.doesNotMatch(exploration, /nearbyHiddenHotspots|hotspotsForRegion|sampleWildsTerrain/);
-  const movement = gameState.slice(
-    gameState.indexOf('if (input.type === "move" || input.type === "move-vector")'),
-    gameState.indexOf('if (input.type === "rest")')
-  );
+  const parsed = ts.createSourceFile("game-state.ts", gameState, ts.ScriptTarget.Latest, true);
+  let movement = "";
+  const visit = (node: ts.Node): void => {
+    if (ts.isIfStatement(node) && /^input\.type\s*===\s*"move"\s*\|\|\s*input\.type\s*===\s*"move-vector"$/.test(node.expression.getText(parsed)))
+      movement = node.thenStatement.getText(parsed);
+    ts.forEachChild(node, visit);
+  };
+  visit(parsed);
   assert.ok(movement.length > 1_000);
   assert.doesNotMatch(movement, /verifyAnyWildsCard|verifyPortableCard|nearbyHiddenHotspots|hotspotsForRegion|serializePlayState|fetch\(/);
   assert.match(campaign, /<WildsWorldMap[\s\S]*open=\{exclusiveOwner === "map" && mapOpen\}/);

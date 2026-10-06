@@ -1,3 +1,4 @@
+import {mergeCreationMaterialBuffers} from './material-buffers';
 import { constructionProofDigest } from '../wilds-construction-project';
 import { assertCreationData, parseCreationDefinition } from './definition';
 import { CREATION_BEHAVIORS, CREATION_MATERIALS, CREATION_PAGE_SIZE } from './registry';
@@ -23,18 +24,24 @@ export function compileCreation(input:CreationDefinition, context:CreationCompil
    for (const b of n.behaviors) {const law=CREATION_BEHAVIORS[b.id];if(!law||law.version!==b.version)block('behavior',`The ${b.id} behavior has no qualified law.`,n.id);else techniques.add(law.technique);}
    const p=poseFor(n.id),key=`${Math.floor(p.position.x/32)}:${Math.floor(p.position.z/32)}`,group=groups.get(key)||[];group.push(n);groups.set(key,group);
   }
-  for (const [regionKey,nodes] of groups) for(let page=0;page*CREATION_PAGE_SIZE<nodes.length;page++) {
-   const solids:CreationSolid[]=[],walkable:CreationSurface[]=[],interiors:CreationBounds[]=[],connections:CreationConnection[]=[],positions:number[]=[],normals:number[]=[],materials:{start:number;count:number;material:string}[]=[];
-   const pageNodes=nodes.slice(page*CREATION_PAGE_SIZE,(page+1)*CREATION_PAGE_SIZE);
-   for (const n of pageNodes) {
-    try {const g=deriveCreationGeometry(n,poseFor(n.id));const mat=CREATION_MATERIALS[n.material];const amount=g.volume*mat.density;costs[n.material]=(costs[n.material]||0)+amount;work+=amount*mat.work;rawWork.set(n.id,amount*mat.work);
-     for (const solid of g.solids) if(context.physical.some(c=>c.solids.some((other:CreationSolid)=>overlapsCreationSolids(solid,other))))block('overlap','This placement intersects an existing physical object.',n.id);
-     solids.push(...g.solids);walkable.push(...g.walkable);interiors.push(...g.interiors);connections.push(...g.connections);materials.push({start:positions.length/3,count:g.positions.length/3,material:n.material});positions.push(...g.positions);normals.push(...g.normals);
+  const maximumPageVertices=2730;
+  for(const [regionKey,nodes] of groups){
+   let page=0,pageNodes:string[]=[],solids:CreationSolid[]=[],walkable:CreationSurface[]=[],interiors:CreationBounds[]=[],connections:CreationConnection[]=[],positions:number[]=[],normals:number[]=[],materials:{start:number;count:number;material:string}[]=[];
+   const flush=()=>{if(!pageNodes.length)return;const [x,z]=regionKey.split(':').map(Number),bounds={min:{x:Infinity,y:Infinity,z:Infinity},max:{x:-Infinity,y:-Infinity,z:-Infinity}};
+    for(let i=0;i<positions.length;i+=3)for(const [axis,offset] of [['x',0],['y',1],['z',2]] as const){bounds.min[axis]=Math.min(bounds.min[axis],positions[i+offset]);bounds.max[axis]=Math.max(bounds.max[axis],positions[i+offset]);}
+    chunks.push({id:`${definition.digest}:${regionKey}:${page++}`,region:{x,z},bounds,nodeIds:pageNodes,solids,walkable,interiors,connections,...mergeCreationMaterialBuffers(positions,normals,materials)});
+    pageNodes=[];solids=[];walkable=[];interiors=[];connections=[];positions=[];normals=[];materials=[];
+   };
+   for(const n of nodes){
+    try{const g=deriveCreationGeometry(n,poseFor(n.id)),mat=CREATION_MATERIALS[n.material],amount=g.volume*mat.density;
+     if(g.positions.length/3>maximumPageVertices){block('page','This individual shape exceeds a page upload budget; divide its path into connected parts.',n.id);continue;}
+     if(pageNodes.length>=CREATION_PAGE_SIZE||positions.length/3+g.positions.length/3>maximumPageVertices)flush();
+     costs[n.material]=(costs[n.material]||0)+amount;work+=amount*mat.work;rawWork.set(n.id,amount*mat.work);
+     for(const solid of g.solids)if(context.physical.some(c=>c.solids.some((other:CreationSolid)=>overlapsCreationSolids(solid,other))))block('overlap','This placement intersects an existing physical object.',n.id);
+     pageNodes.push(n.id);solids.push(...g.solids);walkable.push(...g.walkable);interiors.push(...g.interiors);connections.push(...g.connections);materials.push({start:positions.length/3,count:g.positions.length/3,material:n.material});positions.push(...g.positions);normals.push(...g.normals);
     }catch(error){block('geometry',error instanceof Error?error.message:'Unsupported geometry',n.id);}
    }
-   const [x,z]=regionKey.split(':').map(Number);const bounds={min:{x:Infinity,y:Infinity,z:Infinity},max:{x:-Infinity,y:-Infinity,z:-Infinity}};
-   for(let i=0;i<positions.length;i+=3)for(const [axis,offset] of [['x',0],['y',1],['z',2]] as const){bounds.min[axis]=Math.min(bounds.min[axis],positions[i+offset]);bounds.max[axis]=Math.max(bounds.max[axis],positions[i+offset]);}
-   chunks.push({id:`${definition.digest}:${regionKey}:${page}`,region:{x,z},bounds,nodeIds:pageNodes.map(n=>n.id),solids,walkable,interiors,connections,positions:new Float32Array(positions),normals:new Float32Array(normals),materials});
+   flush();
   }
   for(const key of Object.keys(costs)){costs[key]=Math.ceil(costs[key]);if(costs[key]>(context.budget[key]||0))block('resources',`Needs ${costs[key]} ${key}; budget is ${context.budget[key]||0}.`);}
   for(const technique of techniques)if(!context.techniques.includes(technique))block('technique',`Select a ready creature with ${technique}.`);

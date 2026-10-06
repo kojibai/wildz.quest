@@ -51,3 +51,39 @@ Crew scheduling follow-up: deterministic technique/stage tasks, immutable comple
 Crew qualification: 57 selected admission/crew/job/mandate/execution tests passed before the final malformed-operation regression; TypeScript and targeted lint passed. The development-only two-tab IndexedDB fixture was created in an isolated database, but browser navigation/reload stalled repeatedly before a completed reserve/recall result could be observed. Real-browser contention remains unqualified. Production creature navigation/work and global admission remain blocked on the registered creation runtime/source law; no artificial work timer or decorative success was added. Task 3 is still in progress.
 
 Final checks for this crew increment: 74 selected compiler, worker, creation admission/crew, legacy job/journal/mandate/execution and v122 recovery tests passed; TypeScript and targeted lint exited 0. Operation definitions are retained by value, and resealed negative work, altered material quantities, removed material bindings, wrong actors and changed rule heads cannot dispatch. Compiler node work is rounded deterministically with conserved aggregate work, and technique tasks reference only matching nodes. Browser-IDB contention and real source execution remain unqualified.
+
+
+## Current implementation evidence (supersedes earlier incremental status)
+
+The approved full feature is still in progress. Receiz is the only permitted external rail; package.json and pnpm-lock.yaml remain unchanged. No live transfer, payment, source publication or creation admission has been performed.
+
+Controller construction joins durable crew dispatch with authenticated physical projection. The canvas and ground movement consume its cached geometry/navigation through an optional controller. The application parent has not yet installed a qualified creation runtime/source reducer. Changing owner during preparation or authorization prevents dispatch. Selected-instance identity reaches the commit boundary; evolution currently rejects before dispatch rather than making a new copy.
+
+Actual two-tab IndexedDB qualification now passed: competing reservation was rejected; recall released the held material; the other tab reserved; reload retained its prepared journal; recall then released it. All source writes remained zero. This qualifies local reservation fencing, not global source admission.
+
+Fixed component initialization, equipment wear/recovery, finite seed/water/produce candidates, garden growth, support cascades, bounded salvage, repair and source-authenticated persistence are implemented as pure candidates. Occupied/content-bearing destruction rejects until safe relocation/content participants can be included atomically. Actual native action admission, account/Vault integration, equipment UI and portable-image export remain incomplete.
+
+Sparse region discovery and authenticated repository-page validation are implemented. Access separates visiting/use/harvest from edit/demolish; room grants are exact-head verified and expire. Recipient acceptance proposals preserve contents, occupants, location and creator attribution, reject changed instance heads and remove old equipment authority. Native transfer execution, mandate revocation participants, compact sharing UI and independent-player source qualification remain incomplete.
+
+Paged metadata selection uses the sparse index without enumerating 12,000 distant pages. Support dependencies are pinned; insufficient occupied residency rejects. Upload scheduling limits bytes per paint and activates only compatible render/physics bundles. Actual renderer residency, paced GPU integration, large-world source laws and hardware frame-time comparisons remain incomplete; no zero-latency claim is made.
+
+Player energy now conserves a 17,491-breath capacity against the exact existing Kai day. Distance/action spending, elapsed camp/bed recovery, fractional conservation and save migration are active locally. Swimming/flight/glide use elapsed activity rates; camp requires ground; failed capture and action retries do not receive an action energy charge. Native food/creation consequence integration remains incomplete.
+
+Verification: prior full suite 2,910 passed/1 skipped. Current controller/access/transfer/loading group 17 passed. Current integrated source/UI TypeScript and targeted lint exited 0 before the latest swimming/flight addition. Full checks will be rerun after remaining changes. SDK-tool qualification missing application binding is tool-session evidence only; owner-private V120 tool availability does not establish admission of the new creation law or global conditional transactions.
+
+
+## Latest verified increment
+
+The paw is back in the left utility grid. An odd number of actionable utility icons puts the centered paw alone in the first row; the lower rows pair above the D-pad. Build remains on the right. The actual game was inspected at 1280×720 after recovering the development server. Screenshot: `/private/tmp/wildz-paw-left-top-row.jpg`. No new mobile keyboard or device performance qualification is claimed.
+
+Physical and preview buffers now use the same player/elevation origin as the rest of the world. The placement regression failed on the missing offset export, then passed for moved and rotated previews. Ground/aerial collision uses nearby cached buckets; route finding does not enumerate distant surfaces. A 6,000-distant-surface test rejects whole-index iteration and still reaches the local connected route.
+
+Compiler pages now fit 65,536-byte uploads even when many rooms share one region. Repeated materials merge into shared groups. The actual Three renderer consumes a bounded upload queue and confirms each rendered page before activating its collision. Source discovery refreshes preserve unchanged rendered floors and their navigation cache; replacement buffers requeue. Lower budgets cannot discard occupied floors. These checks use explicitly authenticated fixture admissions. Live Native construction and hardware frame/memory comparisons remain unqualified.
+
+Component laws require usable bed/habitat dimensions and account for the entire carried assembly's mass. Equipping derives mass, capability and capacity from the exact definition. Harvest rejects malformed finite state. Equipment repair restores both condition and durability, preserves action recovery history, and includes exact spent material successors in its candidate. These are candidate laws, not live action admission.
+
+Checkpoint recovery now retains verified occupancy/contribution sources; missing assets and failed receipt verification preserve recoverable evidence without admitting unsupported objects. Account/Vault source-family integration, individual Native proof image export/import and global current-head hydration remain unfinished.
+
+No package or lockfile change has been made. No external service beyond the existing Receiz rail has been added. Tool-session Native qualification remains distinct from browser-account qualification: an unauthenticated SDK V124 request returned HTTP 401; this does not establish the readiness of an authenticated player's runtime.
+
+Verification of this increment: full suite 2,965 tests, 2,964 passed, one intentional skip, zero failures. TypeScript passed. Repository lint passed with zero errors and two pre-existing warnings (BuildGuidanceBrowserFixture image and WildsStewardEnvironment memo dependency). Production build passed. The exact-class source assertion was updated to accept the conditional utility-grid class; the focused contract and full suite then passed. Logs are retained at /private/tmp/creation-full-paw-final.log and /private/tmp/creation-increment-build.log. This is incremental verification, not complete live-world qualification.
