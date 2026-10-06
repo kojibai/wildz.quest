@@ -8,6 +8,8 @@ import { createPlayerBreaths, PLAYER_BREATH_CAPACITY_MICRO } from '../src/featur
 import { initialWorldOverlayState } from '../src/features/play/world-overlay-state';
 import { KAI_N_DAY_MICRO } from '../src/features/play/kai-klok-moment';
 import { availableWildsFood, consumeWildsNourishment, createWildsNourishmentState, gatherWildsNourishment, wildsNourishmentPlantsForTile, wildsNourishmentSourceAt, type WildsNourishmentState, type WildsNourishmentPlant } from '../src/features/play/wilds-nourishment';
+import { projectWildsNourishmentQuickUse } from '../src/features/play/wilds-nourishment-quick-use';
+import * as quickUse from '../src/features/play/wilds-nourishment-quick-use';
 
 const owner = 'hud-food-owner', kai = Number(KAI_N_DAY_MICRO) * 100;
 const plant = (() => {
@@ -54,12 +56,12 @@ test('the nourishment pill reflects gathered and consumed food from the live pla
 });
 
 // Eating from the shortcut must be unavailable at the same body limits as the food panel/reducer.
-test('quick eating is disabled when empty or full of fuel while the food Satchel stays available', () => {
+test('empty or full-fuel food opens the Satchel instead of offering to eat', () => {
   const food = gather();
-  assert.match(markup(food, 100), /<button[^>]*aria-label="Eat one[^>]*disabled/);
+  assert.doesNotMatch(markup(food, 100), /aria-label="Eat one/);
   assert.match(markup(food, 100), /Your fuel is full/);
   assert.match(markup(undefined), /Gather food to eat/);
-  assert.match(markup(food), /aria-label="Open nourishment Satchel"/);
+  assert.match(markup(food, 100), /aria-label="Open fruit in nourishment Satchel"/);
   assert.doesNotMatch(markup(food), /<button[^>]*aria-label="Eat one[^>]*disabled/);
 });
 
@@ -82,6 +84,46 @@ test('a full digestion window blocks quick eating without hiding stored food', (
   }
   const html = markup(food);
   assert.match(html, /aria-label="1 food portions stored"/);
-  assert.match(html, /<button[^>]*aria-label="Eat one[^>]*disabled/);
+  assert.doesNotMatch(html, /aria-label="Eat one/);
   assert.match(html, /Let your meal digest/);
+});
+
+test('switching fruit and vegetables counts and eats only that selected food', () => {
+  let vegetable: WildsNourishmentPlant | undefined;
+  for (let z = -2; z <= 2 && !vegetable; z++) for (let x = -2; x <= 2 && !vegetable; x++) {
+    vegetable = wildsNourishmentPlantsForTile(x, z).find(p => p.foodKind === 'wild-vegetable');
+  }
+  assert.ok(vegetable);
+  const food = gather(gather(gather(), plant), vegetable);
+  const fruit = projectWildsNourishmentQuickUse(food, kai, 50, 'fruit');
+  const vegetables = projectWildsNourishmentQuickUse(food, kai, 50, 'vegetables');
+  assert.equal(fruit.count, 2);
+  assert.equal(fruit.item?.foodKind, 'wild-berries');
+  assert.equal(vegetables.count, 1);
+  assert.equal(vegetables.item?.foodKind, 'wild-vegetable');
+  const eaten = consumeWildsNourishment({ state: food, ownerReceizId: owner, itemId: vegetables.item!.itemId,
+    kaiUPulse: kai, reserveMicroBreaths: PLAYER_BREATH_CAPACITY_MICRO / 2 });
+  assert.ok(eaten.ok);
+  assert.equal(projectWildsNourishmentQuickUse(eaten.state, kai, 50, 'vegetables').count, 0);
+  assert.equal(projectWildsNourishmentQuickUse(eaten.state, kai, 50, 'vegetables').item, null);
+  assert.equal(projectWildsNourishmentQuickUse(eaten.state, kai, 50, 'fruit').count, 2);
+});
+
+test('only a newly collected food portion switches the active nourishment type', () => {
+  let vegetable: WildsNourishmentPlant | undefined;
+  for (let z = -2; z <= 2 && !vegetable; z++) for (let x = -2; x <= 2 && !vegetable; x++) {
+    vegetable = wildsNourishmentPlantsForTile(x, z).find(p => p.foodKind === 'wild-vegetable');
+  }
+  assert.ok(vegetable);
+  const fruit = gather();
+  const vegetables = gather(fruit, vegetable);
+  assert.equal(quickUse.recentlyGatheredWildsNourishmentCategory?.(fruit, vegetables), 'vegetables');
+  const moreFruit = gather(vegetables);
+  assert.equal(quickUse.recentlyGatheredWildsNourishmentCategory?.(vegetables, moreFruit), 'fruit');
+  assert.equal(quickUse.recentlyGatheredWildsNourishmentCategory?.(undefined, moreFruit), 'fruit', 'Latest capture wins even within the same Kai pulse');
+  const eaten = consumeWildsNourishment({ state: moreFruit, ownerReceizId: owner, itemId: availableWildsFood(moreFruit)[0].itemId,
+    kaiUPulse: kai, reserveMicroBreaths: PLAYER_BREATH_CAPACITY_MICRO / 2 });
+  assert.ok(eaten.ok);
+  assert.equal(quickUse.recentlyGatheredWildsNourishmentCategory?.(moreFruit, eaten.state), null);
+  assert.equal(quickUse.recentlyGatheredWildsNourishmentCategory?.(eaten.state, {...eaten.state, lastKaiUPulse:kai + 1}), null);
 });

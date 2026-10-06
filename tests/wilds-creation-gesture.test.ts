@@ -38,3 +38,21 @@ test('a second pointer cannot eat while the first pointer owns the food gesture'
   assert.equal(gesture.click(1), null);
   assert.equal(gesture.release(1, { x: 100, y: 200 }), 'tap');
 });
+
+test('food selection swipes never become eating taps or change the default Build gesture', () => {
+  const gesture = createCreationBuildGesture();
+  for (const [dx, expected] of [[-60, 'left'], [60, 'right']] as const) {
+    gesture.start(1, { x: 100, y: 200 }, 0);
+    assert.equal(gesture.release(1, { x: 100 + dx, y: 204 }, true), expected);
+    assert.equal(gesture.click(1), null);
+  }
+  gesture.start(1, { x: 100, y: 200 }, 0);
+  assert.equal(gesture.release(1, { x: 160, y: 204 }), null);
+  gesture.start(1, { x: 100, y: 200 }, 0);
+  assert.equal(gesture.release(1, { x: 118, y: 204 }, true), null);
+  gesture.start(1, { x: 354, y: 456 }, 0);
+  assert.equal(gesture.release(1, { x: 388, y: 456 }, true), 'right', 'A thumb swipe must fit before the phone edge');
+  gesture.start(1, { x: 100, y: 200 }, 0);
+  gesture.cancel();
+  assert.equal(gesture.release(1, { x: 160, y: 204 }, true), null);
+});

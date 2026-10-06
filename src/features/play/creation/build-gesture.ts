@@ -1,4 +1,5 @@
 import { COMPANION_DRAWER_PX, COMPANION_TAP_SLOP_PX } from '../companion-command-gesture';
+const HORIZONTAL_SWIPE_PX = 24;
 export function creationBuildGesture(origin:{x:number;y:number},point:{x:number;y:number}):'open'|'cancel' {
  const dx=point.x-origin.x,dy=point.y-origin.y;
  return Math.hypot(dx,dy)<=COMPANION_TAP_SLOP_PX||(dy<=-COMPANION_DRAWER_PX&&Math.abs(dy)>Math.abs(dx)*1.2)?'open':'cancel';
@@ -14,10 +15,12 @@ export function createCreationBuildGesture() {
    active = { id, ...point };
    return true;
   },
-  release(id: number, point: { x: number; y: number }): 'tap' | 'swipe' | null {
+  release(id: number, point: { x: number; y: number }, horizontal = false): 'tap' | 'swipe' | 'left' | 'right' | null {
    const origin = active;
    if (!origin || origin.id !== id) return null;
    active = null;
+   const dx = point.x - origin.x, dy = point.y - origin.y;
+   if (horizontal && Math.abs(dx) >= HORIZONTAL_SWIPE_PX && Math.abs(dx) > Math.abs(dy) * 1.2) return dx < 0 ? 'left' : 'right';
    if (creationBuildGesture(origin, point) !== 'open') return null;
    return Math.hypot(point.x - origin.x, point.y - origin.y) <= COMPANION_TAP_SLOP_PX ? 'tap' : 'swipe';
   },

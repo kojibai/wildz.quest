@@ -17412,10 +17412,16 @@ body:has(.wilds-stage.is-creation-placement) .wildz-pwa-notice { visibility: hid
 .wildz-nourishment-pill {
   display: flex;
   justify-self: end;
-  width: 100px;
-  height: 46px;
-  overflow: hidden;
+  width: 44px;
+  height: 44px;
+  position: relative;
   color: #e7fff1;
+}
+.wildz-nourishment-pill::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  pointer-events: none;
   border: 1px solid rgba(187, 225, 154, .36);
   border-radius: 999px;
   background: linear-gradient(145deg, rgba(19, 46, 35, .96), rgba(8, 27, 23, .96));
@@ -17423,6 +17429,7 @@ body:has(.wilds-stage.is-creation-placement) .wildz-pwa-notice { visibility: hid
   backdrop-filter: blur(14px);
 }
 .wildz-nourishment-pill button {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -17431,32 +17438,36 @@ body:has(.wilds-stage.is-creation-placement) .wildz-pwa-notice { visibility: hid
   padding: 0;
   color: inherit;
   border: 0;
-  border-radius: 0;
+  border-radius: 999px;
   background: transparent;
   cursor: pointer;
   touch-action: none;
 }
-.wildz-nourishment-count { flex: 1; gap: 6px; }
+.wildz-nourishment-count { width: 44px; }
 .wildz-nourishment-count > svg { color: #c9e6a5; }
 .wildz-nourishment-count > span {
-  min-width: 3ch;
-  font-size: 11px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #132e23;
+  border: 1px solid rgba(187, 225, 154, .32);
+  color: #e5f5d3;
+  font-size: 9px;
   font-weight: 750;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-}
-.wildz-nourishment-pill .wildz-nourishment-eat {
-  width: 44px;
-  flex: 0 0 44px;
-  border-left: 1px solid rgba(198, 225, 169, .15);
-  color: #d4ebb5;
-  background: rgba(166, 211, 133, .06);
 }
 .wildz-nourishment-pill button:disabled { opacity: .38; cursor: default; }
 .wildz-nourishment-pill button:not(:disabled):hover { background: rgba(184, 229, 151, .13); }
 .wildz-nourishment-pill button:not(:disabled):active { background: rgba(184, 229, 151, .23); }
 .wildz-nourishment-pill button:focus-visible { outline: 2px solid #daefb9; outline-offset: -3px; border-radius: 999px; }
-.wildz-nourishment-pill.is-empty .wildz-nourishment-count > svg { opacity: .6; }
+.wildz-nourishment-pill.is-unavailable .wildz-nourishment-count > svg { opacity: .6; }
 @keyframes wildz-food-count-in { from { color: #efffcf; transform: scale(.85); } to { transform: scale(1); } }
 @media (prefers-reduced-motion: no-preference) { .wildz-nourishment-count > span { animation: wildz-food-count-in 180ms ease-out; } }
 

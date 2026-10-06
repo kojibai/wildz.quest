@@ -3,6 +3,7 @@ import {
   PawPrint,
   Archive,
   Apple,
+  Carrot,
   Anchor,
   ArrowDownToLine,
   AudioWaveform,
@@ -77,6 +78,7 @@ import {
 
 export const Icons = {
   food: Apple,
+  vegetable: Carrot,
   eat: Utensils,
   archive: Archive,
   analytics: BarChart3,
