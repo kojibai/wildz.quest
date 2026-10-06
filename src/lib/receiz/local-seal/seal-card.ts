@@ -1,3 +1,5 @@
+import type {WildzGameImageKind} from '../wildz-game-image-export';
+import {readCreationImage,verifyCreationImageAssets} from '../../../features/play/creation/image';
 import { readReceizIdentityArtifact } from "@receiz/sdk";
 import type { createReceizOfflineSealer } from "@receiz/sdk/offline";
 import { requireWildzIdentityBindingFromEnvelope } from "../wildz-identity-binding";
@@ -19,11 +21,17 @@ export async function sealWildzCardLocally(input: {
   payload: Uint8Array;
   filename: string;
   sealer: Pick<ReturnType<typeof createReceizOfflineSealer>, "seal">;
-  kind?: "card" | "vault" | "identity" | "map";
+  kind?: WildzGameImageKind;
   mapOwner?: string;
 }) {
   if (hasWildzCanonicalPngProof(input.payload)) throw new Error("wildz_existing_proof_must_be_reused_or_transitioned");
-  if (input.kind === "map") {
+  input = { ...input, payload: input.payload.slice() };
+  if (input.kind === "creation") {
+    const {pngBasis,trailer}=splitWildzPngEnvelope(input.payload),creation=readCreationImage(pngBasis);
+    if (!input.mapOwner || !sameWildzPlayerCoordinate(creation.checkpoint.instances[0]!.ownerId,input.mapOwner)) throw new Error("wildz_proof_object_owner_mismatch");
+    if (!await verifyCreationImageAssets(creation)) throw new Error("wildz_proof_object_creation_assets_invalid");
+    if (trailer.length) { const binding=await requireWildzIdentityBindingFromEnvelope(input.payload);if(!sameWildzPlayerCoordinate(binding.playerId,input.mapOwner))throw new Error("wildz_proof_object_owner_mismatch"); }
+  } else if (input.kind === "map") {
     readWildsMapFromPng(input.payload);
   } else if (input.kind === "identity") {
     await readReceizIdentityArtifact(input.payload);

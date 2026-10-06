@@ -1,3 +1,4 @@
+import {readBoundedRequestText,RequestBodyTooLargeError} from '@/lib/http/read-bounded-body';
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveWildzCookieActor } from '@/lib/receiz/wildz-cookie-actor';
 import { readWildzProofSessionCookie } from '@/lib/receiz/wildz-proof-session';
@@ -16,7 +17,7 @@ export const maxDuration=30;
 const reply=(body:unknown,status=200)=>NextResponse.json(body,{status,headers:{'cache-control':'no-store'}});
 export async function POST(request:NextRequest){
  try {
-  const text=await request.text();if(text.length>1048576)return reply({status:'blocked',reason:'Creation request too large.'},413);
+  const text=await readBoundedRequestText(request,1048576);
   const input=JSON.parse(text) as CreationPlannerRequest & {cards:PortableCardAsset[];cardAdmissions:Record<string,unknown>;lots:WildsMaterialLotV1[]};assertCreationData(input);
   const actor=await resolveWildzCookieActor(request);if(input.actorId!==actor.actorId)return reply({status:'blocked',reason:'Creation owner changed.'},403);
   let proofSession:ReturnType<typeof readWildzProofSessionCookie>|null=null;try{proofSession=readWildzProofSessionCookie(request);}catch{}
@@ -29,5 +30,5 @@ export async function POST(request:NextRequest){
   const budget=Object.fromEntries(Object.entries(input.context.budget).map(([kind,ceiling])=>[kind,Math.min(ceiling,carried[kind]||0)]));
   const authenticated={requestId:input.requestId,actorId:actor.actorId,message:input.message,selected:input.selected,workers,context:{...input.context,budget,techniques:[...new Set(workers.flatMap(w=>w.techniques))]}};
   return reply(await planCreation(authenticated,createReceizCreationPlanner(actor),request.signal));
- }catch(error){return reply({status:'unavailable',reason:error instanceof Error&&error.message.startsWith('receiz_')?'Connect your authenticated Wildz account to use the creation planner.':'The creation planner could not accept this request. Your draft is saved.'},422);}
+ }catch(error){if(error instanceof RequestBodyTooLargeError)return reply({status:'blocked',reason:'Creation request too large.'},413);return reply({status:'unavailable',reason:error instanceof Error&&error.message.startsWith('receiz_')?'Connect your authenticated Wildz account to use the creation planner.':'The creation planner could not accept this request. Your draft is saved.'},422);}
 }
