@@ -3098,7 +3098,7 @@ export function PlayCampaign({
 
             {creationOpen && liveCreationContext ? <CreationSession
               key={`${ownerReceizId}:${state.siteSpace.spaceId}`}
-              ownerId={ownerReceizId} spaceId={state.siteSpace.spaceId} cards={crewCards} conditions={state.adventureConditions}
+              displayName={playerDisplayName} ownerId={ownerReceizId} spaceId={state.siteSpace.spaceId} cards={crewCards} conditions={state.adventureConditions}
               objectLibrary={creationLibrary} classes={creationPanelClasses} lots={availableMaterialLots} context={liveCreationContext} commit={creationController?.commit} objects={Object.values(creationPhysical.instances).flatMap(instance=>creationPhysical.definitions[instance.definitionDigest]?[{instance,definition:creationPhysical.definitions[instance.definitionDigest]}]:[])}
               cardAdmissions={creationCardAdmissions}
               onMovementInput={dispatchWorldInput} headingRef={cameraHeadingRef} onPlacementModeChange={setCreationPlacing}

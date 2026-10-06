@@ -1,7 +1,7 @@
 export type CreationPoint = Readonly<{ x: number; y: number; z: number }>;
 export type CreationPose = Readonly<{ position: CreationPoint; yaw: number }>;
 export type CreationResourceBudget = Readonly<Record<string, number>>;
-export type CreationShape = Readonly<{ kind: 'box' | 'shell' | 'extrusion' | 'sweep' | 'arch' | 'catalog'; width: number; height: number; depth: number; thickness?: number; piece?: string; points?: readonly CreationPoint[]; doorway?: Readonly<{ width: number; height: number }> }>;
+export type CreationShape = Readonly<{ kind: 'box' | 'cylinder' | 'ellipsoid' | 'shell' | 'extrusion' | 'sweep' | 'arch' | 'catalog'; width: number; height: number; depth: number; thickness?: number; piece?: string; points?: readonly CreationPoint[]; doorway?: Readonly<{ width: number; height: number }> }>;
 export type CreationBehavior = Readonly<{ id: string; version: number; parameters: Readonly<Record<string, number | string | boolean>> }>;
 export type CreationNode = Readonly<{ id: string; parentId: string | null; pose: CreationPose; shape: CreationShape; material: string; attachments: readonly string[]; supports: readonly string[]; behaviors: readonly CreationBehavior[] }>;
 export type CreationAssetRef = Readonly<{ digest: string; kind: 'mesh' | 'texture'; bytes: number; vertices: number; triangles: number; uri: string }>;

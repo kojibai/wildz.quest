@@ -23,7 +23,7 @@ export function validateCreationBasis(value: Omit<CreationDefinition,'digest'>):
   for (const n of value.nodes) {
     if (!id(n.id) || ids.has(n.id) || !n.pose || !point(n.pose.position) || !Number.isFinite(n.pose.yaw) || !id(n.material)) fail(); ids.add(n.id);
     const s=n.shape;
-    if (!s || !['box','shell','extrusion','sweep','arch','catalog'].includes(s.kind) || ![s.width,s.height,s.depth].every(positive) || (s.thickness!==undefined && (!positive(s.thickness)||s.thickness>=Math.min(s.width,s.height,s.depth)/2))) fail();
+    if (!s || !['box','cylinder','ellipsoid','shell','extrusion','sweep','arch','catalog'].includes(s.kind) || ![s.width,s.height,s.depth].every(positive) || (s.thickness!==undefined && (!positive(s.thickness)||s.thickness>=Math.min(s.width,s.height,s.depth)/2))) fail();
     if (s.doorway && (!positive(s.doorway.width)||!positive(s.doorway.height)||s.doorway.width>=s.width||s.doorway.height>=s.height)) fail();
     if (s.points && (s.points.length>CREATION_PAGE_SIZE || !s.points.every(point))) fail();
     if (s.kind==='catalog' && !id(s.piece)) fail();

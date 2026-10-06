@@ -1,3 +1,4 @@
+import { creationRenderUploadBytes } from './render-geometry';
 import type { CreationChunk } from './compiler';
 import type { CreationResidencyBudget, CreationResidentChunk } from './chunks';
 import { validateCreationResidencyBudget } from './residency';
@@ -41,7 +42,7 @@ export function createCreationUploadScheduler(input: Readonly<{
             const jobs = chunks.map(chunk => {
                 if (!(chunk.positions instanceof Float32Array) || !(chunk.normals instanceof Float32Array) || chunk.positions.length !== chunk.normals.length || chunk.positions.length % 9)
                     throw Error('creation_upload_geometry_invalid');
-                const bytes = chunk.positions.byteLength + chunk.normals.byteLength;
+                const bytes = creationRenderUploadBytes(chunk);
                 if (bytes > budget.maximumUploadBytesPerPaint)
                     throw Error('creation_upload_page_too_large');
                 return { key, chunk, bytes };

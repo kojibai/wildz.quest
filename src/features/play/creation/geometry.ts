@@ -1,3 +1,4 @@
+import { deriveCreationCurvedGeometry } from './curved-geometry';
 import { createWildsBlueprintPreview, previewWildsBlueprintPlacement, WILDS_CONSTRUCTION_CATALOG } from '../wilds-world-construction';
 import type { CreationNode, CreationPoint, CreationPose } from './types';
 export type CreationBounds=Readonly<{min:CreationPoint;max:CreationPoint}>;
@@ -11,6 +12,7 @@ export function overlapsCreationSolids(a:CreationSolid,b:CreationSolid):boolean 
 const corners=[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]];
 const faces=[[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,4,7],[0,7,3],[1,2,6],[1,6,5],[3,7,6],[3,6,2],[0,1,5],[0,5,4]];
 export function deriveCreationGeometry(n:CreationNode,pose:CreationPose) {
+ if(n.shape.kind==='cylinder'||n.shape.kind==='ellipsoid')return deriveCreationCurvedGeometry(n,pose);
  const shape=n.shape,w=shape.width,h=shape.height,d=shape.depth,t=shape.thickness||.15;
  const solids:CreationSolid[]=[],walkable:CreationSurface[]=[],interiors:CreationBounds[]=[],connections:CreationConnection[]=[];
  const transform=(p:CreationPoint):CreationPoint=>({x:pose.position.x+p.x*Math.cos(pose.yaw)+p.z*Math.sin(pose.yaw),y:pose.position.y+p.y,z:pose.position.z-p.x*Math.sin(pose.yaw)+p.z*Math.cos(pose.yaw)});

@@ -52,7 +52,8 @@ function isImmutableShellAsset(pathname) {
     || pathname.startsWith("/zk/")
     || pathname.startsWith("/_next/static/")
     || pathname.startsWith("/brand/")
-    || pathname.startsWith("/icons/");
+    || pathname.startsWith("/icons/")
+    || /^\/materials\/creation\/(?:wood|stone)-(?:diff|normal|rough)-(?:256|512)\.webp$/.test(pathname);
 }
 
 function isWildzAudio(pathname) {

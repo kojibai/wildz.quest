@@ -1,3 +1,4 @@
+import { creationRenderUploadBytes } from './render-geometry';
 import type { CreationPhysicalSnapshot } from './physical-store';
 import type { CreationPhysicalProjection } from './projection';
 import type { CreationResidencyBudget, CreationPageRef } from './chunks';
@@ -65,7 +66,7 @@ export function createCreationSceneRuntime(input: {
                     pageSources.set(chunk.id, { projection, chunk });
                     const dependencies = [...new Set(chunk.nodeIds.flatMap(id => { const n = nodes.get(id); if (!n)
                             throw Error('creation_scene_node_missing'); return [...n.supports, ...(n.parentId ? [n.parentId] : [])].map(id => ownerPages.get(id)).filter((id): id is string => !!id && id !== chunk.id); }))];
-                    refs.push({ pageId: chunk.id, head: projection.head, worldId: projection.worldId, spaceId: projection.spaceId, bounds: chunk.bounds, nodeIds: chunk.nodeIds, dependencies, vertices: chunk.positions.length / 3, drawCalls: chunk.materials.length, textureBytes: 0, uploadBytes: chunk.positions.byteLength + chunk.normals.byteLength });
+                    refs.push({ pageId: chunk.id, head: projection.head, worldId: projection.worldId, spaceId: projection.spaceId, bounds: chunk.bounds, nodeIds: chunk.nodeIds, dependencies, vertices: chunk.positions.length / 3, drawCalls: chunk.materials.length, textureBytes: 0, uploadBytes: creationRenderUploadBytes(chunk) });
                 }
             }
             pages = createCreationPageIndex(refs);

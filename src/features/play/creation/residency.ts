@@ -115,5 +115,5 @@ export function deriveCreationResidencyBudget(profile: WildsQualityProfile, usag
     if (Object.values(usage).some(n => !Number.isSafeInteger(n) || n < 0))
         throw Error('creation_scene_usage_invalid');
     const tier = profile.tier === 'low' ? 1 : profile.tier === 'medium' ? 2 : 4;
-    return { maximumPages: 4 * tier, maximumVertices: Math.min(24000 * tier, Math.max(0, profile.maxTriangles - usage.triangles) * 3), maximumDrawCalls: Math.min(12 * tier, Math.max(0, profile.maxDrawCalls - usage.drawCalls)), maximumTextureBytes: Math.max(0, usage.maximumTextureBytes - usage.textureBytes), maximumUploadBytesPerPaint: 65536 * tier };
+    return { maximumPages: 4 * tier, maximumVertices: Math.min(24000 * tier, Math.max(0, profile.maxTriangles - usage.triangles) * 3), maximumDrawCalls: Math.min(12 * tier, Math.max(0, profile.maxDrawCalls - usage.drawCalls)), maximumTextureBytes: Math.max(0, usage.maximumTextureBytes - usage.textureBytes), maximumUploadBytesPerPaint: 98304 * tier };
 }

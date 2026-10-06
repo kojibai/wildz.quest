@@ -1,6 +1,7 @@
 'use client';
 import { memo, useCallback, useEffect, useMemo, useRef, useSyncExternalStore, type RefObject, type MutableRefObject } from 'react';
 import { createPortal } from 'react-dom';
+import { creationShelterStarterPrompt } from './starter-prompt';
 import { CreationPlacementControls } from './CreationPlacementControls';
 import type { PortableCardAsset } from '../portable-card';
 import type { WildsInput, PlayState } from '../game-state';
@@ -15,7 +16,7 @@ import { createCreationPreview, type CreationPreview } from './preview';
 import { WildsCreationPanel,type CreationPanelObject } from './WildsCreationPanel';
 import styles from './creation.module.css';
 import type {CreationObjectLibraryInput} from './library-session';
-export type CreationSessionProps={objectLibrary?:CreationObjectLibraryInput;classes?:Record<string,string>;objects?:readonly CreationPanelObject[];ownerId:string;spaceId:string;cards:readonly PortableCardAsset[];conditions:PlayState['adventureConditions'];lots:readonly WildsMaterialLotV1[];context:CreationCompileContext;cardAdmissions:Readonly<Record<string,unknown>>;onPreview:(preview:CreationPreview|null)=>void;onClose:()=>void;onManualBuild:()=>void;planner?:CreationPlannerPort;commit?:(definition:CreationDefinition,plan:CreationPlan,workerIds:readonly string[],selected?:CreationInstanceRef|null)=>Promise<CreationCommitResult>;placementRef?:MutableRefObject<((pose:CreationPose)=>void)|null>;headingRef?:RefObject<number>;onPlacementModeChange?:(active:boolean)=>void;onMovementInput?:(input:WildsInput)=>void};
+export type CreationSessionProps={displayName?:string;objectLibrary?:CreationObjectLibraryInput;classes?:Record<string,string>;objects?:readonly CreationPanelObject[];ownerId:string;spaceId:string;cards:readonly PortableCardAsset[];conditions:PlayState['adventureConditions'];lots:readonly WildsMaterialLotV1[];context:CreationCompileContext;cardAdmissions:Readonly<Record<string,unknown>>;onPreview:(preview:CreationPreview|null)=>void;onClose:()=>void;onManualBuild:()=>void;planner?:CreationPlannerPort;commit?:(definition:CreationDefinition,plan:CreationPlan,workerIds:readonly string[],selected?:CreationInstanceRef|null)=>Promise<CreationCommitResult>;placementRef?:MutableRefObject<((pose:CreationPose)=>void)|null>;headingRef?:RefObject<number>;onPlacementModeChange?:(active:boolean)=>void;onMovementInput?:(input:WildsInput)=>void};
 const subscribeToClient=()=>()=>{};
 const clientSnapshot=()=>true;
 const serverSnapshot=()=>false;
@@ -26,7 +27,8 @@ function CreationSession(input:CreationSessionProps){
  const planner=useMemo<CreationPlannerPort>(()=>input.planner||{async propose(request,signal){const selectedCards=input.cards.filter(card=>request.workers.some(w=>w.assetId===card.id));const response=await fetch('/api/wilds/creation/propose',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...request,cards:selectedCards,cardAdmissions:input.cardAdmissions,lots:input.lots}),signal});const result=await response.json() as CreationPlannerResult;if(result.status!=='proposed')throw Error(result.reason);return result.proposal;}},[input.planner,input.cards,input.cardAdmissions,input.lots]);
  const library=input.objectLibrary;
  const restoreObject=useCallback(async (ref:CreationInstanceRef)=>{if(!library||library.scope.actorId!==input.ownerId)return null;const entry=await library.port.read(library.scope,ref.instanceId);if(!entry||entry.status!=='owned'||!entry.artifact)return null;const instance=entry.artifact.payload.checkpoint.instances[0],definition=entry.artifact.payload.checkpoint.definitions.find(d=>d.digest===instance.definitionDigest);return definition?{definition,instance,custodyOwnerId:library.scope.actorId}:null;},[library,input.ownerId]);
- const conversation=useCreationConversation({ownerId:input.ownerId,spaceId:input.spaceId,workers,context:input.context,planner,restoreObject,commit:input.commit?async (plan,definition,workerIds,selected)=>input.commit!(definition,plan,workerIds,selected):undefined});
+ const starterPrompt=useMemo(()=>creationShelterStarterPrompt({displayName:input.displayName,pose:input.context.pose}),[input.displayName,input.context.pose]);
+ const conversation=useCreationConversation({starterPrompt,ownerId:input.ownerId,spaceId:input.spaceId,workers,context:input.context,planner,restoreObject,commit:input.commit?async (plan,definition,workerIds,selected)=>input.commit!(definition,plan,workerIds,selected):undefined});
  const place=conversation.change;
  useEffect(()=>{if(!input.placementRef)return;input.placementRef.current=pose=>place({type:'placement',pose});return ()=>{if(input.placementRef)input.placementRef.current=null;};},[input.placementRef,place]);
  const counts=useMemo(()=>input.lots.reduce<Record<string,number>>((counts,lot)=>({...counts,[lot.kind]:(counts[lot.kind]||0)+lot.quantity}),{hay:0,timber:0,stone:0}),[input.lots]);
