@@ -28,6 +28,7 @@ function statusFor(error: string) {
   if (error === "receiz_authority_required" || error === "receiz_identity_key_required") return 401;
   if (error === "wildz_proof_object_seal_timeout") return 504;
   if (error === "wildz_proof_object_continuity_invalid") return 502;
+  if (error.startsWith("creation_image_")) return 400;
   if (error.startsWith("wildz_restore_")) return 400;
   if (error.startsWith("wildz_proof_object_")) return 400;
   return 502;
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
     const multipartKind = uploaded.form?.get("kind");
     const headerKind = request.headers.get("x-wildz-proof-kind");
     const kind = multipartKind ?? headerKind;
-    if (kind !== "card" && kind !== "vault" && kind !== "map" && kind !== "identity") {
+    if (kind !== "card" && kind !== "vault" && kind !== "map" && kind !== "identity" && kind !== "creation") {
       return json("wildz_proof_object_request_invalid", 400);
     }
     const actor = await resolveWildzCookieActor(request);

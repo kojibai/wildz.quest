@@ -1,9 +1,11 @@
 import { applyWildsInput, initialPlayState } from "../src/features/play/game-state";
 import assert from "node:assert/strict";
 import { it } from "node:test";
+import * as THREE from "three";
 import { constructionProofDigest, createWildsConstructionProject } from "../src/features/play/wilds-construction-project";
 import { createWildsConstructionComponent, createWildsMaterialContribution, createWildsWorkContribution, projectWildsConstructionProgress } from "../src/features/play/wilds-construction-component";
 import { createWildsBlueprintPreview, previewWildsBlueprintPlacement } from "../src/features/play/wilds-world-construction";
+import * as functions from "../src/features/play/wilds-construction-function";
 import { resolveWildsConstructionFunction, verifyWildsConstructionFunctionSource } from "../src/features/play/wilds-construction-function";
 import { createWildsStewardTool, createWildsStewardToolOperation, createWildsStewardPhiAward, reviseWildsStewardToolAfterUse, verifyWildsStewardTool, type WildsMaterialLotV1 } from "../src/features/play/wilds-steward-construction";
 import { initialWildsWorldProjection, reduceWildsWorldEvent } from "../src/features/play/wilds-world-state";
@@ -15,11 +17,11 @@ function lot(index: number, kind: WildsMaterialLotV1["kind"]): WildsMaterialLotV
   const basis = { schema: "wildz.material-lot.v1" as const, lotId: `wildz:material:${kind}:${index.toString(16).padStart(64,"0")}`, kind, quantity: 1 as const, quality: 1 as const, ownerReceizId: "owner", source: { sourceId: "source:test", sourceHead: `sha256:${"a".repeat(64)}`, admittedSourceHead: `sha256:${"b".repeat(64)}`, kaiUPulse: 1 }, contributors: { explorerReceizId: "owner" }, authority: "source-proof-object" as const };
   return { ...basis, head: constructionProofDigest(basis) };
 }
-function fixture(kind: "workshop" | "storage" | "bed", amount: number) {
+function fixture(kind: "workshop" | "storage" | "bed", amount: number, rotationQuarterTurns = 0) {
   const project = createWildsConstructionProject({ ownerReceizId: "owner", name: "Functions", region: { x: 0, z: 0 }, kaiUPulse: 1 });
   const base = createWildsBlueprintPreview("blueprint:test", "wildz.excavation.region.v1:0:0");
   const foundation = previewWildsBlueprintPlacement({ blueprint: base, kind: "foundation", pointer: { x: 2, y: 0, z: 2 }, rotationQuarterTurns: 0, heightStep: 0, physical: { terrainY: 0, waterline: null, anchors: [], solids: [] } });
-  const evidence = { sourceBlueprint: { ...base, pieces: [foundation] }, pointer: { x: 2, y: .6, z: 2 }, rotationQuarterTurns: 0, heightStep: 0, surfaceSnap: true, physical: { terrainY: 0, waterline: null, anchors: foundation.anchors, solids: foundation.collisionSolids } };
+  const evidence = { sourceBlueprint: { ...base, pieces: [foundation] }, pointer: { x: 2, y: .6, z: 2 }, rotationQuarterTurns, heightStep: 0, surfaceSnap: true, physical: { terrainY: 0, waterline: null, anchors: foundation.anchors, solids: foundation.collisionSolids } };
   const component = createWildsConstructionComponent({ project, evidence, placement: previewWildsBlueprintPlacement({ blueprint: evidence.sourceBlueprint, kind, ...evidence }), ownerReceizId: "owner", kaiUPulse: 2 });
   let index = 0;
   const lots = component.recipe.stages.flatMap(stage => (["hay", "timber", "stone"] as const).flatMap(k => Array.from({length: stage.materials[k]}, () => lot(++index, k))));
@@ -81,8 +83,11 @@ it("resting in a completed nearby bed restores more energy and rejects distant o
   const bed = resolveWildsConstructionFunction(world, component.componentId, "bed")!;
   const state = { ...structuredClone(initialPlayState), energy: 10, player: { x: bed.position.x, z: bed.position.z } };
   state.siteSpace = { ...state.siteSpace, position: { ...state.siteSpace.position, y: bed.position.y } };
-  assert.equal(applyWildsInput(state, { type: "rest" }).energy, 45);
-  assert.equal(applyWildsInput(state, { type: "rest", bed }).energy, 65);
+  const camp=applyWildsInput(state,{type:"rest",kaiUPulse:100_000_000});
+  const restingBed=applyWildsInput(state,{type:"rest",bed,kaiUPulse:100_000_000});
+  assert.equal(camp.energy,10);assert.equal(restingBed.energy,10);
+  const later=200_000_000;
+  assert.ok(applyWildsInput(restingBed,{type:"energy-tick",kaiUPulse:later}).energy>applyWildsInput(camp,{type:"energy-tick",kaiUPulse:later}).energy);
   const distant = { ...state, player: { x: 100, z: 100 } };
   assert.equal(applyWildsInput(distant, { type: "rest", bed }), distant);
   assert.equal(applyWildsInput(state, { type: "rest", bed: { ...bed, work: [] } }), state);
@@ -105,4 +110,107 @@ it("walking reuses immutable function authority but a changed custody map invali
   assert.ok(resolveWildsConstructionFunction(mutable, component.componentId, "workshop"));
   mutable.consumedMaterialLots = {};
   assert.equal(resolveWildsConstructionFunction(mutable, component.componentId, "workshop"), null);
+});
+
+it("bed sleep requires the actual footprint and room, regardless of the bed owner", () => {
+  const canSleep = (functions as Record<string, unknown>).canSleepInWildsBed as (bed: unknown, player: { x: number; z: number }, space: typeof initialPlayState.siteSpace) => boolean;
+  assert.equal(typeof canSleep, "function");
+  const { world, component } = fixture("bed", 100);
+  const bed = resolveWildsConstructionFunction(world, component.componentId, "bed")!;
+  const player = { x: bed.position.x, z: bed.position.z };
+  const space = { ...initialPlayState.siteSpace, position: { ...bed.position } };
+  assert.equal(canSleep(bed, player, space), true);
+  assert.equal(canSleep(bed, { ...player, x: player.x + 2 }, space), false);
+  assert.equal(canSleep(bed, player, { ...space, spaceId: "other-room" }), false);
+  assert.equal(canSleep(bed, player, { ...space, position: { ...space.position, y: space.position.y + 1.2 } }), false);
+  assert.equal(canSleep({ ...bed, work: [] }, player, space), false);
+  const state = { ...structuredClone(initialPlayState), player, siteSpace: space, energy: 10 };
+  const sleeping = applyWildsInput(state, { type: "rest", bed, kaiUPulse: 100_000_000 });
+  assert.deepEqual(sleeping.playerBedRest, { componentId: component.componentId, componentHead: component.head, spaceId: space.spaceId });
+  assert.equal(sleeping.playerBreaths?.mode, "bed");
+  const awake = applyWildsInput(sleeping, { type: "wake", kaiUPulse: 110_000_000 });
+  assert.equal(awake.playerBreaths?.mode, "active");
+  assert.equal(awake.playerBedRest, undefined);
+  assert.ok(awake.energy > sleeping.energy);
+  const walking = applyWildsInput(sleeping, { type: "move-vector", x: 1, z: 0, kaiUPulse: 110_000_000 });
+  assert.equal(walking.playerBreaths?.mode, "active");
+  assert.equal(walking.playerBedRest, undefined);
+});
+
+it("sleep pose follows every bed rotation and lies face up along the mattress", () => {
+  for (const quarter of [0, 1, 2, 3]) {
+    const { world, component } = fixture("bed", 100, quarter);
+    const bed = resolveWildsConstructionFunction(world, component.componentId, "bed")!;
+    const pose = functions.projectWildsBedSleepPose(bed, bed.position, bed.position.y);
+    const rotation = new THREE.Euler(pose.pitch, pose.heading, 0, "YXZ");
+    const torso = new THREE.Vector3(0, 1, 0).applyEuler(rotation);
+    const face = new THREE.Vector3(0, 0, -1).applyEuler(rotation);
+    const pillowDirection = new THREE.Vector3(-1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), quarter * Math.PI / 2);
+    assert.ok(Math.abs(torso.y) < .00001, "body is horizontal");
+    assert.ok(face.y > .99999, "face looks upward");
+    assert.ok(torso.dot(pillowDirection) > .99999, "head follows the pillow");
+    assert.ok(pose.position[1] > bed.component.placement.geometry.halfExtents.y, "body clears the mattress");
+    assert.equal(functions.canSleepInWildsBed(bed, bed.position, { ...initialPlayState.siteSpace, position: bed.position }), true);
+  }
+});
+
+import { sealCollectedCard } from '../src/features/play/portable-card';
+import { startWildBattle } from '../src/features/play/battle-engine';
+import { settleWildBattleCard } from '../src/features/play/wild-battle-life';
+import { currentRevision } from '../src/features/play/living-card-proof';
+import { isLivingCardAsset } from '../src/features/play/living-card-types';
+
+function injuredRestFixture() {
+  const card = sealCollectedCard({ formId: 'mintcub-1', ownerReceizId: 'owner', encounterId: 'rest-recovery', capturedAt: '2026-10-01T12:00:00.000Z' });
+  const battle = startWildBattle({ encounterSeed: 'rest-injury', player: { assetId: card.id, name: card.manifest.name, ...card.manifest.stats, health: 100, currentHealth: 34 }, wild: { formId: 'voltray-1', name: 'Wild', health: 100, power: 10, guard: 10, speed: 10 } });
+  const injured = settleWildBattleCard(card, { ...battle, phase: 'captured' }, '2026-10-01T12:05:00.000Z');
+  if (!isLivingCardAsset(injured)) throw Error('fixture requires living card');
+  const startKai = Number(currentRevision(injured).kaiPulse) + 1;
+  const state = { ...structuredClone(initialPlayState), inventory: [injured], selectedAssetId: injured.id, selectedCardId: injured.manifest.familyId, pendingSyncAssetIds: [], energy: 20, adventureConditions: { [injured.id]: { ...initialPlayState.adventureConditions[initialPlayState.selectedAssetId], assetId: injured.id, fatigue: 50 } } };
+  return { injured, state, startKai };
+}
+
+for (const mode of ['camp', 'bed'] as const) {
+  for (const action of ['wake', 'move'] as const) {
+    it(`${action} settles visibly elapsed ${mode} companion recovery without a periodic tick`, () => {
+      const { injured, state, startKai } = injuredRestFixture();
+      const { world, component } = fixture('bed', 100);
+      const bed = resolveWildsConstructionFunction(world, component.componentId, 'bed')!;
+      state.player = { x: bed.position.x, z: bed.position.z };
+      state.siteSpace = { ...state.siteSpace, position: { ...bed.position } };
+      const resting = applyWildsInput(state, { type: 'rest', ...(mode === 'bed' ? { bed } : {}), kaiUPulse: startKai });
+      assert.equal(resting.inventory, state.inventory, 'entering rest does not heal immediately');
+      const endKai = startKai + 128_000_000;
+      const input = action === 'wake' ? { type: 'wake' as const, kaiUPulse: endKai } : { type: 'move-vector' as const, x: .1, z: 0, energyActivity: 'active' as const, kaiUPulse: endKai };
+      const awake = applyWildsInput(resting, input);
+      const recovered = awake.inventory[0];
+      if (!isLivingCardAsset(recovered)) throw Error('recovered living card required');
+      const units = mode === 'bed' ? 3 : 2;
+      assert.equal(currentRevision(recovered).growth.life?.vitality, 34 + units);
+      assert.equal(awake.adventureConditions[injured.id].fatigue, 50 - units);
+      assert.equal(awake.playerBreaths?.mode, 'active');
+      assert.equal(awake.playerBedRest, undefined);
+      assert.equal(awake.playerRestRecovery, undefined);
+      assert.ok(awake.pendingSyncAssetIds.includes(injured.id));
+      assert.ok(awake.energy > resting.energy);
+      assert.equal(currentRevision(recovered).kaiPulse, String(endKai));
+      const tickedThenAwake = applyWildsInput(applyWildsInput(resting, { type: 'energy-tick', kaiUPulse: endKai }), input);
+      assert.deepEqual(awake.inventory, tickedThenAwake.inventory);
+      assert.deepEqual(awake.adventureConditions, tickedThenAwake.adventureConditions);
+      const later = applyWildsInput(awake, { type: 'energy-tick', kaiUPulse: endKai + 128_000_000 });
+      assert.equal(later.inventory, awake.inventory, 'awake time grants no further recovery');
+      assert.equal(later.adventureConditions, awake.adventureConditions);
+    });
+  }
+}
+
+it('leaving rest consumes only complete recovery intervals and a new rest cannot reuse awake time', () => {
+  const { state, startKai, injured } = injuredRestFixture();
+  const camp = applyWildsInput(state, { type: 'rest', kaiUPulse: startKai });
+  const awake = applyWildsInput(camp, { type: 'wake', kaiUPulse: startKai + 63_000_000 });
+  assert.equal(awake.inventory, state.inventory);
+  const secondCamp = applyWildsInput(awake, { type: 'rest', kaiUPulse: startKai + 200_000_000 });
+  const shortRest = applyWildsInput(secondCamp, { type: 'wake', kaiUPulse: startKai + 201_000_000 });
+  assert.equal(shortRest.inventory, state.inventory);
+  assert.equal(shortRest.adventureConditions[injured.id].fatigue, 50);
 });

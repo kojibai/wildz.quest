@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { advanceCreationGarden, harvestCreationGarden, CREATION_GARDEN_RULES } from '../src/features/play/creation/garden';
+const empty = { planted: 0, waterUnits: 0, fertility: 50, produce: 0, lastGrowthKaiUPulse: 100 };
+test('one seed and water input cannot yield two harvests', () => { const planted = advanceCreationGarden(empty, 100, { seedUnits: 1, waterUnits: 1 }), grown = advanceCreationGarden(planted, 100 + CREATION_GARDEN_RULES.growthIntervalKaiUPulse, { seedUnits: 0, waterUnits: 0 }); const first = harvestCreationGarden(grown, 1); let totalProducedQuantity = first.quantity; assert.throws(() => harvestCreationGarden(first.garden, 1), /produce/); const repeated = advanceCreationGarden(first.garden, 100 + CREATION_GARDEN_RULES.growthIntervalKaiUPulse * 1000, { seedUnits: 0, waterUnits: 0 }); assert.equal(repeated.produce, 0); assert.equal(totalProducedQuantity, 1); assert.equal(first.garden.produce, 0); });
+test('garden growth requires actual seed, water and elapsed Kai time with bounded offline advancement', () => { const seed = advanceCreationGarden(empty, 100, { seedUnits: 1, waterUnits: 0 }); assert.equal(advanceCreationGarden(seed, 100 + CREATION_GARDEN_RULES.growthIntervalKaiUPulse * 1000, { seedUnits: 0, waterUnits: 0 }).produce, 0); assert.equal(advanceCreationGarden(empty, 100 + CREATION_GARDEN_RULES.growthIntervalKaiUPulse * 1000, { seedUnits: 0, waterUnits: 1 }).produce, 0); assert.throws(() => advanceCreationGarden(seed, 99, { seedUnits: 0, waterUnits: 1 }), /time/); assert.throws(() => advanceCreationGarden(seed, 100, { seedUnits: -1, waterUnits: 1 }), /input/); assert.equal(advanceCreationGarden(empty, 100, { seedUnits: 1, waterUnits: 1 }).produce, 0); });
+test('harvest rejects a malformed garden rather than yielding an unbounded resource', () => {
+    for (const state of [{ ...empty, produce: 1.5 }, { ...empty, produce: 257 }, { ...empty, planted: -1, produce: 1 }, { ...empty, fertility: 101, produce: 1 }, { ...empty, lastGrowthKaiUPulse: NaN, produce: 1 }])
+        assert.throws(() => harvestCreationGarden(state, 1), /state/);
+});

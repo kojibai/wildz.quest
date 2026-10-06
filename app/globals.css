@@ -17372,3 +17372,18 @@ html, body, body * {
 .wilds-message-notification-settings p { margin: 0; color: var(--messenger-muted); font-size: 12px; line-height: 1.5; }
 .wilds-message-notification-settings button { min-height: 36px; padding: 8px 10px; color: #071b24; font-size: 12px; background: #9df4d8; border: 0; border-radius: 10px; }
 .wilds-message-notification-settings button.wilds-message-notification-done { color: var(--messenger-muted); border: 1px solid var(--messenger-line); background: transparent; }
+
+/* Prompt placement clears the HUD; the creation session owns its icon and pad. */
+.wilds-stage.is-creation-placement > :not(.wilds-canvas-wrap) { visibility: hidden; pointer-events: none; }
+body:has(.wilds-stage.is-creation-placement) .wildz-pwa-notice { visibility: hidden; pointer-events: none; }
+
+.wildz-construction-home.wildz-quick-utilities { left:auto;inset-inline-start:auto;right:max(var(--wildz-bottom-home-gap),env(safe-area-inset-right));bottom:calc(max(var(--wildz-bottom-home-gap),env(safe-area-inset-bottom)) + clamp(72px,22vw,94px) + 8px);width:clamp(72px,22vw,94px);grid-template-columns:1fr;transform-origin:bottom right; }
+@media(max-height:560px) and (orientation:landscape){.wildz-construction-home.wildz-quick-utilities{bottom:calc(max(var(--wildz-bottom-home-gap),env(safe-area-inset-bottom)) + 78px + 8px);width:78px;}}
+@media(display-mode:standalone) and (pointer:coarse){@supports not (-webkit-touch-callout:none){.wildz-construction-home.wildz-quick-utilities{bottom:calc(max(56px,calc(env(safe-area-inset-bottom) + 12px)) + clamp(72px,22vw,94px) + 8px);}}}
+.wildz-construction-home.wildz-quick-utilities > button:not(.wildz-construction-control){width:44px;justify-self:center;}
+
+/* Keep utility pairs nearest the pad; an odd set starts with a left-aligned crew action. */
+.wildz-movement-home > .wildz-quick-utilities.has-odd-actions > .wildz-crew-control {
+  grid-column: 1 / -1;
+  justify-self: start;
+}

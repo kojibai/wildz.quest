@@ -1,3 +1,4 @@
+import {readCreationImage,verifyCreationImageAssets} from '../../features/play/creation/image';
 import { readReceizIdentityArtifact } from "@receiz/sdk";
 import { readWildsMapFromPng } from "../../features/play/wilds-map-image";
 import type { WildzGameImageKind } from "./wildz-game-image-export";
@@ -50,13 +51,14 @@ function safeSourceFilename(value: string) {
 }
 
 export function requireVerifiedWildzPng(
-  kind: "card" | "vault",
+  kind: "card" | "vault" | "creation",
   bytes: Uint8Array
 ) {
   if (!bytes.byteLength || bytes.byteLength > MAX_WILDZ_PROOF_OBJECT_BYTES) {
     throw new Error("wildz_proof_object_size_invalid");
   }
   bytes = splitWildzPngEnvelope(bytes).pngBasis;
+  if (kind === "creation") return readCreationImage(bytes).checkpoint.instances[0]!.ownerId;
   if (kind === "card") {
     const verified = verifyPortableCardPng(bytes);
     const proof = readPortableCardFromPng(bytes);
@@ -81,7 +83,7 @@ export function requireVerifiedWildzPng(
 }
 
 export function requireOwnedWildzPng(
-  kind: "card" | "vault",
+  kind: "card" | "vault" | "creation",
   bytes: Uint8Array,
   actor: WildzExportProofObjectActor
 ) {
@@ -99,6 +101,8 @@ export async function createWildzExportProofObject(input: {
   createProofObject: WildzExportProofObjectCreator;
   artifacts: WildzArtifactPort;
 }) {
+  input = { ...input, actor: { ...input.actor }, bytes: input.bytes.slice() };
+  if (input.kind === "creation" && !await verifyCreationImageAssets(readCreationImage(splitWildzPngEnvelope(input.bytes).pngBasis))) throw new Error("wildz_proof_object_creation_assets_invalid");
   if (input.kind === "map") readWildsMapFromPng(input.bytes);
   else if (input.kind === "identity") {
     const identity = await readReceizIdentityArtifact(input.bytes);

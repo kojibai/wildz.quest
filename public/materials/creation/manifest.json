@@ -1,0 +1,153 @@
+{
+  "schema": "wildz.creation-material-assets.v1",
+  "provider": "Poly Haven",
+  "credit": "Powered by Poly Haven",
+  "licenseUrl": "https://polyhaven.com/license",
+  "apiUsedForSelection": "https://github.com/Poly-Haven/Public-API",
+  "files": [
+    {
+      "file": "wood-diff-256.webp",
+      "role": "diff",
+      "resolution": 256,
+      "bytes": 20094,
+      "digest": "sha256:09487f6a130313d9abd536d31ec73e9be3962d7c72c3d52ea50903389e97d551",
+      "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor_deck/wood_floor_deck_diff_1k.jpg",
+      "sourceDigest": "sha256:1f2c623e87b0ee905f6f4ec8664dd19b4b135207c96e86198ff2919770b47166",
+      "assetUrl": "https://polyhaven.com/a/wood_floor_deck",
+      "author": "Dimitrios Savva",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "wood-diff-512.webp",
+      "role": "diff",
+      "resolution": 512,
+      "bytes": 75662,
+      "digest": "sha256:6f32c8f52d9d60534ece0e03b0b5603c01277bc8979b75f4c29d6b0aa30b2159",
+      "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor_deck/wood_floor_deck_diff_1k.jpg",
+      "sourceDigest": "sha256:1f2c623e87b0ee905f6f4ec8664dd19b4b135207c96e86198ff2919770b47166",
+      "assetUrl": "https://polyhaven.com/a/wood_floor_deck",
+      "author": "Dimitrios Savva",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "wood-normal-256.webp",
+      "role": "normal",
+      "resolution": 256,
+      "bytes": 64202,
+      "digest": "sha256:4575dfd3da4946442c34d75f943a1ae7ed6cfb902d8000ce10db414695ddaf28",
+      "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor_deck/wood_floor_deck_nor_gl_1k.jpg",
+      "sourceDigest": "sha256:2fa427b9196099c0ff72d1a1ab472e2a79ca2a76906a5c46d134f8a86e086d23",
+      "assetUrl": "https://polyhaven.com/a/wood_floor_deck",
+      "author": "Dimitrios Savva",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "wood-normal-512.webp",
+      "role": "normal",
+      "resolution": 512,
+      "bytes": 276098,
+      "digest": "sha256:2feac3ab5623b13b517b4a7c66ba2e1c58008b1519829da213a96ba7ad595a7a",
+      "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor_deck/wood_floor_deck_nor_gl_1k.jpg",
+      "sourceDigest": "sha256:2fa427b9196099c0ff72d1a1ab472e2a79ca2a76906a5c46d134f8a86e086d23",
+      "assetUrl": "https://polyhaven.com/a/wood_floor_deck",
+      "author": "Dimitrios Savva",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "wood-rough-256.webp",
+      "role": "rough",
+      "resolution": 256,
+      "bytes": 32900,
+      "digest": "sha256:6180c3928e29b02773fd0b9a3b44aea93af27bcb0539b23c268eb41af55290a2",
+      "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor_deck/wood_floor_deck_rough_1k.jpg",
+      "sourceDigest": "sha256:5754d2c2a91a288bb257e0fa8c697d97b48472c9fb77c4c7f0ffcc302f3f60a2",
+      "assetUrl": "https://polyhaven.com/a/wood_floor_deck",
+      "author": "Dimitrios Savva",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "wood-rough-512.webp",
+      "role": "rough",
+      "resolution": 512,
+      "bytes": 137160,
+      "digest": "sha256:cc8d0c58efa97ae9b8c3c913a22bb92a28001fc04033c87dadd3822be04c3e4f",
+      "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor_deck/wood_floor_deck_rough_1k.jpg",
+      "sourceDigest": "sha256:5754d2c2a91a288bb257e0fa8c697d97b48472c9fb77c4c7f0ffcc302f3f60a2",
+      "assetUrl": "https://polyhaven.com/a/wood_floor_deck",
+      "author": "Dimitrios Savva",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "stone-diff-256.webp",
+      "role": "diff",
+      "resolution": 256,
+      "bytes": 22942,
+      "digest": "sha256:8e1944f2b1816cfd0c667829b16d23c9f124f0019b6c7f5a775e339a42e70766",
+      "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_boulder_dry/rock_boulder_dry_diff_1k.jpg",
+      "sourceDigest": "sha256:20f653a42fb24f42aa40641663070d578678da49af18cc1049dbdd4ed8679f3c",
+      "assetUrl": "https://polyhaven.com/a/rock_boulder_dry",
+      "author": "Dimitrios Savva; Rico Cilliers",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "stone-diff-512.webp",
+      "role": "diff",
+      "resolution": 512,
+      "bytes": 85494,
+      "digest": "sha256:088f112f7495090973ef393027d47223e0a4e1fb4017a361580308d3c96c0784",
+      "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_boulder_dry/rock_boulder_dry_diff_1k.jpg",
+      "sourceDigest": "sha256:20f653a42fb24f42aa40641663070d578678da49af18cc1049dbdd4ed8679f3c",
+      "assetUrl": "https://polyhaven.com/a/rock_boulder_dry",
+      "author": "Dimitrios Savva; Rico Cilliers",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "stone-normal-256.webp",
+      "role": "normal",
+      "resolution": 256,
+      "bytes": 95674,
+      "digest": "sha256:313c593f6dc4f30df257fc054a901596d459f066fedb04ecdb3661293c784fc3",
+      "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_boulder_dry/rock_boulder_dry_nor_gl_1k.jpg",
+      "sourceDigest": "sha256:5915fea28a97357c78a04fb31c2516f1f7ed1b3a9cef4ae25aa93e4655e6c595",
+      "assetUrl": "https://polyhaven.com/a/rock_boulder_dry",
+      "author": "Dimitrios Savva; Rico Cilliers",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "stone-normal-512.webp",
+      "role": "normal",
+      "resolution": 512,
+      "bytes": 360448,
+      "digest": "sha256:20f9d58c7c173773838432d251740cf5ab0b8e2f5ae1213b43031e2011882a56",
+      "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_boulder_dry/rock_boulder_dry_nor_gl_1k.jpg",
+      "sourceDigest": "sha256:5915fea28a97357c78a04fb31c2516f1f7ed1b3a9cef4ae25aa93e4655e6c595",
+      "assetUrl": "https://polyhaven.com/a/rock_boulder_dry",
+      "author": "Dimitrios Savva; Rico Cilliers",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "stone-rough-256.webp",
+      "role": "rough",
+      "resolution": 256,
+      "bytes": 39512,
+      "digest": "sha256:a8f73a58cb8d11bd38e6a6ae712512f51b846e290625fd3b259ecc31698e4d37",
+      "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_boulder_dry/rock_boulder_dry_rough_1k.jpg",
+      "sourceDigest": "sha256:cc5229dd6bbdc4e817cb647e60242224b8e4f0237473ac018861ea243f2e8130",
+      "assetUrl": "https://polyhaven.com/a/rock_boulder_dry",
+      "author": "Dimitrios Savva; Rico Cilliers",
+      "license": "CC0-1.0"
+    },
+    {
+      "file": "stone-rough-512.webp",
+      "role": "rough",
+      "resolution": 512,
+      "bytes": 152938,
+      "digest": "sha256:21f7c49d41769c35dab716adc5076da49734406fbc90c98c1b5c9af94ec12fc4",
+      "sourceUrl": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_boulder_dry/rock_boulder_dry_rough_1k.jpg",
+      "sourceDigest": "sha256:cc5229dd6bbdc4e817cb647e60242224b8e4f0237473ac018861ea243f2e8130",
+      "assetUrl": "https://polyhaven.com/a/rock_boulder_dry",
+      "author": "Dimitrios Savva; Rico Cilliers",
+      "license": "CC0-1.0"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {creationInstanceFixture} from './support/creation-instance-fixtures';
+import {sealCreationInstance,type CreationNodeState} from '../src/features/play/creation/instance';
+import {stepCreationBehavior} from '../src/features/play/creation/behavior';
+function fixture(targetIds:readonly string[]=[]){const {head,...basis}=creationInstanceFixture();const node:CreationNodeState={kind:'logic',version:1,nodeId:'room',condition:100,supportIds:[],counter:0,limit:10,targetIds,consumedEventIds:[]};return sealCreationInstance({...basis,stage:'functional',nodeStates:{room:node}});}
+const event={eventId:'event:once',targetId:'room',kind:'activate' as const,value:true,kaiUPulse:2};
+test('viewing and empty behavior batches never append simulation work',()=>{const instance=fixture();const result=stepCreationBehavior(instance,[],64);assert.equal(result.status,'proposed');assert.equal(result.instance,instance);assert.equal(result.steps,0);assert.equal(result.writes,0);assert.equal(result.physical,false);});
+test('behavior rejects forbidden targets and cycles over the finite budget',()=>{const instance=fixture(['room']),missing=stepCreationBehavior(instance,[{...event,targetId:'missing'}],64);assert.equal(missing.status,'blocked');assert.equal(missing.instance,instance);const loop=stepCreationBehavior(instance,[event],64);assert.equal(loop.status,'blocked');assert.equal(loop.instance,instance);assert.match(loop.status==='blocked'?loop.reason:'',/budget|cycle/);});
+test('one causal trigger cannot repeat a counter effect or economic event',()=>{const instance=fixture(),first=stepCreationBehavior(instance,[event,event],64);assert.equal(first.status,'proposed');assert.equal(first.instance.nodeStates.room.kind,'logic');if(first.instance.nodeStates.room.kind==='logic')assert.equal(first.instance.nodeStates.room.counter,1);const second=stepCreationBehavior(first.instance,[event],64);assert.equal(second.status,'proposed');assert.equal(second.instance,first.instance);assert.equal(second.steps,0);});

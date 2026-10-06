@@ -1,3 +1,4 @@
+import { nearbyWildsConstruction } from "./wilds-construction-neighborhood";
 import { deeplyImmutable } from "./wilds-construction-geometry";
 import { projectWildsConstructionProgress, verifyWildsConstructionComponent, verifyWildsMaterialContribution, verifyWildsWorkContribution, type WildsConstructionComponentV1, type WildsConstructionMaterialContributionV1, type WildsConstructionWorkContributionV1 } from "./wilds-construction-component";
 import { verifyWildsStructure, type WildsStewardWorkbenchV1, type WildsStructureV1 } from "./wilds-steward-construction";
@@ -78,4 +79,37 @@ export function resolveWildsCraftWorkstation(world: WildsWorldProjection, id: st
 export function resolveWildsMaterialCache(world: WildsWorldProjection, id: string): WildsStructureV1 | WildsConstructionFunctionSource | null {
   const legacy = world.structures[id];
   return legacy && verifyWildsStructure(legacy) && legacy.blueprint === "trail-cache" ? legacy : resolveWildsConstructionFunction(world, id, "storage");
+}
+
+/** Only the real bed footprint in this physical space can offer sleep. */
+export function canSleepInWildsBed(bed: WildsConstructionFunctionSource, player: { x: number; z: number }, space: { spaceId: string; position: { y: number } }): boolean {
+  if (!verifyWildsConstructionFunctionSource(bed, "bed")) return false;
+  const box = bed.component.placement.geometry;
+  return (bed.component.evidence.spaceId ?? "wildz.space.outer.v1") === space.spaceId
+    && Math.abs(box.center.y - space.position.y) < .8
+    // A small reach at the mattress edge lets a grounded actor enter a solid bed.
+    && Math.abs(box.center.x - player.x) <= box.halfExtents.x + .4
+    && Math.abs(box.center.z - player.z) <= box.halfExtents.z + .4;
+}
+
+export function selectWildsBedAtPlayer(world: WildsWorldProjection, player: { x: number; z: number }, space: { spaceId: string; position: { y: number } }): WildsConstructionFunctionSource | null {
+  const candidates = nearbyWildsConstruction(world.constructionComponents, player, 2)
+    .filter(component => component.kind === "bed")
+    .sort((a, b) => Math.hypot(a.transform.position.x - player.x, a.transform.position.z - player.z)
+      - Math.hypot(b.transform.position.x - player.x, b.transform.position.z - player.z) || a.componentId.localeCompare(b.componentId));
+  for (const component of candidates) {
+    const bed = resolveWildsConstructionFunction(world, component.componentId, "bed");
+    if (bed && canSleepInWildsBed(bed, player, space)) return bed;
+  }
+  return null;
+}
+
+export type WildsBedSleepPose = Readonly<{ position: readonly [number, number, number]; heading: number; pitch: number }>;
+/** Local actor coordinates relative to the player's physical floor; proof geometry stays in world coordinates. */
+export function projectWildsBedSleepPose(bed: WildsConstructionFunctionSource, player: { x: number; z: number }, floorY: number): WildsBedSleepPose {
+  const angle = bed.component.transform.rotationQuarterTurns * Math.PI / 2;
+  const box = bed.component.placement.geometry;
+  return { position: [box.center.x - player.x + Math.cos(angle) * .72,
+    box.center.y + box.halfExtents.y + .22 - floorY, box.center.z - player.z - Math.sin(angle) * .72],
+    heading: angle - Math.PI / 2, pitch: Math.PI / 2 };
 }

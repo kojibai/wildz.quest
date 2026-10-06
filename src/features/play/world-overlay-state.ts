@@ -3,6 +3,7 @@ import type { WildsCommandKey } from "./WildsCommandDock";
 
 export type WorldOverlayOwner =
   | "none"
+  | "creation"
   | "map"
   | "trainer"
   | "combat"

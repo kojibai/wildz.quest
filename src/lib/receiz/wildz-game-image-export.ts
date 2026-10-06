@@ -1,6 +1,6 @@
 import { createReceizProofObjectArtifact } from "../../features/play/card-export";
 
-export type WildzGameImageKind = "card" | "vault" | "identity" | "map";
+export type WildzGameImageKind = "card" | "vault" | "identity" | "map" | "creation";
 
 /** All game-bearing PNG downloads use the enrolled official SDK v127 offline runtime. */
 export async function prepareWildzGameImage(input: {

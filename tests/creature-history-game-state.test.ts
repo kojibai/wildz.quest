@@ -1,3 +1,4 @@
+import {deriveKaiKlokMoment} from '../src/features/play/kai-klok-moment';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applyWildsInput, createOwnerBoundInitialPlayState } from "../src/features/play/game-state";
@@ -72,7 +73,7 @@ test("training writes level, XP, bond, and growth into only the exact selected c
   assert.equal(currentCreatureHistoryProjection(secondAfterBoth).xp, 40);
 });
 
-test("camp recovery persists the exact creature revision and history immediately", () => {
+test("elapsed camp recovery persists the exact creature revision and history", () => {
   const owner = "exact_history_healer";
   const capturedAt = "2026-08-11T10:00:00.000Z";
   const base = sealCollectedCard({
@@ -98,7 +99,8 @@ test("camp recovery persists the exact creature revision and history immediately
     pendingSyncAssetIds: []
   };
   const before = damaged.manifest.history?.events.length ?? 0;
-  const rested = applyWildsInput(state, { type: "rest", at: "2026-08-11T12:00:00.000Z" });
+  const camp=applyWildsInput(state,{type:"rest",kaiUPulse:deriveKaiKlokMoment({occurredAt:"2026-08-11T12:00:00.000Z",authority:"local"}).uPulse});
+  const rested=applyWildsInput(camp,{type:"energy-tick",kaiUPulse:camp.playerBreaths!.lastKaiUPulse+64_000_000});
   const recovered = rested.inventory[0]!;
   assert.ok(isLivingCardAsset(recovered));
   assert.equal(recovered.manifest.history?.events.length, before + 1);

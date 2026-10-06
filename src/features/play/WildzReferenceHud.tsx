@@ -45,9 +45,9 @@ export function WildzReferenceHud({ model, crewMapSource, remoteCrewMarkers, hea
           <b className="wildz-explorer-portrait-signature" />
         </div>
         <div>
-          <small>Explorer · Lv. {model.player.level}</small>
+          <small>Explorer · Lv. {model.player.level}{model.energy.breaths && model.energy.breaths.condition !== 'ready' ? ` · ${model.energy.breaths.condition}` : ''}</small>
           <strong>{explorerName}<i>✓</i></strong>
-          <span aria-label={`Explorer energy ${model.energy.current}%`} aria-valuemax={model.energy.maximum} aria-valuemin={0} aria-valuenow={model.energy.current} className="wildz-explorer-energy" role="progressbar"><i style={{ width: `${model.energy.current}%` }} /><b>{model.energy.current}%</b></span>
+          <span aria-label={`Explorer energy ${model.energy.current}%`} aria-valuemax={model.energy.maximum} aria-valuemin={0} aria-valuenow={model.energy.current} className="wildz-explorer-energy" title={model.energy.breaths ? `${model.energy.breaths.remainingDayBreaths.toLocaleString()} breaths left in this Kai day · ${model.energy.breaths.strainPercent.toFixed(0)}% strain · ${model.energy.breaths.fatiguePercent.toFixed(0)}% fatigue · ${model.energy.breaths.mode === 'bed' ? 'Sleeping in bed' : model.energy.breaths.mode === 'camp' ? 'Resting at camp' : model.energy.breaths.condition}` : undefined} aria-valuetext={model.energy.breaths ? `${model.energy.current}% ready, ${model.energy.breaths.remainingDayBreaths} breaths left today, ${model.energy.breaths.strainPercent.toFixed(0)}% strain, ${model.energy.breaths.fatiguePercent.toFixed(0)}% fatigue` : undefined} data-body-condition={model.energy.breaths?.condition} role="progressbar"><i style={{ width: `${model.energy.current}%` }} /><b>{model.energy.current}%</b></span>
         </div>
       </button>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, type MutableRefObject, type RefObject } from "react";
+import { useBuildGesture } from "./creation/use-build-gesture";
 import { Icons } from "@/components/icons";
 import type { WildzCardSort } from "./card-sort";
 import type { PlayState, WildsInput } from "./game-state";
@@ -41,6 +42,7 @@ function useStableEvent<Arguments extends unknown[]>(handler: (...args: Argument
 export function WildzWorldControls({
   capabilityControls: suppliedCapabilityControls,
   onBeginConstruction,
+  onOpenCreation,
   onOpenCrew,
   buildingActive=false,
   nearbyCards,
@@ -62,9 +64,10 @@ export function WildzWorldControls({
   onRequestedCommandHandled = ignore,
   onCardOrderChange,
   onInput,
-  onMovementModeChange,
+
   onSelectCard,
   onRest,
+  bedSleep,
   capabilityContexts,
   onRequestCapability = ignore,
   onAudioCue,
@@ -77,6 +80,7 @@ export function WildzWorldControls({
   onAerialToggle: _onAerialToggle
 }: {
   onBeginConstruction?:()=>void;
+  onOpenCreation?:()=>void;
   onOpenCrew?: () => void;
   buildingActive?:boolean;
   nearbyCards: readonly PortableCardAsset[];
@@ -101,6 +105,7 @@ export function WildzWorldControls({
   onMovementModeChange: (mode: WildsMovementMode) => void;
   onSelectCard: (assetId: string) => void;
   onRest: () => void;
+  bedSleep?: Readonly<{ sleeping: boolean; onToggle: () => void }>;
   capabilityControls?: readonly WildsProjectedCapabilityControl[];
   capabilityContexts?: ReadonlyMap<WildsWorldCapabilityFamily, WildsCapabilityContext>;
   onRequestCapability?: (family: WildsWorldCapabilityFamily) => void;
@@ -118,7 +123,7 @@ export function WildzWorldControls({
   const verticalIntentRef = suppliedVerticalIntentRef ?? fallbackVerticalIntentRef;
   const selectCard = useStableEvent(onSelectCard);
   const forwardInput = useStableEvent(onInput);
-  const changeMovementMode = useStableEvent(onMovementModeChange);
+  const toggleBedSleep = useStableEvent(bedSleep?.onToggle ?? ignore);
   const rest = useStableEvent(onRest);
   const requestHandled = useStableEvent(onRequestedCommandHandled);
   const drawerOriginRef = useRef<HTMLElement | null>(null);
@@ -207,12 +212,14 @@ export function WildzWorldControls({
   }, [overlayDispatch, worldHomesEnabled]);
   const handleOpenConstruction = useCallback(() => {
     if (!worldHomesEnabled) return;
+    if(onOpenCreation){onOpenCreation();return;}
     if(onBeginConstruction){onBeginConstruction();return;}
     overlayDispatch({ type: "panel", key: "construction" });
-  }, [onBeginConstruction, overlayDispatch, worldHomesEnabled]);
-  const handleMovementModeChange = useCallback(() => {
-    if (worldHomesEnabled) changeMovementMode(movementMode === "walk" ? "run" : "walk");
-  }, [changeMovementMode, movementMode, worldHomesEnabled]);
+  }, [onBeginConstruction, onOpenCreation, overlayDispatch, worldHomesEnabled]);
+  const buildGesture=useBuildGesture(handleOpenConstruction,gestureCancelSignal);
+  const handleBedSleep = useCallback(() => {
+    if (worldHomesEnabled && bedSleep) toggleBedSleep();
+  }, [bedSleep, toggleBedSleep, worldHomesEnabled]);
   const verticalControlsVisible = aerialMode === "flight" || aerialMode === "glide" || aquaticPresentation?.mode === "swim";
   const stopVerticalIntent = useCallback(() => {
     verticalIntentRef.current = 0;
@@ -297,22 +304,15 @@ export function WildzWorldControls({
   return (
     <section className={`wildz-world-controls${panelOpen ? " is-panel-open" : ""}${buildingActive ? " is-building" : ""}`} aria-label="World controls">
       <div aria-hidden={movementHomeBlocked} className="wildz-movement-home" inert={movementHomeBlocked ? true : undefined}>
-        <div className="wildz-quick-utilities" aria-label="Quick utilities">
+        <div className={`wildz-quick-utilities${(1 + (bedSleep ? 1 : 0) + capabilityControls.length) % 2 ? " has-odd-actions" : ""}`} aria-label="Quick utilities">
           {traversalCapabilities.includes("swim") || traversalCapabilities.includes("climb") ? (
             <div className="wildz-passive-capabilities" aria-label="Active companion passive abilities">
               {traversalCapabilities.includes("swim") ? <span role="img" aria-label="Automatic swimming" title="Your active companion can swim in deep water automatically."><Icons.swim aria-hidden="true" size={13} /></span> : null}
               {traversalCapabilities.includes("climb") ? <span role="img" aria-label="Automatic climbing" title="Your active companion can climb suitable terrain automatically."><Icons.climb aria-hidden="true" size={13} /></span> : null}
             </div>
           ) : null}
-          <button aria-label="Make camp and recover" disabled={!worldHomesEnabled} onClick={handleRest} type="button"><Icons.camp size={20} /></button>
-          <button
-            aria-label={movementMode === "walk" ? "Switch to running" : "Switch to walking"}
-            disabled={!worldHomesEnabled}
-            onClick={handleMovementModeChange}
-            type="button"
-          >
-            {movementMode === "walk" ? <Icons.walk size={21} /> : <Icons.run size={21} />}
-          </button>
+          <button aria-label="Open creature crew" className="wildz-crew-control" title="Creature crew" disabled={!worldHomesEnabled} onClick={onOpenCrew} type="button"><Icons.roam aria-hidden="true" size={21} /></button>
+          {bedSleep ? <button aria-label={bedSleep.sleeping ? "Wake up" : "Sleep in bed"} title={bedSleep.sleeping ? "Wake up" : "Sleep in bed"} disabled={!worldHomesEnabled} onClick={handleBedSleep} type="button"><Icons.sleep aria-hidden="true" size={20} /></button> : null}
           <WildsCapabilityControls
             activeAerialMode={aerialMode}
             contexts={capabilityContexts}
@@ -320,22 +320,6 @@ export function WildzWorldControls({
             enabled={worldHomesEnabled}
             onRequest={onRequestCapability}
           />
-          <button aria-label="Open creature crew" title="Creature crew" disabled={!worldHomesEnabled} onClick={onOpenCrew} type="button"><Icons.roam aria-hidden="true" size={21} /></button>
-          <button
-            aria-label={`Open Living Construction. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
-            className="wildz-construction-control"
-            disabled={!worldHomesEnabled}
-            onClick={handleOpenConstruction}
-            title="Living Construction"
-            type="button"
-          >
-            <span className="wildz-construction-label"><Icons.construction aria-hidden="true" size={16} />Build</span>
-            <span aria-hidden="true" className="wildz-construction-counts">
-              <b key={`hay-${materialCounts.hay}`}><Icons.products size={11} />{materialCounts.hay}</b>
-              <b key={`timber-${materialCounts.timber}`}><Icons.timber size={11} />{materialCounts.timber}</b>
-              <b key={`stone-${materialCounts.stone}`}><Icons.quarry size={11} />{materialCounts.stone}</b>
-            </span>
-          </button>
           {verticalControlsVisible ? <div aria-label="Vertical traversal controls" className="wildz-vertical-controls">
             <button
               aria-label={verticalReadout.layer === "water" ? "Ascend toward the water surface" : "Ascend"}
@@ -379,6 +363,25 @@ export function WildzWorldControls({
           movementMode={movementMode}
           onInput={handleInput}
         />
+      </div>
+
+      <div aria-hidden={movementHomeBlocked} className="wildz-construction-home wildz-quick-utilities" inert={movementHomeBlocked ? true : undefined}>
+          <button
+            aria-label={`${onOpenCreation ? "Create with creatures" : "Open Living Construction"}. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
+            className="wildz-construction-control"
+            disabled={!worldHomesEnabled}
+            {...buildGesture}
+            style={{touchAction:"none"}}
+            title={onOpenCreation ? "Create with creatures · tap or swipe up" : "Living Construction · tap or swipe up"}
+            type="button"
+          >
+            <span className="wildz-construction-label"><Icons.construction aria-hidden="true" size={16} />Build</span>
+            <span aria-hidden="true" className="wildz-construction-counts">
+              <b key={`hay-${materialCounts.hay}`}><Icons.products size={11} />{materialCounts.hay}</b>
+              <b key={`timber-${materialCounts.timber}`}><Icons.timber size={11} />{materialCounts.timber}</b>
+              <b key={`stone-${materialCounts.stone}`}><Icons.quarry size={11} />{materialCounts.stone}</b>
+            </span>
+          </button>
       </div>
 
       <div aria-hidden={toolsHomeBlocked} className="wildz-tools-home" inert={toolsHomeBlocked ? true : undefined}>

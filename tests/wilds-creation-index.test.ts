@@ -1,0 +1,7 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { createCreationSpatialIndex, selectCreationNeighborhood, creationRegionIds } from '../src/features/play/creation/index';
+import { creationSourceHead } from './support/creation-instance-fixtures';
+function entry(id: string, x: number, spaceId = 'surface') { const bounds = { min: { x, y: 0, z: 0 }, max: { x: x + 2, y: 2, z: 2 } }; return { instanceId: id, head: creationSourceHead, definitionDigest: creationSourceHead, worldId: 'wildz', spaceId, bounds, regionIds: creationRegionIds(bounds) }; }
+test('regional discovery selects nearby exact source references and isolates other spaces', () => { const index = createCreationSpatialIndex([entry('near', 0), entry('far', 100000), entry('cave', 0, 'cave'), ...Array.from({ length: 2000 }, (_, i) => entry(`distant:${i}`, 10000 + i * 32))]), query = { worldId: 'wildz', spaceId: 'surface', position: { x: 1, y: 0, z: 1 }, radius: 8, limit: 128 }; const result = selectCreationNeighborhood(index, query); assert.deepEqual(result.map(x => x.instanceId), ['near']); assert.equal(result[0], index.entries.get('near')); assert.throws(() => selectCreationNeighborhood(index, { ...query, radius: Infinity })); });
+test('oversized, malformed and conflicting index entries cannot create unbounded region work', () => { assert.throws(() => createCreationSpatialIndex([entry('same', 0), entry('same', 5)])); assert.throws(() => creationRegionIds({ min: { x: -1e9, y: 0, z: -1e9 }, max: { x: 1e9, y: 2, z: 1e9 } })); });

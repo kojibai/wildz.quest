@@ -109,6 +109,7 @@ export function createWildsCrewJournal(ownerSubjectId: string, database: WildzCo
           throw new Error("crew_journal_replay_conflict");
         return { event, replay: true };
       }
+      if (await tx.get<string>("meta", key("creation-lease", request.workerId))) throw new Error("crew_journal_creation_worker_reserved");
       if(jobSnapshot){
         const currentJob=await tx.get<WildsCrewJob>("meta",wildsCrewJobStorageKey(ownerSubjectId,"job",request.jobId));
         if(canonicalizeReceizV122(currentJob)!==canonicalizeReceizV122(jobSnapshot)

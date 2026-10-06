@@ -191,3 +191,16 @@ test("invalid message pushes do not display arbitrary notifications", async () =
   await worker.dispatchExtendable("push", { data: { json: () => ({ type: "wildz-message", title: "Untrusted" }) } });
   assert.equal(worker.notifications.length, 0);
 });
+
+test("creation surfaces remain available offline after first use without caching account artifacts", async () => {
+  let online=true,reads=0;
+  const worker=createWorkerHarness({release:RELEASE,fetch:async()=>{reads++;if(!online)throw Error("offline");return new Response("wood-map",{headers:{"content-type":"image/webp"}});}});
+  const request={method:"GET",mode:"cors",url:"https://wildz.quest/materials/creation/wood-normal-256.webp"};
+  assert.equal(await (await worker.dispatchFetch(request)).response?.text(),"wood-map");
+  online=false;
+  assert.equal(await (await worker.dispatchFetch(request)).response?.text(),"wood-map");
+  assert.equal(reads,1);
+  online=true;
+  await worker.dispatchFetch({...request,url:"https://wildz.quest/materials/creation/private-object.json"});
+  assert.equal(await worker.readCached(SHELL_CACHE,"/materials/creation/private-object.json"),undefined);
+});

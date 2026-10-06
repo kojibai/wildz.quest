@@ -17,9 +17,19 @@ import { composeWildsBurrowPhysical } from "./wilds-burrow";
 import { useWildsBurrowBuilder } from "./use-wilds-burrow-builder";
 import { WildsBurrowBuilderPanel } from "./WildsBurrowBuilderPanel";
 import { requestWildsDive } from "./wilds-vertical-traversal";
-import { resolveWildsConstructionFunction } from "./wilds-construction-function";
+import { canSleepInWildsBed, selectWildsBedAtPlayer, resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
+import type {CreationNavigation} from './creation/navigation';
+import type {CreationController} from "./creation/controller";
+import type {CreationObjectLibraryInput} from "./creation/library-session";
+import type {CreationPhysicalSnapshot} from "./creation/physical-store";
+import type { CreationPreview } from "./creation/preview";
+import {projectCreationCompilePhysical} from "./creation/compile-environment";
+import {projectPlayerBreathState} from "./player-breath-energy";
+import type { CreationCompileContext } from "./creation/compiler";
+import creationPanelClasses from "./creation/creation.module.css";
+const CreationSession=dynamic(()=>import("./creation/CreationSession"),{ssr:false});
 import { WildsVisitedSurface } from "./WildsVisitedSurface";
 import { buildWildsRoamingPresenceUploads, projectWildsRemoteRoamingMarkers, type WildsRoamingPresenceUpload } from "./wilds-roaming-presence";
 import { createWildsPlayStateSourceAdmission, retainWildsLocalPosition, admitWildsForwardPosition } from "./wilds-play-state-source";
@@ -52,7 +62,7 @@ import {
   type PlayState,
   type WildsInput
 } from "@/features/play/game-state";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
 import { sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
@@ -260,8 +270,12 @@ function groveReason(reason: string | undefined) {
   } as Record<string, string>)[reason ?? ""] ?? "The grove is not ready for this yet.";
 }
 const MortalArenaExperience = dynamic(() => import("@/features/games/mortal-arena/MortalArenaExperience").then((mod) => mod.MortalArenaExperience), { ssr: false });
+const EMPTY_CREATION_WORLD:Omit<CreationPhysicalSnapshot,'navigation'>&{navigation:null}=Object.freeze({revision:0,projections:[],navigation:null,instances:{},definitions:{}});
+const subscribeEmptyCreation=()=>()=>{};
 export function PlayCampaign({
   campaignName = "Reward Challenge",
+  creationController,
+  creationLibrary,
   enabled,
   interactionEnabled = true,
   networkEnabled,
@@ -294,6 +308,8 @@ export function PlayCampaign({
   onRestoreRoamingCapture
 }: {
   campaignName?: string;
+  creationController?:CreationController;
+  creationLibrary?:CreationObjectLibraryInput;
   enabled: boolean;
   interactionEnabled?: boolean;
   networkEnabled: boolean;
@@ -329,6 +345,15 @@ export function PlayCampaign({
     currentPlayState: PlayState
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
+  const creationPhysical=useSyncExternalStore(creationController?.subscribe||subscribeEmptyCreation,()=>creationController?.scope().ownerId===ownerReceizId?creationController.snapshot():EMPTY_CREATION_WORLD,()=>EMPTY_CREATION_WORLD);
+  const [creationScene,setCreationScene]=useState<{source:typeof creationPhysical;navigation:CreationNavigation|null}|null>(null);
+  const creationNavigation=creationScene?.source===creationPhysical?creationScene.navigation:null;
+  const handleCreationNavigation=useCallback((navigation:CreationNavigation|null)=>setCreationScene({source:creationPhysical,navigation}),[creationPhysical]);
+  const [creationOpen,setCreationOpen]=useState(false);
+  const [creationPlacing,setCreationPlacing]=useState(false);
+  const [creationPreview,setCreationPreview]=useState<CreationPreview|null>(null);
+  const creationPoint=useRef<((pose:CreationCompileContext["pose"])=>void)|null>(null);
+  const [creationContext,setCreationContext]=useState<CreationCompileContext|null>(null);
   const [state, setState] = useState(() => initialState);
   const crewPreferences = useMemo(() => sanitizeWildsCrewPreferences(state.crewPreferences, state.inventory, ownerReceizId, crewCustody), [state.crewPreferences, state.inventory, ownerReceizId, crewCustody]);
   const admittedSourceStateRef = useRef(initialState);
@@ -579,6 +604,7 @@ export function PlayCampaign({
   const [trainerEncounter, setTrainerEncounter] = useState<TrainerEncounterState | null>(null);
   const [kaiUPulse, setKaiUPulse] = useState(0);
   const kaiRuntimeClockRef = useRef<ReturnType<typeof createWildsKaiRuntimeClock> | null>(null);
+  const readActionKaiUPulse=useCallback(()=>kaiRuntimeClockRef.current?.read(performance.now(),observeWildsKaiUPulse())??observeWildsKaiUPulse(),[]);
   const worldProgression = projectWorldProgression(state.worldMastery);
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
@@ -672,7 +698,7 @@ export function PlayCampaign({
   }, [deckCards]);
   const nextHabitat = guideFamilies.find((family) => !discoveredByFamily.has(family.id))?.habitat ?? "the living frontier";
   const visibleGuideFamilies = guideFamilies.slice(0, 24);
-  const hudModel = projectWildzHud(state, { username: ownerReceizId, displayName: playerDisplayName });
+  const hudModel = projectWildzHud(state, { username: ownerReceizId, displayName: playerDisplayName },kaiUPulse);
   const cardAdmission = useMemo<WildzVaultCardMembershipProof | null>(() => {
     if (!activeAsset) return null;
     try {
@@ -681,6 +707,7 @@ export function PlayCampaign({
       return null;
     }
   }, [activeAsset, currentVaultAdmission]);
+  const creationCardAdmissions=useMemo(()=>creationOpen?Object.fromEntries(crewCards.map(card=>{try{return [card.id,createWildzVaultCardMembershipProof(currentVaultAdmission,card)];}catch{return [card.id,null];}})):{},[creationOpen,crewCards,currentVaultAdmission]);
   const roamingPresenceReader = useRef<() => readonly WildsRoamingPresenceUpload[]>(() => []);
   const multiplayer = useWildsMultiplayer({
     // Global presence is available to every internet-connected explorer.
@@ -775,6 +802,11 @@ export function PlayCampaign({
     exclusiveOriginRef,
     claimExclusiveOwner
   } = useWorldOverlayDirector({ dismissSignal: commandDismissSignal, exclusiveOwner: modalOwner });
+  const closeCreation=useCallback(()=>{setCreationOpen(false);setCreationPlacing(false);setCreationPreview(null);},[]);
+  const manualCreationAction=useRef(()=>{});
+  const openManualFromCreation=useCallback(()=>{setCreationOpen(false);setCreationPlacing(false);setCreationPreview(null);manualCreationAction.current();},[]);
+  useEffect(()=>{setCreationOpen(false);setCreationPlacing(false);setCreationPreview(null);},[ownerReceizId,state.siteSpace.spaceId]);
+  useEffect(()=>{if(modalOwner!=="none"){setCreationOpen(false);setCreationPlacing(false);setCreationPreview(null);}},[modalOwner]);
   const commandPanelOpen = modalOwner === "none" && worldOverlayState.panelKey !== null;
   const exclusiveOwner = commandPanelOpen ? "command" : modalOwner;
   useEffect(() => {
@@ -993,6 +1025,9 @@ export function PlayCampaign({
     [siteRegion.x, siteRegion.z, worldGeometry]
   );
   const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
+  const creationWorldHead=useMemo(()=>sha256PortableBasis(livingWorld.snapshot?.cursor?.eventId||'wilds:creation:unadmitted'),[livingWorld.snapshot?.cursor?.eventId]);
+  const creationCompilePhysical=useMemo(()=>projectCreationCompilePhysical({worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId,sourceHead:creationWorldHead,projections:creationPhysical.projections,obstacles:livingPhysicalObstacles,sites:sitePhysical}),[state.siteSpace.spaceId,creationWorldHead,creationPhysical.projections,livingPhysicalObstacles,sitePhysical]);
+  const liveCreationContext=useMemo(()=>creationContext?{...creationContext,spaceId:state.siteSpace.spaceId,sourceHead:creationWorldHead,physical:creationCompilePhysical}:null,[creationContext,state.siteSpace.spaceId,creationWorldHead,creationCompilePhysical]);
   const accompanyingCrew = useMemo(() => state.inventory.filter(card => card.id === state.selectedAssetId || state.supportAssetIds.includes(card.id)).slice(0, 3), [state.inventory, state.selectedAssetId, state.supportAssetIds]);
   const crewControlScope = useRef({ owner: ownerReceizId, inventory: state.inventory, custody: crewCustody });
   crewControlScope.current = { owner: ownerReceizId, inventory: state.inventory, custody: crewCustody };
@@ -1058,6 +1093,22 @@ export function PlayCampaign({
     mode: livingWorld.mode,
     cursor: livingWorld.snapshot?.cursor ?? null
   }), [kaiUPulse, livingWorld.mode, livingWorld.snapshot?.cursor]);
+  const livePlayerEnergy=useMemo(()=>projectPlayerBreathState({energy:state.energy,playerBreaths:state.playerBreaths},kaiMoment.uPulse),[state.energy,state.playerBreaths,kaiMoment.uPulse]);
+  const presentationState=useMemo(()=>({...state,...livePlayerEnergy}),[state,livePlayerEnergy]);
+  const energyActivity=aerialMode!=='ground'?aerialMode:verticalReadout.layer==='water'?'swim':'active';
+  // Persist elapsed energy on lifecycle/activity changes. The display clock is read-only.
+  useEffect(()=>{
+    if(!enabled)return;
+    // A suspended scene performs no swimming/flight work. Breathing and wake fatigue
+    // continue analytically; an existing camp or bed remains in its recovery mode.
+    const settle=(quiet=false)=>setState(current=>applyWildsInput(current,{type:'energy-tick',kaiUPulse:readActionKaiUPulse(),energyActivity:quiet?'active':energyActivity}));
+    const onVisibility=()=>settle(document.hidden);
+    const onPageHide=()=>settle(true);
+    onVisibility();
+    document.addEventListener('visibilitychange',onVisibility);
+    window.addEventListener('pagehide',onPageHide);
+    return ()=>{document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('pagehide',onPageHide);};
+  },[enabled,energyActivity,readActionKaiUPulse]);
   const roamingBattle = useWildsRoamingBattle({
     enabled: enabled && networkEnabled,
     selfId: multiplayer.selfId,
@@ -1452,6 +1503,18 @@ export function PlayCampaign({
   const unfinishedConstructionSites = useMemo(() => Object.values(livingWorld.snapshot?.constructionSites ?? {})
     .filter(site => site.stage !== "complete"), [livingWorld.snapshot?.constructionSites]);
   const nearbyFunctionalPieces = useMemo(() => ownedFunctionalPieces.filter(component => Math.hypot(component.transform.position.x - state.player.x, component.transform.position.z - state.player.z) <= 6), [ownedFunctionalPieces, state.player.x, state.player.z]);
+  const availableBed = useMemo(() => livingWorld.snapshot && !state.battle && aerialMode === "ground" && aquaticPresentation.mode !== "swim"
+    ? selectWildsBedAtPlayer(livingWorld.snapshot, state.player, state.siteSpace) : null,
+  [livingWorld.snapshot, state.battle, state.player, state.siteSpace, aerialMode, aquaticPresentation.mode]);
+  const sleepingInBed = Boolean(availableBed && state.playerBreaths?.mode === "bed" && state.playerBedRest?.componentId === availableBed.component.componentId && state.playerBedRest.componentHead === availableBed.head);
+  useEffect(() => {
+    // A physical source change is meaningful; display-clock ticks never publish this state.
+    if (!livingWorld.snapshot || state.playerBreaths?.mode !== "bed" || sleepingInBed) return;
+    const actionUPulse = readActionKaiUPulse();
+    setState(current => current.playerBreaths?.mode === "bed"
+      ? applyWildsInput(current, { type: "wake", kaiUPulse: actionUPulse }) : current);
+  }, [livingWorld.snapshot, sleepingInBed, state.playerBreaths?.mode, readActionKaiUPulse]);
+
   const nearbyStewardWorkbench = useMemo(() => ownedStructures.find(structure => structure.blueprint === "steward-workbench" && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6)
     ?? nearbyFunctionalPieces.filter(component => component.kind === "workshop").map(component => resolveWildsConstructionFunction(livingWorld.snapshot!, component.componentId, "workshop")).find(Boolean) ?? null, [livingWorld.snapshot, ownedStructures, nearbyFunctionalPieces, state.player.x, state.player.z]);
   const nearbyTrailCache = useMemo(() => ownedStructures.find(structure => structure.blueprint === "trail-cache" && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6)
@@ -1486,6 +1549,7 @@ export function PlayCampaign({
     continuousBuilder.begin(); continuousBuilder.selectKind(kind);
     dispatchStageOverlay({ type: "panel", key: null });
   };
+  manualCreationAction.current=()=>selectLivingBuildPiece(continuousBuilder.kind);
   const openLivingConstruction = (focus: "tools" | "storage" | null = null) => {
     continuousBuilder.close(); setConstructionFocus(focus);
     dispatchStageOverlay({ type: "panel", key: "construction" });
@@ -1792,8 +1856,9 @@ export function PlayCampaign({
     if (input.type === "select-asset") setNewRosterAssetId(null);
     // User actions share the live monotonic clock used by encounter timers;
     // the displayed pulse can lag those timers until its next UI update.
-    const actionUPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
-    const rootedInput = rootWildsInputInKai(input, actionUPulse);
+    const actionUPulse = readActionKaiUPulse();
+    const energyActivity=aerialStateRef.current.mode!=='ground'?aerialStateRef.current.mode:verticalTraversalRef.current.layer==='water'?'swim':'active';
+    const rootedInput = rootWildsInputInKai({...input,energyActivity}, actionUPulse);
     setState((current) => {
       const next = applyWildsInput(current, rootedInput);
       if (!current.completed && next.completed) {
@@ -1819,6 +1884,7 @@ export function PlayCampaign({
         siteDiscoveryOutput: siteDiscoveryOutputRef.current,
         structureSupports: livingStructureSupports,
         additionalObstacles: livingPhysicalObstacles,
+        creationNavigation:creationNavigation||undefined,
         aerialMode: airborne ? liveAerialMode : undefined,
         verticalClearance: verticalTraversalRef.current.offset,
         verticalWorldY: verticalTraversalRef.current.worldY
@@ -1936,6 +2002,11 @@ export function PlayCampaign({
       return;
     }
     const kind = plan.mode;
+    const body = projectPlayerBreathState(state, readActionKaiUPulse());
+    if (body.energy < (kind === "flight" ? 20 : plan.kind === "takeoff" ? 30 : 0)) {
+      showWorldFeedback("Your body needs rest before takeoff. Walking and directing creatures are still available.");
+      return;
+    }
     const begun = beginWildsAerialTraversal(aerialStateRef.current, {
       kind,
       capabilities: activeTraversalCapabilities
@@ -2013,7 +2084,7 @@ export function PlayCampaign({
           showWorldFeedback("Enter deep water first; the nearest deep-water edge is the dive route.");
           return;
         }
-        if (state.energy <= 0) { showWorldFeedback("You need energy to dive. Return to shore and make camp, then enter the water again.", true); return; }
+        if (livePlayerEnergy.energy <= 0) { showWorldFeedback("You need energy to dive. Return to shore and make camp, then enter the water again.", true); return; }
         const dive = requestWildsDive(verticalTraversalRef.current);
         if (!dive.ok) { showWorldFeedback(dive.reason, true); return; }
         setActiveWorldCapability("dive");
@@ -2148,7 +2219,7 @@ export function PlayCampaign({
   const pulse = nearbyEcology && (basePulse.kind === "scan" || basePulse.kind === "greet")
     ? { kind: "join" as const, label: `${nearbyEcology.site.phase === "foreshadowed" ? "Discover" : "Enter"} ${nearbyEcology.site.name}`, activityId: nearbyEcology.site.id }
     : basePulse;
-  const heartbeatMood = state.energy < 30 ? "Protective" : state.encounter.phase === "idle" ? "Curious" : "Alert";
+  const heartbeatMood = livePlayerEnergy.energy < 30 ? "Protective" : state.encounter.phase === "idle" ? "Curious" : "Alert";
   const heartbeatMemory = state.lastEvent || "Your pack remembers the first trail into the Wilds.";
   const heartbeatWhispers = [
     nearbyLivingBoss ? `${nearbyLivingBoss.name} is stirring nearby.` : null,
@@ -2159,7 +2230,7 @@ export function PlayCampaign({
     moment: kaiMoment,
     connected: livingWorld.mode === "receiz_live",
     worldRevision: livingWorld.snapshot?.revision ?? 0,
-    energy: state.energy,
+    energy: livePlayerEnergy.energy,
     creature: activeAsset ? {
       assetId: activeAsset.id,
       name: activeAsset.manifest.name,
@@ -2559,7 +2630,7 @@ export function PlayCampaign({
       status: `${state.beans} beans · ${state.fusionSparks} sparks`,
       content: (
         <div className="wilds-command-content wilds-satchel">
-          <WildzCommandInsight label="Trail preparation" value={`${state.energy} energy`} detail="Use what you gathered now; every action updates the same live explorer state used in the world.">
+          <WildzCommandInsight label="Trail preparation" value={`${Math.round(livePlayerEnergy.energy)}% energy`} detail="Use what you gathered now; every action updates the same live explorer state used in the world.">
             <button onClick={() => dispatch({ type: "rest", at: new Date().toISOString() })} type="button">Make camp</button>
             <button onClick={() => dispatch({ type: "train", at: new Date().toISOString() })} type="button">Train leader</button>
             <button aria-pressed={visualSettings.lanternEnabled} onClick={() => setVisualSettings(current => ({ ...current, lanternEnabled: !current.lanternEnabled }))} type="button">{visualSettings.lanternEnabled ? "Stow lantern" : "Equip lantern"}</button>
@@ -2753,7 +2824,7 @@ export function PlayCampaign({
       <div className="wilds-shell wilds-playable-shell">
         <div className="wilds-world" data-wilds-wallet-state={walletController.status}>
           <div
-            className={`wilds-stage${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${combatSurface === "pvp" ? " pvp-active" : ""}${multiplayerRosterOpen ? " multiplayer-roster-open" : ""}${combatSurface === "wild" ? " wild-battle-active" : ""}${commandPanelOpen ? " is-command-panel-open" : ""}${worldOverlayState.toolsOpen ? " is-world-tools-open" : ""}`}
+            className={`wilds-stage${creationPlacing ? " is-creation-placement" : ""}${state.encounter.phase === "hint" ? ` signal-${state.encounter.proximity}` : ""}${combatSurface === "pvp" ? " pvp-active" : ""}${multiplayerRosterOpen ? " multiplayer-roster-open" : ""}${combatSurface === "wild" ? " wild-battle-active" : ""}${commandPanelOpen ? " is-command-panel-open" : ""}${worldOverlayState.toolsOpen ? " is-world-tools-open" : ""}`}
             aria-label="Receiz Wilds playable 3D world"
             ref={gameplaySurfaceRef}
           >
@@ -2767,6 +2838,12 @@ export function PlayCampaign({
               activeWorkSource={activeWorkSource}
               stewardPlacementPreview={stewardPlacementPreview}
               burrowPreview={burrowBuilder.preview ? {...burrowBuilder.preview,blocker:burrowBuilder.blocker} : null}
+              creationPreview={creationPreview}
+              creationProjections={creationPhysical.projections}
+              creationNavigation={creationNavigation||undefined}
+              creationSource={creationPhysical}
+              creationWorldId={creationController?.scope().worldId||'wilds:global:v3'}
+              onCreationNavigation={handleCreationNavigation}
               constructionPreview={continuousBuilder.preview}
               constructionSelectionEnabled={continuousBuilder.selectionEnabled && worldInteractionEnabled}
               onSelectConstruction={continuousBuilder.selectComponent}
@@ -2782,7 +2859,7 @@ export function PlayCampaign({
               liftPotential={traversalPotentials.lift}
               pressurePotential={traversalPotentials.pressure}
               aquaticPresentation={aquaticPresentation}
-              state={state}
+              state={presentationState}
               character={character}
               remotePlayers={multiplayer.remotePlayers}
               qualityProfile={qualityProfile}
@@ -2792,7 +2869,7 @@ export function PlayCampaign({
               onAerialEnergyChange={setAerialEnergy}
               onVerticalReadoutChange={publishVerticalReadout}
               onCameraHeadingChange={updateCameraHeading}
-              searchEnabled={worldInteractionEnabled && (discoveryActive || Boolean(stewardPlacementMode) || continuousBuilder.open || burrowBuilder.open)}
+              searchEnabled={worldInteractionEnabled && (creationOpen || discoveryActive || Boolean(stewardPlacementMode) || continuousBuilder.open || burrowBuilder.open)}
               resourcePending={Boolean(livingWorld.pendingCommand)}
               resourceCompanionReady={Boolean(activeCondition && activeCondition.fatigue < 85 && activeCondition.injuries.length < 4)}
               livingWorld={livingWorld.snapshot}
@@ -2811,6 +2888,7 @@ export function PlayCampaign({
               trainers={sagaTrainers}
               onSelectTrainer={(trainer) => openTrainerEncounter(trainer, "world")}
               onSearchPoint={(point) => {
+                if(creationOpen){creationPoint.current?.({position:{x:point.x,y:point.surfaceWorldY,z:point.z},yaw:creationPreview?.plan.pose.yaw||0});return;}
                 if (burrowBuilder.open) { burrowBuilder.point(point); return; }
                 if (continuousBuilder.open) { continuousBuilder.point(point); return; }
                 if (stewardPlacementMode) {
@@ -2845,14 +2923,12 @@ export function PlayCampaign({
               if (kind !== "bed") { openLivingConstruction(kind === "workshop" ? "tools" : "storage"); return; }
               const selected = continuousBuilder.selected;
               const bed = selected && livingWorld.snapshot ? resolveWildsConstructionFunction(livingWorld.snapshot, selected.componentId, "bed") : null;
-              if (!bed || Math.hypot(bed.position.x - state.player.x, bed.position.z - state.player.z) > 2.5
-                || Math.abs(bed.position.y - state.siteSpace.position.y) >= 2
-                || (bed.component.evidence.spaceId ?? "wildz.space.outer.v1") !== state.siteSpace.spaceId) {
-                showWorldFeedback("Enter the room and move beside the finished bed to rest."); return;
+              if (!bed || !canSleepInWildsBed(bed, state.player, state.siteSpace)) {
+                showWorldFeedback("Move to the finished bed in this room to sleep."); return;
               }
               dispatch({ type: "rest", bed, at: kaiUPulseToISOString(kaiUPulse), kaiUPulse });
               continuousBuilder.close();
-              showWorldFeedback("Rested in bed. Energy and companion fatigue recover more than at an open camp.");
+              showWorldFeedback("Sleeping in bed. Breaths and companion fatigue recover as Kai time advances.");
             }} /> : null}
             {stewardPlacementPreview ? <WildsStewardPlacementHud
               blueprintLabel={stewardCraft.blueprints.find(blueprint => blueprint.id === stewardPlacementPreview.blueprintId)?.label ?? "Build"}
@@ -3020,7 +3096,21 @@ export function PlayCampaign({
               onRequestReceive={(amountPhiMicro) => { void walletController.requestReceive(amountPhiMicro); }}
             /> : null}
 
+            {creationOpen && liveCreationContext ? <CreationSession
+              key={`${ownerReceizId}:${state.siteSpace.spaceId}`}
+              displayName={playerDisplayName} ownerId={ownerReceizId} spaceId={state.siteSpace.spaceId} cards={crewCards} conditions={state.adventureConditions}
+              objectLibrary={creationLibrary} classes={creationPanelClasses} lots={availableMaterialLots} context={liveCreationContext} commit={creationController?.commit} objects={Object.values(creationPhysical.instances).flatMap(instance=>creationPhysical.definitions[instance.definitionDigest]?[{instance,definition:creationPhysical.definitions[instance.definitionDigest]}]:[])}
+              cardAdmissions={creationCardAdmissions}
+              onMovementInput={dispatchWorldInput} headingRef={cameraHeadingRef} onPlacementModeChange={setCreationPlacing}
+              placementRef={creationPoint} onPreview={setCreationPreview} onClose={closeCreation}
+              onManualBuild={openManualFromCreation}
+            /> : null}
             <WildzWorldControls
+              onOpenCreation={()=>{
+                continuousBuilder.close();burrowBuilder.close();dispatchStageOverlay({type:'dismiss'});
+                setCreationContext({worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId,sourceHead:creationWorldHead,pose:{position:{x:state.player.x+3,y:state.siteSpace.position.y,z:state.player.z},yaw:0},budget:{...stewardMaterials},techniques:[],physical:creationCompilePhysical,quality:qualityProfile.tier==='low'?'low':'high'});
+                setCreationOpen(true);
+              }}
               onOpenCrew={() => setRequestedCommand("crew")}
               onBeginConstruction={()=>selectLivingBuildPiece(continuousBuilder.kind)}
               buildingActive={continuousBuilder.open||burrowBuilder.open}
@@ -3052,6 +3142,10 @@ export function PlayCampaign({
               onInput={dispatchWorldInput}
               onMovementModeChange={setMovementMode}
               onRequestedCommandHandled={() => setRequestedCommand(null)}
+              bedSleep={availableBed ? { sleeping: sleepingInBed, onToggle: () => {
+                if (sleepingInBed) dispatchWorldInput({ type: "wake" });
+                else if (canSleepInWildsBed(availableBed, state.player, state.siteSpace)) dispatchWorldInput({ type: "rest", bed: availableBed });
+              } } : undefined}
               onRest={() => dispatchWorldInput({ type: "rest", at: new Date().toISOString() })}
               onRequestCapability={requestWildsCapability}
               onSelectCard={(assetId) => dispatchWorldInput({ type: "select-asset", assetId })}

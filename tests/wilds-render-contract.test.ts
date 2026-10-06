@@ -127,7 +127,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(explorer, /locomotion\?:\s*"ground" \| "swim"/);
     assert.match(explorer, /name="wilds-scuba-kit"/);
     assert.match(explorer, /name="wilds-aerial-harness"/);
-    assert.match(explorer, /const grounded = locomotion === "ground" && aerialMode === "ground"/);
+    assert.match(explorer, /const grounded = !sleeping && locomotion === "ground" && aerialMode === "ground"/);
     assert.match(explorer, /const stride = grounded && moving/);
     assert.match(explorer, /const swimStroke = locomotion === "swim"/);
     assert.match(explorer, /moving \? -1\.42 : -0\.78/);
@@ -251,7 +251,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(geography, /Prism Coast/);
   });
 
-  it("connects the Kai command pill, atlas, Rift travel, Walk Run, and Pulse to the playable world", async () => {
+  it("connects the Kai command pill, atlas, Rift travel, contextual sleep, and Pulse to the playable world", async () => {
     const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
     const statusHud = await readFile("src/features/play/WildsBalancedStatusHud.tsx", "utf8");
     const referenceHud = await readFile("src/features/play/WildzReferenceHud.tsx", "utf8");
@@ -276,7 +276,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(campaign, /type: "apply-rift-grant"/);
     assert.doesNotMatch(campaign, /requestedAt|appliedAt/);
     assert.match(campaign, /grant: result\.grant,[\s\S]*?playerId: result\.grant\.playerId/);
-    assert.match(controls, /aria-label=\{movementMode === "walk" \? "Switch to running" : "Switch to walking"\}/);
+    assert.doesNotMatch(controls, /Switch to running|Switch to walking/);
     assert.match(controls, /<WildsCompanionCommand/);
     assert.match(controls, /const handleTrainCharacter = useCallback[\s\S]*if \(worldHomesEnabled\) forwardInput/);
     assert.match(controls, /onTrainCharacter=\{handleTrainCharacter\}/);
@@ -484,7 +484,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.doesNotMatch(controls, /sortedCards\.map/);
     assert.doesNotMatch(creatureDrawer, /WildsInventory|cameraHeading|movementMode|playerPosition/);
     assert.match(commandDock, /activeItem\s*\?[\s\S]*?activeItem\.content/);
-    assert.match(controls, /aria-label="Make camp and recover"/);
+    assert.match(controls, /bedSleep \? <button aria-label=\{bedSleep.sleeping \? "Wake up" : "Sleep in bed"\}/);
     assert.match(source, /key: "mission"/);
     assert.match(css, /\.mobile-play-wrap \.wilds-stage\s*\{[^}]*min-height:\s*0/);
     assert.doesNotMatch(css, /\.mobile-play-wrap \.wilds-stage\s*\{[^}]*min-height: 286px/);
@@ -502,7 +502,7 @@ describe("Receiz Wilds rendering contract", () => {
     const css = await readFile("app/globals.css", "utf8");
 
     assert.doesNotMatch(controls, /wildz-play-control-rail|wildz-social-actions/);
-    assert.match(controls, /className="wildz-quick-utilities"/);
+    assert.match(controls, /className=(?:"|\{`)[^\n]*wildz-quick-utilities/);
     assert.match(controls, /<WildzDpad/);
     assert.match(controls, /<WildsCompanionCommand/);
     assert.match(css, /\.wildz-world-controls\s*\{[^}]*position:\s*absolute/s);

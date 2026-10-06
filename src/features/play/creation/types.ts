@@ -1,0 +1,11 @@
+export type CreationPoint = Readonly<{ x: number; y: number; z: number }>;
+export type CreationPose = Readonly<{ position: CreationPoint; yaw: number }>;
+export type CreationResourceBudget = Readonly<Record<string, number>>;
+export type CreationShape = Readonly<{ kind: 'box' | 'cylinder' | 'ellipsoid' | 'shell' | 'extrusion' | 'sweep' | 'arch' | 'catalog'; width: number; height: number; depth: number; thickness?: number; piece?: string; points?: readonly CreationPoint[]; doorway?: Readonly<{ width: number; height: number }> }>;
+export type CreationBehavior = Readonly<{ id: string; version: number; parameters: Readonly<Record<string, number | string | boolean>> }>;
+export type CreationNode = Readonly<{ id: string; parentId: string | null; pose: CreationPose; shape: CreationShape; material: string; attachments: readonly string[]; supports: readonly string[]; behaviors: readonly CreationBehavior[] }>;
+export type CreationAssetRef = Readonly<{ digest: string; kind: 'mesh' | 'texture'; bytes: number; vertices: number; triangles: number; uri: string }>;
+export type CreationDefinition = Readonly<{ schema: 'wildz.creation-definition.v1'; grammarVersion: 1; seed: string; creatorId: string; nodes: readonly CreationNode[]; assets: readonly CreationAssetRef[]; digest: string }>;
+export type CreationPatch = Readonly<{ baseDigest: string; operations: readonly ({ op: 'add'; node: CreationNode } | { op: 'update'; id: string; changes: Partial<Omit<CreationNode, 'id'>> } | { op: 'remove'; id: string })[] }>;
+export type CreationInstanceRef = Readonly<{ instanceId: string; head: string; definitionDigest: string }>;
+export type CreationCommitResult = { status: 'admitted'; instance: CreationInstanceRef } | { status: 'rejected'; reason: string; writes: 0 } | { status: 'unknown'; operationId: string };
