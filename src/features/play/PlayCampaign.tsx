@@ -60,6 +60,7 @@ import {
   playableInventory,
   isPlayableAsset,
   selectedAsset,
+  projectWildsRestedCompanionCondition,
   selectedCard,
   exactCompanionProgress,
   type PlayState,
@@ -219,8 +220,9 @@ import { selectCreationBedAtPlayer } from './creation/bed';
 import { saveWorldCreationProofImage } from './creation/world-image';
 import { WildsBodyReadout } from './command-center/WildsBodyReadout';
 import { WildsNourishmentPanel, type WildsNourishmentPlantProjection, type WildsWildAnimalProjection, type WildsOwnedLivestockProjection } from './WildsNourishmentPanel';
-import { projectWildsNourishmentPlants } from './wilds-nourishment';
-import { projectWildsWildAnimals, projectWildsOwnedLivestock, selectWildsLivestockShelter } from './wilds-livestock';
+import { projectWildsNourishmentPlants, wildsNourishmentSourceAt, availableWildsFood, WILDS_NOURISHMENT_GATHER_REACH, WILDS_NOURISHMENT_VERTICAL_REACH, WILDS_NOURISHMENT_PACK_CAPACITY } from './wilds-nourishment';
+import { projectWildsWildAnimals, projectWildsOwnedLivestock, selectWildsLivestockShelter, selectWildsHuntingSupport, WILDS_ANIMAL_INTERACTION_REACH } from './wilds-livestock';
+import { projectWildsWildAnimalPosition } from './wilds-animal-ecology';
 import { projectWildsWorkCapabilityMeters, selectNearestWildsWorkSource, selectWildsResourceWorkPartner, type WildsVisibleWorkFamily } from "@/features/play/wilds-work-capability";
 import { projectWildsCapabilityControls, projectWildsQuickCapabilityControls } from "@/features/play/wilds-world-capability-controls";
 import { projectWildsCapabilityContext } from "@/features/play/wilds-world-capability-context";
@@ -631,6 +633,7 @@ export function PlayCampaign({
   const [activeTrainer, setActiveTrainer] = useState<WildsTrainerProjection | null>(null);
   const [trainerEncounter, setTrainerEncounter] = useState<TrainerEncounterState | null>(null);
   const [kaiUPulse, setKaiUPulse] = useState(0);
+  const [inspectedNourishmentId, setInspectedNourishmentId] = useState<string | null>(null);
   const kaiRuntimeClockRef = useRef<ReturnType<typeof createWildsKaiRuntimeClock> | null>(null);
   const readActionKaiUPulse=useCallback(()=>kaiRuntimeClockRef.current?.read(performance.now(),observeWildsKaiUPulse())??observeWildsKaiUPulse(),[]);
   const worldProgression = projectWorldProgression(state.worldMastery);
@@ -1144,11 +1147,20 @@ export function PlayCampaign({
   // An action settles at the live clock between display ticks. Its source must
   // not appear invalid/depleted while the displayed pulse catches up.
   const nourishmentKaiUPulse = Math.max(kaiUPulse, state.playerNourishment?.lastKaiUPulse ?? 0, state.playerLivestock?.lastKaiUPulse ?? 0);
-  const nourishmentPlayer = useMemo(() => ({ ...state.player, y: state.siteSpace.position.y }), [state.player, state.siteSpace.position.y]);
+  const nourishmentPlayer = useMemo(() => ({ ...state.player, y: verticalReadout.layer === 'ground' ? state.siteSpace.position.y : verticalTraversalRef.current.worldY }), [state.player, state.siteSpace.position.y, verticalReadout]);
   const nourishmentPlants = useMemo(() => projectWildsNourishmentPlants({ player: nourishmentPlayer, radius: 28, kaiUPulse:nourishmentKaiUPulse, sourceStates: state.playerNourishment?.sources, spaceId: state.siteSpace.spaceId }), [nourishmentPlayer, nourishmentKaiUPulse, state.playerNourishment?.sources, state.siteSpace.spaceId]);
   const wildAnimals = useMemo(() => projectWildsWildAnimals({ player: nourishmentPlayer, radius: 28, kaiUPulse:nourishmentKaiUPulse, sourceStates: state.playerLivestock?.animals, spaceId: state.siteSpace.spaceId }), [nourishmentPlayer, nourishmentKaiUPulse, state.playerLivestock?.animals, state.siteSpace.spaceId]);
   const ownedLivestock = useMemo(() => livingWorld.snapshot ? projectWildsOwnedLivestock(state.playerLivestock, livingWorld.snapshot, nourishmentKaiUPulse) : [], [state.playerLivestock, livingWorld.snapshot, nourishmentKaiUPulse]);
   const livestockShelter = useMemo(() => livingWorld.snapshot ? selectWildsLivestockShelter(livingWorld.snapshot, state.player, ownerReceizId, state.siteSpace.spaceId) : null, [livingWorld.snapshot, state.player, ownerReceizId, state.siteSpace.spaceId]);
+  const captureBlocker = !livestockShelter ? 'Finish a nearby room, habitat or garden to shelter livestock.'
+    : Object.values(state.playerLivestock?.animals ?? {}).filter(animal => animal.status === 'captured' && animal.shelterId === livestockShelter.shelterId).length >= livestockShelter.capacity
+      ? 'This farm is full. Finish another nearby shelter for livestock.' : null;
+  const foodPackFull = useMemo(() => availableWildsFood(state.playerNourishment).length >= WILDS_NOURISHMENT_PACK_CAPACITY, [state.playerNourishment]);
+  const huntingSupport = useMemo(() => worldOverlayState.panelKey === 'satchel' ? selectWildsHuntingSupport({
+    state: state.playerLivestock, ownerReceizId, kaiUPulse: nourishmentKaiUPulse,
+    companion: activeAsset ?? undefined, condition: activeAsset ? projectWildsRestedCompanionCondition(state, nourishmentKaiUPulse, activeAsset.id) : undefined,
+    toolWorld: livingWorld.snapshot ?? undefined
+  }) : { hunter: null, blocker: null }, [worldOverlayState.panelKey, state, ownerReceizId, nourishmentKaiUPulse, activeAsset, livingWorld.snapshot]);
 
   const energyActivity=aerialMode!=='ground'?aerialMode:verticalReadout.layer==='water'?'swim':'active';
   // Persist elapsed energy on lifecycle/activity changes. The display clock is read-only.
@@ -1954,25 +1966,51 @@ export function PlayCampaign({
   };
   worldInputDispatcherRef.current = dispatchWorldInput;
   const canForage = () => interactionEnabled && !state.battle && modalOwner === 'none' && (canUseWorldStage() || worldOverlayState.panelKey === 'satchel');
+  const inspectNourishment = (source: WildsNourishmentPlantProjection | WildsWildAnimalProjection | WildsOwnedLivestockProjection) => {
+    if (!canForage()) return;
+    setInspectedNourishmentId('sourceId' in source ? source.sourceId : source.animalId);
+    setRequestedCommand('satchel');
+    showWorldFeedback(`${source.label} · ${'sourceId' in source ? 'Gather within reach, then eat from your food pack.' : 'status' in source ? 'Choose Hunt or Capture in Food & farm.' : 'Collect eggs or milk in Food & farm.'}`);
+  };
   const gatherFood = (plant: WildsNourishmentPlantProjection) => {
     if (!canForage()) return;
+    const actionKai = readActionKaiUPulse(), crop = wildsNourishmentSourceAt(plant, state.playerNourishment?.sources[plant.sourceId], actionKai);
+    if (foodPackFull) { inspectNourishment(plant); showWorldFeedback('Your food pack is full. Eat a portion before gathering more.'); return; }
+    if (!crop.remaining || Math.hypot(state.player.x - plant.position.x, state.player.z - plant.position.z) > WILDS_NOURISHMENT_GATHER_REACH
+      || Math.abs(verticalTraversalRef.current.worldY - plant.position.y) > WILDS_NOURISHMENT_VERTICAL_REACH) {
+      inspectNourishment(plant); showWorldFeedback(crop.remaining ? 'Move closer on the ground to gather food.' : 'This crop is depleted. It grows back with Kai days.'); return;
+    }
     beginWorldActionFeedback();
-    dispatch({ type: 'gather-food', ownerReceizId, sourceId: plant.sourceId, expectedSourceHead: plant.head, kaiUPulse: readActionKaiUPulse(), verticalWorldY: verticalTraversalRef.current.worldY });
+    dispatch({ type: 'gather-food', ownerReceizId, sourceId: plant.sourceId, expectedSourceHead: crop.head, kaiUPulse: actionKai, verticalWorldY: verticalTraversalRef.current.worldY });
   };
   const huntAnimal = (animal: WildsWildAnimalProjection) => {
-    if (!canForage() || !livingWorld.snapshot) return;
+    if (!canForage()) return;
+    if (foodPackFull) { showWorldFeedback('Your food pack is full. Eat a portion before hunting.'); return; }
+    const actionKai = readActionKaiUPulse();
+    const support = selectWildsHuntingSupport({ state: state.playerLivestock, ownerReceizId, kaiUPulse: actionKai,
+      companion: activeAsset ?? undefined, condition: activeAsset ? projectWildsRestedCompanionCondition(state, actionKai, activeAsset.id) : undefined, toolWorld: livingWorld.snapshot ?? undefined });
+    if (!support.hunter) { showWorldFeedback(support.blocker ?? 'Choose a ready companion or equip an axe.'); return; }
+    const position = projectWildsWildAnimalPosition(animal, actionKai).position;
+    if (Math.hypot(state.player.x - position.x, state.player.z - position.z) > WILDS_ANIMAL_INTERACTION_REACH
+      || Math.abs(verticalTraversalRef.current.worldY - position.y) > 1.8) { showWorldFeedback('Move within reach on the same ground to hunt.'); return; }
     beginWorldActionFeedback();
-    const index = activeAsset ? creatureForm(activeAsset.manifest.formId)?.abilities.findIndex(ability => ability.power > 0) ?? -1 : -1;
-    dispatch({ type: 'hunt-animal', ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: readActionKaiUPulse(), verticalWorldY: verticalTraversalRef.current.worldY,
-      hunter: activeAsset && index >= 0 ? { kind: 'creature', assetId: activeAsset.id, abilityIndex: index } : {kind:'tool'}, toolWorld: livingWorld.snapshot });
+    dispatch({ type: 'hunt-animal', ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: actionKai, verticalWorldY: verticalTraversalRef.current.worldY,
+      hunter: support.hunter, toolWorld: livingWorld.snapshot ?? undefined });
   };
   const captureLivestock = (animal: WildsWildAnimalProjection) => {
     if (!canForage() || !livingWorld.snapshot || !livestockShelter) return;
+    if (captureBlocker) { showWorldFeedback(captureBlocker); return; }
+    const actionKai = readActionKaiUPulse(), position = projectWildsWildAnimalPosition(animal, actionKai).position;
+    if (Math.hypot(state.player.x - position.x, state.player.z - position.z) > WILDS_ANIMAL_INTERACTION_REACH
+      || Math.abs(verticalTraversalRef.current.worldY - position.y) > 1.8) { showWorldFeedback('Move within reach on the same ground to capture livestock.'); return; }
     beginWorldActionFeedback();
-    dispatch({ type: 'capture-livestock', ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: readActionKaiUPulse(), verticalWorldY: verticalTraversalRef.current.worldY, shelterId: livestockShelter.shelterId, husbandryWorld: livingWorld.snapshot });
+    dispatch({ type: 'capture-livestock', ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: actionKai, verticalWorldY: verticalTraversalRef.current.worldY, shelterId: livestockShelter.shelterId, husbandryWorld: livingWorld.snapshot });
   };
   const collectLivestockFood = (animal: WildsOwnedLivestockProjection) => {
     if (!canForage() || !livingWorld.snapshot) return;
+    if (foodPackFull) { showWorldFeedback('Your food pack is full. Eat a portion before collecting produce.'); return; }
+    if (Math.hypot(state.player.x - animal.position.x, state.player.z - animal.position.z) > 4
+      || Math.abs(verticalTraversalRef.current.worldY - animal.position.y) > 1.8) { showWorldFeedback('Approach your farm to collect its produce.'); return; }
     beginWorldActionFeedback();
     dispatch({ type: 'collect-livestock', ownerReceizId, animalId: animal.animalId, kaiUPulse: readActionKaiUPulse(), husbandryWorld: livingWorld.snapshot });
   };
@@ -2718,8 +2756,9 @@ export function PlayCampaign({
         <div className="wilds-command-content wilds-satchel">
           <WildsBodyReadout body={playerBreathReadout(livePlayerEnergy.playerBreaths)} onSleep={sleepHere} onWake={() => dispatch({ type: 'wake' })} />
           <WildsNourishmentPanel nourishment={state.playerNourishment} kaiUPulse={nourishmentKaiUPulse} fuelPercent={playerBreathReadout(livePlayerEnergy.playerBreaths).fuelPercent}
-            plants={nourishmentPlants} animals={wildAnimals} livestock={ownedLivestock} player={nourishmentPlayer}
-            captureBlocker={livestockShelter ? null : 'Finish a nearby room, habitat or garden to shelter livestock.'}
+            plants={nourishmentPlants} animals={wildAnimals} livestock={ownedLivestock} player={nourishmentPlayer} inspectedId={inspectedNourishmentId}
+            huntBlocker={foodPackFull ? 'Your food pack is full. Eat a portion before hunting.' : huntingSupport.blocker}
+            captureBlocker={captureBlocker}
             onGather={gatherFood} onHunt={huntAnimal} onCapture={captureLivestock} onProduce={collectLivestockFood}
             onEat={item => { if (canForage()) { beginWorldActionFeedback(); dispatch({type:'eat-food', ownerReceizId, itemId:item.itemId, kaiUPulse:readActionKaiUPulse()}); } }} />
 
@@ -2930,7 +2969,7 @@ export function PlayCampaign({
               activeCapabilityFamily={burrowBuilder.busy ? "burrow" : activeWorldCapability}
               activeWorkSource={activeWorkSource}
               sleepingCreationBed={sleepingInBed ? availableCreationBed : null}
-              nourishment={{plants:nourishmentPlants, animals:wildAnimals, livestock:ownedLivestock, onInspect: animal => { setRequestedCommand("satchel"); showWorldFeedback(`${animal.label} · Landscape wildlife. Open Food & farm to hunt, raise livestock, or collect produce.`); }, onGather:gatherFood, onHunt:huntAnimal, onCapture:captureLivestock, onProduce:collectLivestockFood}}
+              nourishment={{plants:nourishmentPlants, animals:wildAnimals, livestock:ownedLivestock, onInspect:inspectNourishment, onGather:gatherFood, onHunt:huntAnimal, onCapture:captureLivestock, onProduce:collectLivestockFood}}
               stewardPlacementPreview={stewardPlacementPreview}
               burrowPreview={burrowBuilder.preview ? {...burrowBuilder.preview,blocker:burrowBuilder.blocker} : null}
               creationPreview={creationPreview}

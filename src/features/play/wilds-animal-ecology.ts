@@ -1,7 +1,8 @@
 import { projectWildsBiome } from './wilds-biome';
 import { WILDS_TERRAIN_TILE_SIZE, sampleWildsTerrain, distanceToWildsMajorRoute } from './wilds-terrain-authority';
 import { wildsTerrainObstaclesForTile } from './wilds-terrain-obstacles';
-import { KAI_N_DAY_MICRO, KAI_PULSE_DURATION_MS } from './kai-klok-moment';
+import { KAI_N_DAY_MICRO } from './kai-klok-moment';
+import { projectWildsFaunaMotion } from './wilds-fauna-motion';
 
 /** Landscape fauna are gameplay individuals; they never become companion cards. */
 export type WildsAnimalSpecies = 'ground-bird' | 'meadow-goat' | 'hare';
@@ -48,48 +49,51 @@ export function wildsWildAnimalById(animalId: unknown): WildsWildAnimal | null {
   const m = /^wildz\.animal\.v1:(-?(?:0|[1-9][0-9]{0,8})):(-?(?:0|[1-9][0-9]{0,8})):(ground-bird|meadow-goat|hare):([01])$/.exec(animalId);
   return m ? wildsWildAnimalsForTile(Number(m[1]), Number(m[2])).find(a => a.animalId === animalId) ?? null : null;
 }
-const MOTION_PATHS = new Map<string, readonly Readonly<{ x: number; y: number; z: number }>[] >();
-const PATH_STEPS = 32;
-function animalPath(animal: WildsWildAnimal) {
+type Habitat = Readonly<{ radius: number; elevations: Float64Array }>;
+const HABITATS = new Map<string, Habitat>();
+const GRID = 9;
+function animalHabitat(animal: WildsWildAnimal): Habitat {
   const key = `${animal.animalId}|${animal.anchor.x}|${animal.anchor.y}|${animal.anchor.z}`;
-  const cached = MOTION_PATHS.get(key); if (cached) return cached;
-  let path: Readonly<{ x: number; y: number; z: number }>[] = [];
-  // Static terrain is sampled once per resident animal, never at render frequency.
-  // Shrink the entire route if obstructed so an animal cannot snap into a tree.
+  const cached = HABITATS.get(key); if (cached) return cached;
+  let habitat: Habitat = { radius: 0, elevations: new Float64Array(GRID * GRID).fill(animal.anchor.y) };
+  const padding = animal.species === 'meadow-goat' ? .55 : .3;
+  // Verify a whole local habitat, not just a loop's perimeter. Every generated
+  // curve stays inside it. Static ground heights are reused at render frequency.
   for (const radius of [.9, .6, .3, 0]) {
-    path = [];
-    for (let step = 0; step < PATH_STEPS; step++) {
-      const phase = step / PATH_STEPS * Math.PI * 2;
-      const x = animal.anchor.x + Math.cos(phase) * radius, z = animal.anchor.z + Math.sin(phase) * radius * .8;
-      const ground = sampleWildsTerrain(x, z);
-      if (radius && (ground.slope > .55 || !['soil', 'grass'].includes(ground.surface)
-        || wildsTerrainObstaclesForTile(Math.floor(x / WILDS_TERRAIN_TILE_SIZE), Math.floor(z / WILDS_TERRAIN_TILE_SIZE))
-          .some(o => Math.hypot(x - o.position.x, z - o.position.z) < o.radius + (animal.species === 'meadow-goat' ? .55 : .3)))) break;
-      path.push({ x, y: radius ? ground.elevation : animal.anchor.y, z });
+    if (!radius) break;
+    let blocked = false;
+    for (let tz = Math.floor((animal.anchor.z - radius - padding) / WILDS_TERRAIN_TILE_SIZE); tz <= Math.floor((animal.anchor.z + radius + padding) / WILDS_TERRAIN_TILE_SIZE); tz++) {
+      for (let tx = Math.floor((animal.anchor.x - radius - padding) / WILDS_TERRAIN_TILE_SIZE); tx <= Math.floor((animal.anchor.x + radius + padding) / WILDS_TERRAIN_TILE_SIZE); tx++) {
+        if (wildsTerrainObstaclesForTile(tx, tz).some(o => Math.hypot(animal.anchor.x - o.position.x, animal.anchor.z - o.position.z) < o.radius + radius + padding)) blocked = true;
+      }
     }
-    if (path.length === PATH_STEPS) break;
+    if (blocked) continue;
+    const elevations = new Float64Array(GRID * GRID);
+    for (let z = 0; z < GRID && !blocked; z++) for (let x = 0; x < GRID; x++) {
+      const ground = sampleWildsTerrain(animal.anchor.x + (x / (GRID - 1) * 2 - 1) * radius,
+        animal.anchor.z + (z / (GRID - 1) * 2 - 1) * radius);
+      if (ground.slope > .55 || !['soil', 'grass'].includes(ground.surface)) { blocked = true; break; }
+      elevations[z * GRID + x] = ground.elevation;
+    }
+    if (!blocked) { habitat = { radius, elevations }; break; }
   }
-  MOTION_PATHS.set(key, path);
-  while (MOTION_PATHS.size > 256) MOTION_PATHS.delete(MOTION_PATHS.keys().next().value!);
-  return path;
+  HABITATS.set(key, habitat);
+  while (HABITATS.size > 256) HABITATS.delete(HABITATS.keys().next().value!);
+  return habitat;
+}
+function habitatHeight(habitat: Habitat, x: number, z: number) {
+  if (!habitat.radius) return habitat.elevations[0]!;
+  const gridX = (x / habitat.radius + 1) / 2 * (GRID - 1), gridZ = (z / habitat.radius + 1) / 2 * (GRID - 1);
+  const ix = Math.min(GRID - 2, Math.max(0, Math.floor(gridX))), iz = Math.min(GRID - 2, Math.max(0, Math.floor(gridZ)));
+  const fx = gridX - ix, fz = gridZ - iz;
+  const lower = habitat.elevations[iz * GRID + ix]! * (1 - fx) + habitat.elevations[iz * GRID + ix + 1]! * fx;
+  const upper = habitat.elevations[(iz + 1) * GRID + ix]! * (1 - fx) + habitat.elevations[(iz + 1) * GRID + ix + 1]! * fx;
+  return lower * (1 - fz) + upper * fz;
 }
 export function projectWildsWildAnimalPosition(animal: WildsWildAnimal, kaiUPulse: number) {
-  if (!Number.isSafeInteger(kaiUPulse) || kaiUPulse < 0) throw Error('wilds_animal_time_invalid');
-  const cycle = animal.species === 'ground-bird' ? 2_000_000 : animal.species === 'hare' ? 1_750_000 : 3_500_000;
-  const progress = (kaiUPulse % cycle) / cycle;
-  // A short pause to graze/peck, then a smooth start and stop at the same location.
-  const moving = progress < .82;
-  const travel = moving ? progress / .82 : 1;
-  const eased = travel - Math.sin(travel * Math.PI * 2) / (Math.PI * 2);
-  const phaseOffset = Number(animal.animalId.at(-1)) * .5;
-  const step = ((eased + phaseOffset) % 1) * PATH_STEPS;
-  const index = Math.floor(step), blend = step - index, path = animalPath(animal);
-  const first = path[index]!, next = path[(index + 1) % PATH_STEPS]!;
-  const position = { x: quantize(first.x + (next.x - first.x) * blend), y: quantize(first.y + (next.y - first.y) * blend), z: quantize(first.z + (next.z - first.z) * blend) };
-  const seconds = (kaiUPulse % 20_000_000) / 1_000_000 * KAI_PULSE_DURATION_MS / 1000;
-  return { position, heading: Math.atan2(next.x - first.x, next.z - first.z),
-    moving: moving && Math.hypot(next.x - first.x, next.z - first.z) > .001,
-    gait: seconds * (animal.species === 'hare' ? 9 : animal.species === 'ground-bird' ? 12 : 7), grazing: !moving };
+  const habitat = animalHabitat(animal), motion = projectWildsFaunaMotion(animal.animalId, animal.species, kaiUPulse, habitat.radius);
+  return { ...motion, position: { x: quantize(animal.anchor.x + motion.offset.x),
+    y: quantize(habitatHeight(habitat, motion.offset.x, motion.offset.z)), z: quantize(animal.anchor.z + motion.offset.z) } };
 }
 export type WildsAnimalFoodReceipt = Readonly<{
   sourceId: string; animalId: string; action: 'hunt' | 'produce'; cycle: number; kaiUPulse: number;

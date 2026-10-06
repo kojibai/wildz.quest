@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { KAI_N_DAY_MICRO } from '../src/features/play/kai-klok-moment';
-import { initialPlayState, applyWildsInput, serializePlayState, restorePlayState } from '../src/features/play/game-state';
+import { initialPlayState, applyWildsInput, serializePlayState, restorePlayState, projectWildsRestedCompanionCondition } from '../src/features/play/game-state';
 import { createPlayerBreaths } from '../src/features/play/player-breath-energy';
 import { wildsWildAnimalsForTile, projectWildsWildAnimalPosition, type WildsWildAnimal } from '../src/features/play/wilds-animal-ecology';
-import { createWildsLivestockState, wildsAnimalHead, huntWildsAnimal, captureWildsLivestock, collectWildsLivestock, resolveWildsLivestockShelter, type WildsHusbandryWorld } from '../src/features/play/wilds-livestock';
+import { createWildsLivestockState, wildsAnimalHead, huntWildsAnimal, captureWildsLivestock, collectWildsLivestock, resolveWildsLivestockShelter, selectWildsHuntingSupport, type WildsHusbandryWorld } from '../src/features/play/wilds-livestock';
 import { regionForPosition } from '../src/features/play/multiplayer-core';
 import { constructionProofDigest, createWildsConstructionProject } from '../src/features/play/wilds-construction-project';
 import { createWildsConstructionComponent, createWildsMaterialContribution, createWildsWorkContribution, projectWildsConstructionProgress } from '../src/features/play/wilds-construction-component';
@@ -80,6 +80,38 @@ test('hunting needs an actual ready companion ability and settles each wild indi
   assert.equal(huntWildsAnimal({ ...input, hunter: { kind: 'tool', world: { stewardTools: {}, equippedStewardTools: {} } } }).ok, false);
   assert.equal(huntWildsAnimal({ ...input, player: { ...input.player, x: input.player.x + 10 }, hunter }).ok, false);
 });
+test('hunting controls select a ready companion and explain cooldown or exhaustion instead of a silent action', () => {
+  const input=request(), asset=initialPlayState.inventory[0]!, condition=initialPlayState.adventureConditions[asset.id];
+  const props={state:input.state,ownerReceizId:OWNER,kaiUPulse:BASE,companion:asset,condition};
+  const ready=selectWildsHuntingSupport(props);
+  assert.deepEqual(ready.hunter,{kind:'creature',assetId:asset.id,abilityIndex:0});assert.equal(ready.blocker,null);
+  const hunted=huntWildsAnimal({...input,hunter:{kind:'creature',asset,condition,abilityIndex:0}});
+  const recovering=selectWildsHuntingSupport({...props,state:hunted.state});
+  assert.equal(recovering.hunter,null);assert.match(recovering.blocker!,/recover/);
+  assert.equal(selectWildsHuntingSupport({...props,state:hunted.state,kaiUPulse:BASE+12_000_000}).blocker,null);
+  const tired=selectWildsHuntingSupport({...props,condition:{...condition!,fatigue:100}});
+  assert.equal(tired.hunter,null);assert.match(tired.blocker!,/rest/);
+  const absent=selectWildsHuntingSupport({state:input.state,ownerReceizId:OWNER,kaiUPulse:BASE});
+  assert.equal(absent.hunter,null);assert.match(absent.blocker!,/axe|companion/);
+});
+test('elapsed rest makes a tired companion ready to hunt without a separate wake tick, while rejection remains inert', () => {
+  const input=request(), asset=initialPlayState.inventory[0]!, condition={...initialPlayState.adventureConditions[asset.id]!,fatigue:90};
+  const end=BASE+20*64_000_000, position=projectWildsWildAnimalPosition(animalFixture(),end).position;
+  const start={...initialPlayState,selectedAssetId:asset.id,adventureConditions:{...initialPlayState.adventureConditions,[asset.id]:condition},
+    player:{x:position.x,z:position.z},siteSpace:{...initialPlayState.siteSpace,position},playerBreaths:createPlayerBreaths(BASE,30),energy:30};
+  const rested=applyWildsInput(start,{type:'sleep',kaiUPulse:BASE});
+  const projected=projectWildsRestedCompanionCondition(rested,end,asset.id)!;
+  assert.equal(projected.fatigue,70); assert.equal(rested.adventureConditions[asset.id]!.fatigue,90);
+  const support=selectWildsHuntingSupport({ownerReceizId:OWNER,kaiUPulse:end,companion:asset,condition:projected});
+  assert.ok(support.hunter);
+  const action={type:'hunt-animal' as const,ownerReceizId:OWNER,animalId:input.animalId,expectedAnimalHead:input.expectedAnimalHead,kaiUPulse:end,
+    hunter:{kind:'creature' as const,assetId:asset.id,abilityIndex:0}};
+  assert.equal(applyWildsInput(rested,{...action,expectedAnimalHead:'stale'}),rested);
+  const hunted=applyWildsInput(rested,action);
+  assert.equal(hunted.playerLivestock?.animals[input.animalId]?.status,'hunted');
+  assert.equal(hunted.adventureConditions[asset.id]!.fatigue,73);
+  assert.equal(hunted.playerBreaths?.mode,'active');
+});
 test('an equipped verified axe incurs finite local hunting wear without minting a tool proof', () => {
   let index = 500;
   const makeLot = (kind: 'timber' | 'stone'): WildsMaterialLotV1 => {
@@ -100,6 +132,11 @@ test('an equipped verified axe incurs finite local hunting wear without minting 
   assert.equal(tool.durability.remaining, 24);
   assert.equal(huntWildsAnimal({ ...input, hunter: { kind: 'tool', world: { ...world, equippedStewardTools: {} } } }).ok, false);
   assert.equal(huntWildsAnimal({ ...input, state: { ...input.state, toolUses: { [tool.toolId]: 24 } }, hunter: { kind: 'tool', world } }).ok, false);
+  const asset=initialPlayState.inventory[0]!, condition={...initialPlayState.adventureConditions[asset.id]!,fatigue:100};
+  const support=selectWildsHuntingSupport({state:input.state,ownerReceizId:OWNER,kaiUPulse:BASE,companion:asset,condition,toolWorld:world});
+  assert.deepEqual(support.hunter,{kind:'tool'});assert.equal(support.blocker,null);
+  const worn=selectWildsHuntingSupport({state:{...input.state,toolUses:{[tool.toolId]:24}},ownerReceizId:OWNER,kaiUPulse:BASE,toolWorld:world});
+  assert.equal(worn.hunter,null);assert.match(worn.blocker!,/axe|companion/);
 });
 test('capture requires a funded functioning source garden and excludes the same animal from hunting', () => {
   const input = request(), { world, component } = shelterFixture();

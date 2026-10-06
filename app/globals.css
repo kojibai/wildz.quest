@@ -14540,6 +14540,9 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-steward-tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 .wilds-steward-tool-grid article { display: grid; min-width: 0; gap: 7px; padding: 9px; border: 1px solid rgba(123, 218, 202, .14); border-radius: 13px; background: rgba(5, 19, 22, .64); }
 .wilds-steward-tool-grid article > span { display: grid; min-width: 0; gap: 2px; }
+.wilds-steward-tool-grid article.wilds-nourishment-selected { border-color: rgba(181, 211, 137, .65); background: rgba(32, 53, 32, .65); scroll-margin-block: 16px; }
+.wilds-nourishment-hint { margin: 0; color: #bfd0b7; font-size: 11px; line-height: 1.5; }
+.wilds-nourishment-panel article > div { display: flex; flex-wrap: wrap; gap: 6px; }
 .wilds-steward-tool-grid meter { width: 100%; height: 5px; accent-color: #6fe2c6; }
 .wilds-steward-workshop button { min-height: 42px; padding: 7px 9px; color: #eafff8; border: 1px solid rgba(108, 227, 201, .28); border-radius: 10px; background: rgba(45, 124, 108, .2); font: inherit; font-size: 8px; font-weight: 900; }
 .wilds-steward-workshop button:disabled { color: #82938e; border-color: rgba(130, 151, 145, .12); background: rgba(57, 71, 68, .24); }

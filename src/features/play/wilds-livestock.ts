@@ -37,6 +37,42 @@ export function createWildsLivestockState(ownerReceizId: string): WildsLivestock
   if (!validOwner(ownerReceizId)) throw Error('wilds_livestock_owner_invalid');
   return { schema: 'wildz.player-livestock.v1', ownerReceizId, lastKaiUPulse: 0, animals: {}, toolUses: {}, abilityCooldowns: {} };
 }
+
+/** The controls and the finite hunting transition use the same readiness rules. */
+function huntingReadiness(input: { state: WildsLivestockState; ownerReceizId: string; kaiUPulse: number; hunter: WildsAnimalHunter }): 'hunter-unready' | 'ability-cooldown' | null {
+  const { state, hunter, ownerReceizId, kaiUPulse } = input;
+  if (hunter.kind === 'tool') {
+    const toolId = hunter.world.equippedStewardTools[ownerReceizId], tool = hunter.world.stewardTools[toolId];
+    return !tool || !verifyWildsStewardTool(tool) || tool.kind !== 'steward-axe' || tool.ownerReceizId !== ownerReceizId
+      || tool.kaiUPulse > kaiUPulse || tool.durability.remaining - (state.toolUses[toolId] ?? 0) <= 0 ? 'hunter-unready' : null;
+  }
+  const { asset, condition, abilityIndex } = hunter;
+  try { if (condition) validateAdventureCondition(condition); } catch { return 'hunter-unready'; }
+  if (!asset || !verifyAnyWildsCard(asset).ok || asset.manifest.ownerReceizId !== ownerReceizId || !condition || condition.assetId !== asset.id
+    || condition.life !== 'alive' || condition.retiredAt || condition.fatigue >= 85 || condition.injuries.length >= 4
+    || !Number.isInteger(abilityIndex) || !creatureForm(asset.manifest.formId)?.abilities[abilityIndex]?.power) return 'hunter-unready';
+  const prior = state.abilityCooldowns[`${asset.id}|${abilityIndex}`];
+  return prior !== undefined && kaiUPulse - prior < WILDS_ANIMAL_ABILITY_COOLDOWN_UPULSES ? 'ability-cooldown' : null;
+}
+export function selectWildsHuntingSupport(input: {
+  state?: WildsLivestockState; ownerReceizId: string; kaiUPulse: number;
+  companion?: PortableCardAsset; condition?: AdventureCardCondition; toolWorld?: WildsHuntingToolWorld;
+}): { hunter: { kind: 'creature'; assetId: string; abilityIndex: number } | { kind: 'tool' } | null; blocker: string | null } {
+  const unavailable = { hunter: null, blocker: 'Equip an axe or choose a ready companion to hunt.' } as const;
+  if (!validOwner(input.ownerReceizId) || !validKai(input.kaiUPulse)) return unavailable;
+  const state = input.state ?? createWildsLivestockState(input.ownerReceizId);
+  if (state.ownerReceizId !== input.ownerReceizId || input.kaiUPulse < state.lastKaiUPulse) return unavailable;
+  let companionFailure: ReturnType<typeof huntingReadiness> = null;
+  const abilityIndex = input.companion ? creatureForm(input.companion.manifest.formId)?.abilities.findIndex(ability => ability.power > 0) ?? -1 : -1;
+  if (input.companion && abilityIndex >= 0) {
+    companionFailure = huntingReadiness({ ...input, state, hunter: { kind: 'creature', asset: input.companion, condition: input.condition, abilityIndex } });
+    if (!companionFailure) return { hunter: { kind: 'creature', assetId: input.companion.id, abilityIndex }, blocker: null };
+  }
+  if (input.toolWorld && !huntingReadiness({ ...input, state, hunter: { kind: 'tool', world: input.toolWorld } })) return { hunter: { kind: 'tool' }, blocker: null };
+  if (companionFailure === 'ability-cooldown') return { hunter: null, blocker: 'Let your companion’s hunting ability recover, or equip an axe.' };
+  if (input.condition && (input.condition.fatigue >= 85 || input.condition.injuries.length >= 4)) return { hunter: null, blocker: 'Your companion needs rest. Equip an axe or choose a rested companion.' };
+  return unavailable;
+}
 export function wildsAnimalHead(animalId: string, source?: WildsAnimalState) {
   return source ? `wildz.animal-head.v1|${animalId}|${source.status}|${source.ownerReceizId}|${source.settledKaiUPulse}|${source.lastProductDay ?? '-'}|${source.shelterHead ?? '-'}`
     : `wildz.animal-head.v1|${animalId}|wild`;
@@ -136,21 +172,14 @@ function checkAnimal(input: AnimalRequest) {
 export function huntWildsAnimal(input: AnimalRequest & { hunter: WildsAnimalHunter }) {
   const failure = checkAnimal(input); if (failure) return reject(input.state, failure);
   const { state, hunter } = input;
+  const hunterFailure = huntingReadiness(input); if (hunterFailure) return reject(state, hunterFailure);
   let toolUses = state.toolUses, abilityCooldowns = state.abilityCooldowns;
   if (hunter.kind === 'tool') {
-    const toolId = hunter.world.equippedStewardTools[input.ownerReceizId], tool = hunter.world.stewardTools[toolId];
-    if (!tool || !verifyWildsStewardTool(tool) || tool.kind !== 'steward-axe' || tool.ownerReceizId !== input.ownerReceizId
-      || tool.kaiUPulse > input.kaiUPulse || tool.durability.remaining - (state.toolUses[toolId] ?? 0) <= 0) return reject(state, 'hunter-unready');
+    const toolId = hunter.world.equippedStewardTools[input.ownerReceizId];
     // Local hunting wear cannot mint a Native tool successor. Its debit remains explicit.
     toolUses = { ...toolUses, [toolId]: (toolUses[toolId] ?? 0) + 1 };
   } else {
-    const asset = hunter.asset, condition = hunter.condition;
-    try { if (condition) validateAdventureCondition(condition); } catch { return reject(state, 'hunter-unready'); }
-    if (!asset || !verifyAnyWildsCard(asset).ok || asset.manifest.ownerReceizId !== input.ownerReceizId || !condition || condition.assetId !== asset.id
-      || condition.life !== 'alive' || condition.retiredAt || condition.fatigue >= 85 || condition.injuries.length >= 4
-      || !Number.isInteger(hunter.abilityIndex) || !creatureForm(asset.manifest.formId)?.abilities[hunter.abilityIndex]?.power) return reject(state, 'hunter-unready');
-    const cooldownId = `${asset.id}|${hunter.abilityIndex}`, prior = abilityCooldowns[cooldownId];
-    if (prior !== undefined && input.kaiUPulse - prior < WILDS_ANIMAL_ABILITY_COOLDOWN_UPULSES) return reject(state, 'ability-cooldown');
+    const cooldownId = `${hunter.asset.id}|${hunter.abilityIndex}`;
     abilityCooldowns = { ...abilityCooldowns, [cooldownId]: input.kaiUPulse };
   }
   const animal = wildsWildAnimalById(input.animalId)!;

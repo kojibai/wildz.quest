@@ -17,7 +17,9 @@ export function projectWildsFruitAttachments(plant: WildsNourishmentPlant, tree:
     const localX = Math.cos(angle) * (fallen ? .34 : canopy.scale[0] * .43);
     const localZ = Math.sin(angle) * (fallen ? .34 : canopy.scale[2] * .43);
     const radius = .065 + (index % 2) * .008;
-    return { canopyPart, localX, localZ, fallen, radius, position: {
+    // Keep forgiving touch padding local to the fruit, outside the trunk corridor.
+    const touchRadius = Math.min(.24, Math.max(radius, Math.hypot(localX, localZ) - tree.scale * .3));
+    return { canopyPart, localX, localZ, fallen, radius, touchRadius, position: {
       x: plant.position.x + localX * Math.cos(heading) + localZ * Math.sin(heading),
       y: plant.position.y + (fallen ? radius : canopy.y - canopy.scale[1] * .16),
       z: plant.position.z + localZ * Math.cos(heading) - localX * Math.sin(heading)

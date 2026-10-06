@@ -1350,7 +1350,7 @@ function reduceWildsLivestockInput(state: PlayState, input: Extract<WildsInput, 
         huntingAsset = state.inventory.find(asset => asset.id === hunter.assetId);
         if (!huntingAsset || !isPlayableAsset(state, huntingAsset.id)) return null;
         return huntWildsAnimal({ ...common, expectedAnimalHead: input.expectedAnimalHead, hunter: { kind: 'creature', asset: huntingAsset,
-          abilityIndex: hunter.abilityIndex, condition: state.adventureConditions[huntingAsset.id] } });
+          abilityIndex: hunter.abilityIndex, condition: projectWildsRestedCompanionCondition(state, input.kaiUPulse, huntingAsset.id) } });
       })();
   if (!consequence?.ok) return state;
   const nourishment = state.playerNourishment ?? createWildsNourishmentState(owner);
@@ -1373,6 +1373,19 @@ function reduceWildsLivestockInput(state: PlayState, input: Extract<WildsInput, 
   return settlePlayerRestFromBreaths(settled, next, input.kaiUPulse, false);
 }
 
+function companionRestUnits(settledKaiUPulse: number, bed: boolean, kaiUPulse: number) {
+  return Math.max(0, Math.floor((kaiUPulse - settledKaiUPulse) / ((bed ? 40 : 64) * 1_000_000)));
+}
+/** Read-only readiness projection. Inspecting controls never heals or publishes a card. */
+export function projectWildsRestedCompanionCondition(state: PlayState, kaiUPulse: number, assetId: string) {
+  const condition = state.adventureConditions[assetId], marker = state.playerRestRecovery;
+  if (!condition || !marker || marker.assetId !== assetId || selectedAsset(state)?.id !== assetId
+    || !['camp','bed','sleep'].includes(state.playerBreaths?.mode ?? '') || !Number.isSafeInteger(kaiUPulse)
+    || kaiUPulse < (state.playerBreaths?.lastKaiUPulse ?? 0)) return condition;
+  const amount = Math.min(100, companionRestUnits(marker.settledKaiUPulse, marker.bed, kaiUPulse));
+  return amount > 0 ? { ...condition, fatigue: Math.max(0, condition.fatigue - amount) } : condition;
+}
+
 /** One shared elapsed-breath recovery; rest taps never issue creature history by themselves. */
 function settlePlayerRestFromBreaths(before:PlayState,next:PlayState,kaiUPulse:number,entering:boolean):PlayState{
  const mode=next.playerBreaths?.mode;if(mode!=='camp'&&mode!=='bed'&&mode!=='sleep')return next.playerRestRecovery?{...next,playerRestRecovery:undefined}:next;
@@ -1380,7 +1393,7 @@ function settlePlayerRestFromBreaths(before:PlayState,next:PlayState,kaiUPulse:n
  let marker=before.playerRestRecovery;
  if(!marker||marker.assetId!==leader.id||!['camp','bed','sleep'].includes(before.playerBreaths?.mode||'')){return {...next,playerRestRecovery:{assetId:leader.id,settledKaiUPulse:kaiUPulse,bed:mode==='bed'}};}
  const interval=(marker.bed?40:64)*1_000_000;
- const units=Math.floor((kaiUPulse-marker.settledKaiUPulse)/interval);
+ const units=companionRestUnits(marker.settledKaiUPulse,marker.bed,kaiUPulse);
  if(units<=0)return entering&&marker.bed!==(mode==='bed')?{...next,playerRestRecovery:{...marker,settledKaiUPulse:kaiUPulse,bed:mode==='bed'}}:next;
  const amount=Math.min(100,units),at=kaiUPulseToISOString(kaiUPulse),healed=healWildBattleCard(leader,amount,at,kaiUPulse),condition=next.adventureConditions[leader.id];
  marker={assetId:leader.id,settledKaiUPulse:marker.settledKaiUPulse+units*interval,bed:mode==='bed'};

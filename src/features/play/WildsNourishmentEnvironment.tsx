@@ -3,10 +3,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
-import { KAI_PULSE_DURATION_MS } from './kai-klok-moment';
+import { createWildsKaiRuntimeClock } from './wilds-kai-runtime';
 import { projectWildsWildAnimalPosition } from './wilds-animal-ecology';
+import { projectWildsFaunaMotion, type WildsFaunaLifePose } from './wilds-fauna-motion';
 import { drawWildsFauna, type WildsFaunaPart } from './wilds-fauna-model';
 import { projectWildsFruitAttachments } from './wilds-nourishment-visuals';
+import { createWildsFruitTouchRaycast } from './wilds-nourishment-picking';
 import { createWildsAppleGeometry, createWildsFoodLeafGeometry, createWildsNourishmentTexture } from './wilds-nourishment-materials';
 import { wildsTerrainObstaclesForTile } from './wilds-terrain-obstacles';
 import { WILDS_TERRAIN_TILE_SIZE } from './wilds-terrain-authority';
@@ -27,7 +29,7 @@ export type WildsNourishmentEnvironmentProps = Readonly<{
   harvestedSources?: WildsWorldProjection['harvestedSources'];
   siteRuntime?: WildsSiteRuntimeProjection;
   onGather?: (plant: WildsNourishmentPlantProjection) => void;
-  onInspect?: (animal: WildsWildAnimalProjection | WildsOwnedLivestockProjection) => void;
+  onInspect?: (source: WildsNourishmentPlantProjection | WildsWildAnimalProjection | WildsOwnedLivestockProjection) => void;
   onHunt?: (animal: WildsWildAnimalProjection) => void;
   onCapture?: (animal: WildsWildAnimalProjection) => void;
   onProduce?: (animal: WildsOwnedLivestockProjection) => void;
@@ -48,7 +50,9 @@ function batches(): Record<Shape, Batch> {
 export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentProps) {
   const quality=props.qualityTier??'medium';
   const latest=useRef(props), plants=useRef(batches()), animals=useRef(batches());
-  const time=useRef({observedKai:props.kaiUPulse,elapsed:0,draw:0});
+  const fruitTouchRadii=useRef<number[]>([]);
+  const fruitRaycast=useMemo(()=>createWildsFruitTouchRaycast(fruitTouchRadii.current),[]);
+  const time=useRef<{observedKai:number;clock:ReturnType<typeof createWildsKaiRuntimeClock>|null;lastDraw:number}>({observedKai:props.kaiUPulse,clock:null,lastDraw:0});
   const transform=useMemo(()=>new THREE.Object3D(),[]), color=useMemo(()=>new THREE.Color(),[]);
   const resourcePlacements=useMemo(createWildsResourcePlacementProjector,[]);
   const residentLivestock=useMemo(() => (props.livestock??[])
@@ -83,6 +87,7 @@ export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentPr
   });
   const drawPlants=()=>{
     const current=latest.current, outer=!current.spaceId||current.spaceId==='wildz.space.outer.v1';reset(plants.current,SHAPES);
+    fruitTouchRadii.current.length=0;
     if(outer) for(const plant of (current.plants??[]).slice(0,DETAIL[current.qualityTier??'medium'].plants)) {
       const pick:Pick={kind:'plant',plant}, p=plant.position;
       const ground=current.siteRuntime?wildsSiteRuntimeGroundY(current.siteRuntime,current.spaceId??'wildz.space.outer.v1',p.x,p.z,p.y):p.y;
@@ -93,6 +98,7 @@ export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentPr
         const placement=resourcePlacements([tree],current.harvestedSources,current.kaiUPulse,null).trees[0]!;
         for(const [index,fruit] of projectWildsFruitAttachments(plant,placement,plant.remaining).entries()) {
           const fp={...fruit.position,y:fruit.position.y+ground-p.y},r=fruit.radius;
+          fruitTouchRadii.current[plants.current.apple.count]=fruit.touchRadius;
           add('apple',fp.x,fp.y,fp.z,r,r,r,index%2?'#bbd05c':'#cf4a32',fruit.fallen?.8:0,index*.8);
           add('limb',fp.x,fp.y+r*.9,fp.z,.009,.045,.009,'#715132',.18);
           add('leaf',fp.x+.025,fp.y+r*1.08,fp.z,.021,.037,.018,'#4e7433',-.6,.6,.8);
@@ -117,42 +123,47 @@ export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentPr
   };
   const drawAnimals=(kai:number)=>{
     const current=latest.current,outer=!current.spaceId||current.spaceId==='wildz.space.outer.v1';reset(animals.current,ANIMAL_SHAPES);
-    const drawAnimal=(animal:WildsWildAnimalProjection|WildsOwnedLivestockProjection,p:{x:number;y:number;z:number},heading:number,gait:number,moving:boolean,grazing:boolean)=>{
+    const drawAnimal=(animal:WildsWildAnimalProjection|WildsOwnedLivestockProjection,p:{x:number;y:number;z:number},heading:number,gait:number,moving:boolean,grazing:boolean,pose:WildsFaunaLifePose)=>{
       const pick:Pick={kind:'animal',animal},cos=Math.cos(heading),sin=Math.sin(heading);
-      drawWildsFauna(animal.species,gait,moving,grazing,(shape,x,y,z,sx,sy,sz,tone,tilt=0,roll=0)=>{
-        write(animals.current,shape,{x:p.x+x*cos+z*sin,y:p.y+y,z:p.z+z*cos-x*sin},[sx,sy,sz],tone,pick,[tilt,heading,roll]);
-      });
+      drawWildsFauna(animal.species,gait,moving,grazing,(shape,x,y,z,sx,sy,sz,tone,tilt=0,roll=0,yaw=0)=>{
+        write(animals.current,shape,{x:p.x+x*cos+z*sin,y:p.y+y,z:p.z+z*cos-x*sin},[sx,sy,sz],tone,pick,[tilt,heading+yaw,roll]);
+      },pose);
     };
     if(outer) for(const animal of (current.animals??[]).filter(a=>a.status==='wild').slice(0,DETAIL[current.qualityTier??'medium'].animals)) {
-      const motion=projectWildsWildAnimalPosition(animal,kai);drawAnimal(animal,motion.position,motion.heading,motion.gait,motion.moving,motion.grazing);
+      const motion=projectWildsWildAnimalPosition(animal,kai);drawAnimal(animal,motion.position,motion.heading,motion.gait,motion.moving,motion.grazing,motion.pose);
     }
-    for(const [index,animal] of residentLivestock.entries()) {
-      // Farm animals have the same gait; a small local stroll stays inside their shelter.
-      const seconds=(kai%40_000_000)/1_000_000*KAI_PULSE_DURATION_MS/1000,progress=((seconds/24+index*.37)%1);
-      const moving=progress<.8,travel=moving?progress/.8:1,angle=(travel-Math.sin(travel*Math.PI*2)/(Math.PI*2))*Math.PI*2+index*2.399;
-      drawAnimal(animal,{...animal.position,x:animal.position.x+Math.cos(angle)*.35,z:animal.position.z+Math.sin(angle)*.35},-angle,
-        seconds*(animal.species==='ground-bird'?12:7),moving,!moving);
+    for(const animal of residentLivestock) {
+      // The same individual behavior stays inside the farm's existing local extent.
+      const motion=projectWildsFaunaMotion(animal.animalId,animal.species,kai,.35);
+      drawAnimal(animal,{...animal.position,x:animal.position.x+motion.offset.x,z:animal.position.z+motion.offset.z},
+        motion.heading,motion.gait,motion.moving,motion.grazing,motion.pose);
     }
     finish(animals.current,ANIMAL_SHAPES);
   };
   useLayoutEffect(()=>{
     latest.current=props;
-    if(time.current.observedKai!==props.kaiUPulse)time.current={observedKai:props.kaiUPulse,elapsed:0,draw:0};
-    drawPlants();drawAnimals(props.kaiUPulse);
+    const now=performance.now();
+    let clock=time.current.clock;
+    if(!clock||time.current.observedKai!==props.kaiUPulse) {
+      const floor=clock?.read(now)??props.kaiUPulse;
+      clock=createWildsKaiRuntimeClock({baselineUPulse:props.kaiUPulse,baselineElapsedMs:now,floorUPulse:floor});
+      time.current={observedKai:props.kaiUPulse,clock,lastDraw:now};
+    }
+    drawPlants();drawAnimals(clock.read(now));
   });
-  useFrame((_,delta)=>{
-    time.current.elapsed+=delta;time.current.draw+=delta;
-    if(time.current.draw<.05||(!(latest.current.animals?.length)&&!(latest.current.livestock?.length)))return;
-    time.current.draw=0;
-    drawAnimals(time.current.observedKai+Math.floor(time.current.elapsed*1000/KAI_PULSE_DURATION_MS*1_000_000));
+  useFrame(()=>{
+    const now=performance.now();
+    if(!time.current.clock||now-time.current.lastDraw<50||(!(latest.current.animals?.length)&&!(latest.current.livestock?.length)))return;
+    time.current.lastDraw=now;
+    drawAnimals(time.current.clock.read(now));
   });
   const activate=(event:ThreeEvent<MouseEvent>,collection:Record<Shape,Batch>,shape:Shape)=>{
     const pick=event.instanceId===undefined?undefined:collection[shape].picks[event.instanceId];if(!pick)return;event.stopPropagation();
-    if(pick.kind==='plant'){if(pick.plant.canGather)latest.current.onGather?.(pick.plant);}
+    if(pick.kind==='plant'){if(pick.plant.canGather)latest.current.onGather?.(pick.plant);else latest.current.onInspect?.(pick.plant);}
     else latest.current.onInspect?.(pick.animal);
   };
   return <group name="wilds-nourishment-landscape">
-    {SHAPES.map(shape=><instancedMesh key={`plant-${shape}`} name={`nourishment-plants-${shape}`} ref={mesh=>{plants.current[shape].mesh=mesh;}} args={[resources.geometries[shape],shape==='apple'?resources.fruitMaterial:resources.plantMaterial,CAPACITY]} frustumCulled={false} userData={{nourishment:true}} castShadow receiveShadow onClick={event=>activate(event,plants.current,shape)} />)}
+    {SHAPES.map(shape=><instancedMesh key={`plant-${shape}`} name={`nourishment-plants-${shape}`} ref={mesh=>{plants.current[shape].mesh=mesh;}} args={[resources.geometries[shape],shape==='apple'?resources.fruitMaterial:resources.plantMaterial,CAPACITY]} raycast={shape==='apple'?fruitRaycast:undefined} frustumCulled={false} userData={{nourishment:true}} castShadow receiveShadow onClick={event=>activate(event,plants.current,shape)} />)}
     {ANIMAL_SHAPES.map(shape=><instancedMesh key={`animal-${shape}`} name={`landscape-fauna-${shape}`} ref={mesh=>{animals.current[shape].mesh=mesh;mesh?.instanceMatrix.setUsage(THREE.DynamicDrawUsage);}} args={[resources.geometries[shape],resources.animalMaterial,CAPACITY]} frustumCulled={false} userData={{nourishment:true}} castShadow receiveShadow onClick={event=>activate(event,animals.current,shape)} />)}
   </group>;
 }
