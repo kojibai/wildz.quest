@@ -25,5 +25,5 @@ export async function restoreCreationDraft(original:string,scope:{ownerId:string
 /** Preview credits are bound to the original selected graph, never a preceding unbuilt refinement. */
 export function creationCompileContextForConversation(state:CreationConversationState,context:CreationCompileContext):CreationCompileContext{
  const {evolution,...base}=context;void evolution;
- return {...base,pose:state.placement,...(state.instance&&state.selectedDefinition?{evolution:{instanceId:state.instance.instanceId,head:state.instance.head,definition:state.selectedDefinition}}:{})};
+ return {...base,physical:state.instance&&state.selectedDefinition?base.physical.filter(c=>c.instanceId!==state.instance!.instanceId||c.head!==state.instance!.head):base.physical,pose:state.placement,...(state.instance&&state.selectedDefinition?{evolution:{instanceId:state.instance.instanceId,head:state.instance.head,definition:state.selectedDefinition}}:{})};
 }

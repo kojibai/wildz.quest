@@ -25,6 +25,8 @@ import type {CreationController} from "./creation/controller";
 import type {CreationObjectLibraryInput} from "./creation/library-session";
 import type {CreationPhysicalSnapshot} from "./creation/physical-store";
 import type { CreationPreview } from "./creation/preview";
+import {projectCreationCompilePhysical} from "./creation/compile-environment";
+import {projectPlayerBreathState} from "./player-breath-energy";
 import type { CreationCompileContext } from "./creation/compiler";
 import creationPanelClasses from "./creation/creation.module.css";
 const CreationSession=dynamic(()=>import("./creation/CreationSession"),{ssr:false});
@@ -602,6 +604,7 @@ export function PlayCampaign({
   const [trainerEncounter, setTrainerEncounter] = useState<TrainerEncounterState | null>(null);
   const [kaiUPulse, setKaiUPulse] = useState(0);
   const kaiRuntimeClockRef = useRef<ReturnType<typeof createWildsKaiRuntimeClock> | null>(null);
+  const readActionKaiUPulse=useCallback(()=>kaiRuntimeClockRef.current?.read(performance.now(),observeWildsKaiUPulse())??observeWildsKaiUPulse(),[]);
   const worldProgression = projectWorldProgression(state.worldMastery);
   const activeCard = selectedCard(state);
   const activeAsset = selectedAsset(state);
@@ -695,7 +698,7 @@ export function PlayCampaign({
   }, [deckCards]);
   const nextHabitat = guideFamilies.find((family) => !discoveredByFamily.has(family.id))?.habitat ?? "the living frontier";
   const visibleGuideFamilies = guideFamilies.slice(0, 24);
-  const hudModel = projectWildzHud(state, { username: ownerReceizId, displayName: playerDisplayName });
+  const hudModel = projectWildzHud(state, { username: ownerReceizId, displayName: playerDisplayName },kaiUPulse);
   const cardAdmission = useMemo<WildzVaultCardMembershipProof | null>(() => {
     if (!activeAsset) return null;
     try {
@@ -1022,6 +1025,9 @@ export function PlayCampaign({
     [siteRegion.x, siteRegion.z, worldGeometry]
   );
   const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
+  const creationWorldHead=useMemo(()=>sha256PortableBasis(livingWorld.snapshot?.cursor?.eventId||'wilds:creation:unadmitted'),[livingWorld.snapshot?.cursor?.eventId]);
+  const creationCompilePhysical=useMemo(()=>projectCreationCompilePhysical({worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId,sourceHead:creationWorldHead,projections:creationPhysical.projections,obstacles:livingPhysicalObstacles,sites:sitePhysical}),[state.siteSpace.spaceId,creationWorldHead,creationPhysical.projections,livingPhysicalObstacles,sitePhysical]);
+  const liveCreationContext=useMemo(()=>creationContext?{...creationContext,spaceId:state.siteSpace.spaceId,sourceHead:creationWorldHead,physical:creationCompilePhysical}:null,[creationContext,state.siteSpace.spaceId,creationWorldHead,creationCompilePhysical]);
   const accompanyingCrew = useMemo(() => state.inventory.filter(card => card.id === state.selectedAssetId || state.supportAssetIds.includes(card.id)).slice(0, 3), [state.inventory, state.selectedAssetId, state.supportAssetIds]);
   const crewControlScope = useRef({ owner: ownerReceizId, inventory: state.inventory, custody: crewCustody });
   crewControlScope.current = { owner: ownerReceizId, inventory: state.inventory, custody: crewCustody };
@@ -1087,7 +1093,18 @@ export function PlayCampaign({
     mode: livingWorld.mode,
     cursor: livingWorld.snapshot?.cursor ?? null
   }), [kaiUPulse, livingWorld.mode, livingWorld.snapshot?.cursor]);
-  useEffect(()=>{if(!enabled)return;setState(current=>applyWildsInput(current,{type:'energy-tick',kaiUPulse:kaiMoment.uPulse,energyActivity:aerialStateRef.current.mode!=='ground'?aerialStateRef.current.mode:verticalTraversalRef.current.layer==='water'?'swim':'active'}));},[enabled,kaiMoment.uPulse]);
+  const livePlayerEnergy=useMemo(()=>projectPlayerBreathState({energy:state.energy,playerBreaths:state.playerBreaths},kaiMoment.uPulse),[state.energy,state.playerBreaths,kaiMoment.uPulse]);
+  const presentationState=useMemo(()=>({...state,...livePlayerEnergy}),[state,livePlayerEnergy]);
+  const energyActivity=aerialMode!=='ground'?aerialMode:verticalReadout.layer==='water'?'swim':'active';
+  // Persist elapsed energy on lifecycle/activity changes. The display clock is read-only.
+  useEffect(()=>{
+    if(!enabled)return;
+    const settle=()=>setState(current=>applyWildsInput(current,{type:'energy-tick',kaiUPulse:readActionKaiUPulse(),energyActivity}));
+    settle();
+    document.addEventListener('visibilitychange',settle);
+    window.addEventListener('pagehide',settle);
+    return ()=>{document.removeEventListener('visibilitychange',settle);window.removeEventListener('pagehide',settle);};
+  },[enabled,energyActivity,readActionKaiUPulse]);
   const roamingBattle = useWildsRoamingBattle({
     enabled: enabled && networkEnabled,
     selfId: multiplayer.selfId,
@@ -1823,7 +1840,7 @@ export function PlayCampaign({
     if (input.type === "select-asset") setNewRosterAssetId(null);
     // User actions share the live monotonic clock used by encounter timers;
     // the displayed pulse can lag those timers until its next UI update.
-    const actionUPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
+    const actionUPulse = readActionKaiUPulse();
     const energyActivity=aerialStateRef.current.mode!=='ground'?aerialStateRef.current.mode:verticalTraversalRef.current.layer==='water'?'swim':'active';
     const rootedInput = rootWildsInputInKai({...input,energyActivity}, actionUPulse);
     setState((current) => {
@@ -2046,7 +2063,7 @@ export function PlayCampaign({
           showWorldFeedback("Enter deep water first; the nearest deep-water edge is the dive route.");
           return;
         }
-        if (state.energy <= 0) { showWorldFeedback("You need energy to dive. Return to shore and make camp, then enter the water again.", true); return; }
+        if (livePlayerEnergy.energy <= 0) { showWorldFeedback("You need energy to dive. Return to shore and make camp, then enter the water again.", true); return; }
         const dive = requestWildsDive(verticalTraversalRef.current);
         if (!dive.ok) { showWorldFeedback(dive.reason, true); return; }
         setActiveWorldCapability("dive");
@@ -2181,7 +2198,7 @@ export function PlayCampaign({
   const pulse = nearbyEcology && (basePulse.kind === "scan" || basePulse.kind === "greet")
     ? { kind: "join" as const, label: `${nearbyEcology.site.phase === "foreshadowed" ? "Discover" : "Enter"} ${nearbyEcology.site.name}`, activityId: nearbyEcology.site.id }
     : basePulse;
-  const heartbeatMood = state.energy < 30 ? "Protective" : state.encounter.phase === "idle" ? "Curious" : "Alert";
+  const heartbeatMood = livePlayerEnergy.energy < 30 ? "Protective" : state.encounter.phase === "idle" ? "Curious" : "Alert";
   const heartbeatMemory = state.lastEvent || "Your pack remembers the first trail into the Wilds.";
   const heartbeatWhispers = [
     nearbyLivingBoss ? `${nearbyLivingBoss.name} is stirring nearby.` : null,
@@ -2192,7 +2209,7 @@ export function PlayCampaign({
     moment: kaiMoment,
     connected: livingWorld.mode === "receiz_live",
     worldRevision: livingWorld.snapshot?.revision ?? 0,
-    energy: state.energy,
+    energy: livePlayerEnergy.energy,
     creature: activeAsset ? {
       assetId: activeAsset.id,
       name: activeAsset.manifest.name,
@@ -2592,7 +2609,7 @@ export function PlayCampaign({
       status: `${state.beans} beans · ${state.fusionSparks} sparks`,
       content: (
         <div className="wilds-command-content wilds-satchel">
-          <WildzCommandInsight label="Trail preparation" value={`${Math.round(state.energy)}% energy`} detail="Use what you gathered now; every action updates the same live explorer state used in the world.">
+          <WildzCommandInsight label="Trail preparation" value={`${Math.round(livePlayerEnergy.energy)}% energy`} detail="Use what you gathered now; every action updates the same live explorer state used in the world.">
             <button onClick={() => dispatch({ type: "rest", at: new Date().toISOString() })} type="button">Make camp</button>
             <button onClick={() => dispatch({ type: "train", at: new Date().toISOString() })} type="button">Train leader</button>
             <button aria-pressed={visualSettings.lanternEnabled} onClick={() => setVisualSettings(current => ({ ...current, lanternEnabled: !current.lanternEnabled }))} type="button">{visualSettings.lanternEnabled ? "Stow lantern" : "Equip lantern"}</button>
@@ -2821,7 +2838,7 @@ export function PlayCampaign({
               liftPotential={traversalPotentials.lift}
               pressurePotential={traversalPotentials.pressure}
               aquaticPresentation={aquaticPresentation}
-              state={state}
+              state={presentationState}
               character={character}
               remotePlayers={multiplayer.remotePlayers}
               qualityProfile={qualityProfile}
@@ -3060,10 +3077,10 @@ export function PlayCampaign({
               onRequestReceive={(amountPhiMicro) => { void walletController.requestReceive(amountPhiMicro); }}
             /> : null}
 
-            {creationOpen && creationContext ? <CreationSession
+            {creationOpen && liveCreationContext ? <CreationSession
               key={`${ownerReceizId}:${state.siteSpace.spaceId}`}
               ownerId={ownerReceizId} spaceId={state.siteSpace.spaceId} cards={crewCards} conditions={state.adventureConditions}
-              objectLibrary={creationLibrary} classes={creationPanelClasses} lots={availableMaterialLots} context={creationContext} commit={creationController?.commit} objects={Object.values(creationPhysical.instances).flatMap(instance=>creationPhysical.definitions[instance.definitionDigest]?[{instance,definition:creationPhysical.definitions[instance.definitionDigest]}]:[])}
+              objectLibrary={creationLibrary} classes={creationPanelClasses} lots={availableMaterialLots} context={liveCreationContext} commit={creationController?.commit} objects={Object.values(creationPhysical.instances).flatMap(instance=>creationPhysical.definitions[instance.definitionDigest]?[{instance,definition:creationPhysical.definitions[instance.definitionDigest]}]:[])}
               cardAdmissions={creationCardAdmissions}
               onMovementInput={dispatchWorldInput} headingRef={cameraHeadingRef} onPlacementModeChange={setCreationPlacing}
               placementRef={creationPoint} onPreview={setCreationPreview} onClose={closeCreation}
@@ -3072,7 +3089,7 @@ export function PlayCampaign({
             <WildzWorldControls
               onOpenCreation={()=>{
                 continuousBuilder.close();burrowBuilder.close();dispatchStageOverlay({type:'dismiss'});
-                setCreationContext({worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId,sourceHead:sha256PortableBasis(livingWorld.snapshot?.cursor?.eventId||'wilds:creation:unadmitted'),pose:{position:{x:state.player.x+3,y:state.siteSpace.position.y,z:state.player.z},yaw:0},budget:{...stewardMaterials},techniques:[],physical:[],quality:qualityProfile.tier==='low'?'low':'high'});
+                setCreationContext({worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId,sourceHead:creationWorldHead,pose:{position:{x:state.player.x+3,y:state.siteSpace.position.y,z:state.player.z},yaw:0},budget:{...stewardMaterials},techniques:[],physical:creationCompilePhysical,quality:qualityProfile.tier==='low'?'low':'high'});
                 setCreationOpen(true);
               }}
               onOpenCrew={() => setRequestedCommand("crew")}

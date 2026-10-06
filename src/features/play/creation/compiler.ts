@@ -4,7 +4,7 @@ import { assertCreationData, parseCreationDefinition } from './definition';
 import { CREATION_BEHAVIORS, CREATION_MATERIALS, CREATION_PAGE_SIZE } from './registry';
 import { deriveCreationGeometry, overlapsCreationSolids, type CreationSolid, type CreationSurface, type CreationConnection, type CreationBounds } from './geometry';
 import type { CreationDefinition, CreationPose, CreationResourceBudget, CreationPoint, CreationInstanceRef } from './types';
-export type CreationPhysicalChunk = Readonly<{ chunkId:string; head:string; terrain:readonly CreationPoint[]; solids:readonly CreationSolid[]; walkable:readonly CreationSurface[]; portals:readonly CreationConnection[] }>;
+export type CreationPhysicalChunk = Readonly<{ chunkId:string; head:string; instanceId?:string; terrain:readonly CreationPoint[]; solids:readonly CreationSolid[]; walkable:readonly CreationSurface[]; portals:readonly CreationConnection[] }>;
 export type CreationEvolutionBasis = CreationInstanceRef & Readonly<{definition:CreationDefinition}>;
 export type CreationCompileContext = Readonly<{ evolution?:Omit<CreationEvolutionBasis,'definitionDigest'>; worldId:string; spaceId:string; pose:CreationPose; sourceHead:string; budget:CreationResourceBudget; techniques:readonly string[]; physical:readonly CreationPhysicalChunk[]; quality:'low'|'medium'|'high' }>;
 export type CreationChunk = Readonly<{ id:string; region:{x:number;z:number}; bounds:CreationBounds; nodeIds:readonly string[]; solids:readonly CreationSolid[]; walkable:readonly CreationSurface[]; interiors:readonly CreationBounds[]; connections:readonly CreationConnection[]; positions:Float32Array; normals:Float32Array; materials:readonly {start:number;count:number;material:string}[] }>;

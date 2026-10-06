@@ -1,4 +1,4 @@
-import {playerBreathReadout} from "./player-breath-energy";
+import {playerBreathReadout,projectPlayerBreathState} from "./player-breath-energy";
 import { livingMissionTitle, selectedCard, selectedAsset, exactCompanionProgress, type PlayState } from "./game-state";
 
 const percent = (value: number) => Math.max(0, Math.min(100, Math.round(Number.isFinite(value) ? value : 0)));
@@ -14,8 +14,10 @@ export type WildzHudModel = {
 
 export function projectWildzHud(
   state: PlayState,
-  identity: { username: string; displayName: string }
+  identity: { username: string; displayName: string },
+  kaiUPulse?:number
 ): WildzHudModel {
+  const energyState=kaiUPulse===undefined?state:projectPlayerBreathState(state,kaiUPulse);
   const companion = selectedCard(state);
   const asset = selectedAsset(state);
   const progression = asset ? exactCompanionProgress(state, asset) : { level: 1, xp: 0, bond: 0 };
@@ -32,7 +34,7 @@ export function projectWildzHud(
       level: progression.level,
       bond: progression.bond
     },
-    energy: { current: percent(state.energy), maximum: 100, ...(state.playerBreaths?{breaths:playerBreathReadout(state.playerBreaths)}:{}) },
+    energy: { current: percent(energyState.energy), maximum: 100, ...(energyState.playerBreaths?{breaths:playerBreathReadout(energyState.playerBreaths)}:{}) },
     xp: { current: Math.max(0, Math.round(state.cardXp)), progress: percent(state.cardXp % 100) },
     mission: { title: livingMissionTitle(state), progress: Math.min(99, percent(state.missionProgress)) },
     location: { x: state.player.x, z: state.player.z }

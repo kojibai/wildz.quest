@@ -82,3 +82,10 @@ export function recoverPlayerBreaths(state: PlayerBreaths, breaths: number): Pla
         return state;
     return { ...state, reserveMicroBreaths: state.reserveMicroBreaths + amount, restoredMicroBreaths: Math.min(Number.MAX_SAFE_INTEGER, state.restoredMicroBreaths + amount) };
 }
+
+/** Read-only clock projection. Only meaningful gameplay/lifecycle events adopt elapsed energy. */
+export function projectPlayerBreathState(state:{energy:number;playerBreaths?:PlayerBreaths},kaiUPulse:number):{energy:number;playerBreaths:PlayerBreaths}{
+ const source=isPlayerBreaths(state.playerBreaths)?state.playerBreaths:createPlayerBreaths(kaiUPulse,state.energy);
+ const playerBreaths=advancePlayerBreaths(source,kaiUPulse);
+ return {energy:playerBreathEnergy(playerBreaths),playerBreaths};
+}
