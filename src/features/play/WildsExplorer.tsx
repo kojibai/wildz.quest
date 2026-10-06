@@ -1,5 +1,7 @@
 "use client";
 
+import { playerBodyBreathExpansion } from "./player-breath-energy";
+
 import { projectWildsExplorerAnatomy } from "./wilds-explorer-anatomy";
 import { createWildsExplorerFace, createWildsExplorerTorso } from "./wilds-explorer-face";
 import { useWildsCharacterTexture } from "./wilds-character-material";
@@ -224,6 +226,8 @@ export function WildsExplorer({
   locomotion = "ground",
   scubaVisible = false,
   sleepPose,
+  kaiUPulse,
+  bodyReadiness = 100,
   aerialStateRef,
   aerialPalette = { primary: "#c9fff0", accent: "#f5d46c", glow: "#76f3cf" }
 }: {
@@ -235,11 +239,19 @@ export function WildsExplorer({
   locomotion?: "ground" | "swim";
   scubaVisible?: boolean;
   sleepPose?: WildsBedSleepPose;
+  kaiUPulse?: number;
+  bodyReadiness?: number;
   aerialStateRef?: MutableRefObject<WildsAerialTraversalState>;
   aerialPalette?: Readonly<{ primary: string; accent: string; glow: string }>;
 }) {
   const readability = useWildsReadability();
   const sleeping = Boolean(sleepPose);
+  const breathClock = useRef({ kaiUPulse: kaiUPulse ?? 0, observedAt: 0 });
+  useEffect(() => {
+    breathClock.current.kaiUPulse = kaiUPulse ?? 0;
+    breathClock.current.observedAt = performance.now();
+  }, [kaiUPulse]);
+  const tiredness = 1 - Math.max(0, Math.min(100, bodyReadiness)) / 100;
   const proofRender = character ? projectWildzExplorerRender(character) : null;
   const renderStyle = proofRender?.style ?? style;
   const appearance = proofRender?.appearance ?? {
@@ -301,7 +313,7 @@ export function WildsExplorer({
     const swimStroke = locomotion === "swim" ? Math.sin(elapsed * 3.8) * readability.motionScale : 0;
     const airborne = aerialMode !== "ground";
     const verticalVelocity = aerialStateRef?.current.verticalVelocity ?? 0;
-    const breath = Math.sin(elapsed * 1.8) * 0.018 * readability.motionScale;
+    const breath = (playerBodyBreathExpansion(breathClock.current.kaiUPulse, Math.max(0, performance.now() - breathClock.current.observedAt)) - .5) * .036 * (1 + tiredness * .5) * readability.motionScale;
     const bodyPitch = sleepPose ? sleepPose.pitch : locomotion === "swim"
       ? moving ? -1.42 : -0.78
       : airborne
@@ -320,8 +332,10 @@ export function WildsExplorer({
     }
     if (spine.current) {
       spine.current.rotation.y = grounded ? -stride * 0.06 : 0;
+      spine.current.rotation.x = grounded ? tiredness * .09 : 0;
       spine.current.scale.y = 1 + breath;
     }
+    if (head.current) head.current.rotation.x = grounded ? tiredness * .07 : 0;
     if (head.current) head.current.rotation.y = sleeping ? 0 : Math.sin(elapsed * 0.72) * (moving ? 0.035 : 0.09) * readability.motionScale;
     if (leftShoulder.current) leftShoulder.current.rotation.x = locomotion === "swim" ? -0.55 + swimStroke * 0.72 : grounded ? stride * 0.52 : airborne ? -0.42 : 0;
     if (rightShoulder.current) rightShoulder.current.rotation.x = locomotion === "swim" ? -0.55 - swimStroke * 0.72 : grounded ? -stride * 0.52 : airborne ? -0.42 : 0;

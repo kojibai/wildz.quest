@@ -29,6 +29,7 @@ export type MutableWildsAerialRuntimeResult = {
 };
 
 export type WildsAerialRuntimeStep = {
+  bodyReadiness?: number;
   weatherLoad?: number;
   deltaSeconds: number;
   flightEndurancePotential?: number;
@@ -73,7 +74,8 @@ export function writeWildsAerialRuntimeStep(
   input: WildsAerialRuntimeStep,
   output: MutableWildsAerialRuntimeResult
 ) {
-  if (!Number.isFinite(input.deltaSeconds)
+  if ((input.bodyReadiness !== undefined && !Number.isFinite(input.bodyReadiness))
+    || !Number.isFinite(input.deltaSeconds)
     || (input.weatherLoad !== undefined && !Number.isFinite(input.weatherLoad))
     || (input.flightEndurancePotential !== undefined && !Number.isFinite(input.flightEndurancePotential))
     || !Number.isFinite(input.groundElevation)
@@ -83,6 +85,8 @@ export function writeWildsAerialRuntimeStep(
     || !Number.isFinite(input.verticalOffset)) {
     throw new Error("wilds_aerial_runtime_input_invalid");
   }
+  const bodyReadiness = bounded(input.bodyReadiness ?? 100, 0, 100);
+  state.stamina = Math.min(state.stamina, bodyReadiness);
   const delta = bounded(input.deltaSeconds, 0, .1);
   const distance = bounded(input.horizontalDistance, 0, 4);
   const weatherCost = 1 + bounded(input.weatherLoad ?? 0, 0, 1) * .65;
@@ -99,7 +103,7 @@ export function writeWildsAerialRuntimeStep(
   if (state.mode === "ground") {
     state.altitude = quantize(input.groundElevation);
     state.verticalVelocity = 0;
-    state.stamina = quantize(Math.min(100, state.stamina + delta * GROUND_ENERGY_RECOVERY_PER_SECOND));
+    state.stamina = quantize(Math.min(bodyReadiness, state.stamina + delta * GROUND_ENERGY_RECOVERY_PER_SECOND));
     state.safeAnchor.x = quantize(input.positionX);
     state.safeAnchor.z = quantize(input.positionZ);
     state.safeAnchor.elevation = quantize(input.groundElevation);

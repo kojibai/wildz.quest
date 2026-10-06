@@ -563,6 +563,8 @@ function WildsScene({
           aerialStateRef={aerialStateRef}
           character={character}
           identityKey={explorerIdentityKey}
+          kaiUPulse={kaiMoment.uPulse}
+          bodyReadiness={state.energy}
           sleepPose={sleepingBed ? projectWildsBedSleepPose(sleepingBed, state.player, activeFloorY) : undefined}
           locomotion={swimming ? "swim" : "ground"}
           scubaVisible={swimming}
@@ -682,6 +684,7 @@ function AerialPlayerFrame({ creationNavigation, kaiUPulse, aquaticPresentation,
       writeWildsWeatherExposure(weatherExposure.current, weatherSample.current, weatherPoint.current, livingPhysicalObstacles);
       aerialInput.weatherLoad = weatherSample.current.flightLoad * weatherExposure.current.wind;
     }
+    aerialInput.bodyReadiness = swimStamina;
     aerialInput.deltaSeconds = delta;
     aerialInput.flightEndurancePotential = flightEndurancePotential;
     aerialInput.groundElevation = activeGroundElevation;

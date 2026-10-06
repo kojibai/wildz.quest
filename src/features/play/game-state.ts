@@ -1,5 +1,5 @@
 import {resolveCreationMovement,resolveCreationFlight,type CreationNavigation} from './creation/navigation';
-import {createPlayerBreaths,restorePlayerBreaths,isPlayerBreaths,advancePlayerBreaths,spendPlayerBreaths,playerBreathEnergy,PLAYER_BREATHS_PER_DAY} from "./player-breath-energy";
+import {createPlayerBreaths,restorePlayerBreaths,isPlayerBreaths,advancePlayerBreaths,recordPlayerExertion,playerBreathEnergy} from "./player-breath-energy";
 import { nextWildsPartyTravelRevision } from "./wilds-party-transport";
 import { sanitizeWildsCrewPreferences, type WildsCrewPreferences } from "./wilds-crew-preferences";
 import { canSleepInWildsBed, type WildsConstructionFunctionSource } from "./wilds-construction-function";
@@ -1253,19 +1253,20 @@ function reduceWildsInputWithBreaths(state:PlayState,input:WildsInput):PlayState
   if(input.type==='rest'&&input.bed&&!inBed)return state;
   const activityMode=input.energyActivity&&(input.type!=='energy-tick'||!['camp','bed'].includes(breathState.mode)||input.energyActivity!=='active')?input.energyActivity:breathState.mode;
   let breaths=advancePlayerBreaths(breathState,inputKai,input.type==='rest'?(inBed?'bed':'camp'):input.type==='wake'?'active':activityMode,input.kaiUPulse!==undefined||breathState.clockRooted);
-  let cost=input.type==='train'?100:input.type==='use-field-ability'?64*(input.abilityIndex+1):input.type==='battle-action'?96:input.type==='capture'?40:input.type==='record-steward-work'?64:0;
-  if(cost>0&&breaths.reserveMicroBreaths<Math.round(cost*1_000_000))return {...state,playerBreaths:breaths,energy:playerBreathEnergy(breaths),lastEvent:'Take a breath and rest at camp before more strenuous work.'};
+  // Creature actions use their own condition; the explorer records only directing effort.
+  let cost=input.type==='train'?3:input.type==='use-field-ability'?.15*(input.abilityIndex+1):input.type==='battle-action'?(input.action.type==='ability'?.25:0):input.type==='capture'?1:input.type==='record-steward-work'?.15:0;
+  if(input.type==='train'&&playerBreathEnergy(breaths)<20)return {...state,playerBreaths:breaths,energy:playerBreathEnergy(breaths),lastEvent:'Your body needs rest before training. You can still explore and direct your creatures.'};
+  if(input.type==='move-vector'&&input.mode==='run'&&playerBreathEnergy(breaths)<20)input={...input,mode:'walk'};
   const base=state.energy===playerBreathEnergy(breaths)?state:{...state,energy:playerBreathEnergy(breaths)};
-  const reduced=input.type==='rest'?{...state,activeAction:'explore' as const,combo:0,playerBedRest:inBed&&input.type==='rest'&&input.bed?{componentId:input.bed.component.componentId,componentHead:input.bed.head,spaceId:state.siteSpace.spaceId}:undefined,lastEvent:inBed?'Sleeping in bed. Energy recovers with each Kai breath.':'Camp is ready. Rest here to recover with each Kai breath.'}:input.type==='wake'?{...state,playerBedRest:undefined,lastEvent:'Awake and ready to explore.'}:input.type==='energy-tick'?state:reduceWildsInput(base,input);
+  const reduced=input.type==='rest'?{...state,activeAction:'explore' as const,combo:0,playerBedRest:inBed&&input.type==='rest'&&input.bed?{componentId:input.bed.component.componentId,componentHead:input.bed.head,spaceId:state.siteSpace.spaceId}:undefined,lastEvent:inBed?'Sleeping in bed. Strain eases and sleep restores your body with Kai time.':'Resting at camp. Strain eases; bed sleep restores deeper fatigue.'}:input.type==='wake'?{...state,playerBedRest:undefined,lastEvent:'Awake and ready to explore.'}:input.type==='energy-tick'?state:reduceWildsInput(base,input);
   if(reduced===base&&input.type!=='energy-tick')return state;
   if(input.type==='train'&&reduced.cardXp===state.cardXp&&reduced.inventory===state.inventory)cost=0;
   if(input.type==='capture'&&reduced.inventory===state.inventory)cost=0;
   if(input.type==='battle-action'&&reduced.battle===state.battle)cost=0;
   if(input.type==='use-field-ability'&&reduced.inventory===state.inventory&&reduced.companionProgress===state.companionProgress)cost=0;
-  if((input.type==='move'||input.type==='move-vector')&&reduced!==base){const distance=Math.hypot(reduced.player.x-state.player.x,reduced.player.z-state.player.z),rise=Math.max(0,reduced.siteSpace.position.y-state.siteSpace.position.y);cost=distance*(input.type==='move-vector'&&input.mode==='run'?2:1)+rise*3;}
+  if((input.type==='move'||input.type==='move-vector')&&reduced!==base){const distance=Math.hypot(reduced.player.x-state.player.x,reduced.player.z-state.player.z),rise=Math.max(0,reduced.siteSpace.position.y-state.siteSpace.position.y);cost=distance*(input.type==='move-vector'&&input.mode==='run'?.09:.03)+rise*.2;}
   else if(reduced===base||reduced===state||input.type==='rest'||input.type==='energy-tick')cost=0;
-  if(Math.round(cost*1_000_000)>breaths.reserveMicroBreaths)return {...state,playerBreaths:breaths,energy:playerBreathEnergy(breaths),lastEvent:'Rest at camp to recover the breaths needed for this action.'};
-  breaths=spendPlayerBreaths(breaths,cost);
+  breaths=recordPlayerExertion(breaths,cost,!['use-field-ability','record-steward-work','battle-action'].includes(input.type));
   if(reduced===state&&state.playerBreaths===breaths)return state;
   return settlePlayerRestFromBreaths(state,{...reduced,playerBedRest:breaths.mode==='bed'?reduced.playerBedRest:undefined,playerBreaths:breaths,energy:playerBreathEnergy(breaths)},inputKai,input.type==='rest');
 }
@@ -2361,7 +2362,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
   if (input.type === "train") {
     const targetCardId = input.cardId ?? state.selectedCardId;
     if (!state.discoveredCardIds.includes(targetCardId)) return state;
-    if (state.energy < 100/PLAYER_BREATHS_PER_DAY*100) {
+    if (state.energy < 20) {
       return { ...state, lastEvent: "Not enough energy to train. Make camp before the next session." };
     }
     const selectedTarget = state.inventory.find((asset) => asset.id === state.selectedAssetId

@@ -37,9 +37,9 @@ import {applyWildsInput,serializePlayState} from '../src/features/play/game-stat
 const BREATH_DAY=Number(KAI_N_DAY_MICRO),BREATH_BASE=BREATH_DAY*100;
 test('clock-only HUD updates analytically show drain without changing the saved player',()=>{
  const state={...initialPlayState,energy:100,playerBreaths:createPlayerBreaths(BREATH_BASE,100)},saved=serializePlayState(state);
- for(let i=1;i<=20;i++){const hud=projectWildzHud(state,{username:'owner',displayName:'Explorer'},BREATH_BASE+Math.floor(BREATH_DAY*i/20));if(i===20){assert.equal(hud.energy.current,95);assert.equal(hud.energy.breaths?.spentTodayBreaths,0);assert.equal(hud.energy.breaths?.day,101);}}
+ for(let i=1;i<=20;i++){const hud=projectWildzHud(state,{username:'owner',displayName:'Explorer'},BREATH_BASE+Math.floor(BREATH_DAY*i/20));if(i===20){assert.equal(hud.energy.current,10);assert.equal(hud.energy.breaths?.effortToday,0);assert.equal(hud.energy.breaths?.day,101);}}
  assert.equal(serializePlayState(state),saved);assert.equal(state.playerBreaths.lastKaiUPulse,BREATH_BASE);
- const settled=applyWildsInput(state,{type:'energy-tick',kaiUPulse:BREATH_BASE+BREATH_DAY});assert.equal(settled.energy,95);
+ const settled=applyWildsInput(state,{type:'energy-tick',kaiUPulse:BREATH_BASE+BREATH_DAY});assert.equal(settled.energy,10);
 });
 test('a resting HUD recovers elapsed breaths without publishing or ending camp',()=>{
  const state={...initialPlayState,energy:20,playerBreaths:advancePlayerBreaths(createPlayerBreaths(BREATH_BASE,20),BREATH_BASE,'camp')},saved=serializePlayState(state);

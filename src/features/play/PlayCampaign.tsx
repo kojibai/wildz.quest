@@ -1099,11 +1099,15 @@ export function PlayCampaign({
   // Persist elapsed energy on lifecycle/activity changes. The display clock is read-only.
   useEffect(()=>{
     if(!enabled)return;
-    const settle=()=>setState(current=>applyWildsInput(current,{type:'energy-tick',kaiUPulse:readActionKaiUPulse(),energyActivity}));
-    settle();
-    document.addEventListener('visibilitychange',settle);
-    window.addEventListener('pagehide',settle);
-    return ()=>{document.removeEventListener('visibilitychange',settle);window.removeEventListener('pagehide',settle);};
+    // A suspended scene performs no swimming/flight work. Breathing and wake fatigue
+    // continue analytically; an existing camp or bed remains in its recovery mode.
+    const settle=(quiet=false)=>setState(current=>applyWildsInput(current,{type:'energy-tick',kaiUPulse:readActionKaiUPulse(),energyActivity:quiet?'active':energyActivity}));
+    const onVisibility=()=>settle(document.hidden);
+    const onPageHide=()=>settle(true);
+    onVisibility();
+    document.addEventListener('visibilitychange',onVisibility);
+    window.addEventListener('pagehide',onPageHide);
+    return ()=>{document.removeEventListener('visibilitychange',onVisibility);window.removeEventListener('pagehide',onPageHide);};
   },[enabled,energyActivity,readActionKaiUPulse]);
   const roamingBattle = useWildsRoamingBattle({
     enabled: enabled && networkEnabled,
@@ -1998,6 +2002,11 @@ export function PlayCampaign({
       return;
     }
     const kind = plan.mode;
+    const body = projectPlayerBreathState(state, readActionKaiUPulse());
+    if (body.energy < (kind === "flight" ? 20 : plan.kind === "takeoff" ? 30 : 0)) {
+      showWorldFeedback("Your body needs rest before takeoff. Walking and directing creatures are still available.");
+      return;
+    }
     const begun = beginWildsAerialTraversal(aerialStateRef.current, {
       kind,
       capabilities: activeTraversalCapabilities

@@ -1,4 +1,7 @@
 "use client";
+
+import { createPlayerBreaths, playerBreathReadout } from "./player-breath-energy";
+import { KAI_N_DAY_MICRO } from "./kai-klok-moment";
 import { useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
@@ -27,7 +30,7 @@ function fixture() {
   const progress = projectWildsConstructionProgress(component, materials, work);
   const world = { ...initialWildsWorldProjection(), constructionComponents: { [component.componentId]: component }, materialLots: Object.fromEntries(lots.map(l => [l.lotId, l])), constructionMaterialContributions: Object.fromEntries(materials.map(p => [p.contributionId, p])), constructionWorkContributions: Object.fromEntries(work.map(p => [p.contributionId, p])), consumedMaterialLots: Object.fromEntries(progress.embeddedLotIds.map(id => [id, component.componentId])) };
   const bed = resolveWildsConstructionFunction(world, component.componentId, "bed")!;
-  const state = { ...structuredClone(initialPlayState), inventory: [], energy: 35, player: { x: bed.position.x, z: bed.position.z }, siteSpace: { ...initialPlayState.siteSpace, position: { ...bed.position, y: bed.position.y - .35 } } };
+  const state = { ...structuredClone(initialPlayState), inventory: [], energy: 35, playerBreaths: createPlayerBreaths(Number(KAI_N_DAY_MICRO) * 100, 35), player: { x: bed.position.x, z: bed.position.z }, siteSpace: { ...initialPlayState.siteSpace, position: { ...bed.position, y: bed.position.y - .35 } } };
   return { world, bed, state };
 }
 export function BedRestBrowserFixture() {
@@ -35,19 +38,21 @@ export function BedRestBrowserFixture() {
   const [state, setState] = useState<PlayState>(data.state);
   const sleeping = state.playerBreaths?.mode === "bed";
   const available = canSleepInWildsBed(data.bed, state.player, state.siteSpace);
-  const act = (input: Parameters<typeof applyWildsInput>[1]) => setState(current => applyWildsInput(current, { ...input, kaiUPulse: (current.playerBreaths?.lastKaiUPulse ?? 100_000_000) + 10_000_000 }));
+  const body = playerBreathReadout(state.playerBreaths!);
+  const act = (input: Parameters<typeof applyWildsInput>[1], elapsed = 10_000_000) => setState(current => applyWildsInput(current, { ...input, kaiUPulse: (current.playerBreaths?.lastKaiUPulse ?? 100_000_000) + elapsed }));
   return <main style={{ height: "100dvh", background: "#142921", color: "#eaf1dd", position: "relative" }}>
-    <div style={{ position: "absolute", top: 20, left: 20, zIndex: 10, display: "flex", gap: 12, alignItems: "center" }}>
+    <div style={{ position: "absolute", top: 20, left: 20, zIndex: 10, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", right: 20 }}>
       {available && <button onClick={() => act(sleeping ? { type: "wake" } : { type: "rest", bed: data.bed })}>{sleeping ? "Wake up" : "Sleep in bed"}</button>}
       <button onClick={() => act({ type: "move-vector", x: 1, z: 0, mode: "walk" })}>Walk away</button>
-      <output>{sleeping ? "Sleeping · breath recovery" : "Awake"} · {state.energy.toFixed(1)}%</output>
+      <button onClick={() => act({ type: "energy-tick" }, Math.floor(Number(KAI_N_DAY_MICRO) / 4))}>Advance · ¼ Kai day</button>
+      <output>{sleeping ? "Sleeping · breath recovery" : "Awake"} · {state.energy.toFixed(1)}% ready · {body.strainPercent.toFixed(1)}% strain · {body.fatiguePercent.toFixed(1)}% fatigue · {body.remainingDayBreaths.toLocaleString()} breaths left</output>
     </div>
     <Canvas shadows camera={{ position: [3.5, 3, 3.5], fov: 42 }}>
       <ambientLight intensity={1.7} /><directionalLight castShadow position={[3, 6, 2]} intensity={2.5} />
       <OrbitControls makeDefault target={[0, .55, 0]} />
       <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -.02, 0]}><planeGeometry args={[12, 12]} /><meshStandardMaterial color="#486149" roughness={1} /></mesh>
       <WildsContinuousConstruction world={data.world} player={state.player} terrainElevation={state.siteSpace.position.y} spaceId={state.siteSpace.spaceId} />
-      <WildsExplorer style="female" identityKey="fixture:sleeping-explorer" worldPosition={state.player} sleepPose={sleeping ? projectWildsBedSleepPose(data.bed, state.player, state.siteSpace.position.y) : undefined} />
+      <WildsExplorer kaiUPulse={state.playerBreaths!.lastKaiUPulse} bodyReadiness={state.energy} style="female" identityKey="fixture:sleeping-explorer" worldPosition={state.player} sleepPose={sleeping ? projectWildsBedSleepPose(data.bed, state.player, state.siteSpace.position.y) : undefined} />
     </Canvas>
   </main>;
 }
