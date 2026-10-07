@@ -3,6 +3,7 @@ import { WildsNourishmentEnvironment, type WildsNourishmentEnvironmentProps } fr
 import type { WildsAnimalHuntPresentation } from './wilds-animal-interaction';
 import { projectCreationBedSleepPose, type CreationBedSource } from './creation/bed';
 import { WildsFirstFrame } from "./WildsFirstFrame";
+import { WildsFirstDrawPreparation } from "./WildsFirstDrawPreparation";
 import { WildsShaderPrewarm } from "./WildsShaderPrewarm";
 import { projectWildsTraversalCapabilities } from "./wilds-traversal-capabilities";
 import { emptyAdventureCondition } from "./adventure/card-condition";
@@ -261,6 +262,7 @@ export function WildsWorldCanvas({
   resourceCompanionReady?: boolean;
   onWorldReady?: () => void;
 }) {
+  const [startupPrepared, setStartupPrepared] = useState(false);
   return (
     <div
       className={`wilds-canvas-wrap${searchEnabled ? " search-armed" : ""}`}
@@ -270,7 +272,7 @@ export function WildsWorldCanvas({
       <Canvas
         camera={{ fov: 40, near: 0.1, far: 80, position: [4.2, 3.7, 6.6] }}
         dpr={qualityProfile.dpr}
-        frameloop={suspended ? "never" : "always"}
+        frameloop={suspended || !startupPrepared ? "never" : "always"}
         gl={{ antialias: true, powerPreference: "high-performance" }}
         onCreated={({ gl, size }) => {
           // Shader log reads synchronize the GPU on first use. Keep diagnostic
@@ -285,8 +287,9 @@ export function WildsWorldCanvas({
       >
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
+          <WildsFirstDrawPreparation onPrepared={setStartupPrepared} />
           <WildsFirstFrame onReady={onWorldReady} />
-          <WildsShaderPrewarm />
+          {startupPrepared ? <WildsShaderPrewarm /> : null}
           <WildsScene nourishment={nourishment} sleepingCreationBed={sleepingCreationBed} suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} creationPreview={creationPreview} creationProjections={creationProjections} creationNavigation={creationNavigation} creationSource={creationSource} creationWorldId={creationWorldId} onCreationNavigation={onCreationNavigation} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>

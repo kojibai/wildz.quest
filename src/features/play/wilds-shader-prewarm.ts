@@ -2,6 +2,57 @@ import { LinearSRGBColorSpace, NoToneMapping, type Camera, type Scene, type WebG
 
 type PrewarmRenderer = Pick<WebGLRenderer, "extensions" | "compile" | "getRenderTarget" | "getActiveCubeFace" | "getActiveMipmapLevel" | "setRenderTarget" | "toneMapping">;
 
+/** Prepare only the initial display programs, between paints. Poll native GPU
+ * completion without reflecting uniforms or reading mutable material state.
+ * The normal renderer still owns the first full draw and world readiness. */
+export function prepareWildsFirstDraw(
+  renderer: Pick<WebGLRenderer, "extensions" | "compile" | "getContext" | "info">,
+  scene: Scene,
+  camera: Camera,
+  schedule: (task: () => void) => () => void,
+  onPrepared: () => void
+): () => void {
+  let cancelled = false, finished = false;
+  let cancelScheduled: (() => void) | undefined;
+  let pending: WebGLProgram[] = [];
+  const finish = () => {
+    if (cancelled || finished) return;
+    finished = true;
+    pending = [];
+    onPrepared();
+  };
+  const stop = () => { cancelled = true; cancelScheduled?.(); pending = []; };
+  try {
+    if (!renderer.extensions.has("KHR_parallel_shader_compile")) { finish(); return stop; }
+    const extension = renderer.extensions.get("KHR_parallel_shader_compile") as KHR_parallel_shader_compile | null;
+    if (!extension) { finish(); return stop; }
+    const context = renderer.getContext();
+    const check = () => {
+      cancelScheduled = undefined;
+      if (cancelled || finished) return;
+      try {
+        if (context.isContextLost()) { finish(); return; }
+        const live = new Set(renderer.info.programs?.map(program => program.program));
+        pending = pending.filter(program => live.has(program)
+          && !context.getProgramParameter(program, extension.COMPLETION_STATUS_KHR));
+        if (pending.length === 0) finish();
+        else cancelScheduled = schedule(check);
+      } catch { finish(); }
+    };
+    cancelScheduled = schedule(() => {
+      cancelScheduled = undefined;
+      if (cancelled) return;
+      try {
+        if (context.isContextLost()) { finish(); return; }
+        renderer.compile(scene, camera);
+        pending = (renderer.info.programs ?? []).map(program => program.program as WebGLProgram).filter(Boolean);
+        check();
+      } catch { finish(); }
+    });
+  } catch { finish(); }
+  return stop;
+}
+
 /** Three r182 compile() queues getProgram/acquireProgram without reflecting
  * uniforms. With KHR_parallel_shader_compile this submits linking ahead of use;
  * compileAsync adds material polling that races with streamed material disposal.
