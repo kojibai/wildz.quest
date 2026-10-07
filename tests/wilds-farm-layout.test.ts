@@ -110,6 +110,24 @@ function fundedFarm() {
 }
 
 // Catch decorative pens granting capacity, only the first real shelter being counted, or unpaid fragments becoming livestock sources.
+test('a new farm can be built beside its distant physical pens while legacy origin reach stays exact', () => {
+  const f = fundedFarm(), authority = { actorId: ownerId, canonical: true, pulse, occurredAt: pulse, uPulse: 20 };
+  const pen = f.farm.nodes.find(node => node.id === 'farm:pen:3:foundation')!;
+  const actorPosition = { x: f.command.context.pose.position.x + pen.pose.position.x, y: f.command.context.pose.position.y,
+    z: f.command.context.pose.position.z + pen.pose.position.z + pen.shape.depth / 2 + 3 };
+  assert.ok(Math.hypot(actorPosition.x - f.command.context.pose.position.x, actorPosition.z - f.command.context.pose.position.z) > 12);
+  const legacy = { ...f.command, actorPosition };
+  assert.throws(() => new WildsWorldService({ checkpoint: checkpointWildsWorld(f.world) }).execute(legacy, authority), /build_out_of_reach/);
+  const command = { ...legacy, reachRule: 'wildz.creation-reach.physical.v2' as const };
+  const result = new WildsWorldService({ checkpoint: checkpointWildsWorld(f.world) }).execute(command, authority);
+  assert.equal(result.constitution.result, 'VALID');
+  assert.deepEqual(replayWildsWorld(result.events, checkpointWildsWorld(f.world)), result.projection);
+  assert.ok(resolveWorldCreationLivestockShelter(result.projection, command.instanceId, ownerId));
+  for (const position of [{ ...actorPosition, z: actorPosition.z + 40 }, { ...actorPosition, y: actorPosition.y + 40 }]) {
+    assert.throws(() => new WildsWorldService({ checkpoint: checkpointWildsWorld(f.world) }).execute({ ...command, actorPosition: position }, authority), /build_out_of_reach/);
+  }
+});
+
 test('paid admitted farm shelters aggregate capacity and retain exact consumed material lineage', () => {
   const fixture = fundedFarm(), authority = { actorId: ownerId, canonical: true, pulse, occurredAt: pulse, uPulse: 20 };
   const service = new WildsWorldService({ checkpoint: checkpointWildsWorld(fixture.world) }), result = service.execute(fixture.command, authority);

@@ -13,8 +13,16 @@ export type CreationPlannerResult={status:'proposed';proposal:CreationPlannerPro
 export class CreationPlannerBlockedError extends Error {
  constructor(reason:string){super(reason.slice(0,4000));this.name='CreationPlannerBlockedError';}
 }
+/** Proposals do not evaluate placement. The original compile context remains
+ * with the conversation and is rechecked by the compiler and live admission. */
+export function compactCreationPlannerRequest(request:CreationPlannerRequest):CreationPlannerRequest {
+ const context=request.context;
+ return {requestId:request.requestId,actorId:request.actorId,message:request.message,selected:request.selected,workers:request.workers,
+  context:{worldId:context.worldId,spaceId:context.spaceId,sourceHead:context.sourceHead,pose:context.pose,
+   budget:context.budget,techniques:context.techniques,quality:context.quality,physical:[]}};
+}
 export async function planCreation(request:CreationPlannerRequest,port:CreationPlannerPort,signal:AbortSignal):Promise<CreationPlannerResult>{
- try {assertCreationData(request);validateCreationBudget(request.context.budget);if(!request.requestId||request.requestId.length>160||!request.actorId||!request.message.trim()||request.message.length>4000||!request.workers.length||request.workers.some(w=>!w.ready))throw Error('Select ready creatures and enter a creation prompt.');if(request.selected)parseCreationDefinition(request.selected);}
+ try {request=compactCreationPlannerRequest(request);assertCreationData(request);validateCreationBudget(request.context.budget);if(!request.requestId||request.requestId.length>160||!request.actorId||!request.message.trim()||request.message.length>4000||!request.workers.length||request.workers.some(w=>!w.ready))throw Error('Select ready creatures and enter a creation prompt.');if(request.selected)parseCreationDefinition(request.selected);}
  catch(error){return {status:'blocked',reason:error instanceof Error?error.message:'Invalid creation request'};}
  if(signal.aborted)return {status:'unavailable',reason:'Request cancelled. Your draft is saved.'};
  const abort=new AbortController();let timer:ReturnType<typeof setTimeout>|undefined;let rejectAbort:((reason:Error)=>void)|undefined;

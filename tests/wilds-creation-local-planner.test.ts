@@ -45,6 +45,19 @@ test('a ten-room mansion with multiple floors produces a finite habitable compos
   assert.ok(Number.isSafeInteger(compiled.plan.requiredWork) && compiled.plan.requiredWork > 0);
 });
 
+test('a firearm request explains the missing mechanics without substituting a close-range weapon', async () => {
+  for (const message of ['Build a firearm', 'Make a timber rifle', 'Create a pistol', 'Add ammunition to it']) {
+    const input = request({ message }), before = structuredClone(input);
+    const result = await planWildsCreation(input, { actorId: 'owner' }, new AbortController().signal);
+    assert.equal(result.status, 'blocked');
+    if (result.status === 'blocked') {
+      assert.match(result.reason, /ranged attacks, projectiles and ammunition/);
+      assert.doesNotMatch(result.reason, /too large/i);
+    }
+    assert.deepEqual(input, before);
+  }
+});
+
 test('counted house floors have walkable stairs and clear room entrances after world rotation', async () => {
   const context = creationContextFixture({ pose: { position: { x: 137, y: 11, z: -63 }, yaw: .61 }, budget: { timber: 1000 }, techniques: ['assembly'] });
   const result = await propose(request({ message: 'Build a three-storey timber house with ten rooms', context }));

@@ -23,6 +23,7 @@ import { verifyWildsMaterialLot } from '../wilds-steward-construction';
 import { sameWildzPlayerCoordinate } from '../../../lib/receiz/wildz-player-coordinate';
 import { CREATURE_CREATION_TECHNIQUE_RULE_V1 } from '../creature-capability-identity';
 import { createWildsExactProofCache } from '../wilds-exact-proof-cache';
+import { creationBuildInReach, CREATION_PHYSICAL_BUILD_REACH_RULE, type CreationBuildReachRule } from './build-reach';
 
 export const CREATION_WORLD_RULE = Object.freeze({ id: 'creation.world.construct.v1', componentRuleHead: CREATION_COMPONENT_RULE_HEAD, techniqueRule: CREATURE_CREATION_TECHNIQUE_RULE_V1, maximumWorkers: 32, maximumMaterialLots: 256, maximumTerrainTiles: 256, work: 'source-card-techniques', custody: 'exact-finite-lot-consumption', readiness: 'local-condition-restricts-source-capability', physical: 'canonical-terrain-discovery-burrows-construction-and-admitted-creations' });
 export type WildsCreationWorkerSource = Readonly<{ card: PortableCardAsset; condition: AdventureCardCondition }>;
@@ -30,6 +31,7 @@ export type WildsCreationConstructCommand = Readonly<{
   type: 'creation.construct'; commandId: string; instanceId: string; definition: CreationDefinition;
   context: CreationCompileContext; planDigest: string; workerSources: readonly WildsCreationWorkerSource[];
   resources: readonly CreationSelectedLot[]; actorPosition: Readonly<{ x: number; y: number; z: number }>;
+  reachRule?: CreationBuildReachRule;
 }>;
 export type WildsCreationEvolveCommand = Omit<WildsCreationConstructCommand, 'type'> & Readonly<{ type: 'creation.evolve'; expectedHead: string }>;
 export type WildsCreationBuildCommand = WildsCreationConstructCommand | WildsCreationEvolveCommand;
@@ -40,6 +42,16 @@ export type WildsCreationSourceCore = Readonly<{
 export type WildsCreationSourceRecord = WildsCreationSourceCore & Readonly<{ history?: readonly (WildsCreationSourceCore & Readonly<{ eventId: string }>)[] }>;
 export const CREATION_WORLD_RULE_HEAD = constructionProofDigest(CREATION_WORLD_RULE);
 export const CREATION_WORLD_EVOLUTION_RULE_HEAD = constructionProofDigest({ id: 'creation.world.evolve.v1', construct: CREATION_WORLD_RULE_HEAD, evolution: CREATION_EVOLUTION_RULE_HEAD, maximumPredecessors: 64, identity: 'owner-current-head-compare-and-swap', history: 'exact-flat-source-and-event-citations' });
+export const CREATION_WORLD_PHYSICAL_BUILD_RULE_HEAD = constructionProofDigest({ ...CREATION_WORLD_RULE,
+  id: 'creation.world.construct.v2', reach: CREATION_PHYSICAL_BUILD_REACH_RULE });
+export const CREATION_WORLD_PHYSICAL_EVOLUTION_RULE_HEAD = constructionProofDigest({ id: 'creation.world.evolve.v2',
+  construct: CREATION_WORLD_PHYSICAL_BUILD_RULE_HEAD, evolution: CREATION_EVOLUTION_RULE_HEAD,
+  maximumPredecessors: 64, identity: 'owner-current-head-compare-and-swap', history: 'exact-flat-source-and-event-citations' });
+function creationWorldBuildRuleHead(command: WildsCreationBuildCommand): string {
+  if (command.reachRule === undefined) return command.type === 'creation.construct' ? CREATION_WORLD_RULE_HEAD : CREATION_WORLD_EVOLUTION_RULE_HEAD;
+  if (command.reachRule !== CREATION_PHYSICAL_BUILD_REACH_RULE.id) throw Error('creation_world_reach_rule_invalid');
+  return command.type === 'creation.construct' ? CREATION_WORLD_PHYSICAL_BUILD_RULE_HEAD : CREATION_WORLD_PHYSICAL_EVOLUTION_RULE_HEAD;
+}
 export type WildsCreationPersistence = Readonly<{
   creations: Record<string, WildsCreationSourceRecord>;
   creationEvents: Record<string, WildsWorldEvent>;
@@ -168,6 +180,7 @@ function canonicalCreationWorldSolids(world: WildsWorldProjection, plan: Creatio
 /** Pure source law used identically by local admission and replay. No writes, verifier injection, or remote rail. */
 export function resolveWorldCreationBuild(world: WildsWorldProjection, command: WildsCreationBuildCommand, actorId: string, kaiUPulse: number): { record: WildsCreationSourceRecord; plan: CreationPlan } {
   assertCreationData(command);
+  const ruleHead = creationWorldBuildRuleHead(command);
   const prior = world.creations?.[command.instanceId];
   if (!validConstructionId(command.commandId) || !validConstructionId(command.instanceId) || !validConstructionId(actorId) || !validConstructionKai(kaiUPulse) || !validConstructionHead(command.planDigest) || !['creation.construct', 'creation.evolve'].includes(command.type) || (command.type === 'creation.construct' ? !!prior : !prior)) throw Error('creation_world_command_invalid');
   const definition = parseCreationDefinition(command.definition), context = command.context;
@@ -177,11 +190,13 @@ export function resolveWorldCreationBuild(world: WildsWorldProjection, command: 
     const verified = projectWildsCreationPersistence({ ...world, creations: { [command.instanceId]: prior! } }).creations[command.instanceId];
     if (!verified || verified.instance.ownerId !== actorId || verified.instance.head !== command.expectedHead || !context.evolution || context.evolution.instanceId !== command.instanceId || context.evolution.head !== command.expectedHead || context.evolution.definition.digest !== verified.command.definition.digest || context.worldId !== verified.instance.worldId || context.spaceId !== verified.instance.spaceId || constructionProofDigest(context.pose) !== constructionProofDigest(verified.instance.pose) || (verified.history?.length ?? 0) >= 64) throw Error('creation_world_evolution_source_stale');
   }
-  if (!command.actorPosition || ![command.actorPosition.x, command.actorPosition.y, command.actorPosition.z].every(Number.isFinite) || Math.hypot(command.actorPosition.x - context.pose.position.x, command.actorPosition.y - context.pose.position.y, command.actorPosition.z - context.pose.position.z) > 12) throw Error('creation_world_build_out_of_reach');
+  if (!command.actorPosition || ![command.actorPosition.x, command.actorPosition.y, command.actorPosition.z].every(Number.isFinite)
+    || command.reachRule === undefined && !creationBuildInReach({ pose: context.pose, chunks: [] }, command.actorPosition)) throw Error('creation_world_build_out_of_reach');
   const workers = creationWorldWorkers(command.workerSources, actorId);
   if (constructionProofDigest([...context.techniques].sort()) !== constructionProofDigest(combineCreationTechniques(workers))) throw Error('creation_world_technique_source_mismatch');
   const fresh = compileCreation(definition, context);
   if (fresh.status !== 'ready' || fresh.plan.digest !== command.planDigest || fresh.plan.requiredWork < 1) throw Error('creation_world_plan_stale');
+  if (command.reachRule && !creationBuildInReach(fresh.plan, command.actorPosition, command.reachRule)) throw Error('creation_world_build_out_of_reach');
   const canonicalSolids = canonicalCreationWorldSolids(world, fresh.plan);
   if (fresh.plan.chunks.some(chunk => chunk.solids.some(solid => canonicalSolids.some(other => overlapsCreationSolids(solid, other))))) throw Error('creation_world_canonical_overlap');
   if (command.type === 'creation.evolve') {
@@ -199,7 +214,7 @@ export function resolveWorldCreationBuild(world: WildsWorldProjection, command: 
   }
   const instance = command.type === 'creation.evolve' ? reviseCreationInstance(prior!.instance, prior!.command.definition, definition, selected.lots, kaiUPulse) : constructInstance(command, kaiUPulse);
   const history = command.type === 'creation.evolve' ? [...(prior!.history ?? []), { ...sourceCore(prior!), eventId: world.creationEvents![command.instanceId].eventId }] : undefined;
-  const record: WildsCreationSourceRecord = { schema: 'wildz.creation-world-source.v1', command: JSON.parse(JSON.stringify(command)) as WildsCreationBuildCommand, commandDigest: constructionProofDigest(command), instance, ruleHead: command.type === 'creation.evolve' ? CREATION_WORLD_EVOLUTION_RULE_HEAD : CREATION_WORLD_RULE_HEAD, kaiUPulse, ...(history ? { history } : {}) };
+  const record: WildsCreationSourceRecord = { schema: 'wildz.creation-world-source.v1', command: JSON.parse(JSON.stringify(command)) as WildsCreationBuildCommand, commandDigest: constructionProofDigest(command), instance, ruleHead, kaiUPulse, ...(history ? { history } : {}) };
   return { record: freezeConstructionProof(record), plan: fresh.plan };
 }
 export function creationWorldReplacementSafe(before: readonly CreationSolid[], after: readonly CreationSolid[], position: Readonly<{ x: number; y: number; z: number }>): boolean {
@@ -261,7 +276,7 @@ function compileWorldCreationSourceUncached(source: WildsCreationSourceRecord): 
   let prior: WildsCreationSourceRecord | null = null, lastPlan: CreationPlan | null = null;
   const commandIds = new Set<string>();
   for (const record of creationWorldSourceHistory(source)) {
-    if (record.schema !== 'wildz.creation-world-source.v1' || record.ruleHead !== (record.command.type === 'creation.construct' ? CREATION_WORLD_RULE_HEAD : CREATION_WORLD_EVOLUTION_RULE_HEAD) || record.commandDigest !== constructionProofDigest(record.command) || !verifyCreationInstance(record.instance) || record.instance.instanceId !== source.instance.instanceId || record.instance.instanceId !== record.command.instanceId || record.instance.definitionDigest !== record.command.definition.digest || record.instance.stage !== 'functional' || record.instance.ownerId !== record.command.definition.creatorId || record.instance.kaiUPulse !== record.kaiUPulse || commandIds.has(record.command.commandId)) throw Error('creation_world_record_invalid');
+    if (record.schema !== 'wildz.creation-world-source.v1' || record.ruleHead !== creationWorldBuildRuleHead(record.command) || record.commandDigest !== constructionProofDigest(record.command) || !verifyCreationInstance(record.instance) || record.instance.instanceId !== source.instance.instanceId || record.instance.instanceId !== record.command.instanceId || record.instance.definitionDigest !== record.command.definition.digest || record.instance.stage !== 'functional' || record.instance.ownerId !== record.command.definition.creatorId || record.instance.kaiUPulse !== record.kaiUPulse || commandIds.has(record.command.commandId)) throw Error('creation_world_record_invalid');
     commandIds.add(record.command.commandId);
     lastPlan = compileWorldCreationCore(record, prior);
     prior = record;
@@ -272,6 +287,7 @@ function compileWorldCreationCore(source: WildsCreationSourceRecord, prior: Wild
   if (source.command.type === 'creation.construct' ? !!prior || !!source.command.context.evolution || !!source.history?.length : !prior || !source.command.context.evolution || source.command.expectedHead !== prior.instance.head || source.command.context.evolution.head !== prior.instance.head || source.command.context.evolution.instanceId !== prior.instance.instanceId || source.command.context.evolution.definition.digest !== prior.command.definition.digest) throw Error('creation_world_record_ancestry_invalid');
   const compiled = compileCreation(source.command.definition, source.command.context);
   if (compiled.status !== 'ready' || compiled.plan.requiredWork < 1 || compiled.plan.digest !== source.command.planDigest || constructionProofDigest(compiled.plan.pose) !== constructionProofDigest(source.instance.pose) || compiled.plan.worldId !== source.instance.worldId || compiled.plan.spaceId !== source.instance.spaceId) throw Error('creation_world_record_plan_invalid');
+  if (source.command.reachRule && !creationBuildInReach(compiled.plan, source.command.actorPosition, source.command.reachRule)) throw Error('creation_world_build_out_of_reach');
   const workers = creationWorldWorkers(source.command.workerSources, source.instance.ownerId);
   if (constructionProofDigest([...source.command.context.techniques].sort()) !== constructionProofDigest(combineCreationTechniques(workers))) throw Error('creation_world_record_crew_invalid');
   const paid = source.command.resources.reduce<Record<string, number>>((totals, resource) => ({ ...totals, [resource.kind]: (totals[resource.kind] ?? 0) + resource.quantity }), {});

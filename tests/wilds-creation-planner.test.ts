@@ -22,3 +22,13 @@ test('zero-write refinement of a transferred object retains the original creator
  assert.equal(result.status,'proposed');assert.deepEqual(input.selected,before);
  if(result.status==='proposed'&&'patch' in result.proposal)assert.equal(result.proposal.patch.baseDigest,before.digest);
 });
+
+test('proposal ports never receive unused world physical evidence while the compiler context stays intact', async () => {
+ const input=request();
+ const physical=[{chunkId:'large-world',head:`sha256:${'a'.repeat(64)}`,terrain:[],solids:[],walkable:[],portals:[]}];
+ input.context={...input.context,physical};
+ let forwarded:unknown;
+ const result=await planCreation(input,{propose:async req=>{forwarded=req.context.physical;return {requestId:input.requestId,reply:'Draft only',definition:input.selected};}},new AbortController().signal);
+ assert.equal(result.status,'proposed');assert.deepEqual(forwarded,[]);
+ assert.equal(input.context.physical,physical,'live compiler still receives original physical authority');
+});

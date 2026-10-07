@@ -12,13 +12,13 @@ import { useCreationConversation } from './use-creation-conversation';
 import type { CreationPose } from './types';
 import type { CreationCommitResult, CreationDefinition, CreationInstanceRef } from './types';
 import type { CreationCompileContext, CreationPlan } from './compiler';
-import type { CreationPlannerPort, CreationPlannerResult } from './planner';
-import { CreationPlannerBlockedError } from './planner';
+import type { CreationPlannerPort } from './planner';
+import { createCreationProposalClient } from './proposal-worker-client';
 import { createCreationPreview, type CreationPreview } from './preview';
 import { WildsCreationPanel,type CreationPanelObject } from './WildsCreationPanel';
 import styles from './creation.module.css';
 import type {CreationObjectLibraryInput} from './library-session';
-export type CreationSessionProps={onSaveObject?:(instanceId:string)=>Promise<void>;displayName?:string;objectLibrary?:CreationObjectLibraryInput;classes?:Record<string,string>;objects?:readonly CreationPanelObject[];ownerId:string;spaceId:string;cards:readonly PortableCardAsset[];conditions:PlayState['adventureConditions'];lots:readonly WildsMaterialLotV1[];context:CreationCompileContext;cardAdmissions:Readonly<Record<string,unknown>>;onPreview:(preview:CreationPreview|null)=>void;onClose:()=>void;onManualBuild:()=>void;planner?:CreationPlannerPort;recover?:(operationId:string,plan:CreationPlan)=>Promise<CreationCommitResult>;commit?:(definition:CreationDefinition,plan:CreationPlan,workerIds:readonly string[],selected?:CreationInstanceRef|null,context?:CreationCompileContext)=>Promise<CreationCommitResult>;placementRef?:MutableRefObject<((pose:CreationPose)=>void)|null>;headingRef?:RefObject<number>;onPlacementModeChange?:(active:boolean)=>void;onMovementInput?:(input:WildsInput)=>void};
+export type CreationSessionProps={newPlacementPose?:()=>CreationPose;onSaveObject?:(instanceId:string)=>Promise<void>;displayName?:string;objectLibrary?:CreationObjectLibraryInput;classes?:Record<string,string>;objects?:readonly CreationPanelObject[];ownerId:string;spaceId:string;cards:readonly PortableCardAsset[];conditions:PlayState['adventureConditions'];lots:readonly WildsMaterialLotV1[];context:CreationCompileContext;cardAdmissions:Readonly<Record<string,unknown>>;onPreview:(preview:CreationPreview|null)=>void;onClose:()=>void;onManualBuild:()=>void;planner?:CreationPlannerPort;recover?:(operationId:string,plan:CreationPlan)=>Promise<CreationCommitResult>;commit?:(definition:CreationDefinition,plan:CreationPlan,workerIds:readonly string[],selected?:CreationInstanceRef|null,context?:CreationCompileContext)=>Promise<CreationCommitResult>;placementRef?:MutableRefObject<((pose:CreationPose)=>void)|null>;headingRef?:RefObject<number>;onPlacementModeChange?:(active:boolean)=>void;onMovementInput?:(input:WildsInput)=>void};
 const subscribeToClient=()=>()=>{};
 const clientSnapshot=()=>true;
 const serverSnapshot=()=>false;
@@ -26,7 +26,9 @@ function CreationSession(input:CreationSessionProps){
  const mounted=useSyncExternalStore(subscribeToClient,clientSnapshot,serverSnapshot);
  const defaultHeading=useRef(0);
  const workers=useMemo(()=>projectCreationWorkers(input.cards,input.conditions),[input.cards,input.conditions]);
- const planner=useMemo<CreationPlannerPort>(()=>input.planner||{async propose(request,signal){const selectedCards=input.cards.filter(card=>request.workers.some(w=>w.assetId===card.id));const response=await fetch('/api/wilds/creation/propose',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({...request,cards:selectedCards,cardAdmissions:input.cardAdmissions,lots:input.lots}),signal});const result=await response.json() as CreationPlannerResult;if(result.status==='blocked')throw new CreationPlannerBlockedError(result.reason);if(result.status!=='proposed')throw Error(result.reason);return result.proposal;}},[input.planner,input.cards,input.cardAdmissions,input.lots]);
+ const proposalClient=useRef<ReturnType<typeof createCreationProposalClient>|null>(null);
+ const planner=useMemo<CreationPlannerPort>(()=>input.planner||{propose(request,signal){const client=proposalClient.current||(proposalClient.current=createCreationProposalClient());return client.propose(request,{cards:input.cards,cardAdmissions:input.cardAdmissions,lots:input.lots},signal);}},[input.planner,input.cards,input.cardAdmissions,input.lots]);
+ useEffect(()=>()=>{proposalClient.current?.close();proposalClient.current=null;},[]);
  const library=input.objectLibrary;
  const restoreObject=useCallback(async (ref:CreationInstanceRef)=>{if(!library||library.scope.actorId!==input.ownerId)return null;const entry=await library.port.read(library.scope,ref.instanceId);if(!entry||entry.status!=='owned'||!entry.artifact)return null;const instance=entry.artifact.payload.checkpoint.instances[0],definition=entry.artifact.payload.checkpoint.definitions.find(d=>d.digest===instance.definitionDigest);return definition?{definition,instance,custodyOwnerId:library.scope.actorId}:null;},[library,input.ownerId]);
  const starterPrompt=useMemo(()=>creationShelterStarterPrompt({displayName:input.displayName,pose:input.context.pose}),[input.displayName,input.context.pose]);
@@ -38,7 +40,7 @@ function CreationSession(input:CreationSessionProps){
   try {
    const definition=createFarmLayoutDefinition({creatorId:input.ownerId,seed:`farm:${crypto.randomUUID()}`,options});
    const selected=conversation.state.workerIds.filter(id=>workers.some(worker=>worker.assetId===id&&worker.ready));
-   conversation.change({type:'selection',definition,workerIds:selected.length?selected:workers.filter(worker=>worker.ready).map(worker=>worker.assetId).slice(0,32),budget:counts});
+   conversation.change({type:'selection',definition,pose:input.newPlacementPose?.()??input.context.pose,workerIds:selected.length?selected:workers.filter(worker=>worker.ready).map(worker=>worker.assetId).slice(0,32),budget:counts});
   }catch(error){conversation.change({type:'blocked',reason:error instanceof Error?error.message:'This farm layout could not be prepared.'});}
  };
  const change=conversation.change,onPreview=input.onPreview,opened=useRef(false);

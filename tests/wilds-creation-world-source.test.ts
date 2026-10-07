@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { CREATION_WORLD_RULE_HEAD, CREATION_WORLD_PHYSICAL_EVOLUTION_RULE_HEAD } from '../src/features/play/creation/world-source';
+import { CREATION_PHYSICAL_BUILD_REACH_RULE } from '../src/features/play/creation/build-reach';
 import { createReceizInMemoryOfflineProofQueueStorage } from '@receiz/sdk';
 import { emptyAdventureCondition } from '../src/features/play/adventure/card-condition';
 import { sealCollectedCard } from '../src/features/play/portable-card';
@@ -335,6 +337,42 @@ function evolutionFixture() {
   const evolve: WildsCreationEvolveCommand = { ...command, type: 'creation.evolve', commandId: 'creation:command:evolve', expectedHead: source.instance.head, definition, context: nextContext, planDigest: nextPlan.plan.digest, resources: selected.lots, actorPosition: { ...context.pose.position, x: context.pose.position.x + 2 } };
   return { f, world, command, service, birth, evolve, nextPlan: nextPlan.plan };
 }
+
+test('new physical reach evolution retains exact legacy construction and rejects relabeled rule heads', () => {
+  const { world, command, service, birth, evolve } = evolutionFixture();
+  assert.equal(birth.projection.creations![command.instanceId].ruleHead, CREATION_WORLD_RULE_HEAD);
+  const result = service.execute({ ...evolve, reachRule: CREATION_PHYSICAL_BUILD_REACH_RULE.id }, { ...authority, uPulse: 21 });
+  const source = result.projection.creations![command.instanceId];
+  assert.equal(source.ruleHead, CREATION_WORLD_PHYSICAL_EVOLUTION_RULE_HEAD);
+  assert.deepEqual(source.history![0].command, command);
+  assert.equal(source.history![0].ruleHead, CREATION_WORLD_RULE_HEAD);
+  assert.deepEqual(replayWildsWorld([...birth.events, ...result.events], checkpointWildsWorld(world)), result.projection);
+  assert.ok(compileWorldCreationSource(source));
+  assert.throws(() => compileWorldCreationSource({ ...source, ruleHead: CREATION_WORLD_RULE_HEAD }), /record_invalid/);
+  const unmarked = { ...source.command };
+  delete unmarked.reachRule;
+  assert.throws(() => compileWorldCreationSource({ ...source, command: unmarked, commandDigest: constructionProofDigest(unmarked) }), /record_invalid/);
+  const distant = { ...source.command, actorPosition: { ...source.command.actorPosition, y: source.command.actorPosition.y + 40 } };
+  assert.throws(() => compileWorldCreationSource({ ...source, command: distant, commandDigest: constructionProofDigest(distant) }), /build_out_of_reach/);
+});
+
+test('the controller rechecks the live player after preparation and never saves an unreachable build', async () => {
+  const f = fixture();
+  let position = f.context.pose.position, saved = 0;
+  const controller = createWorldCreationController({ environment: () => ({ ownerId: actorId, worldId: f.world.worldId, spaceId: f.context.spaceId }),
+    world: () => f.world, crew: () => ({ cards: [f.card], conditions: { [f.card.id]: f.condition } }), position: () => position,
+    compileContext: () => f.context, admit: async (build, beforeAdmit) => {
+      assert.equal(build.reachRule, CREATION_PHYSICAL_BUILD_REACH_RULE.id);
+      position = { ...position, y: position.y + 40 };
+      await beforeAdmit(); saved++;
+      return { projection: f.world, events: [] };
+    }, project: async (instance, definition, plan) => projectCreationPhysical(instance, definition, plan) });
+  const result = await controller.commit(f.definition, f.plan, [f.card.id]);
+  assert.equal(result.status, 'rejected');
+  if (result.status === 'rejected') assert.match(result.reason, /within 12 metres/);
+  assert.equal(saved, 0);
+  controller.close();
+});
 
 test('registered exact-head evolution preserves identity, source payments, history and idempotent replay', () => {
   const { world, command, service, birth, evolve, nextPlan } = evolutionFixture(), result = service.execute(evolve, { ...authority, uPulse: 21 });

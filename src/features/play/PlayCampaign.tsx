@@ -3423,6 +3423,12 @@ export function PlayCampaign({
             {creationOpen && liveCreationContext ? <CreationSession
               key={`${ownerReceizId}:${state.siteSpace.spaceId}`}
               displayName={playerDisplayName} ownerId={ownerReceizId} spaceId={state.siteSpace.spaceId} cards={crewCards} conditions={state.adventureConditions}
+              newPlacementPose={() => {
+                const runtime = creationRuntime.current;
+                if (!runtime || runtime.environment().spaceId !== liveCreationContext.spaceId) throw Error('Your location changed. Reopen the builder here.');
+                const position = runtime.position();
+                return { position: { ...position, x: position.x + 3 }, yaw: liveCreationContext.pose.yaw };
+              }}
               recover={suppliedCreationController ? undefined : localCreation.controller.recover}
               onSaveObject={async instanceId => {
                 const saved = await saveWorldCreationProofImage({ instanceId, resolve: localCreation.controller.resolve, world: livingWorld.currentSource, library: () => creationLibrary || null });

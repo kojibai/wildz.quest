@@ -11,6 +11,7 @@ import { combineCreationTechniques, projectCreationWorkers } from './capabilitie
 import { selectCreationResources } from './resources';
 import { creationWorldAvailability, creationWorldSourceHead, creationWorldWorkers, compileWorldCreationSource, projectWildsCreationPersistence, creationWorldSourceHistory, creationWorldReplacementSafe, type WildsCreationBuildCommand, type WildsCreationSourceRecord } from './world-source';
 import type { CreationCommitResult, CreationDefinition, CreationInstanceRef } from './types';
+import { creationBuildInReach, CREATION_PHYSICAL_BUILD_REACH_RULE } from './build-reach';
 
 export type WorldCreationControllerInput = Readonly<{
   environment: () => Readonly<{ ownerId: string; worldId: string; spaceId: string }>;
@@ -112,7 +113,9 @@ export function createWorldCreationController(input: WorldCreationControllerInpu
         const resources = selectCreationResources(Object.values(world.materialLots), context.budget, plan.requiredResources, creationWorldAvailability(world, scope.ownerId));
         if (Object.keys(resources.deficits).length) throw Error('creation_world_materials_unavailable');
         const operationId = `creation:${selected ? 'evolve' : 'construct'}:${crypto.randomUUID()}`;
-        const fields = { commandId: operationId, definition, context, planDigest: plan.digest, workerSources, resources: resources.lots, actorPosition: input.position() };
+        const actorPosition = input.position(), reachRule = CREATION_PHYSICAL_BUILD_REACH_RULE.id;
+        if (!creationBuildInReach(compiled.plan, actorPosition, reachRule)) throw Error('Move within 12 metres of your creation preview to build.');
+        const fields = { commandId: operationId, definition, context, planDigest: plan.digest, workerSources, resources: resources.lots, actorPosition, reachRule };
         command = structuredClone(selected ? { ...fields, type: 'creation.evolve' as const, instanceId: selected.instanceId, expectedHead: selected.head } : { ...fields, type: 'creation.construct' as const, instanceId: `creation:instance:${crypto.randomUUID()}` });
       } catch (error) { return reject(error instanceof Error ? error.message : 'The build sources could not be prepared.'); }
       const unknown = (): CreationCommitResult => ({ status: 'unknown', operationId: command.commandId });
@@ -127,7 +130,7 @@ export function createWorldCreationController(input: WorldCreationControllerInpu
             if (!card || !same(card, expected.card) || !same(crew.conditions[card.id], expected.condition)) throw Error('creation_world_final_worker_changed');
           }
           creationWorldWorkers(command.workerSources, scope.ownerId);
-          if (Math.hypot(input.position().x - plan.pose.position.x, input.position().y - plan.pose.position.y, input.position().z - plan.pose.position.z) > 12) throw Error('creation_world_build_out_of_reach');
+          if (!creationBuildInReach(plan, input.position(), command.reachRule)) throw Error('Move within 12 metres of your creation preview to build.');
           authorizedForPersistence = true;
         });
         if (!scopeMatches(scope)) return unknown();

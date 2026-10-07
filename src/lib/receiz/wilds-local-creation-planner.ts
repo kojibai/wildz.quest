@@ -292,6 +292,7 @@ export function proposeLocalCreation(request: CreationPlannerRequest, signal: Ab
   const explicit = explicitGraph(request, request.message.trim());
   if (explicit) return explicit;
   const text = request.message.toLowerCase();
+  if (/\b(firearms?|guns?|pistols?|rifles?|shotguns?|revolvers?|ammunition|bullets?)\b/.test(text)) unsupported('Firearms need ranged attacks, projectiles and ammunition, which are not available in creation yet. Current functional weapons support close-range strikes.');
   if (/\b(teleport\w*|portal\w*|fly\w*|flying|infinite|unlimited|electric\w*|motor\w*|engine\w*|robot\w*|computer\w*|laser\w*|magic\w*|fire|heat|water|sensor|logic|joint)\b/.test(text)) unsupported('That mechanic is outside the local intent grammar. Local proposals support homes with beds, storage, tables, benches, garden beds, timber or stone tools and weapons, and basic shapes. Exact supported sensor, logic or joint mechanics require an explicit graph; portals, water and heat are not currently usable component laws.');
   if (/\b(metal|steel|iron|gold|glass|plastic|concrete|brick|clay|marble|silver|copper)\b/.test(text)) unsupported('Only hay, timber and stone are registered creation materials. Choose one of those materials or keep this draft for a future material law.');
   if (/\bsweep\b/.test(text)) unsupported('A sweep needs an explicit graph with a finite horizontal points path.');
