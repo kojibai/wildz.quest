@@ -129,8 +129,17 @@ function validEntry(value: unknown, actorId: string): value is WildsWorldOutboxE
 export async function readWildsWorldOutbox(actorId: string, storage = defaultStorage(actorId)) {
   const queue = await createReceizOfflineProofQueue({ ownerId: actorId, storage });
   const snapshot = queue.snapshot();
-  const resolved = resolveOutboxSources(snapshot, actorId);
-  return snapshot.pending.filter((item) => item.kind === "wilds.world.command").map((item) => resolved.get(item.id) ?? item.payload.entry).filter((entry): entry is WildsWorldOutboxEntry => validEntry(entry, actorId));
+  const pending = snapshot.pending.filter(item => item.kind === "wilds.world.command");
+  if (!pending.length) return [];
+  const pendingIds = new Set(pending.map(item => item.id));
+  const resolved = new Map<string, WildsWorldOutboxEntry>();
+  await visitWildsWorldStoredSources(snapshot, actorId, (entry, source) => {
+    if (!pendingIds.has(entry.command.commandId)) return;
+    resolved.set(entry.command.commandId, source
+      ? { ...entry, admittedSource: { ...entry.admittedSource!, checkpoint: checkpointWildsWorld(source.base) } }
+      : entry);
+  });
+  return pending.map((item) => resolved.get(item.id) ?? item.payload.entry).filter((entry): entry is WildsWorldOutboxEntry => validEntry(entry, actorId));
 }
 
 /** After terminating an uncertain worker, this storage read is the barrier for
@@ -425,8 +434,68 @@ export async function drainWildsWorldOutbox(actorId: string, publish: (entry: Wi
 export async function restoreWildsWorldEdgeSource(base: WildsWorldProjection, actorId: string, storage = defaultStorage(actorId)) {
   const queue = await createReceizOfflineProofQueue({ ownerId: actorId, storage });
   const snapshot = queue.snapshot();
-  const entries = [...resolveOutboxSources(snapshot, actorId).values()];
-  return projectWildsWorldOutbox(base, actorId, entries);
+  let projection = base;
+  await visitWildsWorldStoredSources(snapshot, actorId, (entry, source) => {
+    try {
+      // The durable source was verified against its exact anchor above. Apply
+      // the same event law to the current world without manufacturing another
+      // full checkpoint only to immediately hash and verify it again.
+      projection = source
+        ? entry.admittedSource!.events.reduce(reduceWildsWorldEvent, projection)
+        : admitWildsWorldOutboxEntry(projection, entry);
+    } catch {
+      if (source) projection = preserveWildsConstructionHistory(source.projection, projection);
+      else if (entry.admittedSource) {
+        try { projection = preserveWildsConstructionHistory(verifyWildsWorldAdmittedSource(entry), projection); } catch { /* Invalid sources never acquire authority. */ }
+      }
+    }
+  });
+  return projection;
+}
+
+/** Resolve exact durable anchors once using shared projection references,
+ * never a full synthesized checkpoint for every historical action. Yield also
+ * in workers so recovery remains responsive if the worker is unavailable. */
+async function visitWildsWorldStoredSources(
+  snapshot: ReceizOfflineProofQueueSnapshot,
+  actorId: string,
+  visit: (entry: WildsWorldOutboxEntry, source?: { base: WildsWorldProjection; projection: WildsWorldProjection }) => void
+) {
+  const pendingIds = new Set(snapshot.pending.map(item => item.id));
+  const anchors = new Map<string, WildsWorldProjection>();
+  type Resolved = { entry: WildsWorldOutboxEntry; source?: { base: WildsWorldProjection; projection: WildsWorldProjection } };
+  const resolved = new Map<string, Resolved>();
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
+  let sliceStarted = performance.now();
+  for (const row of [...snapshot.settled, ...snapshot.pending]) {
+    if (row.kind !== "wilds.world.command" || !validEntry(row.payload.entry, actorId)) continue;
+    const entry = row.payload.entry;
+    const source = entry.admittedSource;
+    if (!source && !pendingIds.has(entry.command.commandId)) continue;
+    let verified: { base: WildsWorldProjection; projection: WildsWorldProjection } | undefined;
+    if (source) {
+      try {
+        const sourceBase = source.checkpoint ? replayWildsWorld([], source.checkpoint) : anchors.get(source.anchorId);
+        if (!sourceBase) throw Error("wilds_world_source_anchor_missing");
+        verified = { base: sourceBase, projection: verifyWildsWorldAdmittedSource(entry, sourceBase) };
+        anchors.set(source.anchorId, verified.projection);
+      } catch { /* Retain unresolved exact entries without granting an anchor. */ }
+    }
+    // Imported SDK snapshots can contain duplicate command IDs. Preserve the
+    // existing last-source precedence and first-insertion replay order.
+    resolved.set(entry.command.commandId, { entry, source: verified });
+    if (performance.now() - sliceStarted >= 8) {
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      sliceStarted = performance.now();
+    }
+  }
+  for (const value of resolved.values()) {
+    visit(value.entry, value.source);
+    if (performance.now() - sliceStarted >= 8) {
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      sliceStarted = performance.now();
+    }
+  }
 }
 
 /** Durable storage is still read on every call; only an exact unchanged source prefix is reused. */
@@ -484,13 +553,4 @@ export function createWildsWorldSourceResolver(options: { maxEntries?: number; m
       return resolved;
     }
   };
-}
-
-const sourceResolver = createWildsWorldSourceResolver();
-
-/** Resolve shared anchors transiently. Successor envelopes retain only their exact events. */
-function resolveOutboxSources(snapshot: ReceizOfflineProofQueueSnapshot, actorId: string) {
-  const pendingIds = new Set(snapshot.pending.map((item) => item.id));
-  const entries = [...snapshot.settled, ...snapshot.pending].filter((item) => item.kind === "wilds.world.command").map((item) => item.payload.entry).filter((entry): entry is WildsWorldOutboxEntry => validEntry(entry, actorId));
-  return sourceResolver.resolve(actorId, entries, pendingIds);
 }
