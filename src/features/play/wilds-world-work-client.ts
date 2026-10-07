@@ -1,11 +1,12 @@
 import type { WildsWorldWork } from "./wilds-world-work";
-import { prepareAndPersistWildsWorldOutboxEntry, prepareWildsWorldOutboxEntry, persistWildsWorldCommandDurably, readExactWildsWorldOutboxEntry, readWildsWorldOutbox as readOutbox, acknowledgeWildsWorldCommand as acknowledgeOutbox, restoreWildsWorldEdgeSource as restoreOutbox } from "./wilds-world-outbox";
+import { projectWildsWorldOutboxCooperatively, prepareAndPersistWildsWorldOutboxEntry, prepareWildsWorldOutboxEntry, persistWildsWorldCommandDurably, readExactWildsWorldOutboxEntry, readWildsWorldOutbox as readOutbox, acknowledgeWildsWorldCommand as acknowledgeOutbox, restoreWildsWorldEdgeSource as restoreOutbox } from "./wilds-world-outbox";
 import type { WildsWorldOutboxEntry } from "./wilds-world-outbox";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import type { ReceizOfflineProofQueueStorage } from '@receiz/sdk';
 import { prepareReceivedWildsWorldProofs } from "./wilds-received-proof-immutability";
+import { emitWildsPlaytestDuration } from "./wilds-playtest-events";
 
-type Reply = { id: number } & ({ ok: true; value: unknown } | { ok: false; error: string });
+type Reply = { id: number; persistenceMs?: number } & ({ ok: true; value: unknown } | { ok: false; error: string });
 type FusedAdmissionWork = { kind: "prepare-persist"; base: WildsWorldProjection; entry: WildsWorldOutboxEntry; anchorId?: string | null };
 type WorkerWork = WildsWorldWork | FusedAdmissionWork;
 type WorkPort = {
@@ -24,17 +25,20 @@ export function createWildsWorldWorkerClient(createWorker?: () => WorkPort, opti
   let unavailable = false;
   let sequence = 0;
   let generation = 0;
-  const pending = new Map<number, { work: WorkerWork; worker: WorkPort; preparing?: boolean; timer: ReturnType<typeof setTimeout>; resolve(value: unknown): void; reject(error: Error): void }>();
+  const pending = new Map<number, { work: WorkerWork; worker: WorkPort; preparing?: boolean; started: number; timer: ReturnType<typeof setTimeout>; resolve(value: unknown): void; reject(error: Error): void }>();
   const prepareResult = async (work: WorkerWork, value: unknown, cancelled?: () => boolean) => {
-    const projection = work.kind === "restore" ? value
+    const projection = work.kind === "restore" || work.kind === "project" ? value
       : (work.kind === "prepare" || work.kind === "prepare-persist") && value && typeof value === "object"
         ? Object.getOwnPropertyDescriptor(value, "projection")?.value : undefined;
+    const started = performance.now();
     await prepareReceivedWildsWorldProofs(projection, { cancelled });
+    if (projection) emitWildsPlaytestDuration('world-prewarm', performance.now() - started);
     return value;
   };
-  const onMain = async (work: WorkerWork, uncertain = false): Promise<unknown> => {
+  const performOnMain = async (work: WorkerWork, uncertain = false): Promise<unknown> => {
     // Yield once before hashing/replaying on the main realm; never dispatch a new command identity.
     await new Promise<void>(resolve => setTimeout(resolve, 0));
+    if (work.kind === 'project') return projectWildsWorldOutboxCooperatively(work.base, work.actorId, work.entries);
     if (work.kind === 'prepare-persist') {
       const saved = uncertain ? await readExactWildsWorldOutboxEntry(work.entry, options.storage) : null;
       return saved ? prepareWildsWorldOutboxEntry(work.base, saved, work.anchorId)
@@ -50,6 +54,11 @@ export function createWildsWorldWorkerClient(createWorker?: () => WorkPort, opti
     if (work.kind === 'acknowledge') return acknowledgeOutbox(work.actorId, work.commandId, options.storage);
     return restoreOutbox(work.base, work.actorId, options.storage);
   };
+  const onMain = async (work: WorkerWork, uncertain = false) => {
+    const started = performance.now();
+    try { return await performOnMain(work, uncertain); }
+    finally { emitWildsPlaytestDuration('world-fallback', performance.now() - started); }
+  };
   const interrupt = (active: WorkPort, recover: boolean) => {
     if (worker !== active) return;
     worker = null; generation++;
@@ -57,6 +66,7 @@ export function createWildsWorldWorkerClient(createWorker?: () => WorkPort, opti
     active.terminate();
     for (const [id, request] of pending) {
       if (request.worker !== active) continue;
+      if (!request.preparing) emitWildsPlaytestDuration(recover ? 'world-worker-recovery' : 'world-worker', performance.now() - request.started);
       pending.delete(id); clearTimeout(request.timer);
       if (recover) void onMain(request.work, true).then(value => prepareResult(request.work, value)).then(request.resolve, request.reject);
       else request.reject(new Error('wilds_world_worker_interrupted'));
@@ -80,6 +90,8 @@ export function createWildsWorldWorkerClient(createWorker?: () => WorkPort, opti
             const request = pending.get(data.id);
             if (!request || request.worker !== active || request.preparing) return;
             clearTimeout(request.timer);
+            emitWildsPlaytestDuration('world-worker', performance.now() - request.started);
+            if (typeof data.persistenceMs === 'number') emitWildsPlaytestDuration('world-persist', data.persistenceMs);
             if (data.ok) {
               request.preparing = true;
               void prepareResult(request.work, data.value, () => pending.get(data.id) !== request).then(value => {
@@ -105,9 +117,10 @@ export function createWildsWorldWorkerClient(createWorker?: () => WorkPort, opti
     const active = worker;
     const id = ++sequence;
     return new Promise((resolve, reject) => {
+      const started = performance.now();
       const exact = structuredClone(work);
       const timer = setTimeout(() => interrupt(active, true), deadlineMs);
-      pending.set(id, { work: exact, worker: active, timer, resolve, reject });
+      pending.set(id, { work: exact, worker: active, started, timer, resolve, reject });
       try { active.postMessage({ id, work: exact }); }
       catch (cause) { pending.delete(id); clearTimeout(timer); reject(cause instanceof Error ? cause : new Error("wilds_world_worker_dispatch_failed")); }
     });
@@ -116,6 +129,8 @@ export function createWildsWorldWorkerClient(createWorker?: () => WorkPort, opti
 }
 
 const client = createWildsWorldWorkerClient();
+export const projectWildsWorldOutboxAsync = (base: WildsWorldProjection, actorId: string, entries: WildsWorldOutboxEntry[]) =>
+  entries.length ? client.run({ kind: "project", base, actorId, entries }) as Promise<WildsWorldProjection> : Promise.resolve(base);
 export const prepareWildsWorldOutboxEntryAsync = (base: WildsWorldProjection, entry: WildsWorldOutboxEntry, anchorId?: string | null) =>
   client.run({ kind: "prepare", base, entry, anchorId }) as Promise<ReturnType<typeof prepareWildsWorldOutboxEntry>>;
 export const prepareAndPersistWildsWorldOutboxEntryAsync = (base: WildsWorldProjection, entry: WildsWorldOutboxEntry, anchorId?: string | null) =>

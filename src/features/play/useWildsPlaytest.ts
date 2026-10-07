@@ -27,7 +27,7 @@ export function useWildsPlaytest() {
     try { localStorage.setItem(STORAGE_KEY, String(enabled)); } catch { /* Recording does not depend on storage. */ }
     reset();
     if (!enabled) return;
-    const stopListening = listenWildsPlaytestEvents(window, (action, outcome) => markWildsPlaytest(recording.current, action, outcome, performance.now()));
+    const stopListening = listenWildsPlaytestEvents(window, (action, outcome, durationMs) => markWildsPlaytest(recording.current, action, outcome, performance.now(), durationMs));
     let previous = 0;
     let frame = 0;
     let observer: PerformanceObserver | undefined;

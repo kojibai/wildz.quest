@@ -1,5 +1,6 @@
 "use client";
 import { prepareReceivedWildsWorldProofs } from "./wilds-received-proof-immutability";
+import { emitWildsPlaytestDuration } from "./wilds-playtest-events";
 import { createWildsWorldRefreshCoordinator } from "./wilds-world-refresh-coordinator";
 import type { WildsBurrowRequest } from "./wilds-burrow";
 import { settleWildsBuild } from "./wilds-steward-build-settlement";
@@ -49,11 +50,11 @@ import {
   preserveWildsConstructionHistory,
   prepareWildsWorldOutboxPublication,
   bindWildsCrewOutboxIdentity,
-  projectWildsWorldOutbox,
+  reconcileWildsWorldOutboxProjection,
   type WildsWorldOutboxEntry
 } from "./wilds-world-outbox";
 import { createWildsSessionRestore } from "./wilds-session-restore";
-import { prepareAndPersistWildsWorldOutboxEntryAsync, prepareWildsWorldOutboxEntryAsync, restoreWildsWorldEdgeSource, acknowledgeWildsWorldCommand, acknowledgeWildsWorldPublication, persistWildsWorldCommand, readWildsWorldOutbox } from "./wilds-world-work-client";
+import { projectWildsWorldOutboxAsync, prepareAndPersistWildsWorldOutboxEntryAsync, prepareWildsWorldOutboxEntryAsync, restoreWildsWorldEdgeSource, acknowledgeWildsWorldCommand, acknowledgeWildsWorldPublication, persistWildsWorldCommand, readWildsWorldOutbox } from "./wilds-world-work-client";
 import {
   shouldAttemptWildsNetwork,
   isOpaqueWildsNetworkFailure,
@@ -72,9 +73,12 @@ import type { WildsBlueprintPlacement } from "./wilds-world-construction";
 import type { WildsConstructionPlacementRequest } from "./wilds-construction-placement";
 
 export function acceptWildsWorldSnapshot(current: WildsWorldProjection | null, candidate: WildsWorldProjection, owned?: WildsOwnedWorldAdditions) {
-  if (owned) candidate = mergeWildsOwnedWorldAdditions(candidate, owned);
-  if (current && candidate.revision < current.revision) return current;
-  return current ? preserveWildsResourcePackageHistory(current, preserveWildsConstructionHistory(current, candidate)) : candidate;
+  const started = performance.now();
+  try {
+    if (owned) candidate = mergeWildsOwnedWorldAdditions(candidate, owned);
+    if (current && candidate.revision < current.revision) return current;
+    return current ? preserveWildsResourcePackageHistory(current, preserveWildsConstructionHistory(current, candidate)) : candidate;
+  } finally { emitWildsPlaytestDuration('world-adopt', performance.now() - started); }
 }
 
 export function buildWildsWorldCommandBody(
@@ -246,6 +250,7 @@ export function useWildsWorld(input: {
   const commandPending = useRef(false);
   const canonicalSnapshot = useRef<WildsWorldProjection | null>(null);
   const controllers = useRef(new Set<AbortController>());
+  const clientActive = useRef(true);
   const retryAfter = useRef(0);
   const authorizeLivingWorld = input.authorizeLivingWorld;
   const edge = useRef<{ actorId: string; queue: ReturnType<typeof createWildsWorldEdgeAdmissionQueue>; refresh: ReturnType<typeof createWildsWorldRefreshCoordinator> } | null>(null);
@@ -272,6 +277,12 @@ export function useWildsWorld(input: {
   const adoptSnapshot = useCallback((projection: WildsWorldProjection) => edgeQueue.adopt(
     acceptWildsWorldSnapshot(null, projection, ownedWorldAdditions.current)
   ), [edgeQueue]);
+
+  const projectPending = useCallback((base: WildsWorldProjection, entries: WildsWorldOutboxEntry[], adopt = false) => reconcileWildsWorldOutboxProjection({
+    base, entries, actorId: input.actorId, current: edgeQueue.current,
+    project: projectWildsWorldOutboxAsync, adopt: adopt ? adoptSnapshot : projection => projection,
+    cancelled: () => !clientActive.current || edge.current?.queue !== edgeQueue
+  }), [adoptSnapshot, edgeQueue, input.actorId]);
 
   const adoptServerWorld = useCallback((projection: WildsWorldProjection) => {
     if (!validWildsWorldProjection(projection)) throw Error('wilds_world_projection_invalid');
@@ -347,7 +358,7 @@ export function useWildsWorld(input: {
   const flushOutbox = useCallback(async (base: WildsWorldProjection, initialMode: WildsWorldCommandMode) => {
     if (commandPending.current) {
       const entries = await readWildsWorldOutbox(input.actorId);
-      return { projection: projectWildsWorldOutbox(base, input.actorId, entries), mode: initialMode as WildsWorldClientMode };
+      return { projection: await projectPending(base, entries), mode: initialMode as WildsWorldClientMode };
     }
     commandPending.current = true;
     let canonical = base;
@@ -372,10 +383,10 @@ export function useWildsWorld(input: {
     } finally {
       commandPending.current = false;
     }
-    canonical = adoptSnapshot(projectWildsWorldOutbox(canonical, input.actorId, entries));
+    canonical = await projectPending(canonical, entries, true);
     canonicalSnapshot.current = canonical;
     return { projection: canonical, mode: nextMode };
-  }, [adoptSnapshot, edgeQueue, input.actorId, sendEntry]);
+  }, [edgeQueue, input.actorId, projectPending, sendEntry]);
 
   const refreshCoordinator = edge.current.refresh;
   useEffect(() => () => refreshCoordinator.cancelPending(), [refreshCoordinator]);
@@ -429,8 +440,10 @@ export function useWildsWorld(input: {
   }, [adoptSnapshot, edgeQueue, input.actorId, input.enabled, input.networkEnabled, input.initialSnapshot, refresh, restoreSession]);
 
   useEffect(() => {
+    clientActive.current = true;
     const activeControllers = controllers.current;
     return () => {
+      clientActive.current = false;
       for (const controller of activeControllers) controller.abort();
       activeControllers.clear();
     };
@@ -509,13 +522,14 @@ export function useWildsWorld(input: {
       const queued = await acknowledgeWildsWorldPublication(entry, parsed);
       const synchronizedProjection = parsed.globallyPublished
         ? acceptWildsWorldSnapshot(locallyAdmittedProjection, projection)
-        : projectWildsWorldOutbox(projection, input.actorId, queued);
+        : await projectPending(projection, queued);
       setSnapshot((current) => acceptWildsWorldSnapshot(current, synchronizedProjection, ownedWorldAdditions.current));
       setMode(parsed.globallyPublished ? parsed.mode : "receiz_recovery_pending");
       setError(parsed.globallyPublished ? "" : "Your work is admitted here and its global projection will keep syncing in the background.");
       retryAfter.current = 0;
       return synchronizedProjection;
     } catch (cause) {
+      if ((cause as Error).name === 'AbortError') throw cause;
       const opaqueFailure = isOpaqueWildsNetworkFailure(cause);
       if (opaqueFailure) retryAfter.current = Date.now() + WILDS_NETWORK_RETRY_BACKOFF_MS;
       return queueForGlobalCommit();
@@ -523,7 +537,7 @@ export function useWildsWorld(input: {
       commandPending.current = false;
       setPendingCommand(null);
     }
-  }, [edgeQueue, input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, input.networkEnabled, mode, refresh, restoreSession, sendEntry]);
+  }, [edgeQueue, input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, input.networkEnabled, mode, projectPending, refresh, restoreSession, sendEntry]);
 
   useEffect(() => {
     const resume = () => {

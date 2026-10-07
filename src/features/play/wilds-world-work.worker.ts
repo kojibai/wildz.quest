@@ -6,11 +6,16 @@ type FusedAdmissionWork = { kind: "prepare-persist"; base: WildsWorldProjection;
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 scope.addEventListener("message", (event: MessageEvent<{ id: number; work: WildsWorldWork | FusedAdmissionWork }>) => {
   const { id, work } = event.data;
+  let persistenceMs: number | undefined;
   const operation = work.kind === "prepare-persist"
-    ? prepareAndPersistWildsWorldOutboxEntry(work.base, work.entry, work.anchorId)
+    ? prepareAndPersistWildsWorldOutboxEntry(work.base, work.entry, work.anchorId, async entry => {
+        const started = performance.now();
+        try { await persistWildsWorldCommandDurably(entry); }
+        finally { persistenceMs = performance.now() - started; }
+      })
     : work.kind === "persist" ? persistWildsWorldCommandDurably(work.entry) : performWildsWorldWork(work);
   void operation.then(
-    (value) => scope.postMessage({ id, ok: true, value }),
-    (cause) => scope.postMessage({ id, ok: false, error: cause instanceof Error ? cause.message : "wilds_world_work_failed" })
+    (value) => scope.postMessage({ id, ok: true, value, ...(persistenceMs !== undefined ? { persistenceMs } : {}) }),
+    (cause) => scope.postMessage({ id, ok: false, error: cause instanceof Error ? cause.message : "wilds_world_work_failed", ...(persistenceMs !== undefined ? { persistenceMs } : {}) })
   );
 });

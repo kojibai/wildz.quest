@@ -980,8 +980,13 @@ function verifyCheckpoint(checkpoint: WildsWorldCheckpoint) {
 
 export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], checkpoint?: WildsWorldCheckpoint) {
   if (checkpoint && !verifyCheckpoint(checkpoint)) throw new Error("wilds_world_checkpoint_invalid");
-  const projection = checkpoint?.projection;
-  const hydrated = projection ? {
+  return events.reduce(reduceWildsWorldEvent, hydrateWildsWorldProjection(checkpoint?.projection));
+}
+
+/** Restore historical optional-map defaults. This is not proof admission;
+ * external checkpoints must still pass replayWildsWorld's digest verification. */
+export function hydrateWildsWorldProjection(projection?: WildsWorldProjection): WildsWorldProjection {
+  return projection ? {
     ...projection,
     groves: projection.groves ?? {},
     resourceLots: projection.resourceLots ?? {},
@@ -1008,7 +1013,6 @@ export function replayWildsWorld(events: readonly CompatibleWildsWorldEvent[], c
     worldEmission: projection.worldEmission ?? null,
     contributionHistory: projection.contributionHistory ?? []
   } : initialWildsWorldProjection();
-  return events.reduce(reduceWildsWorldEvent, hydrated);
 }
 
 function isContinuousConstructionEvent(kind: string) {

@@ -258,12 +258,11 @@ export function prepareWildsWorldOutboxEntry(base: WildsWorldProjection, entry: 
     verifyWildsWorldAdmittedSource(entry, base);
     return { entry, projection: entry.admittedSource.events.reduce(reduceWildsWorldEvent, base), events: entry.admittedSource.events, constitution: undefined as ConstitutionalDecision | undefined };
   }
-  const checkpoint = checkpointWildsWorld(base);
-  const world = new WildsWorldService({ checkpoint });
+  const world = WildsWorldService.fromLocalProjection(base);
   const result = world.execute(entry.command, { actorId: entry.actorId, canonical: true, pulse: entry.queuedAt, occurredAt: entry.queuedAt, card: entry.card });
   return {
     entry: isWildsEdgeImmediateConstructionCommand(entry.command) && result.events.length
-      ? { ...entry, admittedSource: { anchorId: anchorId ?? entry.command.commandId, ...(anchorId ? {} : { checkpoint }), events: result.events } }
+      ? { ...entry, admittedSource: { anchorId: anchorId ?? entry.command.commandId, ...(anchorId ? {} : { checkpoint: checkpointWildsWorld(base) }), events: result.events } }
       : entry,
     projection: result.projection, events: result.events, constitution: result.constitution
   };
@@ -292,7 +291,12 @@ export async function prepareAndPersistWildsWorldOutboxEntry(
 }
 
 export function admitWildsWorldOutboxEntry(base: WildsWorldProjection, entry: WildsWorldOutboxEntry) {
-  return prepareWildsWorldOutboxEntry(base, entry).projection;
+  // Existing source envelopes still verify their exact historical anchors.
+  if (entry.admittedSource) return prepareWildsWorldOutboxEntry(base, entry).projection;
+  // Projection-only replay does not persist a new admission anchor.
+  return WildsWorldService.fromLocalProjection(base).execute(entry.command, {
+    actorId: entry.actorId, canonical: true, pulse: entry.queuedAt, occurredAt: entry.queuedAt, card: entry.card
+  }).projection;
 }
 
 export function projectWildsWorldOutbox(base: WildsWorldProjection, actorId: string, entries: WildsWorldOutboxEntry[]) {
@@ -308,6 +312,49 @@ export function projectWildsWorldOutbox(base: WildsWorldProjection, actorId: str
     }
   }
   return projection;
+}
+
+/** Preserve the exact replay law, yielding between commands when no worker is
+ * available. One command remains atomic; ordering and invalid-entry handling
+ * are identical to the synchronous projector. */
+export async function projectWildsWorldOutboxCooperatively(base: WildsWorldProjection, actorId: string, entries: WildsWorldOutboxEntry[]) {
+  let projection = base;
+  let started = performance.now();
+  for (const entry of entries) {
+    projection = projectWildsWorldOutbox(projection, actorId, [entry]);
+    if (performance.now() - started >= 8) {
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      started = performance.now();
+    }
+  }
+  return projection;
+}
+
+/** Async replay cannot overwrite a local admission or a newer adopted snapshot
+ * that completed while the worker was busy. The next refresh can reconcile the
+ * server candidate against that newer source. */
+export async function reconcileWildsWorldOutboxProjection(input: {
+  base: WildsWorldProjection;
+  actorId: string;
+  entries: WildsWorldOutboxEntry[];
+  current(): WildsWorldProjection;
+  project(base: WildsWorldProjection, actorId: string, entries: WildsWorldOutboxEntry[]): Promise<WildsWorldProjection>;
+  adopt(projection: WildsWorldProjection): WildsWorldProjection;
+  cancelled?(): boolean;
+}) {
+  const assertActive = () => {
+    if (input.cancelled?.()) {
+      const error = Error('wilds_world_session_changed');
+      error.name = 'AbortError';
+      throw error;
+    }
+  };
+  assertActive();
+  const before = input.current();
+  const projected = input.entries.length ? await input.project(input.base, input.actorId, input.entries) : input.base;
+  assertActive();
+  const current = input.current();
+  return current !== before ? current : input.adopt(projected);
 }
 
 const historyProofCache = createWildsExactProofCache();

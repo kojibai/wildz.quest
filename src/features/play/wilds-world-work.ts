@@ -4,6 +4,7 @@ import {
   readWildsWorldOutbox,
   acknowledgeWildsWorldCommand,
   restoreWildsWorldEdgeSource,
+  projectWildsWorldOutboxCooperatively,
   type WildsWorldOutboxEntry
 } from "./wilds-world-outbox";
 import type { WildsWorldProjection } from "./wilds-world-state";
@@ -13,10 +14,12 @@ export type WildsWorldWork =
   | { kind: "persist"; entry: WildsWorldOutboxEntry }
   | { kind: "read"; actorId: string }
   | { kind: "acknowledge"; actorId: string; commandId: string }
+  | { kind: "project"; base: WildsWorldProjection; actorId: string; entries: WildsWorldOutboxEntry[] }
   | { kind: "restore"; base: WildsWorldProjection; actorId: string };
 
 export async function performWildsWorldWork(work: WildsWorldWork) {
   switch (work.kind) {
+    case "project": return projectWildsWorldOutboxCooperatively(work.base, work.actorId, work.entries);
     case "prepare": return prepareWildsWorldOutboxEntry(work.base, work.entry, work.anchorId);
     case "persist": await enqueueWildsWorldCommand(work.entry); return undefined;
     case "read": return readWildsWorldOutbox(work.actorId);

@@ -1,5 +1,6 @@
 /** Deliberately accepts no identity, location, free text, or network metadata. */
-export const WILDS_PLAYTEST_ACTIONS = ["harvest", "placement", "panel", "discovery", "home", "save", "delight", "hesitation", "profile", "market", "identity-save", "card-save"] as const;
+export const WILDS_PLAYTEST_PHASES = ["world-worker", "world-worker-recovery", "world-persist", "world-fallback", "world-prewarm", "world-adopt"] as const;
+export const WILDS_PLAYTEST_ACTIONS = ["harvest", "placement", "panel", "discovery", "home", "save", "delight", "hesitation", "profile", "market", "identity-save", "card-save", ...WILDS_PLAYTEST_PHASES] as const;
 export type WildsPlaytestAction = (typeof WILDS_PLAYTEST_ACTIONS)[number];
 export type WildsPlaytestOutcome = "start" | "success" | "failure";
 export const WILDS_PLAYTEST_SAMPLE_LIMIT = 600;
@@ -67,9 +68,16 @@ export function summarizeWildsPlaytestActions(recording: WildsPlaytestRecording)
       p95Ms: durations[Math.ceil(durations.length * .95) - 1], worstMs: durations[durations.length - 1] }];
   });
 }
-export function markWildsPlaytest(recording: WildsPlaytestRecording, action: WildsPlaytestAction, outcome: WildsPlaytestOutcome, now: number): void {
+export function markWildsPlaytest(recording: WildsPlaytestRecording, action: WildsPlaytestAction, outcome: WildsPlaytestOutcome, now: number, durationMs?: number): void {
   // Runtime validation keeps accidentally supplied strings out of exported evidence too.
   if (!WILDS_PLAYTEST_ACTIONS.includes(action) || !["start", "success", "failure"].includes(outcome) || !Number.isFinite(now) || now < recording.startedAt) return;
+  if (durationMs !== undefined) {
+    if (!(WILDS_PLAYTEST_PHASES as readonly string[]).includes(action) || outcome === 'start'
+      || !Number.isFinite(durationMs) || durationMs < 0 || durationMs > now - recording.startedAt) return;
+    boundedPush(recording.events, { action, outcome, elapsedMs: Math.round(now - recording.startedAt), durationMs: Math.round(durationMs) }, WILDS_PLAYTEST_EVENT_LIMIT);
+    recording.summary.events++;
+    return;
+  }
   const start = recording.pending[action];
   if (outcome === "start") {
     // A category cannot pair concurrent requests reliably. Keep the first start instead of understating latency.

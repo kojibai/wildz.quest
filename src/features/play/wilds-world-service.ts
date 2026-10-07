@@ -71,6 +71,7 @@ import { verifyWildsWorldCommandCard, verifyWildsWorldCommandKai } from "./wilds
 import {
   checkpointWildsWorld,
   initialWildsWorldProjection,
+  hydrateWildsWorldProjection,
   replayWildsWorld,
   reduceWildsWorldEvent,
   wildsWorldCursorSequence,
@@ -161,6 +162,16 @@ export class WildsWorldService {
   private projection: WildsWorldProjection;
   private eventTail: WildsWorldEvent[];
   private constitutionalCommand: { digest: string; type: string } | null = null;
+
+  /** Local replay already has the source projection. Hashing that object into
+   * a temporary checkpoint and immediately checking the same hash supplies no
+   * extra authority. External checkpoint imports keep the verified constructor;
+   * every local command still executes the complete source/constitutional law. */
+  static fromLocalProjection(projection: WildsWorldProjection) {
+    const service = new WildsWorldService();
+    service.projection = hydrateWildsWorldProjection(projection);
+    return service;
+  }
 
   constructor(input?: { checkpoint?: WildsWorldCheckpoint; events?: WildsWorldEvent[] }) {
     this.projection = input?.checkpoint ? replayWildsWorld([], input.checkpoint) : initialWildsWorldProjection();
