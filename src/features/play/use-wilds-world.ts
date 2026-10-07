@@ -61,7 +61,7 @@ import {
   WILDS_WORLD_OFFLINE_MESSAGE,
   wildsNetworkFailureMessage
 } from "./wilds-network-status";
-import { createWildsSourceAuthorityProjection, planWildsMaterialHarvest } from "./wilds-source-work-authority";
+import { createWildsSourceAuthorityProjection, planWildsMaterialHarvest, replanQueuedWildsMaterialHarvest } from "./wilds-source-work-authority";
 import { wildsWorldSourceEmission } from "./wilds-world-genesis";
 import type { WildsOwnedWorldAdditions } from "./game-state";
 import { mergeWildsOwnedWorldAdditions } from "./wilds-player-world-additions";
@@ -357,7 +357,7 @@ export function useWildsWorld(input: {
       entries = await readWildsWorldOutbox(input.actorId);
       while (entries.length > 0 && shouldAttemptWildsNetwork()) {
         const queued = entries[0]!;
-        const entry = prepareWildsWorldOutboxPublication(queued, command => planWildsMaterialHarvest({
+        const entry = prepareWildsWorldOutboxPublication(queued, command => replanQueuedWildsMaterialHarvest({
           projection: canonical, source: command.source, actorId: input.actorId, actorPosition: command.actorPosition,
           kaiUPulse: command.kai?.uPulse ?? command.operation?.kaiUPulse ?? 0, commandId: command.commandId,
           card: queued.card, mandate: command.mandate, kai: command.kai

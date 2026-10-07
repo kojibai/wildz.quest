@@ -4,7 +4,7 @@ import { createReceizInMemoryOfflineProofQueueStorage, type ReceizOfflineProofQu
 import { createWildsWorldWorkerClient } from '../src/features/play/wilds-world-work-client';
 import { acknowledgeWildsWorldCommand, persistWildsWorldCommandDurably, prepareAndPersistWildsWorldOutboxEntry, readWildsWorldOutbox, type WildsWorldOutboxEntry } from '../src/features/play/wilds-world-outbox';
 import { initialWildsWorldProjection } from '../src/features/play/wilds-world-state';
-import { createWildsSourceAuthorityProjection, planWildsMaterialHarvest } from '../src/features/play/wilds-source-work-authority';
+import { createWildsSourceAuthorityProjection, replanQueuedWildsMaterialHarvest } from '../src/features/play/wilds-source-work-authority';
 import { projectWildsResourceRegion } from '../src/features/play/wilds-resource-authority';
 import { withWildsWorldCommandKai } from '../src/features/play/wilds-world-authority';
 import { createKaiTemporalRoot } from '../src/features/play/kai-temporal-root';
@@ -56,7 +56,7 @@ test('an absent silent write persists the same command after the durable read ba
 test('recovering a silent committed harvest preserves one material lot and one consumed source action', async () => {
   const durable = countedStorage(), silent = silentWorker(), base = createWildsSourceAuthorityProjection(), source = projectWildsResourceRegion(0, 0).find(s => s.kind === 'timber')!;
   const kaiUPulse = 2000010, kai = createKaiTemporalRoot(deriveKaiKlokMomentFromUPulse({ uPulse: kaiUPulse, authority: 'local' }));
-  const command = planWildsMaterialHarvest({ projection: base, source, actorId: 'global_keeper.receiz.id', actorPosition: source.position, kaiUPulse, commandId: 'command:silent:harvest' });
+  const command = replanQueuedWildsMaterialHarvest({ projection: base, source, actorId: 'global_keeper.receiz.id', actorPosition: source.position, kaiUPulse, commandId: 'command:silent:harvest' });
   const intent = { ...entry(), command: withWildsWorldCommandKai(command, kai) };
   const admitted = await prepareAndPersistWildsWorldOutboxEntry(base, intent, undefined, value => persistWildsWorldCommandDurably(value, durable.storage));
   assert.equal(Object.keys(admitted.projection.materialLots).length, 1);

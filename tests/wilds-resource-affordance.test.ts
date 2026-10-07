@@ -8,16 +8,16 @@ describe("Wilds resource affordances", () => {
       state: "approach", label: "Living timber", guidance: "Move closer to harvest", enabled: false
     });
     assert.deepEqual(projectWildsResourceAffordance({ kind: "timber", distance: 4, availableCapacity: 12, pending: false, companionQualified: true }), {
-      state: "ready", label: "Harvest timber", guidance: "Touch to gather; a ready companion may improve the work", enabled: true
+      state: "ready", label: "Harvest timber", guidance: "Work together", enabled: true
     });
     assert.deepEqual(projectWildsResourceAffordance({ kind: "timber", distance: 4, availableCapacity: 12, pending: false, companionQualified: false }), {
-      state: "ready", label: "Harvest timber", guidance: "Touch to gather; a ready companion may improve the work", enabled: true
+      state: "companion", label: "Observe timber", guidance: "A Woodland companion is needed", enabled: true
     });
     assert.deepEqual(projectWildsResourceAffordance({ kind: "timber", distance: 4, availableCapacity: 12, pending: true, companionQualified: true }), {
       state: "working", label: "Harvesting…", guidance: "Work is being admitted", enabled: false
     });
     assert.deepEqual(projectWildsResourceAffordance({ kind: "timber", distance: 4, availableCapacity: 12, pending: false, companionQualified: true, companionReady: false }), {
-      state: "ready", label: "Harvest timber", guidance: "Touch to gather; a ready companion may improve the work", enabled: true
+      state: "rest", label: "Observe timber", guidance: "Gather after your companion rests", enabled: true
     });
     assert.deepEqual(projectWildsResourceAffordance({ kind: "timber", distance: 4, availableCapacity: 0, pending: false, companionQualified: true }), {
       state: "recovering", label: "Timber recovering", guidance: "This living source is replenishing", enabled: false
@@ -26,7 +26,7 @@ describe("Wilds resource affordances", () => {
 
   it("uses the same explicit action grammar for stone", () => {
     assert.deepEqual(projectWildsResourceAffordance({ kind: "stone", distance: 4, availableCapacity: 8, pending: false, companionQualified: true }), {
-      state: "ready", label: "Gather stone", guidance: "Touch to gather; a ready companion may improve the work", enabled: true
+      state: "ready", label: "Gather stone", guidance: "Work together", enabled: true
     });
   });
 });

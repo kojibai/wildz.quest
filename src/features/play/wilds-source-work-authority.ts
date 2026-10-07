@@ -35,7 +35,7 @@ export function createWildsSourceAuthorityProjection(): WildsWorldProjection {
 
 type MaterialHarvestCommand = Extract<WildsWorldCommand, { type: "resource.material.harvest" }>;
 
-export function planWildsMaterialHarvest(input: Readonly<{
+type MaterialHarvestInput = Readonly<{
   projection: WildsWorldProjection;
   source: WildsResourceSource;
   actorId: string;
@@ -45,7 +45,23 @@ export function planWildsMaterialHarvest(input: Readonly<{
   card?: PortableCardAsset | null;
   mandate?: WildsCreatureMandateV1;
   kai?: KaiTemporalRoot;
-}>): MaterialHarvestCommand {
+}>;
+
+/** New gameplay work requires the creature's actual affinity. Tools improve
+ * qualified work; they do not add an ability to an incompatible companion. */
+export function planWildsMaterialHarvest(input: MaterialHarvestInput): MaterialHarvestCommand {
+  if (input.source.kind !== "hay") {
+    if (!input.card) throw new Error("wilds_world_verified_card_required");
+    const families = projectWildsCreatureWorkFamilies(creatureForm(input.card.manifest.formId)?.element ?? "");
+    if (!families.includes(input.source.requirements.creature)) throw new Error("wilds_steward_creature_unqualified");
+  }
+  return replanQueuedWildsMaterialHarvest(input);
+}
+
+/** Rebase already durable outbox work under its existing source law. Older
+ * player-only lots must survive recovery/publication without inventing a
+ * creature contributor. New gameplay must use planWildsMaterialHarvest. */
+export function replanQueuedWildsMaterialHarvest(input: MaterialHarvestInput): MaterialHarvestCommand {
   const currentEmission = wildsWorldSourceEmission(input.projection);
   const currentSource = input.projection.harvestedSources[input.source.sourceId]
     ?? initialWildsHarvestedSourceState(input.source);

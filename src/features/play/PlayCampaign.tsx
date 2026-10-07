@@ -1792,6 +1792,12 @@ export function PlayCampaign({
     try {
       const partner = selectWildsResourceWorkPartner(state.inventory, state.adventureConditions, source.requirements.creature, activeAsset?.id);
       const partnerCondition = partner ? state.adventureConditions[partner.id] ?? emptyAdventureCondition(partner.id) : null;
+      if (source.kind !== "hay" && !partner) {
+        showWorldFeedback(source.kind === "stone"
+          ? "Stone needs a rested companion with Quarry work. A Woodland companion can gather timber, but cannot mine rock."
+          : "Timber needs a rested companion with Woodland work. Choose a capable companion or let them recover first.");
+        return;
+      }
       if (partner && partner.id !== activeAsset?.id) {
         setState((current) => applyWildsInput(current, { type: "select-asset", assetId: partner.id, kaiUPulse }));
       }

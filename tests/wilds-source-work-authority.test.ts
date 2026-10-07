@@ -3,7 +3,8 @@ import { describe, it } from "node:test";
 import { projectWildsResourceRegion } from "../src/features/play/wilds-resource-authority";
 import {
   createWildsSourceAuthorityProjection,
-  planWildsMaterialHarvest
+  planWildsMaterialHarvest,
+  replanQueuedWildsMaterialHarvest
 } from "../src/features/play/wilds-source-work-authority";
 import { WildsWorldService } from "../src/features/play/wilds-world-service";
 import { checkpointWildsWorld, initialWildsWorldProjection } from "../src/features/play/wilds-world-state";
@@ -20,7 +21,7 @@ function sourceOf(kind: "timber" | "stone") {
 }
 
 describe("source-first baseline work", () => {
-  it("keeps an incompatible active helper optional while crediting a matching helper", () => {
+  it("preserves historical optional-helper work while crediting a matching new helper", () => {
     const projection = createWildsSourceAuthorityProjection();
     const source = sourceOf("timber");
     const incompatible = sealCollectedCard({
@@ -29,7 +30,7 @@ describe("source-first baseline work", () => {
       formId: "titanseal-1",
       ownerReceizId: "explorer:helpers"
     });
-    const solo = planWildsMaterialHarvest({
+    const solo = replanQueuedWildsMaterialHarvest({
       projection,
       source,
       actorId: "explorer:helpers",
@@ -79,7 +80,7 @@ describe("source-first baseline work", () => {
   it("cannot be demoted by a connected projection that omitted source emission", () => {
     const projection = initialWildsWorldProjection();
     const source = sourceOf("stone");
-    const command = planWildsMaterialHarvest({
+    const command = replanQueuedWildsMaterialHarvest({
       projection,
       source,
       actorId: "explorer:connected-incomplete",
@@ -103,7 +104,7 @@ describe("source-first baseline work", () => {
   it("admits a local material lot before any shared-world snapshot arrives", () => {
     const projection = createWildsSourceAuthorityProjection();
     const source = sourceOf("timber");
-    const command = planWildsMaterialHarvest({
+    const command = replanQueuedWildsMaterialHarvest({
       projection,
       source,
       actorId: "explorer:source-first",
@@ -130,7 +131,7 @@ describe("source-first baseline work", () => {
     const actorId = "explorer:source-first";
     const projection = createWildsSourceAuthorityProjection();
     const timber = sourceOf("timber");
-    const first = planWildsMaterialHarvest({
+    const first = replanQueuedWildsMaterialHarvest({
       projection,
       source: timber,
       actorId,
@@ -146,7 +147,7 @@ describe("source-first baseline work", () => {
       occurredAt: "2026-07-15T00:00:00.000Z",
       uPulse: 1_000_000
     }).projection;
-    const rebased = planWildsMaterialHarvest({
+    const rebased = replanQueuedWildsMaterialHarvest({
       projection: advanced,
       source: timber,
       actorId,
@@ -174,7 +175,7 @@ describe("source-first baseline work", () => {
       policyDigest: genesis.policyDigest
     });
 
-    const command = planWildsMaterialHarvest({
+    const command = replanQueuedWildsMaterialHarvest({
       projection,
       source,
       actorId: "explorer:bounded-emission",

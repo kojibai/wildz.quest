@@ -26,10 +26,12 @@ export function projectWildsResourceAffordance(input: Readonly<{
   if (input.availableCapacity === 0) return Object.freeze({ state: "recovering", label: input.kind === "timber" ? "Timber recovering" : "Stone resting", guidance: "This living source is replenishing", enabled: false });
   if (input.distance > ACTION_DISTANCE) return Object.freeze({ state: "approach", label: noun, guidance: "Move closer to harvest", enabled: false });
   if (input.pending) return Object.freeze({ state: "working", label: "Harvesting…", guidance: "Work is being admitted", enabled: false });
+  if (!input.companionQualified) return Object.freeze({ state: "companion", label: `Observe ${input.kind === "timber" ? "timber" : "stone"}`, guidance: input.kind === "timber" ? "A Woodland companion is needed" : "A Quarry companion is needed", enabled: true });
+  if (input.companionReady === false) return Object.freeze({ state: "rest", label: `Observe ${input.kind === "timber" ? "timber" : "stone"}`, guidance: "Gather after your companion rests", enabled: true });
   return Object.freeze({
     state: "ready",
     label: input.kind === "timber" ? "Harvest timber" : "Gather stone",
-    guidance: "Touch to gather; a ready companion may improve the work",
+    guidance: "Work together",
     enabled: true
   });
 }
