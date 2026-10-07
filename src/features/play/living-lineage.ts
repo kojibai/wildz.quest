@@ -7,6 +7,7 @@ import { canonicalPortableCardJson, sealDiscoveredCard, sha256PortableBasis, ver
 import type { FusionInheritance } from "./card-fusion";
 import { discoverLivingCreature } from "./living-taxonomy";
 import { deriveKaiKlokMoment } from "./kai-klok-moment";
+import { isWildsTrailResourceBalance } from "./wilds-trail-resources";
 
 const RECOVERY_MS = 24 * 60 * 60 * 1000;
 
@@ -27,7 +28,7 @@ export function lineageEligibility(input: LivingLineageInput) {
   if (input.parentA.id === input.parentB.id) reasons.push("distinct_parents_required");
   if (input.parentA.manifest.ownerReceizId !== input.parentB.manifest.ownerReceizId) reasons.push("same_owner_required");
   if (!Number.isFinite(Date.parse(input.createdAt)) || !input.kaiPulse.trim()) reasons.push("lineage_time_invalid");
-  if (!input.sparkId.trim() || input.fusionSparks < 1) reasons.push("fusion_spark_required");
+  if (!input.sparkId.trim() || !isWildsTrailResourceBalance(input.fusionSparks) || input.fusionSparks < 1) reasons.push("fusion_spark_required");
   const at = Date.parse(input.createdAt);
   const active = [input.recovery[input.parentA.id], input.recovery[input.parentB.id]]
     .filter((value): value is string => Boolean(value))

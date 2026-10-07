@@ -2948,8 +2948,8 @@ export function PlayCampaign({
             <b>{state.worldRank}</b>
           </div>
           <div className="wilds-satchel-grid" aria-label="Foraged resources and progression">
-            <article><Icons.sparkle aria-hidden="true" size={18} /><span><small>Grove beans</small><strong>{state.beans}</strong></span><em>Foraged</em></article>
-            <article><Icons.pulse aria-hidden="true" size={18} /><span><small>Fusion sparks</small><strong>{state.fusionSparks}</strong></span><em>Charged</em></article>
+            <article><Icons.sparkle aria-hidden="true" size={18} /><span><small>Trail beans</small><strong>{state.beans}</strong></span><em>Companion care</em></article>
+            <article><Icons.pulse aria-hidden="true" size={18} /><span><small>Fusion sparks</small><strong>{state.fusionSparks}</strong></span><em>Breeding supplies</em></article>
             <article><Icons.receiz aria-hidden="true" size={18} /><span><small>Bond traces</small><strong>{activeProgress.bond}</strong></span><em>{activeAsset?.manifest.name ?? activeCard.name}</em></article>
             <article><Icons.star aria-hidden="true" size={18} /><span><small>World mastery</small><strong>{state.worldMastery}</strong></span><em>Permanent</em></article>
             <article><Icons.trophy aria-hidden="true" size={18} /><span><small>Trail streak</small><strong>{state.streak}×</strong></span><em>Active</em></article>
@@ -2958,6 +2958,14 @@ export function PlayCampaign({
             <article><Icons.products aria-hidden="true" size={18} /><span><small>Living timber</small><strong>{stewardMaterials.timber}</strong></span><em>Exact lots</em></article>
             <article><Icons.package aria-hidden="true" size={18} /><span><small>Foundation stone</small><strong>{stewardMaterials.stone}</strong></span><em>Exact lots</em></article>
           </div>
+          <WildzCommandInsight label="Trail beans" value={`${state.beans} available`} detail="Successful captures earn 6 beans; accepted bond training earns 4. Feed a creature for 3 beans or provide restorative care for 8 in its active care cycle.">
+            <button onClick={() => { setVaultFocusedAssetId(activeAsset?.id ?? null); dispatchStageOverlay({ type: "panel", key: "vault" }); }} type="button">Open creature care</button>
+          </WildzCommandInsight>
+          <WildzCommandInsight label="Earn your next breeding" value={`${state.missionProgress}/100 expedition progress`} detail="Your first Spark starts your lineage. Each completed expedition earns one more; each child costs one Spark. Both parents stay in your vault and rest for 24 hours.">
+            <progress aria-label="Progress toward next Fusion Spark" max={100} value={state.missionProgress} />
+            <button onClick={() => dispatchStageOverlay({ type: "panel", key: "mission" })} type="button">Continue expedition</button>
+            <button onClick={() => dispatchStageOverlay({ type: "panel", key: "vault" })} type="button">Open breeding in Card Vault</button>
+          </WildzCommandInsight>
           <WildsStewardCraftPanel onSelectPiece={selectLivingBuildPiece} focusSection={constructionFocus} projection={stewardCraft} nearbySite={nearbyConstructionSite} siteDistance={nearbyConstructionSite ? Math.hypot(nearbyConstructionSite.position.x - state.player.x, nearbyConstructionSite.position.z - state.player.z) : 0} tools={stewardTools} equippedToolId={livingWorld.snapshot?.equippedStewardTools?.[ownerReceizId] ?? null} nearbyWorkbench={Boolean(nearbyStewardWorkbench)} nearbyCache={Boolean(nearbyTrailCache)} stored={{ timber: storedStewardLots.filter((lot) => lot?.kind === "timber").length, stone: storedStewardLots.filter((lot) => lot?.kind === "stone").length }} onContributeSite={(site) => void contributeNearbyConstructionSite(site)} onWorkSite={(site) => void workNearbyConstructionSite(site)} onCraftTool={(kind) => void craftStewardTool(kind)} onEquipTool={(toolId) => { beginWorldActionFeedback(); void livingWorld.equipStewardTool(toolId).then(() => showWorldFeedback("Field tool equipped. Matching work now preserves one higher grade of material while durability remains.")).catch((error) => handleStoryCommandError(error, "That tool could not be equipped.")); }} onStoreMaterial={(kind) => void moveStewardMaterial(kind, "deposit")} onWithdrawMaterial={(kind) => void moveStewardMaterial(kind, "withdraw")} onSelectBlueprint={(blueprintId) => {
             beginWorldActionFeedback();
             continuousBuilder.close();

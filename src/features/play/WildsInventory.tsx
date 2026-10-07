@@ -499,7 +499,7 @@ export function WildsInventory({
       </header>
       {fusionOpen ? (
         <section className="wilds-fusion-sheet" aria-label="Create a fusion child">
-          <div><span>Earned creation</span><strong>{state.fusionSparks} Fusion Spark{state.fusionSparks === 1 ? "" : "s"}</strong><p>Both parents stay in your vault. Each rests for 24 hours after creating a child.</p></div>
+          <div><span>Earned creation</span><strong>{state.fusionSparks} Fusion Spark{state.fusionSparks === 1 ? "" : "s"}</strong><p>Each child costs one Spark. Your starter Spark permits the first breeding; completing an expedition earns another. Both parents stay in your vault and rest for 24 hours.</p><p>Next Spark: {state.missionProgress}/100 expedition progress. Captures, successful battles and companion level-ups advance it.</p></div>
           <label>Parent A<strong>{selected?.manifest.name ?? "Select a card below"}</strong></label>
           <label>Parent B<select aria-label="Second fusion parent" onChange={(event) => setFusionParentB(event.target.value)} value={fusionParentB}><option value="">Choose a different card…</option>{state.inventory.filter((asset) => asset.id !== selected?.id).map((asset) => <option key={asset.id} value={asset.id}>{asset.manifest.name} · {asset.manifest.variant.traits.visualFingerprint}</option>)}</select></label>
           <button

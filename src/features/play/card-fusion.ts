@@ -1,6 +1,7 @@
 import { deriveCardVariant, displayCreatureName, variantSeedFor } from "./card-variant";
 import { creatureForm } from "./creature-catalog";
 import { isLivingCardAsset } from "./living-card-types";
+import { isWildsTrailResourceBalance } from "./wilds-trail-resources";
 import {
   canonicalPortableCardJson,
   sha256PortableBasis,
@@ -26,7 +27,7 @@ export function fusionEligibility(input: {
   if (input.parentA.id === input.parentB.id) reasons.push("distinct_parents_required");
   if (input.parentA.manifest.ownerReceizId !== input.parentB.manifest.ownerReceizId) reasons.push("same_owner_required");
   if (!Number.isFinite(Date.parse(input.at))) reasons.push("fusion_time_invalid");
-  if (input.fusionSparks < 1) reasons.push("fusion_spark_required");
+  if (!isWildsTrailResourceBalance(input.fusionSparks) || input.fusionSparks < 1) reasons.push("fusion_spark_required");
   const atMs = Date.parse(input.at);
   const cooldowns = [input.fusionCooldowns[input.parentA.id], input.fusionCooldowns[input.parentB.id]].filter(Boolean) as string[];
   const active = cooldowns.map(Date.parse).filter((value) => Number.isFinite(value) && value > atMs);

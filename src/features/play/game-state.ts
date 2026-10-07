@@ -59,6 +59,7 @@ import { deriveAscensionGenome } from "./heartbound-genome";
 import { isLivingCardAsset, type GrowthPath, type LivingGrowthSnapshot } from "./living-card-types";
 import { createLivingChildTransaction, lineageEligibility } from "./living-lineage";
 import { worldMasteryAward, type WorldMasteryVerb } from "./world-progression";
+import { addWildsTrailResourceUnits, isWildsTrailResourceBalance, restoreWildsTrailResourceBalance, WILDS_EXPEDITION_SPARK_REWARD } from "./wilds-trail-resources";
 import {createWildsExplorerProgress,restoreWildsExplorerProgress,projectWildsExplorerProgress,type WildsExplorerProgress} from "./wilds-explorer-progression";
 import { validateRiftGrant, type RiftTravelGrant } from "./wilds-rift-travel";
 import { movementScale, type WildsMovementMode } from "./wilds-movement";
@@ -796,6 +797,8 @@ function restorePlayStateSource(
     return withWorldProgress({
       ...fallback,
       ...saved,
+      beans: foreignExplorer ? fallback.beans : restoreWildsTrailResourceBalance(saved.beans, fallback.beans),
+      fusionSparks: foreignExplorer ? fallback.fusionSparks : restoreWildsTrailResourceBalance(saved.fusionSparks, fallback.fusionSparks),
       playerNourishment: restoredNourishment,
       playerLivestock: restoredLivestock,
       explorerProgress:restoreWildsExplorerProgress(saved.explorerProgress,explorerOwner),
@@ -1288,6 +1291,8 @@ function advanceLivingMission(state: PlayState, amount: number): PlayState {
     ...state,
     missionProgress: progress,
     completedMissionIds,
+    fusionSparks: addWildsTrailResourceUnits(state.fusionSparks, completedCount * WILDS_EXPEDITION_SPARK_REWARD),
+    lastEvent: completedCount > 0 ? `${state.lastEvent} Expedition complete: +${completedCount * WILDS_EXPEDITION_SPARK_REWARD} Fusion Spark${completedCount === 1 ? "" : "s"}.` : state.lastEvent,
     worldMastery: state.worldMastery + completedCount * worldMasteryAward("mission"),
     completed: state.completed || completedCount > 0,
     achievements: completedCount > 0 ? Array.from(new Set([...state.achievements, "first-light"])) : state.achievements
@@ -1520,6 +1525,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     const asset = state.inventory.find((candidate) => candidate.id === input.assetId);
     if (!asset || !isPlayableAsset(state, asset.id)) return state;
     const requiredBeans = input.action === "feed" ? 3 : input.action === "treat" ? 8 : 0;
+    if (!isWildsTrailResourceBalance(state.beans)) return { ...state, lastEvent: "Your trail bean balance could not be read. Reload your saved expedition before spending supplies." };
     if (state.beans < requiredBeans) {
       return { ...state, lastEvent: `Play the world to earn ${requiredBeans - state.beans} more trail bean${requiredBeans - state.beans === 1 ? "" : "s"} for ${asset.manifest.name}.` };
     }
@@ -2214,7 +2220,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     const nextDiscovered = Array.from(new Set([...state.discoveredCardIds, sealed.manifest.familyId]));
     return withWorldProgress(awardWorldMastery(advanceLivingMission({
       ...state,
-      beans: state.beans + 6,
+      beans: addWildsTrailResourceUnits(state.beans, 6),
       cardXp: state.cardXp + 12,
       capturedHotspotIds: [...state.capturedHotspotIds, encounter.hotspotId],
       combo: state.combo + 1,
@@ -2537,7 +2543,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     return withWorldProgress(awardWorldMastery(advanceLivingMission({
       ...state,
       activeAction: "explore",
-      beans: state.beans + 6,
+      beans: addWildsTrailResourceUnits(state.beans, 6),
       cardXp: state.cardXp + 12,
       discoveredCardIds: nextDiscovered,
       inventory: admitLocallySealedWildsInventory([...state.inventory, sealed]),
@@ -2580,7 +2586,7 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
     let trained = withWorldProgress({
       ...state,
       activeAction: "train",
-      beans: state.beans + 4,
+      beans: addWildsTrailResourceUnits(state.beans, 4),
       cardXp: state.cardXp + 10,
       challenge: Math.min(100, state.challenge + 4),
       combo: state.combo + 1,
