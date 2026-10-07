@@ -1,0 +1,19 @@
+{
+  "framesPerScenario": 30000,
+  "queriesPerFrame": 3,
+  "waterfallCount": 4,
+  "natural": {
+    "solids": 83,
+    "medianMs": 0.004350540999999964,
+    "p95Ms": 0.004544083000000001,
+    "runtimeBuildsDuringFrames": 0,
+    "indexBuildsDuringFrames": 0
+  },
+  "varied": {
+    "solids": 102,
+    "medianMs": 0.004371332999999936,
+    "p95Ms": 0.004559750000000008,
+    "runtimeBuildsDuringFrames": 0,
+    "indexBuildsDuringFrames": 0
+  }
+}

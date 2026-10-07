@@ -7,6 +7,22 @@ import { enterWildsSiteRuntime, exitWildsSiteRuntime, prepareWildsSiteRuntime, p
 import { createWildsVerticalTraversalState, writeWildsVerticalTraversalStep } from "../src/features/play/wilds-vertical-traversal";
 
 describe("production Wilds site runtime", () => {
+  it("does not turn falling water into a flat swimming surface at the mountaintop", () => {
+    const physical = admitWildsDiscoveryPhysicalNeighborhood(-3, 0);
+    const fall = physical.waterVolumes.find(water => water.kind === 'waterfall')!;
+    assert.ok(fall);
+    const onlyFall = prepareWildsSiteRuntime({...physical, waterVolumes:[fall]});
+    const output = {floorY:0, ceilingY:0, flooded:false, waterSurfaceY:Number.NaN};
+    writeWildsSiteRuntimeCamera(output, onlyFall, fall.spaceId, fall.center.x, fall.center.y, fall.center.z);
+    assert.equal(output.flooded, false);
+    assert.ok(Number.isNaN(output.waterSurfaceY));
+    const pool = physical.waterVolumes.find(water => water.kind === 'pool')!;
+    assert.ok(pool);
+    const runtime = prepareWildsSiteRuntime(physical);
+    writeWildsSiteRuntimeCamera(output, runtime, pool.spaceId, pool.center.x, pool.center.y, pool.center.z);
+    assert.equal(output.flooded, true);
+    assert.equal(output.waterSurfaceY, pool.center.y+pool.halfExtents.y);
+  });
   it("makes cave entrances legible before the interaction radius", () => {
     assert.equal(projectWildsSitePortalCue(14.01), null);
     assert.deepEqual(projectWildsSitePortalCue(6), { label: "Cave entrance", action: null });
@@ -293,7 +309,7 @@ describe("production Wilds site runtime", () => {
     assert.match(canvas, /terrainElevation=\{activeFloorY\}/);
     assert.match(canvas, /const siteWorldY = terrainElevation/);
     assert.match(renderer, /key=\{site\.key\}/);
-    assert.match(renderer, /waterfall\.flowPath/);
+    assert.match(renderer, /createWildsWaterfallBatches\(projectWildsWaterfallChute\(site\)/);
     assert.doesNotMatch(renderer, /siteSolids\.map/);
     assert.doesNotMatch(renderer, /water\.halfExtents\.y \* 2/);
     assert.match(renderer, /portalDistance = portal \? Math\.hypot\(portal\.position\.x - player\.x, portal\.position\.z - player\.z\)/);

@@ -7,6 +7,21 @@ import { createWildsAudioRuntime } from "../src/features/play/wilds-audio";
 const memory = { activeProgramId: null, enteredAt: 0, recent: [] } as const;
 
 describe("Wilds adaptive audio director", () => {
+  it("cancels a pending scene load when its audio context is destroyed during reload",async()=>{
+    let release!:()=>void,decodes=0;
+    const pendingFetch=new Promise<void>(resolve=>{release=resolve;});
+    const param={setValueAtTime(){},exponentialRampToValueAtTime(){}};
+    const runtime=createWildsAudioRuntime(()=>({currentTime:0,destination:{},resume:async()=>{},close:async()=>{},
+      createOscillator:()=>({type:'sine',frequency:param,connect(){},disconnect(){},start(){},stop(){}}),
+      createGain:()=>({gain:param,connect(){},disconnect(){}}),
+      decodeAudioData:async()=>{decodes++;return {};},
+      createBufferSource:()=>({buffer:null,connect(){},disconnect(){},start(){},stop(){}})
+    }),async()=>{await pendingFetch;return {ok:true,arrayBuffer:async()=>new ArrayBuffer(1)};});
+    await runtime.unlock();
+    const loading=runtime.setScene(projectWildsAudioScene({position:{x:80,z:80}}));
+    await runtime.destroy();release();
+    await assert.doesNotReject(loading);assert.equal(decodes,0);assert.equal(runtime.activeProgramId(),null);
+  });
   it("makes the center Mortal Arena the dominant final-combat score", () => {
     const scene = projectWildsAudioScene({
       position: { x: 0, z: 0 }, districtId: "dawn-commons", activity: "combat",

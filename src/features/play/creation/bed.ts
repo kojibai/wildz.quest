@@ -7,6 +7,7 @@ import { creationNodePoses } from './projection';
 import { canAccessCreation } from './access';
 import type { WildsBedSleepPose } from '../wilds-construction-function';
 import { validConstructionId, validConstructionKai } from '../wilds-construction-project';
+import {creationPositionIsClear,type CreationNavigation} from './navigation';
 
 export type CreationBedSource = Readonly<{ schema: 'wildz.creation-bed-source.v1'; structureId: string; instanceId: string; nodeId: string; head: string; ownerReceizId: string; worldId: string; spaceId: string; position: CreationPose['position']; pose: CreationPose; geometry: CreationSolid }>;
 export type CreationBedSnapshot = CreationPhysicalSnapshot | (() => CreationPhysicalSnapshot);
@@ -125,6 +126,33 @@ export function selectCreationBedAtPlayer(snapshot: CreationBedSnapshot, player:
     }
     return beds.sort((a, b) => Math.hypot(a.geometry.center.x - player.x, a.geometry.center.z - player.z) - Math.hypot(b.geometry.center.x - player.x, b.geometry.center.z - player.z) || a.structureId.localeCompare(b.structureId))[0] || null;
   } catch { return null; }
+}
+export function restoredCreationBedFloor(snapshot: CreationBedSnapshot, marker: { instanceId?: string; nodeId?: string; componentHead: string; spaceId: string }, player: Player, spaceId: string, actorId: string, kaiUPulse: number): number | null {
+  if (!marker.instanceId || !marker.nodeId || marker.spaceId !== spaceId) return null;
+  const bed = resolveCreationBed(snapshot, marker.instanceId, marker.nodeId, actorId, kaiUPulse);
+  if (!bed || bed.head !== marker.componentHead || bed.spaceId !== spaceId) return null;
+  const projection = readSnapshot(snapshot).projections.find(p => p.instanceId === bed.instanceId && p.head === bed.head);
+  if (!projection || !isAdmittedCreationProjection(projection)) return null;
+  let floor: number | null = null;
+  for (const surface of projection.walkable) {
+    // Restore the supporting floor, never the mattress top or a different storey.
+    if (surface.center.y > bed.geometry.center.y - bed.geometry.halfExtents.y + .02
+      || surface.center.y < bed.geometry.center.y - .8) continue;
+    const dx = player.x - surface.center.x, dz = player.z - surface.center.z;
+    const c = Math.cos(surface.yaw), s = Math.sin(surface.yaw);
+    if (Math.abs(dx*c-dz*s) > surface.halfExtents.x || Math.abs(dx*s+dz*c) > surface.halfExtents.z
+      || !canSleepInCreationBed(bed, player, {spaceId, position:{y:surface.center.y}}, actorId, kaiUPulse)) continue;
+    floor = Math.max(floor ?? -Infinity, surface.center.y);
+  }
+  return floor;
+}
+export function creationBedWakeFloor(source:unknown,player:Player,floorY:number,actorId:string,kaiUPulse:number,navigation:CreationNavigation):number|null{
+  if(!verifyCreationBedSource(source,actorId,kaiUPulse)||!canSleepInCreationBed(source,player,{spaceId:source.spaceId,position:{y:floorY}},actorId,kaiUPulse))return null;
+  if(creationPositionIsClear(navigation,source.spaceId,{...player,y:floorY}))return floorY;
+  // Sleep lies on the mattress visually while logical feet remain at the room
+  // floor. Stand on its admitted top before walking, with full head clearance.
+  const y=source.geometry.center.y+source.geometry.halfExtents.y;
+  return creationPositionIsClear(navigation,source.spaceId,{...player,y})?y:null;
 }
 /** Feet lie toward the mattress foot; the torso points toward its positive-depth pillow end. */
 export function projectCreationBedSleepPose(source: unknown, player: Player, floorY: number, actorId: string, kaiUPulse: number): WildsBedSleepPose | null {

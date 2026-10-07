@@ -20,19 +20,20 @@ import { createCreationPhysicalWorkerClient } from './physical-worker-client';
 import { resolveCreationMovement, type CreationNavigation } from './navigation';
 import WildsCreations from './WildsCreations';
 
-const owner = 'fixture:creation-placement', capturedAt = '2026-10-07T06:00:00.000Z';
+const capturedAt = '2026-10-07T06:00:00.000Z';
 const position = { x: 5000, y: 100, z: 5000 };
 const storageKey = 'wildz:test-fixture:creation-placement:v1';
 const profile = wildsQualityProfileForTier('low', false);
 
-function createFixture() {
+export function createPlacementFixture(scope?:{ownerId:string;storageKey:string}) {
+  const owner=scope?.ownerId??'fixture:creation-placement',saveKey=scope?.storageKey??storageKey;
   const card = sealCollectedCard({ ownerReceizId: owner, formId: 'mintcub-1', encounterId: 'fixture:creation-placement', capturedAt });
   const conditions = { [card.id]: emptyAdventureCondition(card.id) };
   const harvested = Array.from({ length: 25 }, (_, i) => projectWildsResourceRegion(i - 12, 0)).flat()
     .filter(source => source.kind === 'timber').slice(0, 20)
     .map(source => createWildsMaterialHarvest({ source, current: initialWildsHarvestedSourceState(source), ownerReceizId: owner, actorPosition: source.position, kaiUPulse: 10 }));
   let world: WildsWorldProjection = { ...initialWildsWorldProjection(), materialLots: Object.fromEntries(harvested.map(row => [row.lot.lotId, row.lot])), harvestedSources: Object.fromEntries(harvested.map(row => [row.source.sourceId, row.source])) };
-  const saved = sessionStorage.getItem(storageKey);
+  const saved = sessionStorage.getItem(saveKey);
   if (saved) world = replayWildsWorld([], JSON.parse(saved) as WildsWorldCheckpoint);
   const durable = createReceizInMemoryOfflineProofQueueStorage();
   const queue = createWildsWorldEdgeAdmissionQueue({ initialProjection: world, persist: candidate => persistWildsWorldCommandDurably(candidate, durable) });
@@ -44,10 +45,10 @@ function createFixture() {
   const controller = createWorldCreationController({ environment: () => ({ ownerId: owner, worldId: world.worldId, spaceId: context.spaceId }), world: queue.current, crew: () => ({ cards: [card], conditions }), position: () => position, compileContext: () => context,
     admit: async (command, beforeAdmit) => {
       const projection = await queue.admit({ schema: 'receiz.wilds_world_outbox_entry.v1', actorId: owner, guestId: 'fixture:creation-placement', command, queuedAt: capturedAt }, { beforeAdmit });
-      sessionStorage.setItem(storageKey, JSON.stringify(checkpointWildsWorld(projection)));
+      sessionStorage.setItem(saveKey, JSON.stringify(checkpointWildsWorld(projection)));
       return { projection, events: [] };
     }, project: worker.project });
-  return { controller, worker, queue, context, definition, workerId: card.id };
+  return { controller, worker, queue, context, definition, workerId: card.id, card, conditions, owner };
 }
 
 class FixtureErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
@@ -56,7 +57,7 @@ class FixtureErrorBoundary extends Component<{ children: ReactNode }, { error: s
   render() { return this.state.error ? <pre data-testid="creation-placement-error">{this.state.error}</pre> : this.props.children; }
 }
 
-function PlacementScene({ fixture }: { fixture: ReturnType<typeof createFixture> }) {
+function PlacementScene({ fixture }: { fixture: ReturnType<typeof createPlacementFixture> }) {
   const source = useSyncExternalStore(fixture.controller.subscribe, fixture.controller.snapshot, fixture.controller.snapshot);
   const [navigation, setNavigation] = useState<CreationNavigation | null>(null);
   const [result, setResult] = useState('Ready to build');
@@ -129,9 +130,9 @@ function PlacementCamera({ navigation, view, onReadout }: { navigation: Creation
 }
 
 export default function CreationPlacementBrowserFixture() {
-  const [fixture, setFixture] = useState<ReturnType<typeof createFixture> | null>(null);
+  const [fixture, setFixture] = useState<ReturnType<typeof createPlacementFixture> | null>(null);
   useEffect(() => {
-    const current = createFixture();
+    const current = createPlacementFixture();
     setFixture(current);
     void current.controller.restore();
     return () => { current.controller.close(); current.worker.close(); };

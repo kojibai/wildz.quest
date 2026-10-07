@@ -198,6 +198,9 @@ function floorAndCeiling(output: { floorY: number; ceilingY: number; flooded: bo
   for (const ceiling of at(indexFor(runtime).ceilings, spaceId, x, z)) { if (Math.abs(x - ceiling.center.x) > ceiling.halfExtents.x || Math.abs(z - ceiling.center.z) > ceiling.halfExtents.z) continue; const underside = ceiling.center.y - ceiling.halfExtents.y; if (underside >= output.floorY && underside < output.ceilingY) output.ceilingY = underside; }
   if ("waterSurfaceY" in output) output.waterSurfaceY = Number.NaN;
   for (const water of at(indexFor(runtime).waters, spaceId, x, z)) {
+    // Falling streams have no horizontal swimming surface. Their receiving
+    // pool supplies buoyancy; using the stream's source height lifts swimmers.
+    if (water.kind === "waterfall") continue;
     if (!contains(water, x, Math.min(Math.max(y, water.center.y - water.halfExtents.y), water.center.y + water.halfExtents.y), z)) continue;
     output.flooded = true;
     if ("waterSurfaceY" in output) { const priorWaterSurface = typeof output.waterSurfaceY === "number" && Number.isFinite(output.waterSurfaceY) ? output.waterSurfaceY : Number.NEGATIVE_INFINITY; output.waterSurfaceY = Math.max(priorWaterSurface, water.center.y + water.halfExtents.y); }

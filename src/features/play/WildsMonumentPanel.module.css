@@ -1,0 +1,3 @@
+.panel{position:absolute;z-index:20;left:50%;bottom:8.5rem;transform:translateX(-50%);width:min(27rem,calc(100% - 2rem));padding:.75rem 1rem;border:1px solid #b2cabd66;border-radius:1rem;background:#11271eef;color:#f2f1dc;box-shadow:0 6px 22px #0005;pointer-events:auto;font-size:.85rem;max-height:35%;overflow:auto}
+.panel strong{color:#efdc8e}.panel p{margin:.45rem 0;line-height:1.4}.panel button{margin:.2rem;padding:.5rem .7rem;border:1px solid #c8d7b766;border-radius:.6rem;background:#294536;color:inherit;font:inherit;min-height:2.5rem}.lights{display:flex;flex-wrap:wrap}.panel button:focus-visible{outline:2px solid #f2d36d;outline-offset:2px}
+@media(max-width:600px){.panel{bottom:8rem;font-size:.8rem;padding:.6rem .8rem}}

@@ -7,12 +7,13 @@ import { initializeCreationComponents } from '../src/features/play/creation/comp
 import { createCreationCurrentSourcePort, type CreationCurrentSource } from '../src/features/play/creation/current-source';
 import { createCreationPhysicalStore } from '../src/features/play/creation/physical-store';
 import { projectCreationPhysical } from '../src/features/play/creation/projection';
-import { canSleepInCreationBed, projectCreationBedSleepPose, resolveCreationBed, selectCreationBedAtPlayer } from '../src/features/play/creation/bed';
+import { canSleepInCreationBed, projectCreationBedSleepPose, resolveCreationBed, selectCreationBedAtPlayer, restoredCreationBedFloor, creationBedWakeFloor } from '../src/features/play/creation/bed';
+import {prepareCreationNavigation,creationPositionIsClear,resolveCreationMovement} from '../src/features/play/creation/navigation';
 import { creationAccessPreset } from '../src/features/play/creation/access';
 
-async function fixture(yaw = 0, home = false) {
+async function fixture(yaw = 0, home = false, bedHeight=.2) {
   const base = creationDefinitionFixture().nodes[0];
-  const definition = creationDefinitionFixture({ nodes: [...(home ? [base] : []), { ...base, id: 'bed', parentId: home ? 'room' : null, supports: home ? ['room'] : [], pose: { position: home ? { x: -1.2, y: .15, z: .8 } : { x: 0, y: 0, z: 0 }, yaw: 0 }, shape: { kind: 'box', width: .9, height: .2, depth: 2 }, behaviors: [{ id: 'bed', version: 1, parameters: {} }] }] });
+  const definition = creationDefinitionFixture({ nodes: [...(home ? [base] : []), { ...base, id: 'bed', parentId: home ? 'room' : null, supports: home ? ['room'] : [], pose: { position: home ? { x: -1.2, y: .15, z: .8 } : { x: 0, y: 0, z: 0 }, yaw: 0 }, shape: { kind: 'box', width: .9, height: bedHeight, depth: 2 }, behaviors: [{ id: 'bed', version: 1, parameters: {} }] }] });
   const context = creationContextFixture({ pose: { position: { x: 10, y: 3, z: 5 }, yaw } }), compiled = compileCreation(definition, context);
   if (compiled.status !== 'ready') throw Error('fixture compilation');
   const plan = compiled.plan;
@@ -45,6 +46,33 @@ test('only a real admitted healthy bed offers sleep at its physical footprint', 
   assert.equal(selectCreationBedAtPlayer(f.store.snapshot, player, { ...f.space, position: { y: 5 } }, 'owner', 2), null);
   assert.equal(resolveCreationBed(f.store.snapshot, 'creation:bed', 'bed', 'visitor', 2), null);
   assert.equal(resolveCreationBed(f.store.snapshot, 'creation:bed', 'bed', 'owner', 0), null);
+});
+
+test('a saved bed recovers only its current admitted floor at the saved horizontal position', async () => {
+  const f = await fixture(Math.PI / 4, true);
+  const bed = resolveCreationBed(f.store.snapshot, f.instance.instanceId, 'bed', 'owner', 2)!;
+  const marker = { instanceId: bed.instanceId, nodeId: bed.nodeId, componentHead: bed.head, spaceId: bed.spaceId };
+  const player = { x: bed.position.x, z: bed.position.z };
+  const floor = restoredCreationBedFloor(f.store.snapshot, marker, player, bed.spaceId, 'owner', 2);
+  assert.ok(floor !== null); assert.ok(Math.abs(floor - 3.15) < 1e-9);
+  assert.equal(restoredCreationBedFloor(f.store.snapshot, marker, { x: 50, z: 50 }, bed.spaceId, 'owner', 2), null);
+  assert.equal(restoredCreationBedFloor(f.store.snapshot, { ...marker, componentHead: 'stale' }, player, bed.spaceId, 'owner', 2), null);
+  assert.equal(restoredCreationBedFloor(f.store.snapshot, marker, player, 'elsewhere', 'owner', 2), null);
+  assert.equal(restoredCreationBedFloor(f.store.snapshot, marker, player, bed.spaceId, 'visitor', 2), null);
+  await f.update({ ownerId: 'recipient', stewardId: 'recipient' });
+  assert.equal(restoredCreationBedFloor(f.store.snapshot, marker, player, bed.spaceId, 'owner', 3), null);
+});
+
+test('waking on a tall mattress supports the feet above the bed instead of trapping them inside its collider',async()=>{
+  const f=await fixture(0,true,.6),bed=resolveCreationBed(f.store.snapshot,f.instance.instanceId,'bed','owner',2)!;
+  const navigation=prepareCreationNavigation(f.store.snapshot().projections),player={x:bed.position.x,z:bed.position.z};
+  assert.equal(creationPositionIsClear(navigation,bed.spaceId,{...player,y:3.15}),false);
+  const y=creationBedWakeFloor(bed,player,3.15,'owner',2,navigation);assert.ok(y!==null);
+  assert.equal(creationPositionIsClear(navigation,bed.spaceId,{...player,y}),true);
+  const movement=resolveCreationMovement(navigation,bed.spaceId,{...player,y},{x:player.x+.9,y:3.15,z:player.z});
+  assert.ok(movement.position.x>player.x+.8);assert.ok(Math.abs(movement.position.y-3.15)<1e-9);
+  assert.equal(creationBedWakeFloor({...bed},player,3.15,'owner',2,navigation),null);
+  assert.equal(creationBedWakeFloor(bed,{x:player.x+.83,z:player.z},3.15,'owner',2,navigation),3.15,'clear feet beside the mattress must remain on the room floor');
 });
 
 test('rotated beds use their real local footprint and align the sleep pose along the mattress', async () => {

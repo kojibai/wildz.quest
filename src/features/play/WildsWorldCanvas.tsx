@@ -132,10 +132,12 @@ import { WILDS_RENDERED_PHYSICAL_OBSTACLES } from "./wilds-terrain-obstacles";
 
 export type WildsCrewModes = Readonly<Record<string, "follow" | "roam">>;
 
+type MonumentLightState=Readonly<{id:string;lights:readonly number[];aligned:boolean}>|null;
 const WILDS_DIAGNOSTICS_ENABLED = process.env.NODE_ENV !== "production";
 const EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD = Object.freeze({ tileX: 0, tileZ: 0, obstacles: Object.freeze([]) }) as WildsAerialObstacleNeighborhood;
 
 export function WildsWorldCanvas({
+  monumentLightState,
   homeResidents,
   activeWorkSource,
   sleepingCreationBed,
@@ -201,6 +203,7 @@ export function WildsWorldCanvas({
 }: {
   homeResidents?: WildsHomeResidentsInput;
   activeWorkSource?: WildsActiveWorkSource | null;
+  monumentLightState?:MonumentLightState;
   sleepingCreationBed?: CreationBedSource | null;
   nourishment?: Omit<WildsNourishmentEnvironmentProps, 'origin' | 'kaiUPulse' | 'spaceId'>;
   activeCapabilityFamily?: WildsWorldCapabilityFamily | null;
@@ -290,7 +293,7 @@ export function WildsWorldCanvas({
           <WildsFirstDrawPreparation onPrepared={setStartupPrepared} />
           <WildsFirstFrame onReady={onWorldReady} />
           {startupPrepared ? <WildsShaderPrewarm /> : null}
-          <WildsScene nourishment={nourishment} sleepingCreationBed={sleepingCreationBed} suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} creationPreview={creationPreview} creationProjections={creationProjections} creationNavigation={creationNavigation} creationSource={creationSource} creationWorldId={creationWorldId} onCreationNavigation={onCreationNavigation} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
+          <WildsScene monumentLightState={monumentLightState} nourishment={nourishment} sleepingCreationBed={sleepingCreationBed} suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} creationPreview={creationPreview} creationProjections={creationProjections} creationNavigation={creationNavigation} creationSource={creationSource} creationWorldId={creationWorldId} onCreationNavigation={onCreationNavigation} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
       </Canvas>
     </div>
@@ -303,6 +306,7 @@ function WildsFrameReporter({ onFrameSample }: { onFrameSample: (frameMs: number
 }
 
 function WildsScene({
+  monumentLightState,
   suspended = false,
   homeResidents,
   activeWorkSource,
@@ -367,6 +371,7 @@ function WildsScene({
   suspended?: boolean;
   homeResidents?: WildsHomeResidentsInput;
   activeWorkSource?: WildsActiveWorkSource | null;
+  monumentLightState?:MonumentLightState;
   sleepingCreationBed?: CreationBedSource | null;
   nourishment?: Omit<WildsNourishmentEnvironmentProps, 'origin' | 'kaiUPulse' | 'spaceId'>;
   activeCapabilityFamily: WildsWorldCapabilityFamily | null;
@@ -521,6 +526,7 @@ function WildsScene({
       }} qualityProfile={qualityProfile} siteRuntime={siteRuntime} state={state} /> : null}
       <SmoothWorldFrame player={state.player} terrainElevation={activeFloorY}>
         <SearchableTerrain
+          monumentLightState={monumentLightState}
           activeWorkSource={activeWorkSource}
           kaiUPulse={kaiMoment.uPulse}
           enabled={searchEnabled}
@@ -580,7 +586,7 @@ function WildsScene({
           identityKey={explorerIdentityKey}
           kaiUPulse={kaiMoment.uPulse}
           bodyReadiness={state.energy}
-          sleepPose={sleepingBed ? projectWildsBedSleepPose(sleepingBed, state.player, activeFloorY) : sleepingCreationBed ? projectCreationBedSleepPose(sleepingCreationBed, state.player, activeFloorY, explorerIdentityKey || '', kaiMoment.uPulse) || undefined : state.playerBreaths?.mode === 'sleep' && !swimming && aerialStateRef.current.mode === 'ground' ? {position: [.72, .24, 0], heading: -Math.PI / 2, pitch: Math.PI / 2} : undefined}
+          sleepPose={sleepingBed ? projectWildsBedSleepPose(sleepingBed, state.player, activeFloorY) : sleepingCreationBed ? projectCreationBedSleepPose(sleepingCreationBed, state.player, activeFloorY, explorerIdentityKey || '', Math.max(kaiMoment.uPulse,state.playerBreaths?.lastKaiUPulse??0)) || undefined : state.playerBreaths?.mode === 'sleep' && !swimming && aerialStateRef.current.mode === 'ground' ? {position: [.72, .24, 0], heading: -Math.PI / 2, pitch: Math.PI / 2} : undefined}
           locomotion={swimming ? "swim" : "ground"}
           scubaVisible={swimming}
           style={character.gender}
@@ -1505,6 +1511,7 @@ function frameSeconds() {
 }
 
 function SearchableTerrain({
+  monumentLightState,
   activeWorkSource,
   kaiUPulse,
   player,
@@ -1521,6 +1528,7 @@ function SearchableTerrain({
   siteSpace,
   onSitePortal
 }: {
+  monumentLightState?:MonumentLightState;
   activeWorkSource?: WildsActiveWorkSource | null;
   kaiUPulse: number;
   player: PlayState["player"];
@@ -1551,12 +1559,13 @@ function SearchableTerrain({
         ));
       }}
     >
-      <StreamedTerrain activeWorkSource={activeWorkSource} kaiUPulse={kaiUPulse} missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />
+      <StreamedTerrain monumentLightState={monumentLightState} activeWorkSource={activeWorkSource} kaiUPulse={kaiUPulse} missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />
     </group>
   );
 }
 
 function StreamedTerrain({
+  monumentLightState,
   activeWorkSource,
   kaiUPulse,
   missionProgress,
@@ -1571,6 +1580,7 @@ function StreamedTerrain({
   siteSpace,
   onSitePortal
 }: {
+  monumentLightState?:MonumentLightState;
   activeWorkSource?: WildsActiveWorkSource | null;
   kaiUPulse: number;
   missionProgress: number;
@@ -1585,7 +1595,7 @@ function StreamedTerrain({
   siteSpace: WildsSiteSpaceState;
   onSitePortal: (siteKey: string, direction: "enter" | "exit") => void;
 }) {
-  return <WildsEnvironment activeWorkSource={activeWorkSource} kaiUPulse={kaiUPulse} missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />;
+  return <WildsEnvironment monumentLightState={monumentLightState} activeWorkSource={activeWorkSource} kaiUPulse={kaiUPulse} missionProgress={missionProgress} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} worldMastery={worldMastery} livingWorld={livingWorld} worldMode={worldMode} onSelectOverlook={onSelectOverlook} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} />;
 }
 
 function Creature({

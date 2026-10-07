@@ -289,6 +289,7 @@ export function createWildsAudioRuntime(
 
   const preload = async (assetIds: readonly string[]) => {
     if (!context || destroyed || !context.decodeAudioData || !context.createBufferSource) return;
+    const decodingContext=context;
     await Promise.all(assetIds.map(async (assetId) => {
       if (buffers.has(assetId)) return;
       const existing = loading.get(assetId);
@@ -296,9 +297,19 @@ export function createWildsAudioRuntime(
       const asset = WILDS_AUDIO_BY_ID.get(assetId);
       if (!asset) return;
       const request = (async () => {
-        const response = await fetcher(asset.path);
-        if (!response.ok) throw new Error(`Audio load failed: ${assetId}`);
-        buffers.set(assetId, await context!.decodeAudioData!(await response.arrayBuffer()));
+        try {
+          const response = await fetcher(asset.path);
+          if(destroyed||context!==decodingContext)return;
+          if (!response.ok) throw new Error(`Audio load failed: ${assetId}`);
+          const bytes=await response.arrayBuffer();
+          if(destroyed||context!==decodingContext)return;
+          const buffer=await decodingContext.decodeAudioData!(bytes);
+          if(!destroyed&&context===decodingContext)buffers.set(assetId,buffer);
+        } catch(error) {
+          // A reload can close the context while fetch/decode is in flight.
+          if(destroyed||context!==decodingContext)return;
+          throw error;
+        }
       })().finally(() => loading.delete(assetId));
       loading.set(assetId, request);
       return request;

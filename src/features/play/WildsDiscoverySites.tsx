@@ -2,6 +2,7 @@
 
 import { WILDS_CAVE_EXTERIOR } from "./wilds-cave-exterior";
 import { Html } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { useWildsRockTexture, applyWildsRockUV } from "./wilds-rock-material";
@@ -10,14 +11,36 @@ import type { PlayState } from "./game-state";
 import { projectWildsDiscoverySiteVisuals } from "./wilds-discovery-site-visuals";
 import { projectWildsDiscoverySiteApproach, type WildsDiscoverySiteProjection, type WildsSiteSpaceState } from "./wilds-discovery-sites";
 import { projectWildsSitePortalCue, WILDS_SITE_PORTAL_INTERACTION_RADIUS, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
+import { projectWildsMonuments, projectVisibleWildsMonuments, projectWildsWaterfallChute, WILDS_MONUMENT_DETAIL_RADIUS, type WildsMonumentDescriptor } from "./wilds-discovery-monuments";
+import { createWildsMonumentBatches, createWildsWaterfallBatches, createWildsFlowMaterial, createWildsMonumentStoneMaterial, type WildsDiscoveryBatch, type WildsMonumentLightState } from "./wilds-monument-geometry";
+import type { WildsQualityTier } from "./wilds-quality-profile";
 
-export function WildsDiscoverySites({ runtime, player, space, elevation = space.position.y, onPortal }: {
+type DiscoveryMaterials = Readonly<{ stone: THREE.MeshStandardMaterial; bronze: THREE.MeshStandardMaterial; light: THREE.MeshStandardMaterial; alignedLight: THREE.MeshStandardMaterial; water: THREE.MeshStandardMaterial }>;
+
+export function WildsDiscoverySites({ runtime, player, space, elevation = space.position.y, onPortal, qualityTier = "medium", reducedMotion = false, lightState = null }: {
   runtime: WildsSiteRuntimeProjection;
   player: PlayState["player"];
   space: WildsSiteSpaceState;
   elevation?: number;
   onPortal: (siteKey: string, direction: "enter" | "exit") => void;
+  qualityTier?: WildsQualityTier;
+  reducedMotion?: boolean;
+  lightState?: WildsMonumentLightState | null;
 }) {
+  const texture = useWildsRockTexture();
+  const flowTime = useMemo(() => ({ value: 0 }), []);
+  const materials = useMemo<DiscoveryMaterials>(() => ({
+    stone: createWildsMonumentStoneMaterial(texture),
+    bronze: new THREE.MeshStandardMaterial({ color: "#ffffff", vertexColors: true, roughness: .6, metalness: .68, side: THREE.DoubleSide }),
+    light: createMonumentLightMaterial(flowTime, .18),
+    alignedLight: createMonumentLightMaterial(flowTime, .8),
+    water: createWildsFlowMaterial(flowTime)
+  }), [flowTime, texture]);
+  useEffect(() => () => { for (const material of Object.values(materials)) material.dispose(); }, [materials]);
+  // One shared uniform drives water and prism glow. No objects or geometry are rebuilt in frame work.
+  useFrame(({ clock }) => { flowTime.value = reducedMotion ? 0 : clock.elapsedTime; });
+  const monuments = useMemo(() => projectWildsMonuments(runtime.sites), [runtime.sites]);
+  const nearbyMonuments = useMemo(() => projectVisibleWildsMonuments(monuments, player), [monuments, player]);
   const portalsBySite = useMemo(() => new Map(runtime.physical.portals.map((portal) => [portal.siteKey, portal])), [runtime]);
   const visualsBySite = useMemo(() => new Map(runtime.sites.map((site) => [site.key, projectWildsDiscoverySiteVisuals(
     site,
@@ -71,7 +94,7 @@ export function WildsDiscoverySites({ runtime, player, space, elevation = space.
           <meshPhysicalMaterial color="#2395ad" emissive="#155c73" emissiveIntensity={.18} opacity={.58} roughness={.14} side={2} transparent />
         </mesh>) : null}
         {site.waterfall && approach.lod !== "distant" ? <group name={`waterfall:${site.key}`}>
-          <WaterfallFlow site={site} />
+          <WaterfallFlow site={site} materials={materials} qualityTier={qualityTier} />
         </group> : null}
         {portal && approach.lod !== "distant" ? <group position={[portal.position.x - site.entrance.x, portal.position.y - site.entrance.y + 1, portal.position.z - site.entrance.z]}>
           <CaveEntrance dug={dug} />
@@ -79,6 +102,7 @@ export function WildsDiscoverySites({ runtime, player, space, elevation = space.
         </group> : null}
       </group>;
     })}
+    {nearbyMonuments.map(({ monument, distance }) => <DiscoveryMonument key={monument.id} monument={monument} materials={materials} player={player} elevation={elevation} qualityTier={distance <= WILDS_MONUMENT_DETAIL_RADIUS ? qualityTier : "low"} lightState={lightState?.id === monument.id ? lightState : null} />)}
   </group>;
 }
 
@@ -110,21 +134,34 @@ function MountainSurface({ color, distant, site, surface }: {
   </mesh>;
 }
 
-function WaterfallFlow({ site }: { site: WildsDiscoverySiteProjection }) {
-  const waterfall = site.waterfall!;
-  const segments = useMemo(() => waterfall.flowPath.slice(1).map((end, index) => {
-    const start = waterfall.flowPath[index]!;
-    const direction = new THREE.Vector3(end.x - start.x, end.y - start.y, end.z - start.z);
-    const length = direction.length();
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
-    return Object.freeze({ id: `${site.key}:waterfall-segment:${index}`, length, position: [(start.x + end.x) / 2 - site.entrance.x, (start.y + end.y) / 2 - site.entrance.y, (start.z + end.z) / 2 - site.entrance.z] as [number, number, number], quaternion: quaternion.toArray() as [number, number, number, number] });
-  }), [site, waterfall]);
-  return <>{segments.map((segment) => <mesh key={segment.id} name={segment.id} position={segment.position} quaternion={segment.quaternion}>
-    <cylinderGeometry args={[.34, .48, segment.length, 10]} />
-    <meshPhysicalMaterial color="#64d9f0" emissive="#2b8ca5" emissiveIntensity={.34} transparent opacity={.8} roughness={.18} />
-  </mesh>)}</>;
+function WaterfallFlow({ site, materials, qualityTier }: { site: WildsDiscoverySiteProjection; materials: DiscoveryMaterials; qualityTier: WildsQualityTier }) {
+  const batches = useMemo(() => createWildsWaterfallBatches(projectWildsWaterfallChute(site)!, site.entrance, qualityTier), [site, qualityTier]);
+  useEffect(() => () => disposeBatches(batches), [batches]);
+  return <>{batches.map(batch => <mesh key={batch.material} name={`waterfall-${batch.material}:${site.key}`} geometry={batch.geometry} material={materials[batch.material]} receiveShadow={batch.material === "stone"} />)}</>;
 }
 
+function DiscoveryMonument({ monument, materials, player, elevation, qualityTier, lightState }: { monument: WildsMonumentDescriptor; materials: DiscoveryMaterials; player: { x: number; z: number }; elevation: number; qualityTier: WildsQualityTier; lightState: WildsMonumentLightState | null }) {
+  const light0 = lightState?.lights[0] ?? 0, light1 = lightState?.lights[1] ?? 0, light2 = lightState?.lights[2] ?? 0;
+  const aligned = lightState?.aligned ?? false;
+  const batches = useMemo(() => createWildsMonumentBatches(monument, qualityTier, { id: monument.id, lights: [light0, light1, light2], aligned }), [monument, qualityTier, light0, light1, light2, aligned]);
+  useEffect(() => () => disposeBatches(batches), [batches]);
+  return <group name={`discovery-monument:${monument.type}:${monument.siteKey}`} position={[monument.position.x - player.x, monument.position.y - elevation, monument.position.z - player.z]}>
+    {batches.map(batch => <mesh key={batch.material} name={`${monument.id}:${batch.material}`} geometry={batch.geometry} material={batch.material === "light" && aligned ? materials.alignedLight : materials[batch.material]} receiveShadow={batch.material === "stone"} />)}
+  </group>;
+}
+
+function disposeBatches(batches: readonly WildsDiscoveryBatch[]) { for (const batch of batches) batch.geometry.dispose(); }
+
+function createMonumentLightMaterial(time: { value: number }, intensity: number) {
+  const material = new THREE.MeshStandardMaterial({ color: "#ffffff", vertexColors: true, emissive: "#ffffff", emissiveIntensity: intensity, roughness: .32, metalness: .12, side: THREE.DoubleSide });
+  material.onBeforeCompile = shader => {
+    shader.uniforms.uWildsFlowTime = time;
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nuniform float uWildsFlowTime;")
+      .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance *= vColor * (.93 + .07 * sin(uWildsFlowTime * 1.4));");
+  };
+  material.customProgramCacheKey = () => "wilds-prism-glow-v1";
+  return material;
+}
 
 function CaveSurfaces({boxes,role,player,elevation}:{boxes:Parameters<typeof createWildsCaveBatch>[0];role:"wall"|"floor"|"ceiling";player:{x:number;z:number};elevation:number}) {
   const texture=useWildsRockTexture();
