@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { initialWildsWorldProjection } from "../src/features/play/wilds-world-state.js";
+import { initialWildsWorldProjection, type WildsWorldProjection } from "../src/features/play/wilds-world-state.js";
 import { deriveKaiKlokMomentFromUPulse } from "../src/features/play/kai-klok-moment.js";
 import { createKaiTemporalRoot } from "../src/features/play/kai-temporal-root.js";
 import { createReceizInMemoryOfflineProofQueueStorage } from "@receiz/sdk";
@@ -16,7 +16,8 @@ import {
   shouldSynchronizeWildsWorldCommandAfterPaint,
   wildsWorldModeAfterConfirmedBootstrap,
   wildsWorldModeAfterRequestFailure,
-  refreshWildsWorldClient
+  refreshWildsWorldClient,
+  startWildsWorldClient
 } from "../src/features/play/use-wilds-world.js";
 
 describe("Wilds world client contract", () => {
@@ -207,5 +208,48 @@ describe("construction refresh status", () => {
     assert.equal(settled?.mode, "receiz_live");
     assert.equal(settled?.error, "");
     assert.deepEqual(calls, ["snapshot", "flush"]);
+  });
+});
+
+describe("available boss snapshot presentation", () => {
+  it("publishes an available admitted snapshot before slow local restoration finishes", async () => {
+    const initial = { ...initialWildsWorldProjection(), revision: 4 };
+    let current = initialWildsWorldProjection();
+    const published: WildsWorldProjection[] = [];
+    let release!: () => void;
+    let refreshed = false;
+    const restoration = new Promise<void>(resolve => { release = resolve; });
+    const starting = startWildsWorldClient({
+      initialProjection: initial, cancelled: () => false,
+      adopt: value => { current = value; return current; }, current: () => current,
+      publish: value => { published.push(value); }, restore: () => restoration,
+      refresh: async () => { refreshed = true; }
+    });
+    assert.deepEqual(published, [initial]);
+    assert.equal(refreshed, false);
+    release();
+    await starting;
+    assert.equal(published.at(-1), current);
+    assert.equal(refreshed, true);
+  });
+
+  it("publishes the accepted world and ignores a late restoration after session cleanup", async () => {
+    const accepted = { ...initialWildsWorldProjection(), revision: 8 };
+    const stale = { ...initialWildsWorldProjection(), revision: 4 };
+    let cancelled = false;
+    let release!: () => void;
+    const published: WildsWorldProjection[] = [];
+    const starting = startWildsWorldClient({
+      initialProjection: stale, cancelled: () => cancelled,
+      adopt: value => acceptWildsWorldSnapshot(accepted, value), current: () => accepted,
+      publish: value => { published.push(value); },
+      restore: () => new Promise<void>(resolve => { release = resolve; }),
+      refresh: async () => { throw Error("cancelled session must not refresh"); }
+    });
+    assert.deepEqual(published, [accepted]);
+    cancelled = true;
+    release();
+    await starting;
+    assert.deepEqual(published, [accepted]);
   });
 });

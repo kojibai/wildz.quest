@@ -190,6 +190,27 @@ export async function refreshWildsWorldClient(input: {
   }
 }
 
+/** Present an available bootstrap immediately through the normal admission
+ * boundary. Account recovery continues independently, preserving its history. */
+export async function startWildsWorldClient(input: {
+  initialProjection?: WildsWorldProjection | null;
+  cancelled: () => boolean;
+  adopt: (projection: WildsWorldProjection) => WildsWorldProjection;
+  current: () => WildsWorldProjection;
+  publish: (projection: WildsWorldProjection) => void;
+  restore: () => Promise<unknown>;
+  refresh?: () => Promise<unknown>;
+}) {
+  if (input.cancelled()) return;
+  if (input.initialProjection && validWildsWorldProjection(input.initialProjection)) {
+    input.publish(input.adopt(input.initialProjection));
+  }
+  await input.restore();
+  if (input.cancelled()) return;
+  input.publish(input.current());
+  await input.refresh?.();
+}
+
 export function useWildsWorld(input: {
   onActivity?: (activity: WildsActivityEntry) => void;
   enabled: boolean;
@@ -383,16 +404,19 @@ export function useWildsWorld(input: {
 
   useEffect(() => {
     if (!input.enabled) return;
-    if (input.initialSnapshot && validWildsWorldProjection(input.initialSnapshot.projection)) adoptSnapshot(input.initialSnapshot.projection);
     let cancelled = false;
-    void restoreSession()
-      .then(async () => {
-        if (cancelled) return;
-        const admitted = edgeQueue.current();
+    void startWildsWorldClient({
+      initialProjection: input.initialSnapshot?.projection,
+      cancelled: () => cancelled,
+      adopt: adoptSnapshot,
+      current: edgeQueue.current,
+      restore: restoreSession,
+      publish: (admitted) => {
         canonicalSnapshot.current = admitted;
         setSnapshot((current) => acceptWildsWorldSnapshot(current, admitted, ownedWorldAdditions.current));
-        if (input.networkEnabled) await refresh();
-      })
+      },
+      ...(input.networkEnabled ? { refresh } : {})
+    })
       .catch((cause) => {
         if (cancelled || (cause as Error).name === "AbortError") return;
         setMode("receiz_recovery_pending");

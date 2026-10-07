@@ -29,15 +29,16 @@ test("the admitted bootstrap projection reaches the living HUD instead of being 
   assert.match(shell, /setWorldBootstrap\(\{ projection: admitted\.projection/);
   assert.match(shell, /initialWorld=\{worldBootstrap\}/);
   assert.match(campaign, /initialSnapshot: initialWorld/);
-  const initialAdoption = hook.indexOf("adoptSnapshot(input.initialSnapshot.projection)");
-  const restore = hook.indexOf("void restoreSession()", initialAdoption);
-  const durableAdoption = hook.indexOf("const admitted = edgeQueue.current()", restore);
-  const canonical = hook.indexOf("canonicalSnapshot.current = admitted", durableAdoption);
-  const display = hook.indexOf("setSnapshot((current) => acceptWildsWorldSnapshot(current, admitted, ownedWorldAdditions.current))", canonical);
-  const replication = hook.indexOf("await refresh()", display);
-  assert.ok(initialAdoption >= 0 && restore > initialAdoption && durableAdoption > restore);
-  assert.ok(canonical > durableAdoption && display > canonical && replication > display);
-  assert.match(hook.slice(display, replication), /input\.networkEnabled/);
+  assert.match(hook, /initialProjection:\s*input\.initialSnapshot\?\.projection/);
+  assert.match(hook, /adopt:\s*adoptSnapshot/);
+  assert.match(hook, /restore:\s*restoreSession/);
+  const publish = hook.indexOf("input.publish(input.adopt(input.initialProjection))");
+  const restore = hook.indexOf("await input.restore()", publish);
+  const durableAdoption = hook.indexOf("input.publish(input.current())", restore);
+  assert.ok(publish >= 0 && restore > publish && durableAdoption > restore);
+  assert.match(hook, /canonicalSnapshot\.current = admitted/);
+  assert.match(hook, /setSnapshot\(\(current\) => acceptWildsWorldSnapshot\(current, admitted, ownedWorldAdditions\.current\)\)/);
+  assert.match(hook, /input\.networkEnabled \? \{ refresh \}/);
   assert.match(hook, /networkAvailable: shouldAttemptWildsNetwork/);
 });
 
