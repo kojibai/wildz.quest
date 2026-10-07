@@ -67,7 +67,8 @@ test("balanced homes remain touch-safe and collision-aware at phone and short-la
   assert.match(css, /\.wilds-live-sheet header > button\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/);
   assert.match(css, /\.wilds-message-instrument\s*\{[^}]*min-height:\s*44px;/);
   assert.match(css, /\.wilds-messenger-composer textarea\s*\{[^}]*min-height:\s*44px;/);
-  assert.match(css, /\.wilds-messenger-composer > div:last-of-type > button\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/);
+  assert.match(css, /\.wilds-messenger-composer-row > button\s*\{[^}]*width:\s*38px;[^}]*height:\s*38px;/);
+  assert.match(css, /\.wilds-messenger-composer-row > \.wilds-messenger-wallet-action\s*\{[^}]*width:\s*32px;[^}]*height:\s*36px;/);
   assert.match(css, /\.wilds-audio-mute\s*\{[^}]*min-height:\s*44px;/);
 });
 

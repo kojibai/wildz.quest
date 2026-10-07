@@ -11939,9 +11939,10 @@ button.product-purchase-secondary-link {
 .wilds-messenger-empty > span { display: grid; width: 52px; height: 52px; place-items: center; color: #8be9cb; border: 1px solid var(--messenger-line); background: rgba(110, 226, 194, .07); border-radius: 18px; }
 .wilds-messenger-empty strong, .wilds-messenger-thread-start strong { color: var(--messenger-ink); font-size: 14px; }
 .wilds-messenger-empty p, .wilds-messenger-thread-start p { margin: 0; font-size: 10px; line-height: 1.55; }
-.wilds-messenger-thread { display: grid; grid-template-rows: minmax(0, 1fr) auto; }
-.wilds-messenger-room-thread { grid-template-rows: auto minmax(0, 1fr) auto; }
-.wilds-messenger-world-thread { grid-template-rows: minmax(0, 1fr) auto; }
+.wilds-messenger-thread { display: flex; flex-direction: column; }
+.wilds-messenger-thread > .wilds-messenger-messages { flex: 1; min-width: 0; }
+.wilds-messenger-room-members, .wilds-messenger-composer { flex-shrink: 0; }
+.wilds-messenger-resources { flex: 0 1 auto; min-height: 0; max-height: 45svh; padding: 12px max(12px, env(safe-area-inset-right), calc((100vw - 760px) / 2)) 12px max(12px, env(safe-area-inset-left), calc((100vw - 760px) / 2)); overflow-y: auto; overscroll-behavior: contain; border-top: 1px solid var(--messenger-line); background: #071b20; }
 .wilds-messenger-room-members { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 14px; color: var(--messenger-muted); border-bottom: 1px solid var(--messenger-line); }
 .wilds-messenger-room-members span { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .wilds-messenger-room-members button { flex: 0 0 auto; min-height: 34px; padding: 0 10px; color: #92eed4; font-size: 9px; font-weight: 800; border: 1px solid var(--messenger-line); background: rgba(255,255,255,.035); border-radius: 10px; }
@@ -11989,15 +11990,18 @@ button.product-purchase-secondary-link {
 .wilds-message-actions button { min-width: 34px; height: 34px; padding: 0 7px; color: var(--messenger-ink); font-size: 15px; border: 0; background: transparent; border-radius: 9px; white-space: nowrap; }
 .wilds-message-actions button:last-child { padding-inline: 10px; color: #8be9cb; font-size: 8px; font-weight: 850; text-transform: uppercase; }
 .wilds-message-retry { min-height: 30px; margin: 3px 4px; padding: 0 10px; color: #ff9c9c; font-size: 8px; font-weight: 850; border: 1px solid rgba(255, 120, 120, .3); background: rgba(255, 100, 100, .08); border-radius: 10px; }
-.wilds-messenger-composer { position: relative; display: grid; gap: 4px; padding: 8px max(10px, calc((100vw - 760px) / 2)) max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--messenger-line); background: rgba(2, 13, 17, .92); backdrop-filter: blur(24px); }
-.wilds-messenger-composer > div:last-of-type { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: end; gap: 7px; }
-.wilds-messenger-composer > div:last-of-type:has(.wilds-messenger-wallet-action) { grid-template-columns: 38px minmax(0, 1fr) 44px; }
-.wilds-messenger-composer textarea { width: 100%; min-height: 44px; max-height: 132px; resize: none; padding: 11px 14px; color: var(--messenger-ink); font-size: 16px; line-height: 1.4; border: 1px solid var(--messenger-line); outline: 0; background: rgba(255, 255, 255, .055); border-radius: 16px; }
+.wilds-messenger-composer { position: relative; display: grid; min-width: 0; gap: 7px; padding: 10px max(12px, env(safe-area-inset-right), calc((100vw - 760px) / 2)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left), calc((100vw - 760px) / 2)); border-top: 1px solid var(--messenger-line); background: rgba(2, 13, 17, .96); backdrop-filter: blur(24px); }
+.wilds-messenger-composer-row { display: flex; min-width: 0; align-items: flex-end; gap: 6px; }
+.wilds-messenger-composer textarea { flex: 1; min-width: 0; width: 100%; height: 44px; min-height: 44px; max-height: 132px; box-sizing: border-box; resize: none; padding: 10px 12px; color: var(--messenger-ink); font-size: 16px; line-height: 1.375; border: 1px solid var(--messenger-line); outline: 0; background: rgba(255, 255, 255, .065); border-radius: 16px; }
+.wilds-messenger-composer textarea::placeholder { color: rgba(221, 245, 238, .6); }
 .wilds-messenger-composer textarea:focus { border-color: rgba(130, 238, 204, .48); box-shadow: 0 0 0 3px rgba(111, 225, 193, .07); }
-.wilds-messenger-composer > div:last-of-type > button { display: grid; width: 44px; height: 44px; padding: 0; place-items: center; color: #041914; border: 0; background: linear-gradient(145deg, #a8f4dc, #6dd7bc); border-radius: 15px; box-shadow: 0 8px 20px rgba(74, 217, 181, .16); }
-.wilds-messenger-composer > div:last-of-type > .wilds-messenger-wallet-action { width: 38px; color: #aaf2df; font-family: Georgia, serif; font-size: 20px; border: 1px solid rgba(137, 239, 210, .28); background: rgba(91, 215, 181, .08); box-shadow: none; }
-.wilds-messenger-composer > div:last-of-type > button:disabled { opacity: .28; filter: grayscale(.7); }
-.wilds-messenger-composer > small { justify-self: end; color: rgba(221, 245, 238, .34); font-size: 7px; }
+.wilds-messenger-composer-row > button { display: grid; flex: 0 0 38px; width: 38px; height: 38px; margin-bottom: 3px; padding: 0; place-items: center; color: #041914; border: 0; background: linear-gradient(145deg, #a8f4dc, #6dd7bc); border-radius: 12px; box-shadow: 0 8px 20px rgba(74, 217, 181, .16); }
+.wilds-messenger-composer-row > button svg { width: 17px; height: 17px; }
+.wilds-messenger-composer-row > .wilds-messenger-wallet-action { flex-basis: 32px; width: 32px; height: 36px; margin-bottom: 4px; color: #aaf2df; font-family: Georgia, serif; font-size: 18px; border: 1px solid rgba(137, 239, 210, .28); background: rgba(91, 215, 181, .08); box-shadow: none; border-radius: 11px; }
+.wilds-messenger-wallet-action svg { width: 15px; height: 15px; }
+.wilds-messenger-wallet-action[aria-expanded="true"] { color: #041914; border-color: #8be9cb; background: #8be9cb; }
+.wilds-messenger-composer-row > button:disabled { color: rgba(221, 245, 238, .4); background: rgba(221, 245, 238, .1); box-shadow: none; }
+.wilds-messenger-composer > small { justify-self: center; color: rgba(221, 245, 238, .6); font-size: 9px; line-height: 1.4; text-align: center; }
 .wilds-messenger-replying { display: flex !important; min-height: 42px; align-items: center !important; justify-content: space-between; gap: 10px; padding: 5px 6px 5px 11px; border-left: 2px solid #7ce5c5; background: rgba(112, 229, 195, .06); border-radius: 8px; }
 .wilds-messenger-replying span { display: grid; min-width: 0; gap: 2px; }
 .wilds-messenger-replying small { color: #81e5c7; font-size: 7px; font-weight: 800; text-transform: uppercase; }

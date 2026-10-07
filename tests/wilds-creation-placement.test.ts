@@ -13,13 +13,24 @@ import { creationDefinitionFixture, creationContextFixture } from './support/cre
 import type { CreationWorker } from '../src/features/play/creation/capabilities';
 import type { CreationConversationEvent } from '../src/features/play/creation/conversation';
 import type { useCreationConversation } from '../src/features/play/creation/use-creation-conversation';
+import * as capabilities from '../src/features/play/creation/capabilities';
+import { createWorldCreationController } from '../src/features/play/creation/world-controller';
+import { projectCreationPhysical } from '../src/features/play/creation/projection';
+import { creationWorldSourceHead } from '../src/features/play/creation/world-source';
+import { sealCollectedCard } from '../src/features/play/portable-card';
+import { emptyAdventureCondition } from '../src/features/play/adventure/card-condition';
+import { projectWildsResourceRegion } from '../src/features/play/wilds-resource-authority';
+import { createWildsMaterialHarvest, initialWildsHarvestedSourceState } from '../src/features/play/wilds-steward-construction';
+import { checkpointWildsWorld, initialWildsWorldProjection, replayWildsWorld } from '../src/features/play/wilds-world-state';
+import { createWildsWorldEdgeAdmissionQueue, persistWildsWorldCommandDurably } from '../src/features/play/wilds-world-outbox';
+import { createReceizInMemoryOfflineProofQueueStorage } from '@receiz/sdk';
 
 type Hook = ReturnType<typeof useCreationConversation>;
-async function mountConversation(saved?: string) {
+async function mountConversation(saved?: string, overrides: Partial<Parameters<typeof useCreationConversation>[0]> = {}) {
   const slots: { value: any; deps?: unknown[]; cleanup?: () => void }[] = [];
   let cursor = 0, effects: (() => void)[] = [], plannerCalls = 0, commits = 0;
   const storage = new Map<string, string>();
-  const key = 'wildz:creation-draft:v1:owner:surface';
+  const key = `wildz:creation-draft:v1:${overrides.ownerId ?? 'owner'}:${overrides.spaceId ?? 'surface'}`;
   if (saved) storage.set(key, saved);
   const same = (a?: unknown[], b?: unknown[]) => Boolean(a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i])));
   const react = {
@@ -41,7 +52,8 @@ async function mountConversation(saved?: string) {
     ownerId: 'owner', spaceId: 'surface', context,
     workers: [{ assetId: 'worker', subjectId: 'creature:worker', head: 'sha256:' + 'b'.repeat(64), proofDigest: 'sha256:' + 'b'.repeat(64), ready: true, reasons: [], techniques: ['assembly'] } satisfies CreationWorker],
     planner: { async propose(request) { plannerCalls++; return { requestId: request.requestId, definition, reply: 'Ready.' }; } },
-    async commit(plan) { commits++; return { status: 'admitted', instance: { instanceId: 'creation:placed', head: 'sha256:' + 'c'.repeat(64), definitionDigest: plan.definitionDigest } }; }
+    async commit(plan) { commits++; return { status: 'admitted', instance: { instanceId: 'creation:placed', head: 'sha256:' + 'c'.repeat(64), definitionDigest: plan.definitionDigest } }; },
+    ...overrides
   };
   const testModule = { exports: {} as { useCreationConversation: typeof useCreationConversation } };
   const output = ts.transpileModule(readFileSync('src/features/play/creation/use-creation-conversation.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -54,6 +66,7 @@ async function mountConversation(saved?: string) {
       if (name === './patch') return { applyCreationPatch };
       if (name === './draft') return draft;
       if (name === './compile-environment') return compileEnvironment;
+      if (name === './capabilities') return capabilities;
       if (name === '../wilds-construction-project') return { constructionProofDigest };
       if (name === './worker-client') return { createCreationWorkerClient: () => ({ async compile(_id: string, definition: Parameters<typeof compileCreation>[0], context: Parameters<typeof compileCreation>[1]) { return compileCreation(definition, context); }, cancel() {}, close() {} }) };
       throw Error(`Unexpected hook dependency: ${name}`);
@@ -134,3 +147,48 @@ test('preparing a preset uses its crew and finite resource budget in one selecti
   assert.equal(session.plannerCalls(), 0);
   session.unmount();
 });
+
+for (const workflow of ['ask', 'select', 'restore'] as const) {
+  test(`${workflow}: a mixed crew preview places a paid physical creation through world admission`, async () => {
+    const pulse = '2026-10-07T06:00:00.000Z', owner = 'owner';
+    // Tide's water technique comes before Grove adds cultivation in selection order.
+    const cards = ['ledgerfox-1', 'mintcub-1'].map(formId => sealCollectedCard({ capturedAt: pulse, encounterId: `placement:${workflow}:${formId}`, formId, ownerReceizId: owner }));
+    const conditions = Object.fromEntries(cards.map(card => [card.id, emptyAdventureCondition(card.id)]));
+    const workers = capabilities.projectCreationWorkers(cards, conditions);
+    const sources = Array.from({ length: 25 }, (_, i) => projectWildsResourceRegion(i - 12, 0)).flat().filter(source => source.kind === 'timber').slice(0, 20);
+    const harvested = sources.map(source => createWildsMaterialHarvest({ source, current: initialWildsHarvestedSourceState(source), ownerReceizId: owner, actorPosition: source.position, kaiUPulse: 10 }));
+    const world = { ...initialWildsWorldProjection(), materialLots: Object.fromEntries(harvested.map(row => [row.lot.lotId, row.lot])), harvestedSources: Object.fromEntries(harvested.map(row => [row.source.sourceId, row.source])) };
+    const storage = createReceizInMemoryOfflineProofQueueStorage();
+    const queue = createWildsWorldEdgeAdmissionQueue({ initialProjection: world, persist: candidate => persistWildsWorldCommandDurably(candidate, storage) });
+    const context = creationContextFixture({ worldId: world.worldId, spaceId: 'wildz.space.outer.v1', sourceHead: creationWorldSourceHead(world), pose: { position: { x: 5000, y: 100, z: 5000 }, yaw: 0 }, budget: { timber: harvested.length }, techniques: [] });
+    let commitContext = context;
+    const controller = createWorldCreationController({ environment: () => ({ ownerId: owner, worldId: world.worldId, spaceId: context.spaceId }), world: queue.current, crew: () => ({ cards, conditions }), position: () => context.pose.position, compileContext: () => commitContext,
+      admit: async (command, beforeAdmit) => ({ projection: await queue.admit({ schema: 'receiz.wilds_world_outbox_entry.v1', actorId: owner, guestId: 'placement-test', command, queuedAt: pulse }, { beforeAdmit }), events: [] }),
+      project: async (instance, definition, plan) => projectCreationPhysical(instance, definition, plan) });
+    const definition = creationDefinitionFixture(), ids = workers.map(worker => worker.assetId);
+    const saved = workflow === 'restore' ? JSON.stringify({ ownerId: owner, spaceId: context.spaceId, draft: '', definition, workerIds: ids, budget: context.budget, placement: context.pose }) : undefined;
+    const session = await mountConversation(saved, { spaceId: context.spaceId, context, workers,
+      async commit(plan, definition, workerIds, selected, suppliedContext) { commitContext = suppliedContext!; return controller.commit(definition, plan, workerIds, selected); } });
+    try {
+      if (workflow === 'ask') {
+        await session.change({ type: 'workers', ids }); await session.change({ type: 'budget', budget: context.budget });
+        await session.change({ type: 'draft', text: 'Build my shelter' }); await session.current().ask(); await session.settle();
+      } else if (workflow === 'select') await session.change({ type: 'selection', definition, workerIds: ids, budget: context.budget });
+      assert.equal(session.current().canBuild, true);
+      const preview = session.current().state.plan!;
+      await session.current().build(); await session.settle();
+      assert.equal(session.current().state.reason, 'Built and saved in the world.');
+      const instanceId = session.current().state.instance!.instanceId;
+      const source = queue.current().creations![instanceId];
+      assert.equal(source.command.planDigest, preview.digest);
+      assert.equal(source.instance.stage, 'functional');
+      assert.equal(controller.snapshot().projections.length, 1);
+      assert.ok(controller.snapshot().projections[0].solids.length > 0);
+      assert.equal(source.command.resources.length, preview.requiredResources.timber);
+      assert.ok(source.command.resources.every(lot => queue.current().consumedMaterialLots[lot.id] === instanceId));
+      assert.equal(replayWildsWorld([], checkpointWildsWorld(queue.current())).creations![instanceId].instance.head, source.instance.head);
+      await session.current().build();
+      assert.equal(Object.keys(queue.current().creations!).length, 1);
+    } finally { session.unmount(); controller.close(); }
+  });
+}

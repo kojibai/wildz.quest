@@ -236,8 +236,8 @@ export function WildsMessenger({
       </form> : messenger.selectedRoom ? <div className="wilds-messenger-thread wilds-messenger-room-thread">
         <div className="wilds-messenger-room-members"><span>{messenger.selectedRoom.members.map((member) => member.handle).join(" · ")}</span>{messenger.selectedRoom.owner.id === selfId ? <button onClick={() => { setRoomMemberIds([]); setRoomEditor("add"); }} type="button">Add people</button> : null}</div>
         <div className="wilds-messenger-messages" ref={listRef}>{!messenger.selectedRoom.messages.length ? <div className="wilds-messenger-thread-start"><span className="wilds-messenger-avatar"><Icons.users size={20} /></span><strong>{messenger.selectedRoom.name} is ready.</strong><p>Only the explorers added to this room can participate.</p></div> : null}{messenger.selectedRoom.messages.map((message, index, roomMessages) => { const mine = message.senderId === selfId; const prior = roomMessages[index - 1]; const showDay = !prior || new Date(prior.createdAt).toDateString() !== new Date(message.createdAt).toDateString(); return <div className="wilds-message-block" key={message.id}>{showDay ? <div className="wilds-message-day"><span>{dayLabel(message.createdAt)}</span></div> : null}<div className={`wilds-message-row${mine ? " is-mine" : ""}`}><div className="wilds-message-bubble"><b className="wilds-room-message-sender">{mine ? "You" : message.senderHandle}</b><span>{message.body}</span><small>{shortTime(message.createdAt)}</small></div></div></div>; })}</div>
-        {selectedPeer && resourceExchange && resourcesOpen ? <div style={{ maxHeight: '50vh', overflowY: 'auto', padding: 10 }}>{resourceExchange}</div> : null}
-        <form className="wilds-messenger-composer" onSubmit={async (event) => { event.preventDefault(); const outgoing = roomDraft.trim(); if (!outgoing) return; try { await messenger.sendRoom(outgoing); setRoomDraft(""); } catch (cause) { setRoomError(cause instanceof Error ? cause.message : "Room message not sent"); } }}><div><textarea aria-label={`Message ${messenger.selectedRoom.name}`} maxLength={2_000} onChange={(event) => setRoomDraft(event.target.value)} placeholder="Message room…" rows={1} value={roomDraft} /><button aria-label="Send room message" disabled={!roomDraft.trim()} type="submit"><Icons.send size={19} /></button></div><small>Private to {messenger.selectedRoom.members.length} Receiz IDs</small></form>
+        {selectedPeer && resourceExchange && resourcesOpen ? <div className="wilds-messenger-resources" aria-label="Send food or resources">{resourceExchange}</div> : null}
+        <form className="wilds-messenger-composer" onSubmit={async (event) => { event.preventDefault(); const outgoing = roomDraft.trim(); if (!outgoing) return; try { await messenger.sendRoom(outgoing); setRoomDraft(""); } catch (cause) { setRoomError(cause instanceof Error ? cause.message : "Room message not sent"); } }}><div className="wilds-messenger-composer-row"><textarea aria-label={`Message ${messenger.selectedRoom.name}`} maxLength={2_000} onChange={(event) => setRoomDraft(event.target.value)} placeholder="Message room…" rows={1} value={roomDraft} /><button aria-label="Send room message" disabled={!roomDraft.trim()} type="submit"><Icons.send size={19} /></button></div><small>Private to {messenger.selectedRoom.members.length} Receiz IDs</small></form>
       </div> : roomOpen ? <div className="wilds-messenger-thread wilds-messenger-world-thread">
         <div className="wilds-messenger-messages" ref={listRef}>
           {!roomChat.messages.length ? <div className="wilds-messenger-thread-start"><span className="wilds-messenger-avatar"><Icons.users size={20} /></span><strong>Create the room.</strong><p>Send the first message to open a shared conversation with the explorers live in this room.</p></div> : null}
@@ -253,7 +253,7 @@ export function WildsMessenger({
             </div>;
           })}
         </div>
-        {selectedPeer && resourceExchange && resourcesOpen ? <div style={{ maxHeight: '50vh', overflowY: 'auto', padding: 10 }}>{resourceExchange}</div> : null}
+        {selectedPeer && resourceExchange && resourcesOpen ? <div className="wilds-messenger-resources" aria-label="Send food or resources">{resourceExchange}</div> : null}
         <form className="wilds-messenger-composer" onSubmit={async (event) => {
           event.preventDefault();
           const outgoing = roomDraft.trim();
@@ -266,7 +266,7 @@ export function WildsMessenger({
             setRoomError(cause instanceof Error ? cause.message : "Room message not sent");
           }
         }}>
-          <div><textarea aria-label="Message shared room" maxLength={280} onChange={(event) => setRoomDraft(event.target.value)} placeholder="Message everyone live…" rows={1} value={roomDraft} /><button aria-label="Send room message" disabled={!roomDraft.trim()} type="submit"><Icons.send size={19} /></button></div>
+          <div className="wilds-messenger-composer-row"><textarea aria-label="Message shared room" maxLength={280} onChange={(event) => setRoomDraft(event.target.value)} placeholder="Message everyone live…" rows={1} value={roomDraft} /><button aria-label="Send room message" disabled={!roomDraft.trim()} type="submit"><Icons.send size={19} /></button></div>
           <small>Shared with explorers in this live room</small>
         </form>
       </div> : <div className="wilds-messenger-thread">
@@ -302,7 +302,7 @@ export function WildsMessenger({
             </div>;
           })}
         </div>
-        {selectedPeer && resourceExchange && resourcesOpen ? <div style={{ maxHeight: '50vh', overflowY: 'auto', padding: 10 }}>{resourceExchange}</div> : null}
+        {selectedPeer && resourceExchange && resourcesOpen ? <div className="wilds-messenger-resources" aria-label="Send food or resources">{resourceExchange}</div> : null}
         <form className="wilds-messenger-composer" onSubmit={async (event) => {
           event.preventDefault();
           if (!draft.trim() || composerSendingRef.current) return;
@@ -315,7 +315,7 @@ export function WildsMessenger({
           finally { composerSendingRef.current = false; }
         }}>
           {replyTo ? <div className="wilds-messenger-replying"><span><small>Replying to {replyTo.senderId === selfId ? "yourself" : replyTo.senderHandle}</small><strong>{replyTo.body}</strong></span><button aria-label="Cancel reply" onClick={() => setReplyTo(null)} type="button"><Icons.close size={15} /></button></div> : null}
-          <div>{selectedPeer && resourceExchange ? <button aria-label={`Send resources to ${selectedPeer.handle}`} aria-expanded={resourcesOpen} className="wilds-messenger-wallet-action" onClick={() => setResourcesOpen(current => !current)} title="Send food or resources" type="button"><Icons.products size={17} /></button> : null}{selectedPeer && onSendPhi ? <button aria-label={`Send Phi to ${selectedPeer.handle}`} className="wilds-messenger-wallet-action" onClick={() => onSendPhi(selectedPeer)} title="Send Phi" type="button">Φ</button> : null}<textarea aria-label={`Message ${selectedPeer?.handle ?? "explorer"}`} maxLength={WILDS_DIRECT_MESSAGE_MAX_LENGTH} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+          <div className="wilds-messenger-composer-row">{selectedPeer && resourceExchange ? <button aria-label={`Send resources to ${selectedPeer.handle}`} aria-expanded={resourcesOpen} className="wilds-messenger-wallet-action" onClick={() => setResourcesOpen(current => !current)} title="Send food or resources" type="button"><Icons.products size={17} /></button> : null}{selectedPeer && onSendPhi ? <button aria-label={`Send Phi to ${selectedPeer.handle}`} className="wilds-messenger-wallet-action" onClick={() => onSendPhi(selectedPeer)} title="Send Phi" type="button">Φ</button> : null}<textarea aria-label={`Message ${selectedPeer?.handle ?? "explorer"}`} maxLength={WILDS_DIRECT_MESSAGE_MAX_LENGTH} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && matchMedia("(pointer: fine)").matches) {
               event.preventDefault();
               event.currentTarget.form?.requestSubmit();
