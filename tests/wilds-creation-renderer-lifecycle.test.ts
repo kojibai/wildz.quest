@@ -16,6 +16,7 @@ test('mounting the creation renderer schedules its first scene refresh with a va
   const react = {
     memo: (component: unknown) => component,
     useMemo: (factory: () => unknown) => factory(),
+    useCallback: (callback: unknown) => callback,
     useRef: (current: unknown) => ({ current }),
     useState: (value: unknown) => [typeof value === 'function' ? value() : value, () => {}],
     useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) => snapshot(),

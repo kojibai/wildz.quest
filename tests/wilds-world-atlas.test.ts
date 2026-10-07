@@ -257,7 +257,7 @@ describe("Wilds world atlas", () => {
     assert.deepEqual(fetchedPresence, { exactPlayers: [], playerClusters: [] });
   });
 
-  it("projects player construction only after its exact world region has been discovered", () => {
+  it("maps saved player construction at every zoom without revealing distant terrain", () => {
     const site = createWildsConstructionSite({
       blueprint: "trail-shelter",
       placedByReceizId: "builder.receiz.id",
@@ -279,35 +279,37 @@ describe("Wilds world atlas", () => {
     } as unknown as WildsStructureV1;
     const baseInput = {
       center: { x: 0, z: 0 },
-      zoom: "world" as const,
       missionProgress: 20,
       worldMastery: 5,
       discoveredLandmarkIds: [],
       selfId: "self",
-      players: [] as WildsPresence[],
+      players: [presence(1, { x: 9_000, z: 9_000 })],
+      now: Date.parse("2026-07-15T12:00:00.000Z"),
+      customBuildings: [{ id: "creation:home", blueprint: "custom-building" as const, name: "Shelter", phase: "complete" as const,
+        ownerReceizId: "builder", progress: 1, position: { x: -9_000, y: 0, z: -9_000 } }],
       constructionSites: [site],
       structures: [distantStructure]
     };
 
-    const local = projectWildsAtlas({ ...baseInput, explorationAtlas });
-    assert.deepEqual(projectedWorldAdditions(local).map((addition) => ({
-      id: addition.id,
-      phase: addition.phase,
-      blueprint: addition.blueprint,
-      ownerReceizId: addition.ownerReceizId
-    })), [{
-      id: site.siteId,
-      phase: "construction",
-      blueprint: "trail-shelter",
-      ownerReceizId: "builder.receiz.id"
-    }]);
+    for (const [zoom, terrainCount] of [["world", 81], ["region", 25], ["landmark", 9]] as const) {
+      const local = projectWildsAtlas({ ...baseInput, zoom, explorationAtlas });
+      assert.deepEqual(projectedWorldAdditions(local).map(addition => addition.id).sort(), [site.siteId, distantStructure.structureId, "creation:home"].sort());
+      assert.equal(local.worldAdditions.find(addition => addition.id === distantStructure.structureId)?.phase, "complete");
+      assert.deepEqual(local.bounds, { minX: -188, maxX: 187, minZ: -188, maxZ: 187, count: 83 });
+      assert.equal(local.nodes.length, terrainCount);
+      assert.equal(local.nodes.some(node => Math.abs(node.regionX) > 4 || Math.abs(node.regionZ) > 4), false);
+      assert.equal(local.exactPlayers.length, 0);
+      assert.equal(local.territory, undefined);
+    }
+  });
 
-    const expanded = projectWildsAtlas({
-      ...baseInput,
-      explorationAtlas: revealWildsExplorationAt(explorationAtlas, distantStructure.position)
-    });
-    assert.equal(projectedWorldAdditions(expanded).length, 2);
-    assert.equal(projectedWorldAdditions(expanded).some((addition) => addition.id === distantStructure.structureId && addition.phase === "complete"), true);
+  it("omits non-finite building positions from map markers and fit bounds", () => {
+    const projection = projectWildsAtlas({ center: { x: 0, z: 0 }, zoom: "world", missionProgress: 0, worldMastery: 0,
+      discoveredLandmarkIds: [], selfId: "self", players: [], explorationAtlas,
+      customBuildings: [{ id: "invalid", blueprint: "custom-building", phase: "complete", ownerReceizId: "builder", progress: 1,
+        position: { x: NaN, y: 0, z: Infinity } }] });
+    assert.deepEqual(projection.worldAdditions, []);
+    assert.deepEqual(projection.bounds, { minX: -4, maxX: 4, minZ: -4, maxZ: 4, count: 81 });
   });
 });
 

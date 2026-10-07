@@ -117,6 +117,10 @@ export function createCreationSceneRuntime(input: {
                 return false;
             }
             const next = new Set(selected.map(p => p.pageId));
+            if (equalIds(next, wanted) && snapshot.blocked === null) {
+                scheduler.reconfigure(requestedBudget || scheduler.budget);
+                return true;
+            }
             for (const id of wanted)
                 if (!next.has(id))
                     scheduler.cancel(id);
@@ -131,7 +135,7 @@ export function createCreationSceneRuntime(input: {
             publish();
             return true;
         },
-        paint() { if (!scheduler || closed)
+        paint() { if (!scheduler || closed || !scheduler.queued)
             return; const before = scheduler.paintSnapshot(), result = scheduler.paint(); if (result.uploadedBytes || result.queued !== before.queued) {
             snapshot = { ...snapshot, uploadBytes: result.uploadedBytes };
             publish();

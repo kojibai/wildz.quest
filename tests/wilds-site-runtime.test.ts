@@ -291,7 +291,7 @@ describe("production Wilds site runtime", () => {
     assert.match(renderer, /<MountainSurface/);
     assert.match(canvas, /const activeFloorY = Math\.max\(siteSpace\.position\.y, outdoorFloorY\)/);
     assert.match(canvas, /terrainElevation=\{activeFloorY\}/);
-    assert.match(canvas, /const siteWorldY = siteSpace\.position\.y/);
+    assert.match(canvas, /const siteWorldY = terrainElevation/);
     assert.match(renderer, /key=\{site\.key\}/);
     assert.match(renderer, /waterfall\.flowPath/);
     assert.doesNotMatch(renderer, /siteSolids\.map/);

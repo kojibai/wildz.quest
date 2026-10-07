@@ -41,8 +41,8 @@ describe("Wildz aerial and vista integration", () => {
     assert.match(campaign, /requestWildsAerialLanding/);
     assert.match(environment, /Open \$\{overlook\.name\} vista/);
     assert.match(environment, /name="overlook-sightglass"/);
-    assert.match(canvas, /priorVista\.current = \{ position: camera\.position\.clone\(\), target: orbit\.target\.clone\(\) \}/);
-    assert.match(canvas, /camera\.position\.copy\(priorVista\.current\.position\)/);
+    assert.match(canvas, /priorVista\.current = \{ position: desiredCamera\.position\.clone\(\), target: orbit\.target\.clone\(\) \}/);
+    assert.match(canvas, /desiredCamera\.position\.copy\(priorVista\.current\.position\)/);
     assert.match(canvas, /runtime\.current\.mode !== "ground"/);
   });
 

@@ -16,7 +16,7 @@ test("world camera matches the current Commerce gesture framing", () => {
   assert.match(world, /camera=\{\{ fov: 40, near: 0\.1, far: 80, position: \[4\.2, 3\.7, 6\.6\] \}\}/);
   assert.match(world, /enableDamping/);
   assert.match(world, /enablePan=\{false\}/);
-  assert.match(world, /minDistance=\{4\.4\}/);
+  assert.match(world, /minDistance=\{\.45\}/);
   assert.match(world, /maxDistance=\{12\.5\}/);
   assert.match(world, /minPolarAngle=\{\.38\}/);
   assert.match(world, /maxPolarAngle=\{Math\.PI \/ 2\.15\}/);

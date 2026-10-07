@@ -12,13 +12,13 @@ import { createWildsCrewTravelAuthority } from "./wilds-crew-travel-authority";
 import { createWildsCrewPhysicalScheduler, writeWildsCrewVisualPosition, WILDS_CREW_PHYSICAL_TICK_MS } from "./wilds-crew-physical-scheduler";
 import { wildsCrewUsesFrameWriter, writeWildsCrewRetainedTravelPosition, wildsCrewResidentExcludedIds, type WildsCrewTravelRuntime } from "./wilds-crew-travel-runtime";
 
-import { writeWildsInteriorCameraPosition } from "./wilds-site-runtime";
+import { writeWildsInteriorCameraPosition, writeWildsObstacleCameraPosition } from "./wilds-site-runtime";
 
 import { WildsHomeResidents, type WildsHomeResidentsInput } from "./WildsHomeResidents";
 import { projectWildsHomeResidents } from "./wilds-home-residents";
 import type { WildsBurrowPreview } from "./wilds-burrow";
 import { WildsBurrowGhost } from "./WildsBurrowGhost";
-import {writeCreationAerialCollision,type CreationNavigation} from './creation/navigation';
+import {writeCreationAerialCollision,writeCreationCameraPosition,type CreationNavigation} from './creation/navigation';
 import type {CreationPhysicalSnapshot} from './creation/physical-store';
 import type {CreationPhysicalProjection} from "./creation/projection";
 import type { CreationPreview } from "./creation/preview";
@@ -128,7 +128,7 @@ import { creatureContinuityProjection } from "@/features/play/creature-continuit
 import { readWildsCrewCondition } from "./wilds-crew-policy";
 import { canWildsCrewTravel, createWildsCrewPhysicalSampler } from "./wilds-crew-physical-navigation";
 import { createWildsCrewPathStepState, planWildsCrewPathNearTarget, wildsCrewRouteNeedsReplan, writeWildsCrewAlongsideTarget, writeWildsCrewTransportPosition, writeWildsCrewFollowingStep, type WildsCrewNavigationPoint, type WildsCrewNavigationAuthority } from "./wilds-crew-navigation";
-import { WILDS_RENDERED_PHYSICAL_OBSTACLES } from "./wilds-terrain-obstacles";
+import { buildWildsObstacleIndex, WILDS_RENDERED_PHYSICAL_OBSTACLES } from "./wilds-terrain-obstacles";
 
 export type WildsCrewModes = Readonly<Record<string, "follow" | "roam">>;
 
@@ -507,7 +507,7 @@ function WildsScene({
       {!interior && <WildsCelestialSky expression={kaiExpression} qualityProfile={qualityProfile} />}
       <WildsAtmosphere interior={interior} encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} nightRig={nightRig} player={state.player} qualityProfile={qualityProfile} />
       {!interior && <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />}
-      <CameraRig actualCameraSubmergedRef={actualCameraSubmergedRef} verticalTraversalRef={verticalTraversalRef} aquaticPresentation={aquaticPresentation} onCameraHeadingChange={onCameraHeadingChange} vistaHeading={vistaHeading} siteRuntime={siteRuntime} siteSpace={siteSpace} player={state.player} />
+      <CameraRig creationNavigation={creationNavigation} livingPhysicalObstacles={livingPhysicalObstacles} terrainElevation={activeFloorY} actualCameraSubmergedRef={actualCameraSubmergedRef} verticalTraversalRef={verticalTraversalRef} aquaticPresentation={aquaticPresentation} onCameraHeadingChange={onCameraHeadingChange} vistaHeading={vistaHeading} siteRuntime={siteRuntime} siteSpace={siteSpace} player={state.player} />
       <WildsUnderwaterAtmosphere cameraSubmergedRef={actualCameraSubmergedRef} qualityProfile={qualityProfile} surfaceFog={interior ? "#020304" : kaiFog} surfaceFogFar={interior ? 22 : fogFar} surfaceFogNear={interior ? 2 : fogNear} surfaceSky={interior ? "#020304" : kaiSky} />
       {WILDS_DIAGNOSTICS_ENABLED ? <WildsDiagnostics environment={{
         authoredDarkness: interior ? 1 : darkness.amount,
@@ -1369,7 +1369,10 @@ function RemoteExplorer({
   );
 }
 
-function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPresentation, onCameraHeadingChange, vistaHeading, siteRuntime, siteSpace, player }: {
+function CameraRig({ creationNavigation, livingPhysicalObstacles, terrainElevation, actualCameraSubmergedRef, verticalTraversalRef, aquaticPresentation, onCameraHeadingChange, vistaHeading, siteRuntime, siteSpace, player }: {
+  creationNavigation?: CreationNavigation;
+  livingPhysicalObstacles: readonly WildsTerrainObstacle[];
+  terrainElevation: number;
   actualCameraSubmergedRef: MutableRefObject<boolean>;
   verticalTraversalRef: MutableRefObject<WildsVerticalTraversalState>;
   aquaticPresentation: WildsAquaticPresentation;
@@ -1381,13 +1384,15 @@ function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPres
 }) {
   const { camera } = useThree();
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
-  const unclippedCamera = useRef(new THREE.Vector3());
-  const cameraWasClipped = useRef(false);
-  // OrbitControls updates at -1. Restore its desired orbit before it updates,
-  // then constrain only the rendered camera below; clear views regain distance.
+  const desiredCamera = useMemo(() => camera.clone(), [camera]);
+  const obstacleIndex = useMemo(() => buildWildsObstacleIndex(livingPhysicalObstacles), [livingPhysicalObstacles]);
+  const cameraOrigin = useRef({ x: player.x, y: terrainElevation, z: player.z });
+  // Input handlers can update controls synchronously between frames. Keep their
+  // camera independent of render collision so wheel, pinch and rotation retain
+  // the requested orbit. Controls update at -1; render collision runs at -.25.
   useFrame(() => {
-    if (cameraWasClipped.current && siteSpace.spaceId !== "wildz.space.outer.v1") camera.position.copy(unclippedCamera.current);
-    cameraWasClipped.current = false;
+    camera.position.copy(desiredCamera.position);
+    camera.quaternion.copy(desiredCamera.quaternion);
   }, -2);
   const priorVista = useRef<{ position: THREE.Vector3; target: THREE.Vector3 } | null>(null);
   const cameraProjection = useRef<MutableUnderwaterCameraProjection>({ underwaterTargetActive: false, localWaterSurfaceY: 0, targetY: .9, cameraY: 0 });
@@ -1400,32 +1405,32 @@ function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPres
     const orbit = controls.current;
     if (!orbit) return;
     if (vistaHeading !== null && !priorVista.current) {
-      priorVista.current = { position: camera.position.clone(), target: orbit.target.clone() };
+      priorVista.current = { position: desiredCamera.position.clone(), target: orbit.target.clone() };
       const distance = 9.2;
-      camera.position.set(Math.sin(vistaHeading) * distance, 5.8, Math.cos(vistaHeading) * distance);
+      desiredCamera.position.set(Math.sin(vistaHeading) * distance, 5.8, Math.cos(vistaHeading) * distance);
       orbit.target.set(0, 1.65, 0);
       orbit.update();
       return;
     }
     if (vistaHeading === null && priorVista.current) {
-      camera.position.copy(priorVista.current.position);
+      desiredCamera.position.copy(priorVista.current.position);
       orbit.target.copy(priorVista.current.target);
       priorVista.current = null;
       orbit.update();
     }
-  }, [camera, vistaHeading]);
+  }, [desiredCamera, vistaHeading]);
   useFrame((_, delta) => {
     const orbit = controls.current;
     if (orbit && vistaHeading === null) {
       const controlState = writeWildsFlightCameraControlState(flightControls.current, verticalTraversalRef.current.layer === "air", delta);
       orbit.dampingFactor = controlState.dampingFactor;
       orbit.maxDistance = siteSpace.spaceId === "wildz.space.outer.v1" ? controlState.maxDistance : 4;
-      orbit.minDistance = siteSpace.spaceId === "wildz.space.outer.v1" ? controlState.minDistance : .45;
+      orbit.minDistance = siteSpace.spaceId === "wildz.space.outer.v1" && verticalTraversalRef.current.layer === "air" ? controlState.minDistance : .45;
       orbit.minPolarAngle = controlState.minPolarAngle;
       orbit.maxPolarAngle = controlState.maxPolarAngle;
       orbit.rotateSpeed = controlState.rotateSpeed;
       orbit.zoomSpeed = controlState.zoomSpeed;
-      const siteWorldY = siteSpace.position.y;
+      const siteWorldY = terrainElevation;
       const siteCamera = writeWildsSiteRuntimeCamera(siteCameraRef.current, siteRuntime, siteSpace.spaceId, player.x, siteWorldY, player.z);
       const clearance = verticalTraversalRef.current.layer === "ground" ? 0 : verticalTraversalRef.current.offset;
       const surfaceTargetY = .9 + clearance;
@@ -1446,17 +1451,18 @@ function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPres
           siteDry.actorWorldY = siteWorldY + clearance;
           activeAquatic = siteDry;
       }
-      writeUnderwaterCameraTarget(activeAquatic, surfaceTargetY, camera.position.y - orbit.target.y, projection, clearance);
+      writeUnderwaterCameraTarget(activeAquatic, surfaceTargetY, desiredCamera.position.y - orbit.target.y, projection, clearance);
       const priorTargetY = orbit.target.y;
       orbit.target.y = THREE.MathUtils.damp(orbit.target.y, projection.targetY, 8, delta);
-      camera.position.y += orbit.target.y - priorTargetY;
+      desiredCamera.position.y += orbit.target.y - priorTargetY;
       if (Number.isFinite(siteCamera.ceilingY)) {
         const localCeiling = siteCamera.ceilingY - siteWorldY - .18;
-        camera.position.y = Math.min(camera.position.y, localCeiling);
-        orbit.target.y = Math.min(orbit.target.y, localCeiling - .4);
+        const priorCeilingTarget = orbit.target.y;
+        orbit.target.y = Math.min(priorCeilingTarget, localCeiling - .4);
+        desiredCamera.position.y += orbit.target.y - priorCeilingTarget;
       }
       actualCameraSubmergedRef.current = isUnderwaterCameraSubmerged(
-        camera.position.y,
+        desiredCamera.position.y,
         projection.localWaterSurfaceY,
         actualCameraSubmergedRef.current,
         activeAquatic.cameraSubmersionAllowed,
@@ -1465,10 +1471,13 @@ function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPres
     } else if (vistaHeading !== null) {
       actualCameraSubmergedRef.current = false;
     }
-    if (orbit && siteSpace.spaceId !== "wildz.space.outer.v1") {
-      unclippedCamera.current.copy(camera.position);
-      writeWildsInteriorCameraPosition(camera.position, siteRuntime, siteSpace.spaceId, siteSpace.position, orbit.target.y);
-      cameraWasClipped.current = camera.position.distanceToSquared(unclippedCamera.current) > .000001;
+    if (orbit) {
+      camera.position.copy(desiredCamera.position);
+      const origin = cameraOrigin.current;
+      origin.x = player.x; origin.y = terrainElevation; origin.z = player.z;
+      if (creationNavigation) writeCreationCameraPosition(camera.position, creationNavigation, siteSpace.spaceId, origin, orbit.target);
+      writeWildsObstacleCameraPosition(camera.position, obstacleIndex, siteSpace.spaceId, origin, orbit.target);
+      writeWildsInteriorCameraPosition(camera.position, siteRuntime, siteSpace.spaceId, origin, orbit.target.y);
       camera.lookAt(orbit.target);
     }
     const heading = Math.atan2(camera.position.x, camera.position.z);
@@ -1478,13 +1487,14 @@ function CameraRig({ actualCameraSubmergedRef, verticalTraversalRef, aquaticPres
   }, -.25);
   return (
     <OrbitControls
+      camera={desiredCamera}
       makeDefault
       dampingFactor={.08}
       enableDamping
       enablePan={false}
       maxDistance={12.5}
       maxPolarAngle={Math.PI / 2.15}
-      minDistance={4.4}
+      minDistance={.45}
       minPolarAngle={.38}
       rotateSpeed={.62}
       ref={controls}

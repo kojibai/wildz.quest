@@ -64,6 +64,24 @@ test('refreshing source discovery preserves already rendered unchanged floors', 
     assert.equal(runtime.snapshot().uploadBytes, 0);
     runtime.close();
 });
+
+test('walking within resident pages does not republish the scene or replace navigation', async () => {
+    const source = await fixture(), deferred: (() => void)[] = [], runtime = createCreationSceneRuntime({ defer: fn => deferred.push(fn) });
+    const flush = () => { while (deferred.length) deferred.shift()!(); };
+    const query = { worldId: 'wildz', spaceId: 'surface', position: { x: 0, y: .15, z: 0 }, radius: 32, limit: 128 };
+    runtime.refresh(source, budget); runtime.select(query); runtime.paint(); flush();
+    runtime.snapshot().renderProjections.flatMap(p => p.chunks).forEach(chunk => runtime.rendered(chunk.id)); flush();
+    const resident = runtime.snapshot();
+    let publications = 0;
+    runtime.subscribe(() => publications++);
+    for (let i = 0; i < 120; i++) {
+        assert.equal(runtime.select({ ...query, position: { x: .1, y: .15, z: i % 2 ? .1 : 0 } }), true);
+        runtime.paint(); flush();
+    }
+    assert.equal(publications, 0, 'unchanged residency must not force React scene work on approach');
+    assert.equal(runtime.snapshot(), resident);
+    runtime.close();
+});
 test('re-derived pages are requeued instead of silently losing their upload request', async () => {
     const source = await fixture(), replacement = await fixture(), deferred: (() => void)[] = [], runtime = createCreationSceneRuntime({ defer: fn => deferred.push(fn) }), flush = () => { while (deferred.length)
         deferred.shift()!(); }, query = { worldId: 'wildz', spaceId: 'surface', position: { x: 0, y: .15, z: 0 }, radius: 32, limit: 128 };

@@ -6,13 +6,24 @@ import { parseCreationDefinition } from './definition';
 import { creationNodePoses } from './projection';
 import { canAccessCreation } from './access';
 import type { WildsBedSleepPose } from '../wilds-construction-function';
+import { validConstructionId, validConstructionKai } from '../wilds-construction-project';
 
 export type CreationBedSource = Readonly<{ schema: 'wildz.creation-bed-source.v1'; structureId: string; instanceId: string; nodeId: string; head: string; ownerReceizId: string; worldId: string; spaceId: string; position: CreationPose['position']; pose: CreationPose; geometry: CreationSolid }>;
 export type CreationBedSnapshot = CreationPhysicalSnapshot | (() => CreationPhysicalSnapshot);
 type Player = Readonly<{ x: number; z: number }>;
 type Space = Readonly<{ spaceId: string; position: { y: number } }>;
 const currentChecks = new WeakMap<CreationBedSource, (actorId: string, kaiUPulse: number) => boolean>();
+const resolvedBeds = new WeakMap<object, Map<string, CreationBedSource>>();
 const readSnapshot = (input: CreationBedSnapshot) => typeof input === 'function' ? input() : input;
+function immutableData(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return true;
+  if (!Object.isFrozen(value)) return false;
+  return Object.values(Object.getOwnPropertyDescriptors(value)).every(descriptor => 'value' in descriptor && immutableData(descriptor.value));
+}
+function withinBedFootprint(geometry: CreationSolid, player: Player, space: Space): boolean {
+  const dx = player.x - geometry.center.x, dz = player.z - geometry.center.z, c = Math.cos(geometry.yaw), s = Math.sin(geometry.yaw);
+  return Math.abs(geometry.center.y - space.position.y) < .8 && Math.abs(dx * c - dz * s) <= geometry.halfExtents.x + .4 && Math.abs(dx * s + dz * c) <= geometry.halfExtents.z + .4;
+}
 function sameSolid(a: CreationSolid, b: CreationSolid): boolean {
   return a.id === b.id && Math.abs(a.yaw - b.yaw) < 1e-9 && (['x', 'y', 'z'] as const).every(axis => Math.abs(a.center[axis] - b.center[axis]) < 1e-9 && Math.abs(a.halfExtents[axis] - b.halfExtents[axis]) < 1e-9);
 }
@@ -38,16 +49,43 @@ function inspect(snapshot: CreationPhysicalSnapshot, instanceId: string, nodeId:
 /** Only this resolver can mint a bed source. Supply the store's current getter for retained sources. */
 export function resolveCreationBed(snapshot: CreationBedSnapshot, instanceId: string, nodeId: string, actorId: string, kaiUPulse: number): CreationBedSource | null {
   try {
+    const key = JSON.stringify([instanceId, nodeId, actorId]), cache = resolvedBeds.get(snapshot);
+    const prior = cache?.get(key);
+    if (prior && verifyCreationBedSource(prior, actorId, kaiUPulse)) return prior;
+    cache?.delete(key);
     const current = inspect(readSnapshot(snapshot), instanceId, nodeId, actorId, kaiUPulse);
     if (!current) return null;
     const { instance, projection } = current;
     const pose = Object.freeze({ position: Object.freeze({ ...current.pose.position }), yaw: current.pose.yaw });
     const geometry = Object.freeze({ ...current.geometry, center: Object.freeze({ ...current.geometry.center }), halfExtents: Object.freeze({ ...current.geometry.halfExtents }) });
     const source: CreationBedSource = Object.freeze({ schema: 'wildz.creation-bed-source.v1', structureId: `creation-bed:${instanceId}:${nodeId}`, instanceId, nodeId, head: instance.head, ownerReceizId: instance.ownerId, worldId: instance.worldId, spaceId: instance.spaceId, position: pose.position, pose, geometry });
+    const definition = readSnapshot(snapshot).definitions[instance.definitionDigest];
+    // An identity memo is safe only for recursively immutable source data.
+    // Mutable inputs keep the full verification path; a replacement head/source
+    // invalidates this lease immediately, including custody and occupancy edits.
+    const reusable = immutableData(instance) && immutableData(definition);
     currentChecks.set(source, (actor, kai) => {
+      if (reusable) {
+        const next = readSnapshot(snapshot);
+        if (!validConstructionId(actor) || !validConstructionKai(kai) || kai < instance.kaiUPulse
+          || next.instances[instanceId] !== instance || next.definitions[instance.definitionDigest] !== definition
+          || !next.projections.includes(projection) || !isAdmittedCreationProjection(projection)
+          || projection.head !== instance.head || projection.definitionDigest !== instance.definitionDigest
+          || projection.worldId !== instance.worldId || projection.spaceId !== instance.spaceId
+          || !projection.chunks.some(chunk => chunk.nodeIds.includes(nodeId))
+          || !projection.solids.some(solid => sameSolid(solid, source.geometry))) return false;
+        const state = instance.nodeStates[nodeId];
+        return state.kind === 'bed' && (state.occupantIds.length < state.capacity || state.occupantIds.includes(actor))
+          && (actor === actorId || canAccessCreation(instance, actor, 'use', kai));
+      }
       const next = inspect(readSnapshot(snapshot), instanceId, nodeId, actor, kai);
       return !!next && next.instance.head === source.head && next.projection === projection && sameSolid(next.geometry, source.geometry);
     });
+    if (reusable) {
+      const sources = cache || new Map<string, CreationBedSource>();
+      sources.set(key, source);
+      resolvedBeds.set(snapshot, sources);
+    }
     return source;
   } catch { return null; }
 }
@@ -58,17 +96,16 @@ export function verifyCreationBedSource(value: unknown, actorId: string, kaiUPul
 }
 export function canSleepInCreationBed(source: unknown, player: Player, space: Space, actorId: string, kaiUPulse: number): boolean {
   if (!verifyCreationBedSource(source, actorId, kaiUPulse) || ![player.x, player.z, space.position.y].every(Number.isFinite) || source.spaceId !== space.spaceId) return false;
-  const { geometry } = source, dx = player.x - geometry.center.x, dz = player.z - geometry.center.z, c = Math.cos(geometry.yaw), s = Math.sin(geometry.yaw);
-  // Geometry rotates local axes by -yaw; this inverse keeps reach aligned to the mattress.
-  const localX = dx * c - dz * s, localZ = dx * s + dz * c;
-  return Math.abs(geometry.center.y - space.position.y) < .8 && Math.abs(localX) <= geometry.halfExtents.x + .4 && Math.abs(localZ) <= geometry.halfExtents.z + .4;
+  return withinBedFootprint(source.geometry, player, space);
 }
 export function selectCreationBedAtPlayer(snapshot: CreationBedSnapshot, player: Player, space: Space, actorId: string, kaiUPulse: number): CreationBedSource | null {
   try {
+    if (![player.x, player.z, space.position.y].every(Number.isFinite)) return null;
+    const current = readSnapshot(snapshot);
     const beds: CreationBedSource[] = [];
-    for (const projection of readSnapshot(snapshot).projections) {
+    for (const projection of current.projections) {
       if (!isAdmittedCreationProjection(projection) || projection.spaceId !== space.spaceId) continue;
-      const instance = readSnapshot(snapshot).instances[projection.instanceId];
+      const instance = current.instances[projection.instanceId];
       if (!instance) continue;
       for (const state of Object.values(instance.nodeStates)) {
         if (state.kind !== 'bed') continue;
@@ -78,6 +115,10 @@ export function selectCreationBedAtPlayer(snapshot: CreationBedSnapshot, player:
           && player.x >= chunk.bounds.min.x - Math.SQRT2 * .4 && player.x <= chunk.bounds.max.x + Math.SQRT2 * .4
           && player.z >= chunk.bounds.min.z - Math.SQRT2 * .4 && player.z <= chunk.bounds.max.z + Math.SQRT2 * .4
           && space.position.y > chunk.bounds.min.y - .8 && space.position.y < chunk.bounds.max.y + .8)) continue;
+        // A room and its bed can share one page. Test the actual admitted
+        // mattress before hashing the entire definition just to offer Sleep.
+        const mattress = projection.solids.find(solid => solid.id === `${state.nodeId}:body`);
+        if (!mattress || !withinBedFootprint(mattress, player, space)) continue;
         const source = resolveCreationBed(snapshot, instance.instanceId, state.nodeId, actorId, kaiUPulse);
         if (source && canSleepInCreationBed(source, player, space, actorId, kaiUPulse)) beds.push(source);
       }

@@ -64,3 +64,29 @@ export function writeCreationAerialCollision(output:{obstacleTopY:number;ceiling
  }
  return output;
 }
+
+/** Retract the rendered camera along its desired view, using only the prepared
+ * solid buckets. Exact slab intersections preserve thin walls and doorway holes. */
+export function writeCreationCameraPosition(output:{x:number;y:number;z:number},runtime:CreationNavigation,spaceId:string,origin:CreationPoint,target:CreationPoint,radius=.18){
+ if(![output.x,output.y,output.z,origin.x,origin.y,origin.z,target.x,target.y,target.z,radius].every(Number.isFinite)||radius<0||radius>.5)throw Error('creation_camera_invalid');
+ const index=runtime.spaces.get(spaceId);if(!index)return output;
+ const ax=origin.x+target.x,ay=origin.y+target.y,az=origin.z+target.z,dx=output.x-target.x,dy=output.y-target.y,dz=output.z-target.z;
+ const minX=Math.floor((Math.min(ax,ax+dx)-radius)/CELL),maxX=Math.floor((Math.max(ax,ax+dx)+radius)/CELL),minZ=Math.floor((Math.min(az,az+dz)-radius)/CELL),maxZ=Math.floor((Math.max(az,az+dz)+radius)/CELL);
+ let hit=1,candidates=0;
+ if((maxX-minX+1)*(maxZ-minZ+1)>64)hit=0;
+ else query:for(let x=minX;x<=maxX;x++)for(let z=minZ;z<=maxZ;z++)for(const {value:s} of index.solids.get(`${x}:${z}`)||[]){
+  if(++candidates>4096){hit=0;break query;}
+  const c=Math.cos(s.yaw),sn=Math.sin(s.yaw),rx=ax-s.center.x,rz=az-s.center.z;
+  const lx=rx*c-rz*sn,lz=rx*sn+rz*c,vx=dx*c-dz*sn,vz=dx*sn+dz*c;
+  let enter=0,leave=hit;
+  for(let axis=0;axis<3;axis++){
+   const p=axis===0?lx:axis===1?ay-s.center.y:lz,v=axis===0?vx:axis===1?dy:vz,h=(axis===0?s.halfExtents.x:axis===1?s.halfExtents.y:s.halfExtents.z)+radius;
+   if(Math.abs(v)<1e-10){if(p < -h || p > h){enter=Infinity;break;}continue;}
+   const a=(-h-p)/v,b=(h-p)/v;enter=Math.max(enter,Math.min(a,b));leave=Math.min(leave,Math.max(a,b));
+   if(enter>leave){enter=Infinity;break;}
+  }
+  hit=Math.min(hit,enter);
+ }
+ if(hit<1){const t=Math.max(0,hit-.00001);output.x=target.x+dx*t;output.y=target.y+dy*t;output.z=target.z+dz*t;}
+ return output;
+}

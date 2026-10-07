@@ -149,6 +149,33 @@ function worldPositionBelongsToNodes(position: { x: number; z: number }, nodeKey
   return nodeKeys.has(regionKey(region.x, region.z));
 }
 
+function finiteBuildingPosition(building: Pick<WildsAtlasWorldAddition, "position">) {
+  return [building.position.x, building.position.y, building.position.z].every(Number.isFinite);
+}
+
+/** Extend camera coverage with durable builds without discovering their terrain. */
+export function wildsAtlasMapBounds(bounds: WildsAtlasProjection["bounds"], additions: readonly WildsAtlasWorldAddition[]) {
+  const result = { ...bounds };
+  const outsideRegions = new Set<string>();
+  for (const addition of additions) {
+    if (!finiteBuildingPosition(addition)) continue;
+    const region = regionForPosition(addition.position);
+    if (bounds.count === 0 || region.x < bounds.minX || region.x > bounds.maxX || region.z < bounds.minZ || region.z > bounds.maxZ) outsideRegions.add(regionKey(region.x, region.z));
+    if (result.count === 0) {
+      result.minX = result.maxX = region.x;
+      result.minZ = result.maxZ = region.z;
+      result.count = 1;
+    } else {
+      result.minX = Math.min(result.minX, region.x);
+      result.maxX = Math.max(result.maxX, region.x);
+      result.minZ = Math.min(result.minZ, region.z);
+      result.maxZ = Math.max(result.maxZ, region.z);
+    }
+  }
+  result.count = bounds.count + outsideRegions.size;
+  return result;
+}
+
 export function filterWildsAtlasPresence(
   presence: { exactPlayers: readonly WildsAtlasExactPlayer[]; playerClusters: readonly WildsAtlasPlayerCluster[] },
   visibleRegions: readonly VisibleRegion[] | WildsExplorationAtlas
@@ -238,10 +265,22 @@ export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection 
   const presence = projectWildsAtlasPresence({ ...input, visibleRegions: territory ? undefined : nodes });
 
   const discovered = new Set(input.discoveredLandmarkIds);
+  const worldAdditions: WildsAtlasWorldAddition[] = [
+    ...(input.customBuildings ?? []).filter(finiteBuildingPosition),
+    ...(input.constructionSites ?? [])
+      .filter(site => site.stage !== "complete" && finiteBuildingPosition(site))
+      .map(site => ({ id: site.siteId, blueprint: site.blueprint, phase: "construction" as const,
+        ownerReceizId: site.placedByReceizId, position: { ...site.position },
+        progress: Math.max(0, Math.min(1, (site.contributedLots.length / (site.materialsRequired.timber + site.materialsRequired.stone) * .8) + site.workCompleted * .2)) })),
+    ...(input.structures ?? [])
+      .filter(finiteBuildingPosition)
+      .map(structure => ({ id: structure.structureId, blueprint: structure.blueprint, phase: "complete" as const,
+        ownerReceizId: structure.ownerReceizId, position: { ...structure.position }, progress: 1 }))
+  ].sort((left, right) => left.id.localeCompare(right.id));
   return {
     centerRegion,
     gridCenterRegion,
-    bounds,
+    bounds: wildsAtlasMapBounds(bounds, worldAdditions),
     regionUnit,
     zoom: input.zoom,
     nodes,
@@ -272,32 +311,7 @@ export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection 
     trainers: (input.trainers ?? [])
       .filter((trainer) => trainer.available)
       .filter((trainer) => knownPosition({ x: trainer.position[0], z: trainer.position[2] })),
-    worldAdditions: [
-      ...(input.customBuildings ?? []).filter(building => knownPosition(building.position)),
-      ...(input.constructionSites ?? [])
-        .filter((site) => site.stage !== "complete")
-        .filter((site) => knownPosition(site.position))
-        .map((site) => ({
-          id: site.siteId,
-          blueprint: site.blueprint,
-          phase: "construction" as const,
-          ownerReceizId: site.placedByReceizId,
-          position: { ...site.position },
-          progress: Math.max(0, Math.min(1, (
-            site.contributedLots.length / (site.materialsRequired.timber + site.materialsRequired.stone) * .8
-          ) + site.workCompleted * .2))
-        })),
-      ...(input.structures ?? [])
-        .filter((structure) => knownPosition(structure.position))
-        .map((structure) => ({
-          id: structure.structureId,
-          blueprint: structure.blueprint,
-          phase: "complete" as const,
-          ownerReceizId: structure.ownerReceizId,
-          position: { ...structure.position },
-          progress: 1
-        }))
-    ].sort((left, right) => left.id.localeCompare(right.id))
+    worldAdditions
   };
 }
 

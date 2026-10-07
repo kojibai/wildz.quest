@@ -1,5 +1,5 @@
 "use client";
-import { memo, useMemo, useEffect, useState, useRef, useSyncExternalStore } from 'react';
+import { memo, useMemo, useEffect, useState, useRef, useSyncExternalStore, useCallback } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { createCreationRenderGeometry } from './render-geometry';
 import { createCreationMaterialLibrary } from './material-library';
@@ -34,7 +34,7 @@ export default memo(function WildsCreations({ source, worldId, spaceId, position
     const gl = useThree(state => state.gl), [runtime] = useState(() => createCreationSceneRuntime({ defer: work => queueMicrotask(work) }));
     const snapshot = useSyncExternalStore(runtime.subscribe, runtime.snapshot, runtime.snapshot), lifecycle = useMemo(() => ({ epoch: 0 }), []);
     const renderMeter = useRef({ calls: 0, triangles: 0 });
-    const onRendered = (id: string, vertices: number) => { renderMeter.current.calls++; renderMeter.current.triangles += vertices / 3; runtime.rendered(id); };
+    const onRendered = useCallback((id: string, vertices: number) => { renderMeter.current.calls++; renderMeter.current.triangles += vertices / 3; runtime.rendered(id); }, [runtime]);
     const materialLease = useMemo(() => ({ epoch: 0, library: createCreationMaterialLibrary({ resolution: profile.tier === 'low' ? 256 : 512, anisotropy: Math.min(4, gl.capabilities.getMaxAnisotropy()) }) }), [profile.tier, gl]);
     const materials = materialLease.library;
     useEffect(() => { const epoch = ++materialLease.epoch; return () => { queueMicrotask(() => { if (materialLease.epoch === epoch) materialLease.library.dispose(); }); }; }, [materialLease]);

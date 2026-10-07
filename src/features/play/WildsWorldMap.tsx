@@ -99,7 +99,8 @@ function WildsWorldMapView({
   })());
   const customProjects = livingWorld?.constructionProjects;
   const customComponents = livingWorld?.constructionComponents;
-  const customBuildings = useMemo(() => customProjects && customComponents ? projectWildsCustomBuildingMap({ constructionProjects: customProjects, constructionComponents: customComponents }) : [], [customProjects, customComponents]);
+  const customCreations = livingWorld?.creations;
+  const customBuildings = useMemo(() => customProjects && customComponents ? projectWildsCustomBuildingMap({ constructionProjects: customProjects, constructionComponents: customComponents, creations: customCreations }) : [], [customProjects, customComponents, customCreations]);
   const staticProjection = useMemo(() => projectWildsAtlas({
     center: currentPosition,
     atlasOrigin: atlasOrigin.current,

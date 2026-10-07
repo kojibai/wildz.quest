@@ -6,7 +6,7 @@ import { Html, MapControls, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
 import { WILDS_REGION_SIZE } from "./multiplayer-core";
 import type { WildsCrewMapMarker } from "./wilds-crew-map";
-import type { WildsAtlasProjection } from "./wilds-world-atlas";
+import { wildsAtlasMapBounds, type WildsAtlasProjection } from "./wilds-world-atlas";
 import type { WildsQualityProfile } from "./wilds-quality-profile";
 import { sampleWildsTerrain, type WildsTerrainSurface } from "./wilds-terrain-authority";
 import { WILDS_MAJOR_ROUTES, WILDS_NAMED_REGIONS } from "./wilds-world-geography";
@@ -94,10 +94,10 @@ export function WildsAtlasCanvas({
   const atlasSpan = wildsAtlasProjectedSpan(projection.territory ?? projection.nodes, projection.regionUnit);
   const viewBounds = useMemo(
     () => {
-      const bounds = wildsAtlasProjectedBounds(projection.territory ?? projection.nodes);
+      const bounds = wildsAtlasMapBounds(wildsAtlasProjectedBounds(projection.territory ?? projection.nodes), projection.worldAdditions);
       return bounds.count === 0 ? projection.bounds : bounds;
     },
-    [projection.bounds, projection.nodes, projection.territory]
+    [projection.bounds, projection.nodes, projection.territory, projection.worldAdditions]
   );
   return (
     <div aria-hidden="true" className="wilds-atlas-canvas"

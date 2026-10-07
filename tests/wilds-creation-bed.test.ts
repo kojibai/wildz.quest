@@ -8,10 +8,11 @@ import { createCreationCurrentSourcePort, type CreationCurrentSource } from '../
 import { createCreationPhysicalStore } from '../src/features/play/creation/physical-store';
 import { projectCreationPhysical } from '../src/features/play/creation/projection';
 import { canSleepInCreationBed, projectCreationBedSleepPose, resolveCreationBed, selectCreationBedAtPlayer } from '../src/features/play/creation/bed';
+import { creationAccessPreset } from '../src/features/play/creation/access';
 
-async function fixture(yaw = 0) {
+async function fixture(yaw = 0, home = false) {
   const base = creationDefinitionFixture().nodes[0];
-  const definition = creationDefinitionFixture({ nodes: [{ ...base, id: 'bed', pose: { position: { x: 0, y: 0, z: 0 }, yaw: 0 }, shape: { kind: 'box', width: .9, height: .2, depth: 2 }, behaviors: [{ id: 'bed', version: 1, parameters: {} }] }] });
+  const definition = creationDefinitionFixture({ nodes: [...(home ? [base] : []), { ...base, id: 'bed', parentId: home ? 'room' : null, supports: home ? ['room'] : [], pose: { position: home ? { x: -1.2, y: .15, z: .8 } : { x: 0, y: 0, z: 0 }, yaw: 0 }, shape: { kind: 'box', width: .9, height: .2, depth: 2 }, behaviors: [{ id: 'bed', version: 1, parameters: {} }] }] });
   const context = creationContextFixture({ pose: { position: { x: 10, y: 3, z: 5 }, yaw } }), compiled = compileCreation(definition, context);
   if (compiled.status !== 'ready') throw Error('fixture compilation');
   const plan = compiled.plan;
@@ -70,6 +71,53 @@ test('walking past distant beds never reparses their definitions', async () => {
   assert.equal(reads, 0);
   assert.ok(selectCreationBedAtPlayer(source, { x: 10, z: 5 }, f.space, 'owner', 2));
   assert.ok(reads > 0, 'beds within reach must still pass source validation');
+});
+
+test('approaching a home doorway does not validate a bed across the room', async () => {
+  const f = await fixture(0, true), snapshot = f.store.snapshot();
+  let reads = 0;
+  const definitions = { ...snapshot.definitions };
+  Object.defineProperty(definitions, f.instance.definitionDigest, { enumerable: true, get() { reads++; return snapshot.definitions[f.instance.definitionDigest]; } });
+  const source = { ...snapshot, definitions };
+  for (let i = 0; i < 100; i++) {
+    assert.equal(selectCreationBedAtPlayer(source, { x: 10, z: 2.5 + i * .01 }, f.space, 'owner', 2 + i), null);
+  }
+  assert.equal(reads, 0, 'the mattress footprint must reject an out-of-reach bed before parsing the home');
+});
+
+test('remaining beside an unchanged admitted bed reuses its validated sleep source across clock ticks', async () => {
+  const f = await fixture(), player = { x: 10, z: 5 };
+  const first = selectCreationBedAtPlayer(f.store.snapshot, player, f.space, 'owner', 2);
+  assert.ok(first);
+  for (let tick = 3; tick < 103; tick++) {
+    assert.equal(selectCreationBedAtPlayer(f.store.snapshot, player, f.space, 'owner', tick), first);
+  }
+  await f.update({ ownerId: 'recipient', stewardId: 'recipient' });
+  assert.equal(selectCreationBedAtPlayer(f.store.snapshot, player, f.space, 'owner', 104), null);
+  assert.equal(canSleepInCreationBed(first, player, f.space, 'owner', 104), false);
+});
+
+test('a mutable copied instance cannot keep sleep authority after an in-place edit', async () => {
+  const f = await fixture(), original = f.store.snapshot();
+  const instance = JSON.parse(JSON.stringify(original.instances[f.instance.instanceId]));
+  const snapshot = { ...original, instances: { [instance.instanceId]: instance } };
+  const bed = resolveCreationBed(snapshot, instance.instanceId, 'bed', 'owner', 2);
+  assert.ok(bed);
+  instance.nodeStates.bed.condition = 0;
+  assert.equal(canSleepInCreationBed(bed, { x: 10, z: 5 }, f.space, 'owner', 3), false);
+});
+
+test('a reusable public bed source retains occupancy checks for a different actor', async () => {
+  const f = await fixture(), player = { x: 10, z: 5 };
+  const state = f.store.snapshot().instances[f.instance.instanceId].nodeStates.bed;
+  if (state.kind !== 'bed') throw Error('fixture bed state');
+  await f.update({ access: creationAccessPreset('public'), nodeStates: { bed: { ...state, occupantIds: ['owner'] } } });
+  const bed = resolveCreationBed(f.store.snapshot, f.instance.instanceId, 'bed', 'owner', 3);
+  assert.ok(bed);
+  assert.equal(canSleepInCreationBed(bed, player, f.space, 'owner', 3), true);
+  assert.equal(canSleepInCreationBed(bed, player, f.space, 'visitor', 3), false);
+  assert.equal(projectCreationBedSleepPose(bed, player, 3, 'visitor', 3), null);
+  assert.equal(resolveCreationBed(f.store.snapshot, f.instance.instanceId, 'bed', 'visitor', 3), null);
 });
 
 test('diagonally rotated mattress edges retain their full local sleep reach', async () => {

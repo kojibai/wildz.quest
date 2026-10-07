@@ -28,7 +28,7 @@ export function createCreationUploadScheduler(input: Readonly<{
             }
     };
     const view = () => ({ uploadedBytes: 0, active: [...active.values()].map(r => r.value), queued: queue.length, failed: [...failed] });
-    return { get budget() { return budget; }, paintSnapshot: view, retain(compatible: (chunk: CreationChunk) => boolean) {
+    return { get budget() { return budget; }, get queued() { return queue.length; }, paintSnapshot: view, retain(compatible: (chunk: CreationChunk) => boolean) {
             queue = queue.filter(job => compatible(job.chunk));
             for (const [id, resident] of active)
                 if (!compatible(resident.value.chunk)) {

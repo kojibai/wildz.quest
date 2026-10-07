@@ -1,4 +1,5 @@
 import { wildsTerrainElevation } from "./wilds-terrain-authority";
+import type { WildsObstacleIndex } from "./wilds-terrain-obstacles";
 import { wildsDiscoverySiteDiagnostics, wildsMountainFieldValue, type WildsDiscoveryPhysicalNeighborhood, type WildsDiscoverySiteProjection, type WildsMountainField, type WildsMountainFieldNode, type WildsSiteSpaceState, type WildsSiteSurface } from "./wilds-discovery-sites";
 
 const OUTER = "wildz.space.outer.v1";
@@ -332,5 +333,51 @@ export function writeWildsInteriorCameraPosition(output: { x: number; y: number;
     if (blocked) break;
     output.x = dx * t; output.y = anchorY + dy * t; output.z = dz * t;
   }
+  return output;
+}
+
+/** Outdoor manual construction already has a prepared physical obstacle index.
+ * Sweep the camera sphere through its nearby cells without rebuilding geometry. */
+export function writeWildsObstacleCameraPosition(output: { x: number; y: number; z: number }, index: WildsObstacleIndex, spaceId: string, origin: Point3, target: Point3, radius = .18) {
+  if (spaceId !== OUTER) return output;
+  if (![output.x, output.y, output.z, origin.x, origin.y, origin.z, target.x, target.y, target.z, radius].every(Number.isFinite) || radius < 0 || radius > .5) throw Error("wilds_camera_invalid");
+  const ax = origin.x + target.x, ay = origin.y + target.y, az = origin.z + target.z;
+  const dx = output.x - target.x, dy = output.y - target.y, dz = output.z - target.z;
+  const minX = Math.floor((Math.min(ax, ax + dx) - radius) / index.cellSize), maxX = Math.floor((Math.max(ax, ax + dx) + radius) / index.cellSize);
+  const minZ = Math.floor((Math.min(az, az + dz) - radius) / index.cellSize), maxZ = Math.floor((Math.max(az, az + dz) + radius) / index.cellSize);
+  let hit = 1, candidates = 0;
+  if ((maxX - minX + 1) * (maxZ - minZ + 1) > 64) hit = 0;
+  else query: for (let x = minX; x <= maxX; x++) for (let z = minZ; z <= maxZ; z++) for (const obstacle of index.cells.get(`${x}:${z}`) ?? EMPTY) {
+    if (++candidates > 4096) { hit = 0; break query; }
+    if (obstacle.material === "soft") continue;
+    const shape = obstacle.shape, px = ax - obstacle.position.x, py = ay - obstacle.position.y, pz = az - obstacle.position.z;
+    let enter = 0, leave = hit;
+    if (shape.kind === "box") {
+      for (let axis = 0; axis < 3; axis++) {
+        const p = axis === 0 ? px : axis === 1 ? py : pz, v = axis === 0 ? dx : axis === 1 ? dy : dz;
+        const h = (axis === 0 ? shape.halfX : axis === 1 ? shape.halfY : shape.halfZ) + radius;
+        if (Math.abs(v) < 1e-10) { if (p < -h || p > h) { enter = Infinity; break; } continue; }
+        const a = (-h - p) / v, b = (h - p) / v;
+        enter = Math.max(enter, Math.min(a, b)); leave = Math.min(leave, Math.max(a, b));
+        if (enter > leave) { enter = Infinity; break; }
+      }
+    } else {
+      if (Math.abs(dy) < 1e-10) { if (py < -radius || py > shape.height + radius) enter = Infinity; }
+      else {
+        const a = (-radius - py) / dy, b = (shape.height + radius - py) / dy;
+        enter = Math.max(enter, Math.min(a, b)); leave = Math.min(leave, Math.max(a, b));
+      }
+      const a = dx * dx + dz * dz, b = 2 * (px * dx + pz * dz), c = px * px + pz * pz - (shape.radius + radius) ** 2;
+      if (a < 1e-10) { if (c > 0) enter = Infinity; }
+      else {
+        const discriminant = b * b - 4 * a * c;
+        if (discriminant < 0) enter = Infinity;
+        else { const root = Math.sqrt(discriminant); enter = Math.max(enter, (-b - root) / (2 * a)); leave = Math.min(leave, (-b + root) / (2 * a)); }
+      }
+      if (enter > leave) enter = Infinity;
+    }
+    hit = Math.min(hit, enter);
+  }
+  if (hit < 1) { const t = Math.max(0, hit - .00001); output.x = target.x + dx * t; output.y = target.y + dy * t; output.z = target.z + dz * t; }
   return output;
 }
