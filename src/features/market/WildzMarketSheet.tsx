@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { WildzListing } from "@/features/market/wildz-market";
 import { verifyAnyWildsCard, type PortableCardAsset } from "@/features/play/portable-card";
 import { WildzTradeConfirm } from "@/features/market/WildzTradeConfirm";
+import { ResourcePackageMarketSection } from "@/features/market/ResourcePackageMarketSection";
+import type { WildsResourcePackageV1 } from "@/features/play/wilds-resource-package";
 import { shouldRefreshWildzMarket } from "@/features/market/market-refresh-policy";
 
 type MarketListing = Pick<
@@ -46,12 +48,14 @@ export function WildzMarketSheet({
   listings: initialListings,
   buyer,
   connected,
-  onSettlement
+  onSettlement,
+  onResourcePackageSettlement
 }: {
   listings: MarketListing[];
   buyer: string;
   connected: boolean;
   onSettlement?: (asset: PortableCardAsset) => void | Promise<void>;
+  onResourcePackageSettlement?: (proof: WildsResourcePackageV1) => void | Promise<void>;
 }) {
   const [listings, setListings] = useState(initialListings);
   const [head, setHead] = useState<MarketHead | null>(null);
@@ -214,6 +218,7 @@ export function WildzMarketSheet({
     {selected ? <section className="wildz-market-consequence" aria-label="Trade consequence"><small>Vault consequence</small><strong>{selected.assetId} joins your verified collection only after Receiz admits ownership.</strong><span>${(selected.priceCents / 100).toFixed(2)} · seller {selected.seller ?? selected.sellerActorId}</span></section> : null}
     {selected ? <WildzTradeConfirm listing={selected} busy={busy} onConfirm={() => void checkout()} /> : null}
     {pending ? <button type="button" className="wildz-market-retry" disabled={busy} onClick={() => void retrySettlement()}>{busy ? "Checking Receiz…" : "Retry ownership admission"}</button> : null}
+    <ResourcePackageMarketSection connected={connected} buyer={buyer} onSettlement={onResourcePackageSettlement} />
     {message ? <p role="status" className="wildz-market-status">{message}</p> : !connected ? <p role="status" className="wildz-market-status">Your Receiz ID remains the local authority. Global market additions will appear when synchronization reconnects.</p> : null}
   </div>;
 }

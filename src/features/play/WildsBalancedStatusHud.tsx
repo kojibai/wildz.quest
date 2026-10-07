@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Icons } from "@/components/icons";
 import type { KaiKlokMoment } from "./kai-klok-moment";
 import type { WildsAudioSettings as WildsAudioSettingsValue } from "./wilds-audio";
@@ -30,6 +30,8 @@ export function WildsBalancedStatusHud({
   onOpenCommandCenter,
   onOpenWallet,
   onSendPhi,
+  resourceExchange,
+  onClaimResource,
   onClaimCard,
   onRosterOpenChange,
   player,
@@ -55,6 +57,8 @@ export function WildsBalancedStatusHud({
   onEnterRaid: (bossId: string) => void;
   onOpenCommandCenter: () => void;
   onOpenWallet: (origin: HTMLButtonElement) => void;
+  resourceExchange?: ReactNode;
+  onClaimResource?: (claimProof: string) => Promise<void>;
   onSendPhi: (peer: { id: string; handle: string }) => void;
   onClaimCard: (offer: WildsCardTransferOffer) => Promise<unknown>;
   onRosterOpenChange?: (open: boolean) => void;
@@ -121,6 +125,8 @@ export function WildsBalancedStatusHud({
     <WildsMessenger
       messenger={messenger}
       onSendPhi={onSendPhi}
+      resourceExchange={resourceExchange}
+      onClaimResource={onClaimResource}
       onClaimCard={onClaimCard}
       roomChat={{
         messages: multiplayer.snapshot?.messages ?? [],

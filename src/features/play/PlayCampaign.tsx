@@ -32,6 +32,11 @@ import { describeWildsPoint } from "./wilds-world-geography";
 import {projectPlayerBreathState, playerBreathReadout} from "./player-breath-energy";
 import type { CreationCompileContext } from "./creation/compiler";
 import creationPanelClasses from "./creation/creation.module.css";
+import { useWildsResourceExchange } from './use-wilds-resource-exchange';
+import { foodUnavailableForExchange } from './wilds-resource-exchange-inventory';
+import { reconcileWildsNourishmentCustody, recoverWildsUnpackedPackageFood } from './wilds-nourishment';
+import { hasRecoverableWildsNativeFood, recoverWildsNativeFoodFuel } from './wilds-food-fuel-recovery';
+const WildsResourceExchange=dynamic(()=>import('./WildsResourceExchange').then(module=>module.WildsResourceExchange),{ssr:false});
 const CreationSession=dynamic(()=>import("./creation/CreationSession"),{ssr:false});
 import { WildsVisitedSurface } from "./WildsVisitedSurface";
 import { buildWildsRoamingPresenceUploads, projectWildsRemoteRoamingMarkers, type WildsRoamingPresenceUpload } from "./wilds-roaming-presence";
@@ -984,6 +989,30 @@ export function PlayCampaign({
     ownedWorldAdditions: state.ownedWorldAdditions,
     authorizeLivingWorld: livingWorldAuthorization
   });
+  const resourceExchange = useWildsResourceExchange({
+    owner: ownerReceizId, nourishment: state.playerNourishment, world: livingWorld, messenger,
+    authorize: walletController.secureTransferAuthority, readKai: readActionKaiUPulse, feedback: showWorldFeedback,
+    credit: update => setState(current => ({ ...current, playerNourishment: update(current.playerNourishment) }))
+  });
+  const [foodSavePending,setFoodSavePending]=useState(false);
+  const foodSaveInFlight=useRef(false);
+  useEffect(() => {
+    const world = livingWorld.snapshot;
+    if (!world?.resourcePackages || !state.playerNourishment) return;
+    setState(current => {
+      if (!current.playerNourishment) return current;
+      const nourishment = recoverWildsUnpackedPackageFood(current.playerNourishment, world, readActionKaiUPulse());
+      return nourishment === current.playerNourishment ? current : { ...current, playerNourishment: nourishment };
+    });
+  }, [livingWorld.snapshot, state.playerNourishment, readActionKaiUPulse]);
+  const pendingNativeFoodFuel = useMemo(() => livingWorld.snapshot
+    ? hasRecoverableWildsNativeFood({ playerNourishment: state.playerNourishment }, livingWorld.snapshot, ownerReceizId) : false,
+  [state.playerNourishment, livingWorld.snapshot, ownerReceizId]);
+  useEffect(() => {
+    const world = livingWorld.snapshot;
+    if (!pendingNativeFoodFuel || !world || !['receiz_live', 'kai_live'].includes(livingWorld.mode)) return;
+    setState(current => recoverWildsNativeFoodFuel(current, world, ownerReceizId, readActionKaiUPulse()));
+  }, [pendingNativeFoodFuel, livingWorld.snapshot, livingWorld.mode, state.playerBreaths, ownerReceizId, readActionKaiUPulse]);
   useEffect(() => {
     if (!livingWorld.snapshot) return;
     const ownedWorldAdditions = projectWildsOwnedWorldAdditions(livingWorld.snapshot, ownerReceizId);
@@ -1178,7 +1207,7 @@ export function PlayCampaign({
   const captureBlocker = !livestockShelter ? 'Finish a nearby room, habitat or garden to shelter livestock.'
     : Object.values(state.playerLivestock?.animals ?? {}).filter(animal => animal.status === 'captured' && animal.shelterId === livestockShelter.shelterId).length >= livestockShelter.capacity
       ? 'This farm is full. Finish another nearby shelter for livestock.' : null;
-  const foodPackFull = useMemo(() => availableWildsFood(state.playerNourishment).length >= WILDS_NOURISHMENT_PACK_CAPACITY, [state.playerNourishment]);
+  const foodPackFull = useMemo(() => availableWildsFood(resourceExchange.nourishment).length >= WILDS_NOURISHMENT_PACK_CAPACITY, [resourceExchange.nourishment]);
   const huntingCondition = activeAsset ? projectWildsRestedCompanionCondition(state, nourishmentKaiUPulse, activeAsset.id) : undefined;
   const huntingSupport = useMemo(() => worldOverlayState.panelKey === 'satchel' || wildAnimalActionsOpen ? selectWildsHuntingSupport({
     state: state.playerLivestock, ownerReceizId, kaiUPulse: nourishmentKaiUPulse,
@@ -2009,9 +2038,19 @@ export function PlayCampaign({
   worldInputDispatcherRef.current = dispatchWorldInput;
   const canForage = () => interactionEnabled && !state.battle && modalOwner === 'none' && (canUseWorldStage() || worldOverlayState.panelKey === 'satchel');
   const eatFood = (item: WildsFoodItem) => {
-    if (!canForage()) return;
+    if (!canForage()||foodSaveInFlight.current||foodUnavailableForExchange(livingWorld.currentSource(),ownerReceizId,item.itemId)) return;
+    const pulse=readActionKaiUPulse();
+    const attempt=rootWildsInputInKai({type:'eat-food',ownerReceizId,itemId:item.itemId,kaiUPulse:pulse},pulse);
+    if(applyWildsInput(state,attempt)===state)return;
     beginWorldActionFeedback();
-    dispatch({ type: 'eat-food', ownerReceizId, itemId: item.itemId, kaiUPulse: readActionKaiUPulse() });
+    if(!livingWorld.currentSource()?.foodItems?.[item.itemId]){dispatch(attempt);return;}
+    foodSaveInFlight.current=true;setFoodSavePending(true);
+    void resourceExchange.consume(item.itemId).then(world=>{
+      setState(current=>recoverWildsNativeFoodFuel(current,world,ownerReceizId,readActionKaiUPulse()));
+    }).catch(error=>{
+      showWorldFeedback(error instanceof Error?error.message.replaceAll('_',' '):'This food use is still syncing.');
+      void livingWorld.refresh();
+    }).finally(()=>{foodSaveInFlight.current=false;setFoodSavePending(false);});
   };
   const openNourishmentSatchel = () => {
     if (!canForage()) return;
@@ -2035,6 +2074,10 @@ export function PlayCampaign({
     }
     beginWorldActionFeedback();
     setNourishmentActionId(null);
+    setState(current => {
+      const nourishment = reconcileWildsNourishmentCustody(current.playerNourishment, livingWorld.currentSource(), ownerReceizId);
+      return nourishment === current.playerNourishment ? current : { ...current, playerNourishment: nourishment };
+    });
     dispatch({ type: 'gather-food', ownerReceizId, sourceId: plant.sourceId, expectedSourceHead: crop.head, kaiUPulse: actionKai, verticalWorldY: verticalTraversalRef.current.worldY });
   };
   const huntAnimal = (animal: WildsWildAnimalProjection) => {
@@ -2828,12 +2871,13 @@ export function PlayCampaign({
       content: (
         <div className="wilds-command-content wilds-satchel">
           <WildsBodyReadout body={playerBreathReadout(livePlayerEnergy.playerBreaths)} onSleep={sleepHere} onWake={() => dispatch({ type: 'wake' })} />
-          <WildsNourishmentPanel nourishment={state.playerNourishment} kaiUPulse={nourishmentKaiUPulse} fuelPercent={playerBreathReadout(livePlayerEnergy.playerBreaths).fuelPercent}
+          <WildsNourishmentPanel nourishment={resourceExchange.nourishment} pending={foodSavePending} kaiUPulse={nourishmentKaiUPulse} fuelPercent={playerBreathReadout(livePlayerEnergy.playerBreaths).fuelPercent}
             plants={nourishmentPlants} animals={wildAnimals} livestock={ownedLivestock} player={nourishmentPlayer} inspectedId={inspectedNourishmentId} focusStoredFoodSignal={storedFoodFocusSignal}
             huntBlocker={foodPackFull ? 'Your food pack is full. Eat a portion before hunting.' : huntingSupport.blocker}
             captureBlocker={captureBlocker}
             onGather={gatherFood} onHunt={huntAnimal} onCapture={captureLivestock} onProduce={collectLivestockFood}
             onEat={eatFood} />
+          <WildsResourceExchange items={resourceExchange.items} cards={resourceExchange.cards} actions={resourceExchange.actions} availability={resourceExchange.availability} checkAvailability={resourceExchange.checkAvailability} />
 
           <WildzCommandInsight label="Trail preparation" value={`${Math.round(livePlayerEnergy.energy)}% energy`} detail="Use what you gathered now; every action updates the same live explorer state used in the world.">
             <button onClick={() => dispatch({ type: "rest", at: new Date().toISOString() })} type="button">Make camp</button>
@@ -3216,6 +3260,8 @@ export function PlayCampaign({
                 claimPlayModalOwner("wallet");
                 walletController.openTerminal();
               }}
+              resourceExchange={<WildsResourceExchange items={resourceExchange.items} cards={resourceExchange.cards} actions={resourceExchange.actions} availability={resourceExchange.availability} checkAvailability={resourceExchange.checkAvailability} peer={messenger.selectedPeer} />}
+              onClaimResource={resourceExchange.actions.claim}
               onClaimCard={async (offer) => {
                 const admission = await messenger.claimCardOffer(offer);
                 dispatchWorldInput({ type: "import-card", asset: admission.card });
@@ -3340,7 +3386,7 @@ export function PlayCampaign({
               cardOrder={cardOrder}
               commandItems={commandItems}
               materialCounts={stewardMaterials}
-              nourishment={{ state: state.playerNourishment, kaiUPulse: nourishmentKaiUPulse, fuelPercent: playerBreathReadout(livePlayerEnergy.playerBreaths).fuelPercent, onEat: eatFood, onOpen: openNourishmentSatchel }}
+              nourishment={{ state: resourceExchange.nourishment, kaiUPulse: nourishmentKaiUPulse, fuelPercent: playerBreathReadout(livePlayerEnergy.playerBreaths).fuelPercent, onEat: eatFood, onOpen: openNourishmentSatchel }}
               companionProgress={state.companionProgress}
               dismissSignal={commandDismissSignal}
               exclusiveOwner={exclusiveOwner}

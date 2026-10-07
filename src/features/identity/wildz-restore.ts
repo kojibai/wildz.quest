@@ -1,3 +1,4 @@
+import { createAdmittedWildsInventory } from "../play/admitted-inventory";
 import { hasLaterWildsPlayerLedger } from "../play/wilds-play-state-source";
 import { isVerifiedWildzCardDescendant } from "../../lib/receiz/wildz-card-descendant";
 import { readWildzArtifactCrewCustody, mergeWildzCrewCustody, wildzCrewCustodySources, type WildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
@@ -314,11 +315,14 @@ function normalizedPlayerContinuity(
     receipts: continuity.receipts
   });
   return {
-    settings: normalized.settings,
-    personalEvents: normalized.personalEvents,
-    canonicalCursor: normalized.canonicalCursor,
-    receipts: normalized.receipts
-  } satisfies WildzPlayerContinuity;
+    playState: normalized.playState,
+    continuity: {
+      settings: normalized.settings,
+      personalEvents: normalized.personalEvents,
+      canonicalCursor: normalized.canonicalCursor,
+      receipts: normalized.receipts
+    } satisfies WildzPlayerContinuity
+  };
 }
 
 export function createStoredWildzPlayState(
@@ -328,8 +332,7 @@ export function createStoredWildzPlayState(
   updatedAt = new Date().toISOString(),
   character?: WildzCharacterGenesis | null
 ): StoredWildzPlayState {
-  const normalizedPlayState = normalizeWildsRuntimePlayState(playState, session.actorId);
-  const continuity = normalizedPlayerContinuity(session, normalizedPlayState, player, updatedAt);
+  const normalized = normalizedPlayerContinuity(session, playState, player, updatedAt);
   const requestedCharacter = character === undefined && player && "playerId" in player ? player.character : character;
   const normalizedCharacter = requestedCharacter === null || requestedCharacter === undefined
     ? null
@@ -339,21 +342,31 @@ export function createStoredWildzPlayState(
     schema: OWNER_STATE_SCHEMA,
     keyId: session.keyId,
     actorId: session.actorId,
-    playState: normalizedPlayState,
+    playState: normalized.playState,
     character: normalizedCharacter,
-    ...continuity,
+    ...normalized.continuity,
     updatedAt
   };
 }
 
-function storedOwnerState(value: unknown, session: WildzIdentitySession): StoredWildzOwnerState | null {
+function storedOwnerState(value: unknown, session: WildzIdentitySession, runtimeInventory?: PlayState["inventory"]): StoredWildzOwnerState | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Partial<StoredWildzOwnerState> & { schema?: unknown };
   if (record.keyId !== session.keyId || record.actorId !== session.actorId || !record.playState) return null;
+  // IndexedDB returns new objects, which have no runtime proof admission. When
+  // this exact owner already holds the same proof pins, discard those copies
+  // and validate the stored gameplay using the known immutable source cards.
+  // Changed or externally supplied inventories retain the full verifier path.
+  const storedInventory = record.playState.inventory;
+  const knownInventory = runtimeInventory && createAdmittedWildsInventory(runtimeInventory, session.actorId)
+    && Array.isArray(storedInventory) && storedInventory.length === runtimeInventory.length
+    && storedInventory.every((card, index) => card?.id === runtimeInventory[index]?.id
+      && card?.proof?.digest === runtimeInventory[index]?.proof.digest) ? runtimeInventory : null;
+  const playState = knownInventory ? { ...record.playState, inventory: knownInventory } : record.playState;
   try {
     if (record.schema === OWNER_STATE_SCHEMA) {
       if (!record.settings || !record.personalEvents || !record.canonicalCursor || !record.receipts) return null;
-      return createStoredWildzPlayState(session, record.playState, {
+      return createStoredWildzPlayState(session, playState, {
         settings: record.settings,
         personalEvents: record.personalEvents,
         canonicalCursor: record.canonicalCursor,
@@ -363,7 +376,7 @@ function storedOwnerState(value: unknown, session: WildzIdentitySession): Stored
     if (record.schema === LEGACY_OWNER_PLAY_STATE_SCHEMA) {
       return createStoredWildzPlayState(
         session,
-        record.playState,
+        playState,
         null,
         typeof record.updatedAt === "string" ? record.updatedAt : new Date(0).toISOString(),
         null
@@ -399,7 +412,7 @@ export async function saveWildzRestoredPlayState(input: {
 }) {
   const scope = wildzOwnerScope(input.session.keyId, input.session.actorId);
   return input.database.transaction(["ownerStates", "meta"], "readwrite", async (tx) => {
-    const current = storedOwnerState(await tx.get<unknown>("ownerStates", scope), input.session);
+    const current = storedOwnerState(await tx.get<unknown>("ownerStates", scope), input.session, input.playState.inventory);
     if (current && hasLaterWildsPlayerLedger(current.playState, input.playState)) return current.playState;
     const stored = createStoredWildzPlayState(
       input.session,

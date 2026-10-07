@@ -10,6 +10,7 @@ import { mergeWildsOwnedAdditionSets } from "./wilds-player-world-additions";
 import { hasLaterWildsPlayerLedger } from "./wilds-play-state-source";
 import { adventureConditionToHearttree } from "./hearttree/card-capability";
 import { mergeWildsActivityHistories } from "./wallet/wilds-activity-history";
+import { mergeWildsImportedNourishment } from "./wilds-nourishment";
 
 export type WildzCardOrder = "rarity" | "newest" | "oldest";
 
@@ -243,6 +244,7 @@ export function mergeWildsPlayerPlayStates(input: {
     ascensionCatalysts: mergeRecords(input.local.ascensionCatalysts, restoredPlayState.ascensionCatalysts),
     hearttreeReceipts: mergeRecords(input.local.hearttreeReceipts, restoredPlayState.hearttreeReceipts).slice(-512),
     ownedWorldAdditions: mergeWildsOwnedAdditionSets(input.local.ownedWorldAdditions, restoredPlayState.ownedWorldAdditions),
+    playerNourishment: mergeWildsImportedNourishment(input.preferLocalState?input.local.playerNourishment:restoredPlayState.playerNourishment,input.preferLocalState?restoredPlayState.playerNourishment:input.local.playerNourishment),
     adventureConditions
   };
   return normalizeWildsRuntimePlayState(mergedState, input.actorId);

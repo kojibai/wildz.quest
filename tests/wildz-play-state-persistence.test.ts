@@ -43,7 +43,10 @@ test("a second card change supersedes only the pending Vault snapshot", async ()
 
 test("a failed durable write never creates a gameplay-time retry loop", async () => {
   let attempts = 0;
-  const coordinator = createWildzPlayStatePersistenceCoordinator<number>({
+  let timers = 0;
+  const coordinator = createWildzPlayStatePersistenceCoordinator<number, number>({
+    setTimer: () => ++timers,
+    clearTimer() {},
     stagePendingVault() {},
     writeRuntime() {},
     async writeVault() {
@@ -54,9 +57,30 @@ test("a failed durable write never creates a gameplay-time retry loop", async ()
 
   coordinator.schedule(1, true);
   await coordinator.flush();
-  await coordinator.flush();
+  const scheduledTimers = timers;
+  await Promise.resolve();
 
   assert.equal(attempts, 1);
+  assert.equal(timers, scheduledTimers);
+  coordinator.cancel();
+});
+
+test("an uncertain durable save retains one latest snapshot for an explicit recovery flush", async () => {
+  const writes: number[] = [];
+  const coordinator = createWildzPlayStatePersistenceCoordinator<number>({
+    stagePendingVault() {}, writeRuntime() {},
+    async writeVault(value) {
+      writes.push(value);
+      if (writes.length === 1) throw new Error("wildz_durable_save_outcome_unknown");
+    }
+  });
+  coordinator.schedule(1, { durableChanged: true, inventoryChanged: false });
+  await coordinator.flush();
+  for (let update = 2; update <= 100; update++) coordinator.schedule(update, false);
+  assert.deepEqual(writes, [1]);
+  await coordinator.flush();
+  await coordinator.flush();
+  assert.deepEqual(writes, [1, 100]);
 });
 
 test("world truth persists durably without staging the full card inventory", async () => {

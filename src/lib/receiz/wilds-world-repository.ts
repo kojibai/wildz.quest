@@ -1,3 +1,4 @@
+import { resolveWildsWorldConditionalAppendRail, requireWildsResourceCustodyRail, verifiedWildsConditionalWorldRecord, WILDS_RESOURCE_CUSTODY_NAMESPACE, type WildsWorldConditionalAppendRail } from "./wilds-resource-custody-capability";
 import type { JsonObject } from "@receiz/sdk";
 import type { WildsWorldEvent } from "../../features/play/wilds-world-event";
 import { findWildsWorldRecord, type WildsWorldRecord } from "../../features/play/wilds-world-record";
@@ -18,17 +19,20 @@ export type WildsWorldPublication = {
   revision: number;
   conflict?: boolean;
   record?: WildsWorldRecord | null;
+  sourceAdmission?: "conditional";
 };
 
 export type WildsWorldHead = { revision: number; lastEventId: string | null };
 
 export interface WildsWorldRepository {
   recover(sourceUrl: string, actor?: WildsWorldRepositoryActor): Promise<WildsWorldRecord | null>;
+  recoverConditional?(sourceUrl: string, actor?: WildsWorldRepositoryActor): Promise<WildsWorldRecord>;
   publish(input: {
     sourceUrl: string;
     actor: WildsWorldRepositoryActor;
     record: WildsWorldRecord;
     expectedHead: WildsWorldHead;
+    requireConditional?: boolean;
   }): Promise<WildsWorldPublication>;
   audit(input: {
     sourceUrl: string;
@@ -112,8 +116,15 @@ export function createReceizWildsWorldRepository(options: {
   ).createReceizCommerceAdapter(adapterOptions));
 
   return {
+    async recoverConditional(_sourceUrl, actor) {
+      const adapter = await adapterFactory(actor?.accessToken ? { accessToken: actor.accessToken } : undefined);
+      const conditional = requireWildsResourceCustodyRail(adapter);
+      return verifiedWildsConditionalWorldRecord(conditional, await conditional.readLatest({ namespace: WILDS_RESOURCE_CUSTODY_NAMESPACE }));
+    },
     async recover(sourceUrl, actor) {
       const adapter = await adapterFactory(actor?.accessToken ? { accessToken: actor.accessToken } : undefined);
+      const conditional=resolveWildsWorldConditionalAppendRail(adapter);
+      if(conditional){const resolved=await conditional.readLatest({namespace:WILDS_RESOURCE_CUSTODY_NAMESPACE});return verifiedWildsConditionalWorldRecord(conditional,resolved);}
       return findWildsWorldRecord(await adapter.readAppStateByUrl(sourceUrl));
     },
 
@@ -122,8 +133,17 @@ export function createReceizWildsWorldRepository(options: {
       if (input.actor.practice) return { published: false, mode: "local_practice", revision };
       const lastEventId = input.record.checkpoint.lastEventId ?? "genesis";
       let adapter: WildsWorldRepositoryAdapter | null = null;
+      let conditional: WildsWorldConditionalAppendRail | null = null;
       try {
         adapter = await adapterFactory(input.actor.accessToken ? { accessToken: input.actor.accessToken } : undefined);
+        conditional=resolveWildsWorldConditionalAppendRail(adapter);
+        if(conditional){
+          const response=await conditional.compareAndAppend({namespace:WILDS_RESOURCE_CUSTODY_NAMESPACE,expectedHead:input.expectedHead,record:input.record,idempotencyKey:`wilds:global:v3:${revision}:${lastEventId}`});
+          const admitted=await verifiedWildsConditionalWorldRecord(conditional,response);
+          if(!isRecord(response) || response.status!=="admitted" && response.status!=="replayed" || !sameRecord(admitted,input.record))return {published:false,mode:"receiz_recovery_pending",revision,conflict:true,record:admitted,sourceAdmission:"conditional"};
+          return {published:true,mode:"receiz_live",revision,conflict:false,record:admitted,sourceAdmission:"conditional"};
+        }
+        if (input.requireConditional) return { published: false, mode: "receiz_recovery_pending", revision };
         const recovered = findWildsWorldRecord(await adapter.readAppStateByUrl(input.sourceUrl));
         if (!sameHead(head(recovered), input.expectedHead)) {
           if (recovered && sameRecord(recovered, input.record)) {
@@ -168,6 +188,14 @@ export function createReceizWildsWorldRepository(options: {
         }
         return { published: true, mode: "receiz_live", revision, conflict: false, record: admitted };
       } catch {
+        if (conditional) {
+          try {
+            const competing = await verifiedWildsConditionalWorldRecord(conditional, await conditional.readLatest({ namespace: WILDS_RESOURCE_CUSTODY_NAMESPACE }));
+            return { published: false, mode: "receiz_recovery_pending", revision, conflict: !sameHead(head(competing), input.expectedHead), record: competing, sourceAdmission: "conditional" };
+          } catch { /* Only a verified conditional read may authorize rebase. */ }
+          return { published: false, mode: "receiz_recovery_pending", revision };
+        }
+        if (input.requireConditional) return { published: false, mode: "receiz_recovery_pending", revision };
         if (adapter) {
           try {
             const competing = findWildsWorldRecord(await adapter.readAppStateByUrl(input.sourceUrl));

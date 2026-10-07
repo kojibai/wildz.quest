@@ -13,6 +13,30 @@ function record() {
 }
 
 describe("Receiz Wilds world repository", () => {
+  it("uses only verified conditional admission when a real source port is present",async()=>{
+    const worldRecord=record(),calls:unknown[]=[];
+    let publicWrites=0;
+    const repository=createReceizWildsWorldRepository({adapterFactory:()=>({
+      readAppStateByUrl:async()=>null,publishPublicStore:async()=>{publicWrites++;return {ok:true};},
+      wildzWorld:{readLatest:async()=>({record:worldRecord,admissionProof:"native:proof"}),
+        compareAndAppend:async(input:unknown)=>{calls.push(input);return {status:"admitted",record:worldRecord,admissionProof:"native:proof"};},
+        verifyAdmissionProof:async({proof}:{proof:unknown})=>proof==="native:proof"}
+    }) as never});
+    assert.deepEqual(await repository.recover(sourceUrl),worldRecord);
+    const result=await repository.publish({sourceUrl,actor:{handle:"sender",practice:false},record:worldRecord,expectedHead:{revision:0,lastEventId:null}});
+    assert.equal(result.published,true);assert.equal(publicWrites,0);
+    assert.deepEqual((calls[0] as {expectedHead:unknown}).expectedHead,{revision:0,lastEventId:null});
+  });
+  it("does not fallback to public publication when conditional proof is rejected",async()=>{
+    const worldRecord=record();let publicWrites=0;
+    const repository=createReceizWildsWorldRepository({adapterFactory:()=>({
+      readAppStateByUrl:async()=>null,publishPublicStore:async()=>{publicWrites++;return {ok:true};},
+      wildzWorld:{readLatest:async()=>({record:worldRecord,admissionProof:"self-hash"}),compareAndAppend:async()=>({status:"admitted",record:worldRecord,admissionProof:"self-hash"}),verifyAdmissionProof:async()=>false}
+    }) as never});
+    await assert.rejects(()=>repository.recover(sourceUrl),/custody_proof_invalid/);
+    const result=await repository.publish({sourceUrl,actor:{handle:"sender",practice:false},record:worldRecord,expectedHead:{revision:0,lastEventId:null}});
+    assert.equal(result.published,false);assert.equal(publicWrites,0);
+  });
   it("recovers only a complete V3 record through SDK app-state envelopes", async () => {
     const expected = record();
     const repository = createReceizWildsWorldRepository({

@@ -984,6 +984,8 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
   touch-action: pan-y;
 }
 
+.wildz-shell-overlay[hidden], .wildz-profile-sheet[hidden] { display: none; }
+
 .wildz-overlay-dismiss {
   position: absolute;
   top: 12px;

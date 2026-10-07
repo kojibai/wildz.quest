@@ -19,6 +19,7 @@ import type {
   WildsCardTransferAdmission,
   WildsCardTransferOffer
 } from "@/lib/receiz/wilds-card-transfer";
+import { resourceOfferMessage } from './wilds-resource-messaging';
 import { formatWildsPhiExact } from "./wallet/wilds-wallet-format";
 
 type MessengerCache = {
@@ -385,6 +386,17 @@ export function useWildsMessenger(input: {
     }
   }, [input.guestId, input.selfHandle, input.selfId, selectedPeer]);
 
+  const sendResourceClaim = useCallback(async (peer: WildsMessengerParticipant, claimProof: string) => {
+    if (!input.selfId) throw Error('Sign in to send resource cards.');
+    const context = resourceOfferMessage(claimProof);
+    const result = await messengerRequest<{ conversation: WildsConversation }>('/api/wilds/messages/thread', {
+      method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'resource-offer', guestId: input.guestId, peer, message: context.title, clientMessageId: context.claimId, context })
+    });
+    rememberPeer(peer);
+    setConversations(current => admitConversationState(current, result.conversation));
+  }, [input.guestId, input.selfId, rememberPeer]);
+
   const recordPhiTransfer = useCallback(async (
     peer: WildsMessengerParticipant,
     amountPhiMicro: string,
@@ -497,6 +509,7 @@ export function useWildsMessenger(input: {
     send,
     recordPhiTransfer,
     sendCardOffer,
+    sendResourceClaim,
     claimCardOffer,
     markRead,
     react,

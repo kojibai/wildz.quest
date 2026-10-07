@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
 import type { WildsRoomMessage } from "./multiplayer-core";
@@ -39,14 +39,20 @@ export function WildsMessenger({
   roomChat,
   selfId,
   onSendPhi,
+  resourceExchange,
+  onClaimResource,
   onClaimCard
 }: {
   messenger: WildsMessengerController;
   roomChat: { messages: readonly WildsRoomMessage[]; onSend: (message: string) => Promise<unknown> };
   selfId: string;
+  resourceExchange?: ReactNode;
+  onClaimResource?: (claimProof: string) => Promise<void>;
   onSendPhi?: (peer: { id: string; handle: string }) => void;
   onClaimCard?: (offer: WildsCardTransferOffer) => Promise<unknown>;
 }) {
+  const [resourcesOpen, setResourcesOpen] = useState(false);
+  const [receivedResourceClaims, setReceivedResourceClaims] = useState<string[]>([]);
   const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [roomDraft, setRoomDraft] = useState("");
@@ -65,6 +71,7 @@ export function WildsMessenger({
   const dialogRef = useRef<HTMLElement | null>(null);
   const composerSendingRef = useRef(false);
   const selectedPeerId = messenger.selectedPeer?.id ?? null;
+  useEffect(() => setResourcesOpen(false), [selectedPeerId]);
   const closeMessenger = messenger.closeMessenger;
   const selectConversation = messenger.selectConversation;
   const selectRoom = messenger.selectRoom;
@@ -229,6 +236,7 @@ export function WildsMessenger({
       </form> : messenger.selectedRoom ? <div className="wilds-messenger-thread wilds-messenger-room-thread">
         <div className="wilds-messenger-room-members"><span>{messenger.selectedRoom.members.map((member) => member.handle).join(" · ")}</span>{messenger.selectedRoom.owner.id === selfId ? <button onClick={() => { setRoomMemberIds([]); setRoomEditor("add"); }} type="button">Add people</button> : null}</div>
         <div className="wilds-messenger-messages" ref={listRef}>{!messenger.selectedRoom.messages.length ? <div className="wilds-messenger-thread-start"><span className="wilds-messenger-avatar"><Icons.users size={20} /></span><strong>{messenger.selectedRoom.name} is ready.</strong><p>Only the explorers added to this room can participate.</p></div> : null}{messenger.selectedRoom.messages.map((message, index, roomMessages) => { const mine = message.senderId === selfId; const prior = roomMessages[index - 1]; const showDay = !prior || new Date(prior.createdAt).toDateString() !== new Date(message.createdAt).toDateString(); return <div className="wilds-message-block" key={message.id}>{showDay ? <div className="wilds-message-day"><span>{dayLabel(message.createdAt)}</span></div> : null}<div className={`wilds-message-row${mine ? " is-mine" : ""}`}><div className="wilds-message-bubble"><b className="wilds-room-message-sender">{mine ? "You" : message.senderHandle}</b><span>{message.body}</span><small>{shortTime(message.createdAt)}</small></div></div></div>; })}</div>
+        {selectedPeer && resourceExchange && resourcesOpen ? <div style={{ maxHeight: '50vh', overflowY: 'auto', padding: 10 }}>{resourceExchange}</div> : null}
         <form className="wilds-messenger-composer" onSubmit={async (event) => { event.preventDefault(); const outgoing = roomDraft.trim(); if (!outgoing) return; try { await messenger.sendRoom(outgoing); setRoomDraft(""); } catch (cause) { setRoomError(cause instanceof Error ? cause.message : "Room message not sent"); } }}><div><textarea aria-label={`Message ${messenger.selectedRoom.name}`} maxLength={2_000} onChange={(event) => setRoomDraft(event.target.value)} placeholder="Message room…" rows={1} value={roomDraft} /><button aria-label="Send room message" disabled={!roomDraft.trim()} type="submit"><Icons.send size={19} /></button></div><small>Private to {messenger.selectedRoom.members.length} Receiz IDs</small></form>
       </div> : roomOpen ? <div className="wilds-messenger-thread wilds-messenger-world-thread">
         <div className="wilds-messenger-messages" ref={listRef}>
@@ -245,6 +253,7 @@ export function WildsMessenger({
             </div>;
           })}
         </div>
+        {selectedPeer && resourceExchange && resourcesOpen ? <div style={{ maxHeight: '50vh', overflowY: 'auto', padding: 10 }}>{resourceExchange}</div> : null}
         <form className="wilds-messenger-composer" onSubmit={async (event) => {
           event.preventDefault();
           const outgoing = roomDraft.trim();
@@ -279,6 +288,7 @@ export function WildsMessenger({
                 <div aria-label={`Message from ${message.senderHandle}. Tap for reactions`} className="wilds-message-bubble" onClick={() => setReactionFor((current) => current === message.id ? null : message.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setReactionFor((current) => current === message.id ? null : message.id); }} role="button" tabIndex={0}>
                   {reply ? <span className="wilds-message-reply"><b>{reply.senderId === selfId ? "You" : reply.senderHandle}</b>{reply.body}</span> : null}
                   {message.context?.kind === "phi-transfer" ? <span className="wilds-message-phi-transfer"><small>WALLET TRANSACTION</small><strong><PhiNetworkAmount value={formatWildsPhiExact(message.context.amountPhiMicro)} /></strong><em>Committed by source proof object</em></span>
+                    : message.context?.kind === "resource-offer" ? <span className="wilds-message-card-transfer"><small>RESOURCE CARD</small><strong>{message.context.title}</strong><em>{receivedResourceClaims.includes(message.context.claimId) || messages.some(candidate => candidate.context?.kind === 'portable-claim' && candidate.context.claimId === (message.context?.kind === 'resource-offer' ? message.context.claimId : '')) ? 'Received · contents added to Satchel' : mine ? 'Ready for your recipient' : 'Food and resources · import to use'}</em>{!mine && onClaimResource && !receivedResourceClaims.includes(message.context.claimId) ? <button disabled={claimingTransferId === message.context.claimId} type="button" onClick={event => { event.stopPropagation(); const offer = message.context; if (offer?.kind !== 'resource-offer') return; setClaimingTransferId(offer.claimId); void onClaimResource(offer.claimProof).then(() => setReceivedResourceClaims(current => [...current, offer.claimId])).catch(error => setRoomError(error instanceof Error ? error.message.replaceAll('_', ' ') : 'Resource card could not be received.')).finally(() => setClaimingTransferId(null)); }}>{claimingTransferId === message.context.claimId ? 'Receiving…' : 'Receive & use'}</button> : null}{mine ? <button type="button" onClick={event => { event.stopPropagation(); const offer = message.context; if (offer?.kind === 'resource-offer') void shareClaim(offer.claimId, offer.claimProof, offer.title); }}>Share claim</button> : null}</span>
                     : message.context?.kind === "portable-claim" ? <span className="wilds-message-phi-transfer"><small>PLAYABLE PROOF CLAIM</small><strong>{message.context.title}</strong><em>{message.context.claimKind.replaceAll("-", " ")} · committed by source proof object</em></span>
                     : offer ? <span className="wilds-message-card-transfer"><small>ONE-USE CARD CLAIM</small><span className="wilds-message-card-scene"><WildsCardScene asset={offer.card} origin="https://wildz.quest" qr="" tapToFlip /></span><strong>{offer.card.manifest.name}</strong><em>{offerClaimed ? "Claimed · custody moved exactly once" : mine ? `Awaiting ${offer.targetHandle}` : "Source verified · accept into your Vault"}</em>{mine && !offerClaimed && offerContext?.claimId && offerContext.claimProof ? <button onClick={(event) => { event.stopPropagation(); void shareClaim(offerContext.claimId!, offerContext.claimProof!, offer.card.manifest.name); }} type="button">{sharedClaimId === offerContext.claimId ? "Claim link ready" : "Share claim"}</button> : null}{!mine && !offerClaimed && onClaimCard ? <button disabled={claimingTransferId === offer.instrument.plan.transferId} onClick={(event) => { event.stopPropagation(); setClaimingTransferId(offer.instrument.plan.transferId); void onClaimCard(offer).finally(() => setClaimingTransferId(null)); }} type="button">{claimingTransferId === offer.instrument.plan.transferId ? "Claiming…" : "Claim card"}</button> : null}</span>
                     : message.context?.kind === "card-transfer" ? <span className="wilds-message-card-transfer"><small>CARD TRANSFER COMMITTED</small><span className="wilds-message-card-scene"><WildsCardScene asset={message.context.card} origin="https://wildz.quest" qr="" tapToFlip /></span><strong>{message.context.card.manifest.name}</strong><em>Receiver admitted · sender Vault reconciled</em></span>
@@ -292,6 +302,7 @@ export function WildsMessenger({
             </div>;
           })}
         </div>
+        {selectedPeer && resourceExchange && resourcesOpen ? <div style={{ maxHeight: '50vh', overflowY: 'auto', padding: 10 }}>{resourceExchange}</div> : null}
         <form className="wilds-messenger-composer" onSubmit={async (event) => {
           event.preventDefault();
           if (!draft.trim() || composerSendingRef.current) return;
@@ -304,7 +315,7 @@ export function WildsMessenger({
           finally { composerSendingRef.current = false; }
         }}>
           {replyTo ? <div className="wilds-messenger-replying"><span><small>Replying to {replyTo.senderId === selfId ? "yourself" : replyTo.senderHandle}</small><strong>{replyTo.body}</strong></span><button aria-label="Cancel reply" onClick={() => setReplyTo(null)} type="button"><Icons.close size={15} /></button></div> : null}
-          <div>{selectedPeer && onSendPhi ? <button aria-label={`Send Phi to ${selectedPeer.handle}`} className="wilds-messenger-wallet-action" onClick={() => onSendPhi(selectedPeer)} title="Send Phi" type="button">Φ</button> : null}<textarea aria-label={`Message ${selectedPeer?.handle ?? "explorer"}`} maxLength={WILDS_DIRECT_MESSAGE_MAX_LENGTH} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
+          <div>{selectedPeer && resourceExchange ? <button aria-label={`Send resources to ${selectedPeer.handle}`} aria-expanded={resourcesOpen} className="wilds-messenger-wallet-action" onClick={() => setResourcesOpen(current => !current)} title="Send food or resources" type="button"><Icons.products size={17} /></button> : null}{selectedPeer && onSendPhi ? <button aria-label={`Send Phi to ${selectedPeer.handle}`} className="wilds-messenger-wallet-action" onClick={() => onSendPhi(selectedPeer)} title="Send Phi" type="button">Φ</button> : null}<textarea aria-label={`Message ${selectedPeer?.handle ?? "explorer"}`} maxLength={WILDS_DIRECT_MESSAGE_MAX_LENGTH} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && matchMedia("(pointer: fine)").matches) {
               event.preventDefault();
               event.currentTarget.form?.requestSubmit();

@@ -13,6 +13,7 @@ import { WildzMarketSheet } from "@/features/market/WildzMarketSheet";
 import { PlayCampaign } from "@/features/play/PlayCampaign";
 import { generateIdentityBoundWildzCharacter, type WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { applyWildsInput, createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
+import type { WildsResourcePackageV1 } from "@/features/play/wilds-resource-package";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import {
   createWildsPlayerVault,
@@ -156,6 +157,7 @@ function clearWildzAuthQuery() {
 
 export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOverlay }) {
   const [overlay, setOverlay] = useState<WildzOverlay>(initialOverlay);
+  const [retainedOwnerProfile, setRetainedOwnerProfile] = useState(false);
   const shellOverlayRef = useRef<HTMLElement | null>(null);
   const shellOverlayOriginRef = useRef<HTMLElement | null>(null);
   const shellFocusFrameRef = useRef<number | null>(null);
@@ -301,6 +303,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const viewingOwnProfile = !overlay
     || overlay.kind !== "profile"
     || (overlay.mode !== "public" && overlay.username.toLowerCase() === `@${ownerUsername}`.toLowerCase());
+  const ownerProfileOpen = overlay?.kind === 'profile' && viewingOwnProfile;
+  useEffect(() => { setRetainedOwnerProfile(false); }, [identity?.keyId]);
+  useEffect(() => { if (ownerProfileOpen) setRetainedOwnerProfile(true); }, [ownerProfileOpen]);
   const ownerSourceProfile = useMemo(() => createOwnerPublicWildzProfile({
     username: ownerUsername,
     displayName: identity?.displayName ?? undefined,
@@ -331,8 +336,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (next.kind === "profile" || next.kind === "market") emitWildsPlaytestEvent(next.kind, "start");
     shellOverlayOriginRef.current = fallbackOrigin
       ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    if (next.kind === 'profile' && next.mode !== 'public' && next.username.toLowerCase() === `@${ownerUsername}`.toLowerCase()) setRetainedOwnerProfile(true);
     setOverlay(next);
-  }, []);
+  }, [ownerUsername]);
   const closeShellOverlay = useCallback(() => setOverlay(null), []);
 
   useEffect(() => {
@@ -1243,6 +1249,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     }, true);
   }, [acceptSnapshot]);
 
+  const admitPurchasedResourcePackage = useCallback((packageProof: WildsResourcePackageV1) => {
+    window.dispatchEvent(new CustomEvent("wildz:resource-package-settled", { detail: { packageId: packageProof.packageId } }));
+  }, []);
+
   const admitPurchasedMarketAsset = useCallback((asset: PortableCardAsset) => {
     const current = continuityRef.current;
     if (!current?.playState || !current.playerContinuity) throw new Error("wildz_market_vault_unavailable");
@@ -1418,12 +1428,14 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         <button type="button" onClick={() => openShellOverlay({ kind: "market" })} aria-label="Open player market">↝</button>
       </nav> : null}
 
-      {overlay ? (
-        <section className="wildz-shell-overlay" ref={shellOverlayRef} role="dialog" aria-modal="true" aria-label={`${overlay.kind} panel`}>
+      {overlay || retainedOwnerProfile ? (
+        <section className="wildz-shell-overlay" ref={shellOverlayRef} hidden={!overlay} inert={!overlay ? true : undefined} aria-hidden={!overlay ? true : undefined} role={overlay ? 'dialog' : undefined} aria-modal={overlay ? true : undefined} aria-label={`${overlay?.kind ?? 'profile'} panel`}>
           <button type="button" className="wildz-overlay-dismiss" onClick={closeShellOverlay} aria-label="Return to world">
             <span aria-hidden="true">×</span>
           </button>
-          {overlay.kind === "profile" ? (viewingOwnProfile ? ownerSourceProfile : remoteProfile) ? <WildzProfileSheet
+          {overlay?.kind === "profile" || retainedOwnerProfile ? (viewingOwnProfile ? ownerSourceProfile : remoteProfile) ? <WildzProfileSheet
+            key={viewingOwnProfile ? `owner:${identity?.keyId}` : `public:${overlay?.kind === 'profile' ? overlay.username : ''}`}
+            active={overlay?.kind === 'profile'}
             profile={(viewingOwnProfile ? ownerSourceProfile : remoteProfile)!}
             vaultAssets={viewingOwnProfile ? ownerPlayState.inventory : undefined}
             bodyState={viewingOwnProfile ? readCurrentBodyState : undefined}
@@ -1448,7 +1460,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             <Image src="/brand/wildz-mark.svg" alt="" width={48} height={48} />
             <strong>{profileStatus === "loading" ? "Finding explorer…" : "Explorer unavailable"}</strong>
             <span>{profileStatus === "missing" || profileStatus === "unpublished" ? "This Wildz profile has not been published yet." : profileStatus === "error" ? "Receiz profile recovery is temporarily unavailable." : "Preparing profile"}</span>
-          </div> : overlay.kind === "vault" ? <WildzVaultSheet
+          </div> : null}
+          {overlay?.kind === "profile" || !overlay ? null : overlay.kind === "vault" ? <WildzVaultSheet
             cards={ownerSourceProfile.vault}
             title="Card Vault"
             onAddVault={async (file) => {
@@ -1465,6 +1478,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             buyer={`@${ownerUsername}`}
             connected={proofSessionConnected}
             onSettlement={admitPurchasedMarketAsset}
+            onResourcePackageSettlement={admitPurchasedResourcePackage}
           /> : <div className="wildz-shell-overlay-placeholder">
             <Image src="/brand/wildz-mark.svg" alt="" width={48} height={48} />
             <strong>{overlay.kind}</strong>

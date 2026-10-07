@@ -1,3 +1,4 @@
+import { admitWildsResourcePackageClaim } from "@/lib/receiz/wilds-resource-package-server";
 import { NextRequest, NextResponse } from "next/server";
 import { receizKaiNow } from "@receiz/sdk";
 import { decodeWildsPortableClaim } from "@/features/play/wilds-portable-claim";
@@ -15,6 +16,9 @@ import type { WildsWalletReadAuthority } from "@/lib/receiz/wilds-wallet-route-a
 import { deriveKaiKlokMomentFromUPulse } from "@/features/play/kai-klok-moment";
 import { createKaiTemporalRoot } from "@/features/play/kai-temporal-root";
 import { executeWildsWorldCommand } from "@/lib/receiz/wilds-world-server";
+import { wildsResourceCustodySnapshot } from "@/lib/receiz/wilds-world-server";
+import { requireWildsResourceCustodyRail } from "@/lib/receiz/wilds-resource-custody-capability";
+import { assertWildsLegacyResourceAdmission, WILDS_LEGACY_PACKAGE_HISTORY_CONFLICT, WILDS_LEGACY_PACKAGE_HISTORY_MESSAGE } from "@/features/play/wilds-legacy-package-history";
 
 function failure(cause: unknown) {
   const error = cause instanceof Error ? cause.message : "wilds_portable_claim_failed";
@@ -22,7 +26,7 @@ function failure(cause: unknown) {
     : /expired/.test(error) ? 410
       : /invalid|mismatch|encoding|carrier|clock/.test(error) ? 400
         : /zero-write|stale|conflict/.test(error) ? 409 : 503;
-  return NextResponse.json({ ok: false, error }, { status, headers: { "cache-control": "private, no-store" } });
+  return NextResponse.json({ ok: false, error, ...(error === WILDS_LEGACY_PACKAGE_HISTORY_CONFLICT ? { message: WILDS_LEGACY_PACKAGE_HISTORY_MESSAGE } : {}) }, { status, headers: { "cache-control": "private, no-store" } });
 }
 
 export async function POST(request: NextRequest) {
@@ -39,6 +43,19 @@ export async function POST(request: NextRequest) {
       profileHandle: actor.handle
     });
     const rail = createReceizCommerceAdapter({ accessToken: actor.accessToken });
+    if(claim.carrier.kind==="bearer-resource" || claim.carrier.kind==="bearer-material"){
+      requireWildsResourceCustodyRail(rail);
+      const source=(await wildsResourceCustodySnapshot(request,actor)).projection;
+      const id=claim.carrier.kind==="bearer-resource"?claim.carrier.offer.resourceLot.lotId:claim.carrier.offer.materialLot.lotId;
+      assertWildsLegacyResourceAdmission(source, claim.carrier.kind === "bearer-resource" ? "resource" : "material", id);
+      if(claim.carrier.kind==="bearer-resource" ? !source.resourceLots[id] || source.reservedResourceLots?.[id]
+        : !source.materialLots[id] || source.reservedMaterialLots[id] || source.consumedMaterialLots[id] || source.storedMaterialLots[id])throw Error("wilds_resource_package_member_unavailable");
+    }
+
+    if (claim.carrier.kind === "bearer-resource-package") {
+      const result=await admitWildsResourcePackageClaim(request,claim.carrier.offer);
+      return NextResponse.json({ok:true,status:"committed",claimId:claim.claimId,kind:claim.kind,...result},{headers:{"cache-control":"private, no-store"}});
+    }
 
     if (claim.carrier.kind === "bearer-card") {
       const admission = await claimWildsCardTransfer({ authority, offer: claim.carrier.offer, rail });
@@ -105,7 +122,7 @@ export async function POST(request: NextRequest) {
         commandId: `resource:material:transfer:${admission.receipt.transferId}`,
         kai
       } });
-      const title = admission.materialLot.kind === "timber" ? "Timber" : "Stone";
+      const title = admission.materialLot.kind === "timber" ? "Timber" : admission.materialLot.kind === "hay" ? "Hay" : "Stone";
       const conversation = appendWildsDirectMessage({
         sender: { id: actor.playerId, handle: actor.handle },
         recipient: { id: admission.sourceHandle, handle: admission.sourceHandle },

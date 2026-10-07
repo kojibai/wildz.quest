@@ -5,6 +5,15 @@ import { constitutionalDigest, constitutionalPredicate as predicate, deriveConst
 
 /** Adding a command requires choosing its bounded source law at compile time. */
 export const WILDS_COMMAND_LAW = {
+  "resource.package.create": "sources.reserve",
+  "resource.package.begin-transfer": "owner.offer", "resource.package.offer": "owner.offer",
+  "resource.package.plan-transfer":"owner.offer","resource.package.abort-transfer":"verified-title.cancel",
+  "resource.package.transfer.admit": "verified-title.successor", "resource.package.cancel-transfer": "verified-title.cancel",
+  "resource.package.cancel.begin":"verified-title.cancel",
+  "resource.package.unpack": "owner.use", "resource.food.consume": "owner.consume",
+  "resource.package.market.list": "owner.list", "resource.package.market.reserve": "buyer.reserve",
+  "resource.package.market.unreserve": "buyer.exit",
+  "resource.package.market.pay": "buyer.commit", "resource.package.market.release": "verified-title.cancel",
   "creation.construct": "materials.create",
   "creation.evolve": "materials.create",
   "community.transition": "community.adopted-procedures",
@@ -32,7 +41,11 @@ type WorldDecisionOutcome = { after?: WildsWorldProjection; events?: readonly Wi
 /** One synchronous execution scope: hash the source and command once, never cache mutable world state globally. */
 export function createWorldConstitutionalDecisionScope({ before, command, authority }: WorldDecisionSource) {
   const sourceState = constitutionalDigest(before);
-  const commandDigest = constitutionalDigest(command);
+  const commandIdentity = { ...command };
+  // Resource intents have stable cause IDs. Retry time belongs to the event,
+  // while the exact sources, recipient and effect remain bound by this digest.
+  if(command.type.startsWith("resource.package.") || command.type==="resource.food.consume" || command.type==="resource.transfer.admit" || command.type==="resource.material.transfer.admit")delete commandIdentity.kai;
+  const commandDigest = constitutionalDigest(commandIdentity);
   const law = Object.hasOwn(WILDS_COMMAND_LAW, command.type) ? WILDS_COMMAND_LAW[command.type] : null;
   const team = "teamId" in command ? before.teams[command.teamId] : undefined;
   const teamRole = team?.members?.find(member => member.playerId === authority.actorId)?.role

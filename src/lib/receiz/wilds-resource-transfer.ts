@@ -187,6 +187,8 @@ export async function claimWildsResourceTransfer(input: Readonly<{
 }>): Promise<WildsResourceTransferAdmission> {
   const { resourceLot, sourceHandle, targetHandle, instrument } = validateWildsResourceTransferOffer(input.offer);
   if (!sameWildzPlayerCoordinate(targetHandle, input.authority.profileHandle)) throw new Error("wilds_resource_transfer_recipient_invalid");
+  const projected=await projectWildsResourceSubjectAdmissionV122(resourceLot,input.authority.ownerReceizId);
+  if(projected.subjectId!==input.offer.subjectId || projected.admittedProofDigest!==instrument.plan.subjectDigest)throw Error("wilds_resource_transfer_subject_invalid");
   const inspection = await input.rail.inspectBearerTransferInstrument(instrument);
   if (!inspection.valid || !inspection.offlineVerified || inspection.instrument.artifactDigest !== instrument.artifactDigest) throw new Error("wilds_resource_transfer_instrument_invalid");
   const result = await input.rail.claimBearerTransferInstrument(instrument, { receizId: input.authority.ownerReceizId, capabilityDigest: capabilityDigest(input.authority) });
@@ -236,6 +238,8 @@ export async function claimWildsMaterialTransfer(input: Readonly<{
 }>): Promise<WildsMaterialTransferAdmission> {
   const { materialLot, sourceHandle, targetHandle, instrument } = validateWildsMaterialTransferOffer(input.offer);
   if (!sameWildzPlayerCoordinate(targetHandle, input.authority.profileHandle)) throw new Error("wilds_material_transfer_recipient_invalid");
+  const projected=await projectWildsMaterialSubjectAdmissionV122(materialLot,input.authority.ownerReceizId);
+  if(projected.subjectId!==input.offer.subjectId || projected.admittedProofDigest!==instrument.plan.subjectDigest)throw Error("wilds_material_transfer_subject_invalid");
   const inspection = await input.rail.inspectBearerTransferInstrument(instrument);
   if (!inspection.valid || !inspection.offlineVerified || inspection.instrument.artifactDigest !== instrument.artifactDigest) throw new Error("wilds_material_transfer_instrument_invalid");
   const result = await input.rail.claimBearerTransferInstrument(instrument, { receizId: input.authority.ownerReceizId, capabilityDigest: capabilityDigest(input.authority) });

@@ -1,0 +1,22 @@
+/** Run after the test build. Synthetic CPU evidence; browser frames require profiling. */
+import { performance } from 'node:perf_hooks';
+import { createStoredWildzPlayState, saveWildzRestoredPlayState } from '../.test-build/src/features/identity/wildz-restore.js';
+import { initialPlayState } from '../.test-build/src/features/play/game-state.js';
+import { sealCollectedCard, wildsCardVerificationDiagnostics } from '../.test-build/src/features/play/portable-card.js';
+import { admitLocallySealedWildsInventory } from '../.test-build/src/features/play/admitted-inventory.js';
+import { createMemoryWildzContinuityDatabase } from '../.test-build/tests/support/memory-wildz-continuity-database.js';
+const count = Number(process.argv[2] ?? 1000);
+if (!Number.isSafeInteger(count) || count < 1 || count > 10000) throw Error('card_count_invalid');
+const owner = 'action_save_benchmark', session = { schema: 'receiz.wildz.identity_session.v1', keyId: 'action-save-benchmark', actorId: owner, username: owner, displayName: 'Explorer', portableStateStatus: 'verified', localAuthority: 'verified', remoteStatus: 'offline' };
+const inventory = admitLocallySealedWildsInventory(Array.from({ length: count }, (_, i) => sealCollectedCard({ formId: 'mintcub-1', ownerReceizId: owner, encounterId: `action-save:${i}`, capturedAt: '2026-10-07T00:00:00.000Z' })));
+const state = { ...initialPlayState, inventory, selectedAssetId: inventory[0].id };
+const database = createMemoryWildzContinuityDatabase();
+await saveWildzRestoredPlayState({ database, session, playState: state });
+const stored = createStoredWildzPlayState(session, state), oldClone = structuredClone(stored.playState);
+let start = performance.now();
+createStoredWildzPlayState(session, oldClone);
+const storageCopyVerificationMs = performance.now() - start;
+const before = wildsCardVerificationDiagnostics().executions;
+start = performance.now();
+await saveWildzRestoredPlayState({ database, session, playState: { ...state, worldMastery: state.worldMastery + 1 } });
+console.log(JSON.stringify({ scenario: 'A finite action save after IndexedDB clones a previously verified collection; synthetic CPU sample.', cards: count, storageCopyVerificationMs, currentActionSaveMs: performance.now() - start, repeatedCardVerifications: wildsCardVerificationDiagnostics().executions - before }, null, 2));

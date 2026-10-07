@@ -7,6 +7,7 @@ import { verifyWildsConstructionSite } from "./wilds-construction-site";
 import { verifyWildsHarvestedSourceState, verifyWildsMaterialLot, verifyWildsStructure } from "./wilds-steward-construction";
 import { wildsMaterialCustodian, type WildsWorldProjection } from "./wilds-world-state";
 import { projectWildsCreationPersistence, mergeWorldCreationSourceRows, type WildsCreationPersistence } from "./creation/world-source";
+import { projectWildsResourcePackagePersistence, preserveWildsResourcePackageHistory, mergeWildsResourcePackagePersistence, type WildsResourcePackagePersistence } from "./wilds-resource-package-continuity";
 
 const ownedProofCache = createWildsExactProofCache();
 
@@ -34,7 +35,7 @@ function mergeMaterialLifecycle(
 }
 
 export function projectWildsOwnedWorldAdditions(
-  world: Pick<WildsWorldProjection, "constructionSites" | "structures" | "harvestedSources" | "materialLots" | "materialCustody" | "consumedMaterialLots" | "reservedMaterialLots" | "storedMaterialLots"> & Partial<WildsConstructionPersistence> & Partial<WildsCreationPersistence>,
+  world: Pick<WildsWorldProjection, "constructionSites" | "structures" | "harvestedSources" | "materialLots" | "materialCustody" | "consumedMaterialLots" | "reservedMaterialLots" | "storedMaterialLots"> & Partial<WildsConstructionPersistence> & Partial<WildsCreationPersistence> & WildsResourcePackagePersistence,
   ownerReceizId: string
 ): WildsOwnedWorldAdditions {
   const materialLots = sortedRecord(Object.entries(world.materialLots).filter(([lotId, lot]) =>
@@ -45,6 +46,7 @@ export function projectWildsOwnedWorldAdditions(
     .filter(([lotId, targetId]) => ownedLotIds.has(lotId) && typeof targetId === "string" && targetId.length > 0));
   const creation = projectWildsCreationPersistence(world, ownerReceizId), construction = projectWildsConstructionPersistence(world, ownerReceizId);
   return {
+    ...projectWildsResourcePackagePersistence(world, ownerReceizId),
     ...construction, ...creation,
     constructionCommandReceipts: { ...construction.constructionCommandReceipts, ...creation.constructionCommandReceipts },
     constructionSites: sortedRecord(Object.entries(world.constructionSites).filter(([siteId, site]) =>
@@ -91,7 +93,7 @@ export function mergeWildsOwnedWorldAdditions(
   const materialLifecycle = mergeMaterialLifecycle(world, owned);
   const construction = mergeWildsConstructionPersistence(owned, world);
   const creation = projectWildsCreationPersistence({ ...mergeWorldCreationSourceRows(world, owned), materialLots, materialCustody: { ...world.materialCustody, ...owned.materialCustody }, consumedMaterialLots: materialLifecycle.consumedMaterialLots });
-  return {
+  const merged = {
     ...world,
     ...construction, ...creation,
     constructionCommandReceipts: { ...construction.constructionCommandReceipts, ...creation.constructionCommandReceipts },
@@ -102,6 +104,7 @@ export function mergeWildsOwnedWorldAdditions(
     materialCustody: { ...world.materialCustody, ...(owned.materialCustody ?? {}) },
     ...materialLifecycle
   };
+  return preserveWildsResourcePackageHistory(world, { ...merged, ...mergeWildsResourcePackagePersistence(world, owned) });
 }
 
 export function mergeWildsOwnedAdditionSets(
@@ -132,6 +135,7 @@ export function mergeWildsOwnedAdditionSets(
   const construction = mergeWildsConstructionPersistence(left, right);
   const creation = projectWildsCreationPersistence({ ...mergeWorldCreationSourceRows(left, right), materialLots, materialCustody: { ...left.materialCustody, ...right.materialCustody }, consumedMaterialLots: materialLifecycle.consumedMaterialLots });
   return {
+    ...mergeWildsResourcePackagePersistence(left, right),
     ...construction, ...creation,
     constructionCommandReceipts: { ...construction.constructionCommandReceipts, ...creation.constructionCommandReceipts },
     constructionSites,

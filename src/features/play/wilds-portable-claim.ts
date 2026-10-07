@@ -1,3 +1,5 @@
+import { verifyWildsResourcePackage, wildsResourcePackageTitle } from "./wilds-resource-package";
+import type { WildsResourcePackageTransferOffer } from "@/lib/receiz/wilds-resource-package";
 import { canonicalPortableCardJson, sha256PortableBasis, verifyAnyWildsCard } from "./portable-card";
 import type { WildsCardTransferOffer } from "@/lib/receiz/wilds-card-transfer";
 import { verifyWildsResourceLot } from "./wilds-resource-lot";
@@ -6,7 +8,7 @@ import { verifyWildsMaterialLot } from "./wilds-steward-construction";
 import type { WildsMaterialTransferOffer } from "@/lib/receiz/wilds-resource-transfer";
 
 export const WILDS_PORTABLE_CLAIM_SCHEMA = "receiz.wildz.portable-claim.v1" as const;
-export const WILDS_PORTABLE_CLAIM_MAX_BYTES = 128 * 1024;
+export const WILDS_PORTABLE_CLAIM_MAX_BYTES = 768 * 1024;
 
 export type WildsPortableClaimKind =
   | "phi"
@@ -37,7 +39,9 @@ export type WildsBearerMaterialClaimCarrier = Readonly<{
   offer: WildsMaterialTransferOffer;
 }>;
 
-export type WildsPortableClaimCarrier = WildsPortableExecutionCarrier | WildsBearerCardClaimCarrier | WildsBearerResourceClaimCarrier | WildsBearerMaterialClaimCarrier;
+export type WildsBearerResourcePackageClaimCarrier = Readonly<{kind:"bearer-resource-package";offer:WildsResourcePackageTransferOffer}>;
+
+export type WildsPortableClaimCarrier = WildsBearerResourcePackageClaimCarrier | WildsPortableExecutionCarrier | WildsBearerCardClaimCarrier | WildsBearerResourceClaimCarrier | WildsBearerMaterialClaimCarrier;
 
 export type WildsPortableClaim = Readonly<{
   schema: typeof WILDS_PORTABLE_CLAIM_SCHEMA;
@@ -106,6 +110,19 @@ function transitionCarrier(value: unknown): WildsPortableExecutionCarrier {
 function claimCarrier(value: unknown): WildsPortableClaimCarrier {
   const item = record(value, "wilds_portable_claim_carrier_invalid");
   if (item.kind === "portable-execution") return transitionCarrier(item);
+  if (item.kind === "bearer-resource-package") {
+    try {
+      const offer=item.offer as WildsResourcePackageTransferOffer,instrument=offer.instrument,plan=instrument.plan;
+      if(offer.schema!=="receiz.wilds.resource-package-transfer-offer.v1" || !verifyWildsResourcePackage(offer.package)
+        || !offer.subjectId || !offer.sourceHandle || (offer.targetHandle!==null && !offer.targetHandle)
+        || instrument.schema!=="receiz.bearer.instrument.v1" || plan.schema!=="receiz.bearer.transfer_plan.v1"
+        || plan.subjectId!==offer.subjectId || plan.transferId!==plan.transferDigest
+        || !plan.policy.requiresRecipientAcceptance || instrument.status!=="pending-acceptance"
+        || (offer.targetHandle===null ? !plan.policy.openBearer || plan.policy.recipientReceizId!==null
+          : plan.policy.openBearer || typeof plan.policy.recipientReceizId!=="string" || !plan.policy.recipientReceizId))throw Error("invalid");
+      return Object.freeze({kind:"bearer-resource-package" as const,offer});
+    }catch{throw Error("wilds_portable_claim_carrier_invalid");}
+  }
   if (item.kind === "bearer-card") {
     try {
       const offer = item.offer as WildsCardTransferOffer;
@@ -176,7 +193,13 @@ function basis(input: WildsPortableClaimInput) {
     proofObjectDigest: exactDigest(source.proofObjectDigest, "wilds_portable_claim_source_invalid")
   });
   const normalizedCarrier = claimCarrier(input.carrier);
-  if (normalizedCarrier.kind === "bearer-card") {
+  if (normalizedCarrier.kind === "bearer-resource-package") {
+    const {offer}=normalizedCarrier,{plan}=offer.instrument;
+    if(input.kind!=="resource" || title!==wildsResourcePackageTitle(offer.package)
+      || normalizedSource.ownerReceizId!==plan.currentOwnerReceizId || normalizedSource.subjectId!==offer.subjectId
+      || normalizedSource.head!==plan.expectedSubjectHead || normalizedSource.proofObjectDigest!==plan.subjectDigest
+      || handle!==offer.targetHandle || String(input.issuedAtKai)!==offer.instrument.issuedAtKai || String(input.expiresAtKai)!==plan.policy.expiresAtKai)throw Error("wilds_portable_claim_carrier_invalid");
+  } else if (normalizedCarrier.kind === "bearer-card") {
     const { offer } = normalizedCarrier;
     const { plan } = offer.instrument;
     if ((input.kind !== "card" && input.kind !== "creature-custody")
@@ -206,7 +229,7 @@ function basis(input: WildsPortableClaimInput) {
   } else if (normalizedCarrier.kind === "bearer-material") {
     const { offer } = normalizedCarrier;
     const { plan } = offer.instrument;
-    const expectedTitle = offer.materialLot.kind === "timber" ? "Timber" : "Stone";
+    const expectedTitle = offer.materialLot.kind === "timber" ? "Timber" : offer.materialLot.kind === "hay" ? "Hay" : "Stone";
     if (input.kind !== "resource" || title !== expectedTitle
       || normalizedSource.ownerReceizId !== plan.currentOwnerReceizId
       || normalizedSource.subjectId !== offer.subjectId
@@ -267,6 +290,13 @@ export function createWildsCardPortableClaim(offerInput: WildsCardTransferOffer)
   });
 }
 
+export function createWildsResourcePackagePortableClaim(offerInput:WildsResourcePackageTransferOffer) {
+  const {offer}=claimCarrier({kind:"bearer-resource-package",offer:offerInput}) as WildsBearerResourcePackageClaimCarrier;
+  return createWildsPortableClaim({kind:"resource",title:wildsResourcePackageTitle(offer.package),
+    source:{ownerReceizId:offer.instrument.plan.currentOwnerReceizId,subjectId:offer.subjectId,head:offer.instrument.plan.expectedSubjectHead,proofObjectDigest:offer.instrument.plan.subjectDigest},
+    recipient:{handle:offer.targetHandle},issuedAtKai:Number(offer.instrument.issuedAtKai),expiresAtKai:Number(offer.instrument.plan.policy.expiresAtKai),carrier:{kind:"bearer-resource-package",offer}});
+}
+
 export function createWildsResourcePortableClaim(offerInput: WildsResourceTransferOffer) {
   const { offer } = claimCarrier({ kind: "bearer-resource", offer: offerInput }) as WildsBearerResourceClaimCarrier;
   const issuedAtKai = Number(offer.instrument.issuedAtKai);
@@ -295,7 +325,7 @@ export function createWildsMaterialPortableClaim(offerInput: WildsMaterialTransf
   if (!Number.isSafeInteger(issuedAtKai) || !Number.isSafeInteger(expiresAtKai)) throw new Error("wilds_portable_claim_kai_invalid");
   return createWildsPortableClaim({
     kind: "resource",
-    title: offer.materialLot.kind === "timber" ? "Timber" : "Stone",
+    title: offer.materialLot.kind === "timber" ? "Timber" : offer.materialLot.kind === "hay" ? "Hay" : "Stone",
     source: {
       ownerReceizId: offer.instrument.plan.currentOwnerReceizId,
       subjectId: offer.subjectId,

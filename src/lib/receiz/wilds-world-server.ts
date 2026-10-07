@@ -1,3 +1,7 @@
+import { requireWildsResourceCustodyRail, assertWildsFoodGatherAdmission,resolveWildsResourceRecipientIdentity } from "./wilds-resource-custody-capability";
+import { receizKaiNow } from "@receiz/sdk";
+import { projectWildsResourcePackageSubjectAdmissionV122 } from "./wilds-resource-package";
+import { projectWildsResourceSubjectAdmissionV122, projectWildsMaterialSubjectAdmissionV122 } from "./wilds-resource-transfer";
 import { deriveKaiKlokMoment, KAI_PULSE_DURATION_MS } from "@/features/play/kai-klok-moment";
 import type { NextRequest } from "next/server";
 import { WildsWorldService, type WildsWorldCommand } from "@/features/play/wilds-world-service";
@@ -8,12 +12,15 @@ import { verifyWildsWorldCommandKai, worldCommandRequiresCard } from "@/features
 import { platform } from "@/lib/platform";
 import { authorizeWildsMultiplayerCard, resolveWildsMultiplayerActor, type WildsMultiplayerActor } from "./wilds-multiplayer-server";
 import { createReceizWildsWorldRepository, type WildsWorldPublication, type WildsWorldRepository } from "./wilds-world-repository";
+import { commitWildsConditionalWorldCandidate } from "./wilds-world-conditional-commit";
 import { readWildzProofSessionCookie } from "./wildz-proof-session";
 import { createWildsWorldIdentityPublicationDraft } from "./wilds-world-identity-publication";
 import { createReceizCommerceAdapter } from "./adapter";
 import { executeWildsLivingWorldV124, type WildsLivingWorldV124RuntimeInput } from "./wilds-living-world-v124-runtime";
 import { prepareWildsLivingWorldAuthoritySession } from "./wilds-living-world-authority";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import { assertWildsLegacyResourceAdmission } from "@/features/play/wilds-legacy-package-history";
+import {assertWildsResourcePackagePayingTrade,assertWildsResourcePackageCancelledListing,assertWildsResourcePackageReleasedTrade} from "./wilds-resource-package-market-authority";
 import {
   WILDS_LIVING_WORLD_REDUCER_DIGEST,
   WILDS_LIVING_WORLD_REGISTRY_DIGEST,
@@ -27,6 +34,7 @@ export type { WildsWorldPublication } from "./wilds-world-repository";
 type WildsWorldServerDependencies = Readonly<{
   executeLivingWorldV124?: (input: WildsLivingWorldV124RuntimeInput) => Promise<Readonly<{ status: string; reasonCode?: unknown }>>;
   prepareLivingWorldAuthorityV124?: typeof prepareWildsLivingWorldAuthoritySession;
+  resourcePackageMarketCoordinator?: true;
 }>;
 
 function origin(request: NextRequest) {
@@ -132,6 +140,20 @@ async function recoverCanonicalWorldBeforeMutation(request: NextRequest, actor?:
     return authoritative;
   }
   return local;
+}
+
+async function recoverConditionalWorldBeforeMutation(request: NextRequest, actor: WildsMultiplayerActor) {
+  const source = repository();
+  if (!source.recoverConditional) throw Error("receiz_conditional_resource_custody_unavailable");
+  const record = await Promise.race([
+    source.recoverConditional(sourceUrl(request), actor),
+    new Promise<never>((_, reject) => setTimeout(() => reject(Error("wilds_resource_custody_recovery_timeout")), 1_200))
+  ]);
+  const current = new WildsWorldService({ checkpoint: record.checkpoint, events: record.eventTail });
+  // This is the verified source head, even when a former local projection fork
+  // lacks ancestry in it. An unadmitted local branch cannot veto native custody.
+  root()[serviceKey] = current;
+  return current;
 }
 
 async function publish(
@@ -278,10 +300,20 @@ export function bootstrapWildsWorld(request: NextRequest) {
   });
 }
 
-export async function worldSnapshot(request: NextRequest) {
+/** Custody preflights must use the verified source head. Public feeds and local
+ * projections can predate package history and cannot authorize native claims. */
+export function wildsResourceCustodySnapshot(request: NextRequest, actor: WildsMultiplayerActor) {
+  if (actor.practice || !actor.accessToken) throw Error("wilds_resource_package_authority_required");
+  return serializeWildsWorldMutation(async () => {
+    const current = await recoverConditionalWorldBeforeMutation(request, actor);
+    return { projection: current.snapshot(), mode: "receiz_live" as const };
+  });
+}
+
+export async function worldSnapshot(request: NextRequest, actor?:WildsMultiplayerActor) {
   try {
     const recovered = await Promise.race([
-      repository().recover(sourceUrl(request)),
+      repository().recover(sourceUrl(request),actor),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 1_200))
     ]);
     const record = findWildsWorldRecord(recovered);
@@ -309,9 +341,13 @@ export async function worldSnapshot(request: NextRequest) {
 export function executeWildsWorldCommand(request: NextRequest, body: unknown, dependencies: WildsWorldServerDependencies = {}) {
   return serializeWildsWorldMutation(async () => {
   const value = body && typeof body === "object" ? body as Record<string, unknown> : {};
-  const actor = await resolveWildsMultiplayerActor(request, value.guestId);
   const command = value.command as WildsWorldCommand;
+  if(command?.type?.startsWith("resource.package.market.") && dependencies.resourcePackageMarketCoordinator!==true)throw Error("wilds_resource_package_market_coordinator_required");
+  const actor = await resolveWildsMultiplayerActor(request, value.guestId);
   const kai = verifyWildsWorldCommandKai(command);
+  const conditionalResource = command.type.startsWith("resource.package.") || command.type === "resource.food.consume"
+    || command.type === "resource.transfer.admit" || command.type === "resource.material.transfer.admit";
+  if(conditionalResource && (actor.practice || !actor.accessToken))throw Error("wilds_resource_package_authority_required");
   if (command.type === "community.transition") {
     if (actor.practice) throw new Error("wilds_community:Restore your Identity Seal in Wildz before adopting or changing community rules.");
   }
@@ -321,7 +357,7 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
   const card = worldCommandRequiresCard(command) ? value.card as PortableCardAsset | undefined : optionalHarvestCard;
   if (card) authorizeWildsMultiplayerCard(actor, card, value.cardAdmission);
   else if (worldCommandRequiresCard(command)) authorizeWildsMultiplayerCard(actor, card, value.cardAdmission);
-  await hydrateWildsWorldFromReceiz(request);
+  if (!conditionalResource) await hydrateWildsWorldFromReceiz(request);
   if (actor.practice) {
     if (command.type === "structure.trail-shelter.build" || command.type === "structure.trail-bridge.build"
       || command.type === "construction.site.place" || command.type === "construction.site.contribute" || command.type === "construction.site.work") {
@@ -339,7 +375,8 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
       publication
     };
   }
-  let current = await recoverCanonicalWorldBeforeMutation(request, actor);
+  let current = conditionalResource ? await recoverConditionalWorldBeforeMutation(request, actor) : await recoverCanonicalWorldBeforeMutation(request, actor);
+  const conditionalBase = conditionalResource ? current : null;
   if (command.type === "community.transition" && !current.snapshot().constitutionalCommandReceipts?.[command.commandId]) {
     const currentKai = deriveKaiKlokMoment({ occurredAt: new Date().toISOString(), authority: "world" }).uPulse;
     if (kai.authority === "local" || Math.abs(currentKai - kai.uPulse) > 120000 / KAI_PULSE_DURATION_MS * 1000000) throw new Error("wilds_community:Refresh the community clock before submitting this action.");
@@ -427,23 +464,131 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
   } else if (command.type === "resource.transfer.admit" || command.type === "resource.material.transfer.admit") {
     if (!actor.accessToken || command.ownerReceizId !== actor.playerId) throw new Error("wilds_world_resource_transfer_authority_required");
     const rail = createReceizCommerceAdapter({ accessToken: actor.accessToken });
+    requireWildsResourceCustodyRail(rail);
+    if(!current.snapshot().constitutionalCommandReceipts?.[command.commandId]){
+      const nativeKai=receizKaiNow().uPulse;
+      if(kai.authority==="local" || Math.abs(nativeKai-kai.uPulse)>120000/KAI_PULSE_DURATION_MS*1000000)throw Error("wilds_resource_package_native_clock_invalid");
+    }
+    const world = current.snapshot();
+    assertWildsLegacyResourceAdmission(world, command.type === "resource.transfer.admit" ? "resource" : "material", command.lotId);
+    const lot = command.type === "resource.transfer.admit" ? world.resourceLots[command.lotId] : world.materialLots[command.lotId];
+    if (!lot || (command.type === "resource.transfer.admit" ? world.reservedResourceLots?.[command.lotId] : world.reservedMaterialLots[command.lotId] || world.consumedMaterialLots[command.lotId] || world.storedMaterialLots[command.lotId])) throw Error("wilds_world_resource_transfer_source_invalid");
+    const projected = command.type === "resource.transfer.admit"
+      ? await projectWildsResourceSubjectAdmissionV122(world.resourceLots[command.lotId]!,actor.receizActorId)
+      : await projectWildsMaterialSubjectAdmissionV122(world.materialLots[command.lotId]!,actor.receizActorId);
     const subject = await rail.subjectStateV122(command.subjectId);
-    if (subject.subjectId !== command.subjectId || subject.head !== command.subjectHead
-      || !sameWildzPlayerCoordinate(subject.ownerReceizId, actor.receizActorId)
-      || !sameWildzPlayerCoordinate(subject.ownerReceizId, actor.handle)) {
+    const transfer = await rail.bearerTransferStatus(command.transferId);
+    if (subject.subjectId !== projected.subjectId || subject.admittedProofDigest !== projected.admittedProofDigest || subject.head !== command.subjectHead
+      || subject.ownerReceizId !== actor.receizActorId || transfer.status !== "claimed" || transfer.subjectId !== command.subjectId || transfer.receiptId !== command.receiptId) {
       throw new Error("wilds_world_resource_transfer_source_invalid");
     }
+    current = new WildsWorldService(before);
     result = current.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
+  } else if (command.type.startsWith("resource.package.") || command.type === "resource.food.consume") {
+    if (!actor.accessToken || actor.practice) throw Error("wilds_resource_package_authority_required");
+    const rail = createReceizCommerceAdapter({accessToken:actor.accessToken});
+    requireWildsResourceCustodyRail(rail);
+    if(!current.snapshot().constitutionalCommandReceipts?.[command.commandId]){
+      const nativeKai=receizKaiNow().uPulse;
+      if(kai.authority==="local" || Math.abs(nativeKai-kai.uPulse)>120000/KAI_PULSE_DURATION_MS*1000000)throw Error("wilds_resource_package_native_clock_invalid");
+    }
+    if(command.type==="resource.package.create")for(const member of command.package.members){
+      if(member.kind==="food" && !current.snapshot().foodItems?.[member.id])await assertWildsFoodGatherAdmission(rail,member,actor.receizActorId,receizKaiNow().uPulse);
+    }
+    if (command.type !== "resource.package.create" && command.type !== "resource.food.consume" && "packageId" in command) {
+      const packed = current.snapshot().resourcePackages?.[command.packageId];
+      if (!packed) throw Error("wilds_resource_package_missing");
+      const projected = await projectWildsResourcePackageSubjectAdmissionV122(packed.package,actor.receizActorId);
+      if(command.type==="resource.package.market.pay"){
+        const {createResourcePackageMarketRepository}=await import("./resource-package-market-repository");
+        const market=await createResourcePackageMarketRepository(rail).load();
+        if(market.status!=="ready")throw Error("wilds_resource_package_market_payment_required");
+        const listing=assertWildsResourcePackagePayingTrade(market.state,{record:packed,packageId:command.packageId,listingId:command.listingId,tradeId:command.tradeId,
+          subjectId:projected.subjectId,buyerReceizId:actor.receizActorId,buyerHandle:actor.handle});
+        const subject=await rail.subjectStateV122(projected.subjectId),transfer=await rail.bearerTransferStatus(packed.offer!.transferId);
+        if(subject.admittedProofDigest!==projected.admittedProofDigest || subject.ownerReceizId!==listing.sellerReceizUserId
+          || transfer.subjectId!==projected.subjectId || transfer.instrumentDigest!==packed.offer!.artifactDigest || transfer.status!=="pending-acceptance")throw Error("wilds_resource_package_market_instrument_invalid");
+      }
+      if(command.type==="resource.package.market.unreserve"){
+        const {createResourcePackageMarketRepository}=await import("./resource-package-market-repository");
+        const market=await createResourcePackageMarketRepository(rail).load();
+        if(market.status!=="ready")throw Error("wilds_resource_package_market_release_unconfirmed");
+        assertWildsResourcePackageReleasedTrade(market.state,{record:packed,packageId:command.packageId,listingId:command.listingId,tradeId:command.tradeId,
+          subjectId:projected.subjectId,buyerReceizId:actor.receizActorId,buyerHandle:actor.handle});
+      }
+      if (command.type === "resource.package.transfer.admit") {
+        if(packed.transferId!==command.transferId && (!["offered","cancelling","settling"].includes(packed.status) || packed.offer?.transferId!==command.transferId))throw Error("wilds_resource_package_offer_binding_invalid");
+        const subject=await rail.subjectStateV122(command.subjectId),transfer=await rail.bearerTransferStatus(command.transferId);
+        if (command.subjectId!==projected.subjectId || subject.admittedProofDigest!==projected.admittedProofDigest || subject.ownerReceizId!==actor.receizActorId || subject.head!==command.subjectHead
+          || transfer.status!=="claimed" || transfer.subjectId!==command.subjectId || transfer.receiptId!==command.receiptId) throw Error("wilds_resource_package_receipt_binding_invalid");
+        if (["listed","reserved","settling"].includes(packed.status)) {
+          const {createResourcePackageMarketRepository}=await import("./resource-package-market-repository");
+          const market=await createResourcePackageMarketRepository(rail).load();
+          const trade=market.status==="ready" && packed.tradeId ? market.state.trades[packed.tradeId] : null;
+          const listing=market.status==="ready" && packed.listingId ? market.state.listings[packed.listingId] : null;
+          if(packed.status!=="settling" || !trade || !listing || trade.status!=="paid" || !trade.payment || trade.buyerReceizUserId!==actor.receizActorId
+            || listing.packageId!==command.packageId || listing.packageHead!==packed.package.head || listing.subjectId!==projected.subjectId)throw Error("wilds_resource_package_market_payment_required");
+          const ledger=await rail.walletLedger({limit:100});
+          if(!ledger.events.some(event=>event.id===trade.payment!.ledgerEventId && event.kind==="transfer" && event.amountUsdCents===String(listing.priceCents)
+            && canonicalPortableCardJson(event.proofBundle)===canonicalPortableCardJson(trade.payment!.proofBundle)))throw Error("wilds_resource_package_market_payment_unconfirmed");
+        }
+      } else if(command.type==="resource.package.cancel.begin"){
+        if(!["offered","cancelling"].includes(packed.status) || !sameWildzPlayerCoordinate(packed.ownerReceizId,actor.handle)
+          || packed.subjectId!==projected.subjectId || packed.offer?.transferId!==command.transferId)throw Error("wilds_resource_package_cancel_invalid");
+        const subject=await rail.subjectStateV122(projected.subjectId),transfer=await rail.bearerTransferStatus(command.transferId);
+        if(subject.admittedProofDigest!==projected.admittedProofDigest || subject.ownerReceizId!==actor.receizActorId
+          || transfer.subjectId!==projected.subjectId || transfer.instrumentDigest!==packed.offer.artifactDigest
+          || !["pending-acceptance","cancelled","expired"].includes(transfer.status))throw Error("wilds_resource_package_cancel_invalid");
+      } else if(command.type==="resource.package.plan-transfer"){
+        if(!current.snapshot().constitutionalCommandReceipts?.[command.commandId]){
+          const subject=await rail.subjectStateV122(projected.subjectId),plan=command.plan;
+          const recipient=command.targetHandle?await resolveWildsResourceRecipientIdentity(rail,command.targetHandle):null;
+          if(plan.subjectId!==projected.subjectId || plan.subjectDigest!==projected.admittedProofDigest || plan.currentOwnerReceizId!==actor.receizActorId
+            || plan.expectedSubjectHead!==subject.head || subject.ownerReceizId!==actor.receizActorId || plan.policy.recipientReceizId!==recipient
+            || plan.policy.openBearer!==(command.targetHandle===null))throw Error("wilds_resource_package_plan_invalid");
+        }
+      } else if(command.type==="resource.package.abort-transfer"){
+        if(packed.transferPlan){
+          const transfer=await rail.bearerTransferStatus(packed.transferPlan.transferId);
+          if(command.transferId!==packed.transferPlan.transferId || transfer.subjectId!==projected.subjectId || !["cancelled","expired"].includes(transfer.status))throw Error("wilds_resource_package_cancel_unconfirmed");
+        }else if(command.transferId!==null || packed.transferProtocol!=="plan-before-issue-v1")throw Error("wilds_resource_package_cancel_unconfirmed");
+      } else if (command.type === "resource.package.offer") {
+        const subject=await rail.subjectStateV122(command.subjectId),transfer=await rail.bearerTransferStatus(command.offer.transferId);
+        if (command.subjectId!==projected.subjectId || subject.admittedProofDigest!==projected.admittedProofDigest || subject.ownerReceizId!==actor.receizActorId
+          || transfer.subjectId!==command.subjectId || transfer.instrumentDigest!==command.offer.artifactDigest || transfer.status!=="pending-acceptance") throw Error("wilds_resource_package_offer_invalid");
+      } else if (command.type === "resource.package.cancel-transfer" || command.type === "resource.package.market.release") {
+        if(command.type==="resource.package.market.release" && packed.status!=="packed"){
+          const {createResourcePackageMarketRepository}=await import("./resource-package-market-repository");
+          const market=await createResourcePackageMarketRepository(rail).load();
+          if(market.status!=="ready")throw Error("wilds_resource_package_market_cancellation_unavailable");
+          assertWildsResourcePackageCancelledListing(market.state,{record:packed,packageId:command.packageId,listingId:command.listingId,subjectId:projected.subjectId,sellerReceizId:actor.receizActorId,sellerHandle:actor.handle});
+        }
+        if (packed.status!=="packed") {
+          if (!packed.offer) throw Error("wilds_resource_package_cancel_invalid");
+          const transfer=await rail.bearerTransferStatus(packed.offer.transferId);
+          if (!['cancelled','expired'].includes(transfer.status) || transfer.subjectId!==projected.subjectId || transfer.instrumentDigest!==packed.offer.artifactDigest) throw Error("wilds_resource_package_cancel_unconfirmed");
+        }
+      } else if (command.type === "resource.package.unpack" && packed.subjectId) {
+        const subject=await rail.subjectStateV122(packed.subjectId);
+        if(subject.subjectId!==projected.subjectId || subject.admittedProofDigest!==projected.admittedProofDigest || subject.ownerReceizId!==actor.receizActorId) throw Error("wilds_resource_package_owner_invalid");
+      }
+    }
+    current = new WildsWorldService(before);
+    result=current.execute(command,{actorId:actor.handle,canonical:true,pulse:now,occurredAt:now,uPulse:kai.uPulse,card});
   } else {
     result = current.execute(command, { actorId: actor.playerId, canonical: true, pulse: now, occurredAt: now, uPulse: kai.uPulse, card });
   }
   const record = { checkpoint: current.checkpoint(), eventTail: current.events() };
   if (actor.accessToken) {
-    let publication = await publish(request, actor, current, {
+    const conditionalCommit = conditionalBase ? await commitWildsConditionalWorldCandidate({ repository: repository(), sourceUrl: sourceUrl(request), actor, before: conditionalBase, candidate: current, install: world => { root()[serviceKey] = world; } }) : null;
+    let publication = conditionalCommit?.publication ?? await publish(request, actor, current, {
       revision: before.checkpoint.revision,
       lastEventId: before.checkpoint.lastEventId
     });
     if (!publication.published) {
+      if (conditionalCommit) {
+        return { projection: conditionalCommit.world.snapshot(), mode: "receiz_recovery_pending" as const, events: [], constitution: { ...result.constitution, publicationStatus: "PENDING" as const }, publication };
+      }
       if (publication.conflict && publication.record && !worldRecordContainsHead(record, {
         revision: publication.record.checkpoint.revision,
         lastEventId: publication.record.checkpoint.lastEventId

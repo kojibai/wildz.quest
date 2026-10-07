@@ -15,6 +15,10 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
   const vector = useRef({ x: 0, z: 0 });
   const dragging = useRef(false);
   const activePointerIdRef = useRef<number | null>(null);
+  const captureTargetRef = useRef<HTMLButtonElement | null>(null);
+  const boundsRef = useRef<DOMRect | null>(null);
+  const frameRef = useRef<number | null>(null);
+  const gestureRevisionRef = useRef(0);
   const input = useRef(onInput);
   const mode = useRef(movementMode);
   const [active, setActive] = useState(false);
@@ -30,42 +34,43 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
   }, [cameraHeadingRef]);
 
   const reset = useCallback(() => {
+    const pointerId = activePointerIdRef.current;
+    const target = captureTargetRef.current;
     dragging.current = false;
     activePointerIdRef.current = null;
+    captureTargetRef.current = null;
+    boundsRef.current = null;
+    gestureRevisionRef.current++;
+    if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
     vector.current = { x: 0, z: 0 };
     if (knobRef.current) knobRef.current.style.transform = "translate(0px, 0px)";
     setActive(false);
+    try {
+      if (pointerId !== null && target?.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
+    } catch { /* Ref cancellation also works when capture is unavailable. */ }
   }, []);
 
   useEffect(() => reset(), [cancelSignal, reset]);
 
-  useEffect(() => {
-    if (!active) return;
-    let frame = 0;
+  const startRepeat = useCallback(() => {
+    const revision = gestureRevisionRef.current;
     let lastEmission = performance.now();
     const tick = (now: number) => {
+      if (!dragging.current || revision !== gestureRevisionRef.current) return;
+      frameRef.current = null;
       if (now - lastEmission >= 45) {
         lastEmission = now;
         emitMovement();
       }
-      frame = window.requestAnimationFrame(tick);
+      if (dragging.current && revision === gestureRevisionRef.current) frameRef.current = window.requestAnimationFrame(tick);
     };
-    frame = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frame);
-  }, [active, emitMovement]);
+    frameRef.current = window.requestAnimationFrame(tick);
+  }, [emitMovement]);
 
-  useEffect(() => {
-    const stop = () => reset();
-    window.addEventListener("blur", stop);
-    document.addEventListener("visibilitychange", stop);
-    return () => {
-      window.removeEventListener("blur", stop);
-      document.removeEventListener("visibilitychange", stop);
-    };
-  }, [reset]);
-
-  const update = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
+  const update = useCallback((event: { clientX: number; clientY: number }) => {
+    const rect = boundsRef.current;
+    if (!rect) return vector.current;
     const radius = Math.max(1, Math.min(rect.width, rect.height) * 0.42);
     const rawX = event.clientX - (rect.left + rect.width / 2);
     const rawY = event.clientY - (rect.top + rect.height / 2);
@@ -77,17 +82,37 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
     vector.current = next;
     if (knobRef.current) knobRef.current.style.transform = `translate(${x}px, ${y}px)`;
     return next;
-  };
+  }, []);
+
+  useEffect(() => {
+    const stop = () => reset();
+    const finishPointer = (event: PointerEvent) => {
+      if (activePointerIdRef.current === event.pointerId) reset();
+    };
+    const movePointer = (event: PointerEvent) => {
+      if (!dragging.current || activePointerIdRef.current !== event.pointerId) return;
+      if (event.pointerType === 'mouse' && event.buttons === 0) reset();
+      else update(event);
+    };
+    // Capture-phase document listeners survive a failed pointer capture and an
+    // outside release, even when another overlay consumes the event.
+    document.addEventListener("pointerup", finishPointer, true);
+    document.addEventListener("pointercancel", finishPointer, true);
+    document.addEventListener("pointermove", movePointer, true);
+    window.addEventListener("blur", stop);
+    document.addEventListener("visibilitychange", stop);
+    return () => {
+      document.removeEventListener("pointerup", finishPointer, true);
+      document.removeEventListener("pointercancel", finishPointer, true);
+      document.removeEventListener("pointermove", movePointer, true);
+      window.removeEventListener("blur", stop);
+      document.removeEventListener("visibilitychange", stop);
+      reset();
+    };
+  }, [reset, update]);
 
   const release = (event?: ReactPointerEvent<HTMLButtonElement>) => {
     if (event && activePointerIdRef.current !== event.pointerId) return;
-    if (event) {
-      try {
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-      } catch {
-        // Pointer capture is optional; resetting refs still stops movement.
-      }
-    }
     reset();
   };
 
@@ -100,11 +125,15 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
       onLostPointerCapture={release}
       onPointerCancel={release}
       onPointerDown={(event) => {
-        if (activePointerIdRef.current !== null) return;
+        if (event.button !== 0 || activePointerIdRef.current !== null) return;
+        event.preventDefault();
         activePointerIdRef.current = event.pointerId;
+        captureTargetRef.current = event.currentTarget;
+        boundsRef.current = event.currentTarget.getBoundingClientRect();
         dragging.current = true;
         const next = update(event);
         emitMovement(next);
+        startRepeat();
         setActive(true);
         try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* capture is optional */ }
       }}
@@ -113,6 +142,7 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
         update(event);
       }}
       onPointerUp={release}
+      onContextMenu={(event) => { event.preventDefault(); reset(); }}
       type="button"
     >
       <span className="wildz-dpad-ring" aria-hidden="true" />

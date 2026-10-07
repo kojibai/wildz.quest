@@ -1,3 +1,4 @@
+import type { WildsResourcePackageCommand } from "./wilds-resource-package-world";
 import { projectWildsConstructionWeather, resolveWildsMaintenance, type WildsMaintenanceCommand } from "./wilds-construction-weather";
 import { resolveWorldCreationBuild, type WildsCreationBuildCommand } from "./creation/world-source";
 import type { CommunityRequest } from "./wilds-community";
@@ -86,6 +87,7 @@ import { previewWildsConstructionAdjustment, projectWildsProductionPlacementEvid
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
 
 export type WildsWorldCommand = (
+  | WildsResourcePackageCommand
   | WildsCreationBuildCommand
   | { type: "community.transition"; request: CommunityRequest; commandId: string }
   | { type: "construction.project.create"; name: string; region: { x: number; z: number }; commandId: string }
@@ -532,7 +534,9 @@ export class WildsWorldService {
     }
 
     const kaiUPulse = authorityMoment(authority).uPulse;
-    if (command.type === "creation.construct" || command.type === "creation.evolve") {
+    if (command.type.startsWith("resource.package.") || command.type === "resource.food.consume") {
+      events.push(this.append("resource.package_transitioned", { command }, authority, command.commandId));
+    } else if (command.type === "creation.construct" || command.type === "creation.evolve") {
       const { record } = resolveWorldCreationBuild(this.projection, command, authority.actorId, kaiUPulse);
       events.push(this.append(command.type === "creation.construct" ? "creation.constructed" : "creation.evolved", { record, commandDigest }, authority, command.commandId));
     } else if (command.type === "construction.project.create") {

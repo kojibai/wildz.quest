@@ -64,6 +64,7 @@ import { createWildsSourceAuthorityProjection, planWildsMaterialHarvest } from "
 import { wildsWorldSourceEmission } from "./wilds-world-genesis";
 import type { WildsOwnedWorldAdditions } from "./game-state";
 import { mergeWildsOwnedWorldAdditions } from "./wilds-player-world-additions";
+import { preserveWildsResourcePackageHistory } from "./wilds-resource-package-continuity";
 
 import { publishWildsConstructionEntry } from "./wilds-construction-publication";
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
@@ -72,7 +73,7 @@ import type { WildsConstructionPlacementRequest } from "./wilds-construction-pla
 export function acceptWildsWorldSnapshot(current: WildsWorldProjection | null, candidate: WildsWorldProjection, owned?: WildsOwnedWorldAdditions) {
   if (owned) candidate = mergeWildsOwnedWorldAdditions(candidate, owned);
   if (current && candidate.revision < current.revision) return current;
-  return current ? preserveWildsConstructionHistory(current, candidate) : candidate;
+  return current ? preserveWildsResourcePackageHistory(current, preserveWildsConstructionHistory(current, candidate)) : candidate;
 }
 
 export function buildWildsWorldCommandBody(
@@ -249,6 +250,14 @@ export function useWildsWorld(input: {
   const adoptSnapshot = useCallback((projection: WildsWorldProjection) => edgeQueue.adopt(
     acceptWildsWorldSnapshot(null, projection, ownedWorldAdditions.current)
   ), [edgeQueue]);
+
+  const adoptServerWorld = useCallback((projection: WildsWorldProjection) => {
+    if (!validWildsWorldProjection(projection)) throw Error('wilds_world_projection_invalid');
+    canonicalSnapshot.current = projection;
+    const admitted = adoptSnapshot(projection);
+    setSnapshot(current => acceptWildsWorldSnapshot(current, admitted, ownedWorldAdditions.current));
+    return admitted;
+  }, [adoptSnapshot]);
 
 
   const restoreSession = useMemo(() => createWildsSessionRestore(async () => {
@@ -584,6 +593,7 @@ export function useWildsWorld(input: {
     error,
     pendingCommand,
     refresh,
+    adoptServerWorld,
     digBurrow: (request:WildsBurrowRequest,actorPosition:{x:number;y:number;z:number}) => post({type:"construction.burrow.dig",request,actorPosition,cardProofDigest:input.activeCard?.proof.digest??"",commandId:commandId("command:burrow")}),
     createConstructionProject: (name: string, region: { x: number; z: number }) => post({ type: "construction.project.create", name, region, commandId: commandId("command:construction:project") }, null),
     placeConstructionComponent: (projectId: string, placement: WildsBlueprintPlacement, request: WildsConstructionPlacementRequest, actorPosition: { x: number; z: number }) => post({ type: "construction.component.place", projectId, placement, request, actorPosition, commandId: commandId("command:construction:place") }, null),

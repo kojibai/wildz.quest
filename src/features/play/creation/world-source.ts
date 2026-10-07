@@ -55,12 +55,13 @@ export function resolveWorldCreationLivestockShelter(world: WildsCreationShelter
   const source = projectWildsCreationPersistence({ ...world, creations: { [instanceId]: candidate } }, ownerId).creations[instanceId];
   if (!source || source.instance.ownerId !== ownerId) return null;
   const plan = compileWorldCreationSource(source), physical = projectCreationPhysical(source.instance, source.command.definition, plan), live = new Set(physical.chunks.flatMap(chunk => chunk.nodeIds)), poses = creationNodePoses(source.command.definition, source.instance.pose);
-  for (const node of Object.values(source.instance.nodeStates).sort((a, b) => a.nodeId.localeCompare(b.nodeId))) {
-    if (!live.has(node.nodeId) || node.condition < 50 || node.kind !== 'habitat' && node.kind !== 'garden') continue;
-    const capacity = node.kind === 'habitat' ? Math.min(4, node.capacity) : 4;
-    if (capacity > 0) return { shelterId: instanceId, head: source.instance.head, ownerReceizId: source.instance.ownerId, position: poses.get(node.nodeId)!.position, spaceId: source.instance.spaceId, capacity };
-  }
-  return null;
+  const usable = Object.values(source.instance.nodeStates).filter(node => live.has(node.nodeId) && node.condition >= 50).sort((a, b) => a.nodeId.localeCompare(b.nodeId));
+  const habitats = usable.filter(node => node.kind === 'habitat' && node.capacity > 0);
+  // Only independently usable real habitats add places; crop beds and fences cannot inflate a ranch.
+  const capacity = habitats.reduce((total, node) => total + (node.kind === 'habitat' ? Math.min(4, node.capacity) : 0), 0);
+  const anchor = habitats[0] ?? usable.find(node => node.kind === 'garden');
+  if (!anchor) return null;
+  return { shelterId: instanceId, head: source.instance.head, ownerReceizId: source.instance.ownerId, position: poses.get(anchor.nodeId)!.position, spaceId: source.instance.spaceId, capacity: capacity || 4 };
 }
 
 /** Domain/source consistency only; the existing Native account save supplies the

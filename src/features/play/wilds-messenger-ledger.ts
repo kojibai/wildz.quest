@@ -1,3 +1,4 @@
+import { validateResourceOfferMessage } from './wilds-resource-messaging';
 import {
   normalizeWildsMessengerParticipant,
   sanitizeWildsDirectMessage,
@@ -144,6 +145,7 @@ export function appendWildsDirectMessage(input: {
     || !context.priorOwnerReceizId
     || !context.nextOwnerReceizId
   )) throw new Error("wilds_message_card_transfer_invalid");
+  if (context?.kind === "resource-offer") validateResourceOfferMessage(context);
   if (context?.kind === "portable-claim" && (
     !/^wildz-claim:[a-f0-9]{64}$/.test(context.claimId)
     || !["phi", "resource", "card", "creature-custody", "experience-access", "world-right"].includes(context.claimKind)

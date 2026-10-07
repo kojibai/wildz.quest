@@ -147,6 +147,7 @@ export type ReceizCommerceAdapter = {
   inspectBearerTransferInstrument: ReceizClient["bearer"]["inspectInstrument"];
   claimBearerTransferInstrument: ReceizClient["bearer"]["claimInstrument"];
   bearerTransferStatus: ReceizClient["bearer"]["transferStatus"];
+  cancelBearerTransfer: ReceizClient["bearer"]["cancelTransfer"];
   ensureTenantSession(input: ReceizEnsureTenantSessionInput): ReceizEnsureTenantSessionResult;
   createProofRegister(ownerId?: string): ReceizProofRegister;
   createProofMemory(options?: ReceizProofMemoryOptions): Promise<ReceizProofMemory>;
@@ -173,6 +174,8 @@ export type ReceizCommerceAdapter = {
   resolveSubjectNamespacesV123: ReceizClient["subjects"]["resolveNamespaces"];
   resolveSubjectNamespacesV124: ReceizClient["subjects"]["resolveNamespacesV124"];
   subjectTwinProfile: ReceizClient["subjects"]["twin"]["profile"];
+  subjectBrainSearch: ReceizClient["subjects"]["brain"]["search"];
+  subjectBrainResolve: ReceizClient["subjects"]["brain"]["resolve"];
   subjectTwinMessage: ReceizClient["subjects"]["twin"]["message"];
   subjectTwinExportMind: ReceizClient["subjects"]["twin"]["exportMind"];
   subjectTwinImportMind: ReceizClient["subjects"]["twin"]["importMind"];
@@ -657,6 +660,9 @@ export function createReceizCommerceAdapter(
     claimBearerTransferInstrument(instrument, recipientCapability) {
       return client.bearer.claimInstrument(instrument, recipientCapability);
     },
+    cancelBearerTransfer(transferId, ownerCapability) {
+      return client.bearer.cancelTransfer(transferId, ownerCapability);
+    },
     bearerTransferStatus(transferId) {
       return client.bearer.transferStatus(transferId);
     },
@@ -732,6 +738,8 @@ export function createReceizCommerceAdapter(
     subjectTwinProfile(subjectId) {
       return client.subjects.twin.profile(subjectId);
     },
+    subjectBrainSearch(subjectId,input) {return client.subjects.brain.search(subjectId,input);},
+    subjectBrainResolve(subjectId,input) {return client.subjects.brain.resolve(subjectId,input);},
     subjectTwinMessage(subjectId, input) {
       return client.subjects.twin.message(subjectId, input);
     },

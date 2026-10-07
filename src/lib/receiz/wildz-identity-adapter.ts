@@ -6,6 +6,7 @@ export { savePreparedWildzIdentityPlayerVault, type WildzPreparedIdentityPlayerV
 import { mergeWildzCrewCustody, readWildzArtifactCrewCustody, type WildzCrewCustody } from "./wildz-artifact-codec";
 import { reopenWildzCrewCustody, wildzCrewCustodySourceKey } from "./wildz-crew-custody-source";
 import { defaultContinuityDatabase, defaultIdentityRepository } from "./wildz-active-identity";
+import { wildzDurablePlayStateSaver } from "../performance/wildz-durable-save";
 import {
   buildReceizIdContinueRequest,
   createReceizIdIdentity,
@@ -579,13 +580,8 @@ export function saveWildzContinuityPlayState(
     if (current.restoreEpoch !== continuityRestoreEpoch) return null;
     const active = await defaultIdentityRepository.active();
     if (!sameOwner(active, current.session)) return null;
-    return saveWildzRestoredPlayState({
-      database: defaultContinuityDatabase,
-      session: current.session,
-      playState,
-      player: playerContinuity ?? current.playerContinuity,
-      character
-    });
+    const input = { session: current.session, playState, player: playerContinuity ?? current.playerContinuity, character };
+    return wildzDurablePlayStateSaver.save(input, () => saveWildzRestoredPlayState({ database: defaultContinuityDatabase, ...input }));
   });
 }
 

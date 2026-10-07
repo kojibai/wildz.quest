@@ -10,6 +10,7 @@ import { sanitizeWildsCrewPreferences, type WildsCrewPreferences } from "./wilds
 import { canSleepInWildsBed, type WildsConstructionFunctionSource } from "./wilds-construction-function";
 import { applyWildsFlightWind, createWildsKaiWeatherSample, writeWildsKaiWeather } from "./wilds-kai-wind";
 import { sanitizeWildsJourneyJournal, type WildsJourneyJournal } from "./wilds-journey";
+import { projectWildsResourcePackagePersistence } from "./wilds-resource-package-continuity";
 import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
 import { restoreWildsBurrowSpace } from "./wilds-burrow";
 import { wildsStructureSupportAt } from "./wilds-structure-support";
@@ -203,7 +204,7 @@ export type RewardCard = {
   value: string;
 };
 
-export type WildsOwnedWorldAdditions = Partial<WildsConstructionPersistence> & {
+export type WildsOwnedWorldAdditions = Partial<WildsConstructionPersistence> & import("./wilds-resource-package-continuity").WildsResourcePackagePersistence & {
   creations?: Record<string, WildsCreationSourceRecord>;
   creationEvents?: Record<string, WildsWorldEvent>;
   constructionSites: Record<string, WildsConstructionSiteV1>;
@@ -586,6 +587,7 @@ function normalizeOwnedWorldAdditions(value: unknown, ownerReceizId?: string): W
   const construction = projectWildsConstructionPersistence(input, ownerReceizId);
   const creation = projectWildsCreationPersistence({ ...input, materialLots, consumedMaterialLots: materialState(input.consumedMaterialLots) }, ownerReceizId);
   return {
+    ...projectWildsResourcePackagePersistence(input, ownerReceizId),
     ...construction, ...creation,
     constructionCommandReceipts: { ...construction.constructionCommandReceipts, ...creation.constructionCommandReceipts },
     constructionSites,
@@ -681,8 +683,12 @@ export function restorePlayState(
     const restoredHearttreeReceipts = Array.isArray(saved.hearttreeReceipts)
       ? saved.hearttreeReceipts.filter((receipt): receipt is HearttreeReceipt => Boolean(receipt) && verifyHearttreeReceipt(receipt as HearttreeReceipt).ok).slice(-512)
       : [];
+    const originalAssetIds = new Map<string, string>();
+    for (const [originalId, migratedId] of migratedAssetIds) {
+      if (!originalAssetIds.has(migratedId)) originalAssetIds.set(migratedId, originalId);
+    }
     const adventureConditions: Record<string, AdventureCardCondition> = Object.fromEntries(migratedInventory.map((asset) => {
-      const originalId = [...migratedAssetIds].find(([, migratedId]) => migratedId === asset.id)?.[0] ?? asset.id;
+      const originalId = originalAssetIds.get(asset.id) ?? asset.id;
       if (isLivingCardAsset(asset) && asset.manifest.history) {
         const sealed = currentCreatureHistoryProjection(asset).condition;
         validateAdventureCondition(sealed);

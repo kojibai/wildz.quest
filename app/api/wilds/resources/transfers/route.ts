@@ -1,41 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createWildsMaterialPortableClaim, createWildsResourcePortableClaim, encodeWildsPortableClaim, wildsPortableClaimUrl } from "@/features/play/wilds-portable-claim";
-import type { WildsResourceLotV1 } from "@/features/play/wilds-resource-lot";
-import type { WildsMaterialLotV1 } from "@/features/play/wilds-steward-construction";
-import { createReceizCommerceAdapter } from "@/lib/receiz/adapter";
-import { issueWildsMaterialTransfer, issueWildsResourceTransfer } from "@/lib/receiz/wilds-resource-transfer";
-import { resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
-import type { WildsWalletReadAuthority } from "@/lib/receiz/wilds-wallet-route-authority";
-
-function failure(cause: unknown) {
-  const error = cause instanceof Error ? cause.message : "wilds_resource_transfer_failed";
-  const status = /authority_required/.test(error) ? 403 : /recipient|invalid|owner/.test(error) ? 400 : /stale|conflict|expired/.test(error) ? 409 : 503;
-  return NextResponse.json({ ok: false, error }, { status, headers: { "cache-control": "private, no-store" } });
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json() as Record<string, unknown>;
-    const actor = await resolveWildsMultiplayerActor(request);
-    if (!actor.accessToken || actor.practice) throw new Error("receiz_wallet_authority_required");
-    const authority: WildsWalletReadAuthority = Object.freeze({
-      accessToken: actor.accessToken, ownerReceizId: actor.receizActorId, actorId: actor.playerId, profileHandle: actor.handle
-    });
-    const rail = createReceizCommerceAdapter({ accessToken: actor.accessToken });
-    const material = body.materialLot !== undefined;
-    const offer = material
-      ? await issueWildsMaterialTransfer({ authority, materialLot: body.materialLot as WildsMaterialLotV1, targetHandle: String(body.targetHandle ?? ""), rail })
-      : await issueWildsResourceTransfer({ authority, resourceLot: body.resourceLot as WildsResourceLotV1, targetHandle: String(body.targetHandle ?? ""), rail });
-    const claim = material ? createWildsMaterialPortableClaim(offer as Awaited<ReturnType<typeof issueWildsMaterialTransfer>>) : createWildsResourcePortableClaim(offer as Awaited<ReturnType<typeof issueWildsResourceTransfer>>);
-    const claimProof = encodeWildsPortableClaim(claim);
-    return NextResponse.json({
-      ok: true,
-      offer,
-      claimId: claim.claimId,
-      claimProof,
-      claimUrl: wildsPortableClaimUrl(request.nextUrl.origin, claim)
-    }, { headers: { "cache-control": "private, no-store" } });
-  } catch (cause) {
-    return failure(cause);
-  }
+import { createWildsResourcePackageFromInventory, prepareWildsResourcePackageTransfer } from "@/lib/receiz/wilds-resource-package-server";
+import { worldSnapshot } from "@/lib/receiz/wilds-world-server";
+import { canonicalPortableCardJson } from "@/features/play/portable-card";
+export const runtime="nodejs";
+export async function POST(request:NextRequest){
+  try{
+    const body=await request.json() as Record<string,unknown>,snapshot=(await worldSnapshot(request)).projection;
+    const material=body.materialLot!==undefined,candidate=(material?body.materialLot:body.resourceLot) as {lotId?:unknown};
+    if(!candidate || typeof candidate.lotId!=="string")throw Error("wilds_resource_transfer_lot_invalid");
+    const id=candidate.lotId,source=material?snapshot.materialLots[id]:snapshot.resourceLots[id];
+    if(!source || canonicalPortableCardJson(source)!==canonicalPortableCardJson(candidate))throw Error("wilds_resource_transfer_lot_invalid");
+    let packageId=(material?snapshot.reservedMaterialLots[id]:snapshot.reservedResourceLots?.[id]);
+    if(packageId && !snapshot.resourcePackages?.[packageId])throw Error("wilds_resource_package_member_unavailable");
+    if(!packageId){
+      const custody=material?snapshot.materialCustody[id]:snapshot.resourceCustody[id];
+      const prepared=await createWildsResourcePackageFromInventory(request,{materialLotIds:material?[id]:[],resourceLotIds:material?[]:[id],commandId:`resource:card:${id.slice(-64)}:${custody?.transferId?.slice(-24)??"source"}`});
+      packageId=prepared.package.packageId;
+    }
+    const result=await prepareWildsResourcePackageTransfer(request,{packageId,targetHandle:typeof body.targetHandle==="string"?body.targetHandle:null});
+    return NextResponse.json({ok:true,...result},{headers:{"cache-control":"private, no-store"}});
+  }catch(cause){const error=cause instanceof Error?cause.message:"wilds_resource_transfer_failed";return NextResponse.json({ok:false,error},{status:/^receiz_(?:conditional_resource_custody|admitted_food_source|resource_recipient_binding)_unavailable$/.test(error)?503:/authority_required/.test(error)?403:/invalid|missing/.test(error)?400:/unavailable|pending|conflict/.test(error)?409:503,headers:{"cache-control":"private, no-store"}});}
 }

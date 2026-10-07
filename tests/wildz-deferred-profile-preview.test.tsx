@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DeferredProfileCardPreview } from "../src/features/profile/DeferredProfileCardPreview.js";
 
-test("a 34-card profile initially renders two expensive previews and retains every card button", () => {
+test("opening a 34-card profile mounts no detailed card previews and keeps every card action available", () => {
   let cardMounts = 0;
   function ExpensiveCard() {
     cardMounts++;
@@ -14,8 +14,8 @@ test("a 34-card profile initially renders two expensive previews and retains eve
     Array.from({ length: 34 }, (_, index) => createElement("button", { key: index, type: "button", "aria-label": `Open Companion ${index} card` },
       <DeferredProfileCardPreview eager={index < 2}><ExpensiveCard /></DeferredProfileCardPreview>,
       createElement("strong", null, `Companion ${index}`)))));
-  assert.equal(cardMounts, 2);
-  assert.equal((markup.match(/data-profile-preview="deferred"/g) ?? []).length, 32);
+  assert.equal(cardMounts, 0);
+  assert.equal((markup.match(/data-profile-preview="deferred"/g) ?? []).length, 34);
   assert.equal((markup.match(/<button/g) ?? []).length, 34);
   assert.match(markup, /Open Companion 33 card/);
   assert.match(markup, /<strong>Companion 33<\/strong>/);

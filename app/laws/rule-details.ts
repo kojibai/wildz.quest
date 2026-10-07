@@ -5,6 +5,63 @@ export type RuleDetail = { title: string; summary: string; requirements: string;
 
 // Editorial explanations of the registered command families, not additional authority.
 export const RULE_DETAILS = {
+  "sources.reserve": {
+    title: "Pack gathered resources", summary: "Bind exact available resources into one source-carrying package.",
+    requirements: "An authenticated gatherer selects current material lots, grove resources or food with verified admitted gather history. The server verifies exact source, current custody and availability through a real conditional shared-inventory append before issuing native custody.",
+    success: "Each included unit is reserved to one package. The source digest carries gather history; later native admission establishes authenticated transferable custody.",
+    blocked: "Consumed, stored, reserved, mismatched or foreign units cannot enter a second package. Exchange is unavailable without the conditional backend; a local food checkpoint alone cannot establish shared source admission.",
+    example: "A fruit portion and two timber units become one mixed package while retaining their separate gather sources."
+  },
+  "owner.offer": {
+    title: "Offer a resource package", summary: "Prepare a native one-use claim for an intact package.",
+    requirements: "The package remains reserved and belongs to the sender. The native subject and instrument must bind its exact complete source bytes.",
+    success: "A targeted or open claim can travel through a proof card, file, link or private game chat. Its encrypted recovery copy never exposes the claim secret in world history.",
+    blocked: "An unpacked, already offered or market-reserved package cannot create a competing offer.",
+    example: "Send a package to a named player, or export an open claim for a future holder."
+  },
+  "verified-title.cancel": {
+    title: "Cancel an unclaimed offer", summary: "Release an offer only after native cancellation is confirmed.",
+    requirements: "The current owner cancels the exact pending native instrument. The server confirms its cancellation or expiry before releasing the source offer or listing.",
+    success: "The package returns to its owner's intact available packages. Unpacking remains a separate action.",
+    blocked: "An uncertain cancellation, committed transfer or market payment in progress leaves the sources reserved.",
+    example: "Cancel an unclaimed proof card, then unpack the same resources back into your Satchel."
+  },
+  "owner.consume": {
+    title: "Use admitted food", summary: "Spend one admitted food portion once.",
+    requirements: "The portion belongs to the current player, has been unpacked, and has no consumption marker. The local nourishment rules still determine whether eating can succeed.",
+    success: "A durable source marker prevents the eaten portion from being repackaged, transferred or eaten again.",
+    blocked: "A portion held inside a package, owned by someone else, or already consumed cannot be spent.",
+    example: "An imported berry portion provides nourishment while preserving its original gatherer's source history."
+  },
+  "owner.list": {
+    title: "List a resource package", summary: "Reserve an intact native package for a fixed-price market sale.",
+    requirements: "The seller holds current custody and a valid pending instrument. Its private claim bytes are encrypted and the package receives an exact listing identifier.",
+    success: "Buyers can inspect the contents and price while the native claim remains withheld until payment is proven.",
+    blocked: "Listed resources cannot be unpacked, consumed or transferred through another game offer.",
+    example: "List one timber card or a mixed food and stone package from the same source records."
+  },
+  "buyer.reserve": {
+    title: "Reserve a package purchase", summary: "Select one current buyer for a listing before payment.",
+    requirements: "The listing is available and the buyer is distinct from the seller. A bounded reservation identifies the exact buyer and trade.",
+    success: "Concurrent attempts cannot purchase the same source package; an expired reservation can be replaced until payment begins.",
+    blocked: "Another live reservation or a payment already in progress prevents a competing purchase.",
+    example: "Reserve a package, review its price, then commit the purchase."
+  },
+  "buyer.exit": {
+    title: "Release a purchase reservation", summary: "Leave an unpaid reserved trade voluntarily.",
+    requirements: "The recorded buyer releases the exact reservation before payment starts.",
+    success: "The package remains listed for another buyer; its native instrument and seller custody are preserved.",
+    blocked: "A trade with payment in progress or settled custody cannot be released as an unpaid reservation.",
+    example: "Cancel your unpaid reservation when you decide to keep shopping."
+  },
+  "buyer.commit": {
+    title: "Commit a package purchase", summary: "Bind payment and native package custody to one retryable trade.",
+    requirements: "The current buyer commits a live reservation. The payment result must match the exact wallet ledger proof and listing price before the server claims the native instrument.",
+    success: "One native receipt updates custody for every member. Retry uses the same payment nonce and transfer receipt.",
+    blocked: "An unproven payment or uncertain outcome retains the package and trade for recovery, with no second charge or resource credit.",
+    example: "Pay once for a mixed package, then unpack its exact resources after custody is admitted."
+  },
+
   "community.adopted-procedures": {
     title: "Adopt and use community procedures", summary: "Run voluntary community participation under recorded, versioned rules.",
     requirements: "An identified player adopts the exact charter. Other members explicitly join. Every change checks the current revision, membership and the action’s specific consent and timing rules.",
@@ -91,8 +148,8 @@ export const RULE_DETAILS = {
   },
   "verified-title.successor": {
     title: "Recognize a verified transfer", summary: "Carry an admitted custody transfer into the world’s resource records.",
-    requirements: "Transfer admission carries the lot, new owner, subject revision, receipt and transfer identifiers through the authoritative execution boundary.",
-    success: "The world records the successor custodian for the referenced resource or material lot.",
+    requirements: "Transfer admission binds the exact source bytes and native subject, current owner and head to a claimed native receipt through the conditional shared inventory boundary.",
+    success: "The world records the successor custodian for the referenced lot or every member of an intact resource package.",
     blocked: "A local ownership claim is not a substitute for transfer authority. This command family does not independently send a wallet payment.",
     example: "A resource custody record follows the admitted transfer evidence; changing a displayed name does not transfer the resource."
   },

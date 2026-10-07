@@ -8,7 +8,7 @@ import { createCreationMaterialLibrary } from './material-library';
 function Page({chunk,library}:{chunk:CreationChunk;library:ReturnType<typeof createCreationMaterialLibrary>}) {
  const geometry=useMemo(()=>createCreationRenderGeometry(chunk),[chunk]);
  const materials=useMemo(()=>chunk.materials.map(m=>{
-   const material=library.material(m.material);material.transparent=true;material.opacity=.48;material.depthWrite=false;return material;
+   return library.material(m.material);
  }),[chunk,library]);
  useEffect(()=>{chunk.materials.forEach(m=>{void library.load(m.material);});},[chunk,library]);
  useEffect(()=>()=>geometry.dispose(),[geometry]);

@@ -1,0 +1,7 @@
+import { NextRequest, NextResponse } from "next/server";
+const headers={"cache-control":"private, no-store"};
+function failure(cause:unknown){const error=cause instanceof Error?cause.message:"wilds_resource_package_failed";return NextResponse.json({ok:false,error},{status:/^receiz_(?:conditional_resource_custody|admitted_food_source|resource_recipient_binding)_unavailable$/.test(error)?503:/authority_required/.test(error)?403:/invalid|required|missing/.test(error)?400:/unavailable|pending|consumed|exists|conflict|cancel/.test(error)?409:503,headers});}
+import {cancelWildsResourcePackageOffer,cancelWildsPendingResourcePackageTransfer} from "@/lib/receiz/wilds-resource-package-server";
+import type {WildsResourcePackageTransferOffer} from "@/lib/receiz/wilds-resource-package";
+export const runtime="nodejs";
+export async function POST(request:NextRequest){try{const body=await request.json() as {offer?:WildsResourcePackageTransferOffer;packageId?:unknown};const world=typeof body.packageId==="string"?await cancelWildsPendingResourcePackageTransfer(request,body.packageId):await cancelWildsResourcePackageOffer(request,body.offer!);return NextResponse.json({ok:true,world},{headers});}catch(cause){return failure(cause);}}

@@ -1,3 +1,5 @@
+import { applyWildsResourcePackageCommand, type WildsResourcePackageRecord, type WildsResourcePackageCommand, type WildsFoodCustody,type WildsFoodConsumptionReceipt } from "./wilds-resource-package-world";
+import type { WildsResourcePackageMember } from "./wilds-resource-package";
 import { projectWildsConstructionWeather, resolveWildsMaintenance, type WildsMaintenanceCommand, type WildsConstructionCondition } from "./wilds-construction-weather";
 import { resolveWorldCreationBuild, type WildsCreationSourceRecord } from "./creation/world-source";
 import type { WildsWorldEvent } from "./wilds-world-event";
@@ -141,6 +143,13 @@ export type WildsTrainerWorldProjection = { id: string; [key: string]: unknown }
 export type WildsTournamentWorldProjection = { id: string; phase?: string; [key: string]: unknown };
 
 export type WildsWorldProjection = {
+  resourcePackages?: Record<string, WildsResourcePackageRecord>;
+  reservedResourceLots?: Record<string, string>;
+  reservedFoodItems?: Record<string, string>;
+  foodItems?: Record<string, Extract<WildsResourcePackageMember, {kind: "food"}>>;
+  foodCustody?: Record<string, WildsFoodCustody>;
+  consumedFoodItems?: Record<string, string>;
+  foodConsumptionReceipts?: Record<string,WildsFoodConsumptionReceipt>;
   creations?: Record<string, WildsCreationSourceRecord>;
   creationEvents?: Record<string, WildsWorldEvent>;
   communities?: Record<string, WildsCommunity>;
@@ -581,6 +590,11 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
         worldEmission: emission,
         contributionHistory: [...state.contributionHistory, { operationId: operation.operationId, amountPhiMicro, eventId: event.eventId }].slice(-4_096)
       });
+    }
+    case "resource.package_transitioned": {
+      const command = payload.command as WildsResourcePackageCommand;
+      if (!command || (!command.type.startsWith("resource.package.") && command.type !== "resource.food.consume")) throw Error("wilds_resource_package_command_invalid");
+      return appendEvent(state, event, applyWildsResourcePackageCommand(state, command, event.actorId, wildsWorldEventUPulse(event)));
     }
     case "resource.custody_transferred": {
       const lotId = String(payload.lotId ?? "");

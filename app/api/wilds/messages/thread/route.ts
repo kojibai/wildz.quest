@@ -11,6 +11,11 @@ import {
 } from "@/lib/receiz/wilds-messenger-server";
 import { resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
 
+import { validateResourceOfferMessage } from '@/features/play/wilds-resource-messaging';
+import { decodeWildsPortableClaim } from '@/features/play/wilds-portable-claim';
+import { sameWildzPlayerCoordinate } from '@/lib/receiz/wildz-player-coordinate';
+import { createReceizCommerceAdapter } from '@/lib/receiz/adapter';
+
 function peerFrom(value: unknown) {
   if (!value || typeof value !== "object") throw new Error("wilds_message_peer_required");
   const record = value as Record<string, unknown>;
@@ -63,14 +68,25 @@ export async function POST(request: NextRequest) {
     const peer = peerFrom(body.peer);
     await hydrateWildsConversation(request, actor, peer);
     const action = body.action;
-    const conversation = action === "send" || action === "phi-transfer"
+    let resourceContext;
+    if (action === 'resource-offer') {
+      if (!actor.accessToken || actor.practice) throw Error('receiz_wallet_authority_required');
+      resourceContext = validateResourceOfferMessage(body.context);
+      const claim = decodeWildsPortableClaim(resourceContext.claimProof);
+      if (claim.source.ownerReceizId !== actor.receizActorId || claim.recipient.handle !== null && !sameWildzPlayerCoordinate(claim.recipient.handle, peer.handle)
+        || claim.carrier.kind === 'portable-execution') throw Error('wilds_message_resource_claim_invalid');
+      const rail = createReceizCommerceAdapter({ accessToken: actor.accessToken });
+      const inspection = await rail.inspectBearerTransferInstrument(claim.carrier.offer.instrument);
+      if (!inspection.valid || !inspection.offlineVerified || inspection.instrument.artifactDigest !== claim.carrier.offer.instrument.artifactDigest) throw Error('wilds_message_resource_claim_invalid');
+    }
+    const conversation = action === "send" || action === "phi-transfer" || action === "resource-offer"
       ? appendWildsDirectMessage({
           sender: self,
           recipient: peer,
           body: String(body.message ?? ""),
           clientMessageId: String(body.clientMessageId ?? ""),
           replyToId: typeof body.replyToId === "string" ? body.replyToId : null,
-          ...(action === "phi-transfer" ? { context: phiTransferContext(body.context) } : {})
+          ...(action === "phi-transfer" ? { context: phiTransferContext(body.context) } : resourceContext ? { context: resourceContext } : {})
         }).conversation
       : action === "read"
         ? markWildsConversationRead({ left: self, right: peer, actorId: actor.playerId, through: typeof body.through === "string" ? body.through : undefined })

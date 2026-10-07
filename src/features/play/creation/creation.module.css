@@ -31,3 +31,8 @@
 @media(hover:hover) and (pointer:fine){.composer textarea{font-size:14px;}}
 
 .objects [data-creation-library]{display:grid;gap:6px;}.objects [data-library-actions],.objects [data-library-object]{display:flex;align-items:center;gap:5px;}.objects [data-library-actions] button,.objects [data-library-object]>button:last-child{display:flex;align-items:center;gap:5px;}.objects [data-library-object]>button:first-child{flex:1;min-width:0;}.objects [data-library-object] small{display:block;font-size:10px;}.objects [data-library-object]>button[aria-label^="Export"]{flex:0 0 32px;justify-content:center;}
+
+/* Keep the toolbar and build feedback inside the panel on small screens. */
+.panel{max-height:min(500px,calc(100svh - 190px));}.body{display:flex;flex-direction:column;min-height:0;}.menus{flex-shrink:0;}.menus[data-has-farm=true]{grid-template-columns:repeat(4,minmax(0,1fr)) 44px;}.composerArea{min-height:0;overflow-y:auto;overscroll-behavior:contain;margin-top:8px;}.binding{margin-top:0;flex-shrink:0;}.status{padding:9px 10px;margin:8px 0 0;border:1px solid #d1e6cc35;border-radius:10px;background:#20382d;color:#f3f4e9;font-size:12px;line-height:1.5;max-height:120px;overflow-y:auto;}.previewActions{flex-shrink:0;}.welcome{flex-shrink:0;}
+@media(max-width:340px){.menus[data-has-farm=true]{grid-template-columns:repeat(4,minmax(0,1fr)) 40px;}.menus details[open] summary>span:not([data-count]){display:none;}}
+@media(max-height:560px){.panel{max-height:calc(100svh - 116px);}.status{max-height:80px;}}

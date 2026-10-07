@@ -9,7 +9,7 @@ import type { PublicWildzCard } from "@/features/profile/public-profile";
 import { RotateCcw, ShieldCheck, X } from "lucide-react";
 import Image from "next/image";
 import { standaloneCardUrl } from "@/features/play/card-export";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ownerProfileVaultAssets,
   parseProfileVaultPublicAsset,
@@ -20,10 +20,11 @@ import {
 
 type ViewerState = "idle" | "loading" | "ready" | "unavailable";
 
-export function WildzProfileVaultGallery({ cards, ownerAssets, profileHandle }: {
+export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({ cards, ownerAssets, profileHandle, active = true }: {
   cards: readonly PublicWildzCard[];
   profileHandle?: string;
   ownerAssets?: readonly PortableCardAsset[];
+  active?: boolean;
 }) {
   const ownerAssetsById = useMemo(
     () => ownerProfileVaultAssets(cards, ownerAssets ?? []),
@@ -53,6 +54,10 @@ export function WildzProfileVaultGallery({ cards, ownerAssets, profileHandle }: 
       });
     });
   }, []);
+
+  useEffect(() => {
+    if (!active) closeViewer(false);
+  }, [active, closeViewer]);
 
   const openCard = useCallback(async (card: PublicWildzCard, origin: HTMLButtonElement) => {
     requestRef.current?.abort();
@@ -156,7 +161,7 @@ export function WildzProfileVaultGallery({ cards, ownerAssets, profileHandle }: 
           type="button"
         >
           {localAsset
-            ? <DeferredProfileCardPreview key={`${card.id}:${card.proofDigest}`} eager={index < 2}><WildsCard asset={localAsset} compact interactive={false} /></DeferredProfileCardPreview>
+            ? <DeferredProfileCardPreview key={`${card.id}:${card.proofDigest}`} active={active} eager={index < 2}><WildsCard asset={localAsset} compact interactive={false} /></DeferredProfileCardPreview>
             : <Image
               alt={`${card.name} card front`}
               height={700}
@@ -197,4 +202,4 @@ export function WildzProfileVaultGallery({ cards, ownerAssets, profileHandle }: 
       <p>Tap or swipe sideways to turn the card. Scroll the back naturally.</p>
     </div> : null}
   </section>;
-}
+});

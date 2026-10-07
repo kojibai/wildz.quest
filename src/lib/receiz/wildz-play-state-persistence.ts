@@ -25,21 +25,31 @@ export function createWildzPlayStatePersistenceCoordinator<
     setTimer: options.setTimer,
     clearTimer: options.clearTimer
   };
+  let latest: Value | undefined;
+  let failedVault: Value | undefined;
+  let hasFailedVault = false;
   const runtime = createLatestOnlySaveScheduler<Value, TimerHandle>({ ...shared, write: options.writeRuntime });
   const vault = createLatestOnlySaveScheduler<Value, TimerHandle>({
     ...shared,
     write: async (value) => {
       try {
         await options.writeVault(value);
+        failedVault = undefined;
+        hasFailedVault = false;
       } catch {
-        // The synchronous pending-inventory checkpoint remains the retry authority.
-        // Never turn a storage outage into a gameplay-time retry loop.
+        // Preserve one complete latest snapshot, including finite food/world
+        // receipts. Explicit flush or the next durable mutation can retry;
+        // ordinary movement never starts a storage-outage retry loop.
+        failedVault = latest ?? value;
+        hasFailedVault = true;
       }
     }
   });
 
   return {
     schedule(value, change) {
+      latest = value;
+      if (hasFailedVault) failedVault = value;
       const durableChanged = typeof change === "boolean" ? change : change.durableChanged;
       const inventoryChanged = typeof change === "boolean" ? change : change.inventoryChanged;
       runtime.schedule(value);
@@ -48,9 +58,17 @@ export function createWildzPlayStatePersistenceCoordinator<
       vault.schedule(value);
     },
     async flush() {
+      if (hasFailedVault) {
+        vault.schedule(failedVault as Value);
+        failedVault = undefined;
+        hasFailedVault = false;
+      }
       await Promise.all([runtime.flush(), vault.flush()]);
     },
     cancel() {
+      latest = undefined;
+      failedVault = undefined;
+      hasFailedVault = false;
       runtime.cancel();
       vault.cancel();
     }

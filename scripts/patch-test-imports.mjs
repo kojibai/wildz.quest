@@ -18,6 +18,15 @@ function patchSpecifier(file, specifier) {
     return path.startsWith(".") ? path : `./${path}`;
   }
   if (!specifier.startsWith(".")) return specifier;
+  // Node's SSR tests do not run Next's CSS loader. Keep module class names
+  // available while rendering the actual component and its controls.
+  if (specifier.endsWith('.module.css')) {
+    const target = resolve(dirname(file), specifier);
+    const source = resolve(process.cwd(), relative(root, target));
+    const classes = Object.fromEntries([...readFileSync(source, 'utf8').matchAll(/\.([a-zA-Z_][\w-]*)/g)].map(match => [match[1], match[1]]));
+    writeFileSync(`${target}.js`, `export default Object.freeze(${JSON.stringify(classes)});\n`);
+    return `${specifier}.js`;
+  }
   if (extname(specifier)) return specifier;
 
   const candidate = resolve(dirname(file), `${specifier}.js`);
@@ -31,6 +40,10 @@ for (const file of files(root)) {
     .replaceAll("import 'server-only';", "")
     .replaceAll('"next/server"', '"next/server.js"')
     .replaceAll("'next/server'", "'next/server.js'")
+    .replaceAll('"next/link"', '"next/link.js"')
+    .replaceAll("'next/link'", "'next/link.js'")
+    .replaceAll('"next/image"', '"next/image.js"')
+    .replaceAll("'next/image'", "'next/image.js'")
     .replace(
       /(from\s+["'])((?:\.|@\/)[^"']+)(["'])/g,
       (_match, prefix, specifier, suffix) => `${prefix}${patchSpecifier(file, specifier)}${suffix}`
