@@ -3,6 +3,31 @@ import { test } from "node:test";
 import { prepareAndPersistWildsWorldOutboxEntry, type WildsWorldOutboxEntry } from "../src/features/play/wilds-world-outbox.js";
 import { createWildsWorldWorkerClient } from "../src/features/play/wilds-world-work-client.js";
 import { initialWildsWorldProjection } from "../src/features/play/wilds-world-state.js";
+import { createWildsConstructionProject, verifyWildsConstructionProject } from "../src/features/play/wilds-construction-project.js";
+
+test("received worker proofs retain immutability without freezing caller state or admitting altered evidence", async () => {
+  let id = 0;
+  const port = { onmessage: null, onerror: null, postMessage(message: { id: number }) { id = message.id; }, terminate() {} } as unknown as ReturnType<NonNullable<Parameters<typeof createWildsWorldWorkerClient>[0]>>;
+  const client = createWildsWorldWorkerClient(() => port);
+  const project = createWildsConstructionProject({ ownerReceizId: "keeper", name: "House", region: { x: 0, z: 0 }, kaiUPulse: 1 });
+  const caller = structuredClone({ ...initialWildsWorldProjection(), constructionProjects: { [project.projectId]: project } });
+  const received = structuredClone(caller);
+  const pending = client.run({ kind: "restore", actorId: "keeper", base: caller });
+  port.onmessage!({ data: { id, ok: true, value: received } } as MessageEvent);
+  const restored = await pending as typeof caller;
+  assert.ok(Object.isFrozen(restored.constructionProjects[project.projectId]));
+  assert.ok(Object.isFrozen(restored.constructionProjects[project.projectId]!.permissions));
+  assert.equal(Object.isFrozen(restored.constructionProjects), false, "projection maps remain editable through ordinary world reducers");
+  assert.equal(Object.isFrozen(caller.constructionProjects[project.projectId]), false, "only the receiver's private clone is frozen");
+  assert.ok(verifyWildsConstructionProject(restored.constructionProjects[project.projectId]));
+  const tampered = structuredClone(caller);
+  Object.assign(tampered.constructionProjects[project.projectId]!.permissions, { remove: !project.permissions.remove });
+  const invalid = client.run({ kind: "restore", actorId: "keeper", base: caller });
+  port.onmessage!({ data: { id, ok: true, value: tampered } } as MessageEvent);
+  const invalidResult = await invalid as typeof caller;
+  assert.equal(verifyWildsConstructionProject(invalidResult.constructionProjects[project.projectId]), false, "immutability never supplies proof authority");
+  client.close();
+});
 
 test("world worker matches out-of-order replies to their requests", async () => {
   const sent: { id: number }[] = [];
@@ -36,6 +61,19 @@ test("world worker propagates admission errors without accepting a projection", 
   port.onmessage!({ data: { id, ok: false, error: "invalid_source" } } as MessageEvent);
   await assert.rejects(pending, /invalid_source/);
   client.close();
+});
+
+test("closing during received-proof preparation rejects recovery and ignores its late result", async () => {
+  let id = 0;
+  const port = { onmessage: null, onerror: null, postMessage(message: { id: number }) { id = message.id; }, terminate() {} } as unknown as ReturnType<NonNullable<Parameters<typeof createWildsWorldWorkerClient>[0]>>;
+  const client = createWildsWorldWorkerClient(() => port);
+  const world = initialWildsWorldProjection();
+  const pending = client.run({ kind: "restore", actorId: "keeper", base: world });
+  const rejected = assert.rejects(pending, /wilds_world_worker_interrupted/);
+  port.onmessage!({ data: { id, ok: true, value: structuredClone(world) } } as MessageEvent);
+  client.close();
+  await rejected;
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
 });
 
 test("ordinary admission prepares and persists through one worker request", async () => {

@@ -3,6 +3,7 @@ import { prepareAndPersistWildsWorldOutboxEntry, prepareWildsWorldOutboxEntry, p
 import type { WildsWorldOutboxEntry } from "./wilds-world-outbox";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import type { ReceizOfflineProofQueueStorage } from '@receiz/sdk';
+import { prepareReceivedWildsWorldProofs } from "./wilds-received-proof-immutability";
 
 type Reply = { id: number } & ({ ok: true; value: unknown } | { ok: false; error: string });
 type FusedAdmissionWork = { kind: "prepare-persist"; base: WildsWorldProjection; entry: WildsWorldOutboxEntry; anchorId?: string | null };
@@ -23,7 +24,14 @@ export function createWildsWorldWorkerClient(createWorker?: () => WorkPort, opti
   let unavailable = false;
   let sequence = 0;
   let generation = 0;
-  const pending = new Map<number, { work: WorkerWork; worker: WorkPort; timer: ReturnType<typeof setTimeout>; resolve(value: unknown): void; reject(error: Error): void }>();
+  const pending = new Map<number, { work: WorkerWork; worker: WorkPort; preparing?: boolean; timer: ReturnType<typeof setTimeout>; resolve(value: unknown): void; reject(error: Error): void }>();
+  const prepareResult = async (work: WorkerWork, value: unknown, cancelled?: () => boolean) => {
+    const projection = work.kind === "restore" ? value
+      : (work.kind === "prepare" || work.kind === "prepare-persist") && value && typeof value === "object"
+        ? Object.getOwnPropertyDescriptor(value, "projection")?.value : undefined;
+    await prepareReceivedWildsWorldProofs(projection, { cancelled });
+    return value;
+  };
   const onMain = async (work: WorkerWork, uncertain = false): Promise<unknown> => {
     // Yield once before hashing/replaying on the main realm; never dispatch a new command identity.
     await new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -50,7 +58,7 @@ export function createWildsWorldWorkerClient(createWorker?: () => WorkPort, opti
     for (const [id, request] of pending) {
       if (request.worker !== active) continue;
       pending.delete(id); clearTimeout(request.timer);
-      if (recover) void onMain(request.work, true).then(request.resolve, request.reject);
+      if (recover) void onMain(request.work, true).then(value => prepareResult(request.work, value)).then(request.resolve, request.reject);
       else request.reject(new Error('wilds_world_worker_interrupted'));
     }
   };
@@ -70,10 +78,19 @@ export function createWildsWorldWorkerClient(createWorker?: () => WorkPort, opti
             if (worker !== active || generation !== epoch) return;
             if (!data || !Number.isSafeInteger(data.id) || typeof data.ok !== 'boolean') { interrupt(active, true); return; }
             const request = pending.get(data.id);
-            if (!request || request.worker !== active) return;
-            pending.delete(data.id); clearTimeout(request.timer);
-            if (data.ok) request.resolve(data.value);
-            else request.reject(new Error(data.error));
+            if (!request || request.worker !== active || request.preparing) return;
+            clearTimeout(request.timer);
+            if (data.ok) {
+              request.preparing = true;
+              void prepareResult(request.work, data.value, () => pending.get(data.id) !== request).then(value => {
+                if (pending.get(data.id) !== request) return;
+                pending.delete(data.id); request.resolve(value);
+              }, error => {
+                if (pending.get(data.id) !== request) return;
+                pending.delete(data.id); request.reject(error);
+              });
+            }
+            else { pending.delete(data.id); request.reject(new Error(data.error)); }
           };
           active.onerror = (event) => {
             event.preventDefault?.();
@@ -84,7 +101,7 @@ export function createWildsWorldWorkerClient(createWorker?: () => WorkPort, opti
         }
       } catch { unavailable = true; }
     }
-    if (!worker) return onMain(structuredClone(work));
+    if (!worker) return onMain(structuredClone(work)).then(value => prepareResult(work, value));
     const active = worker;
     const id = ++sequence;
     return new Promise((resolve, reject) => {

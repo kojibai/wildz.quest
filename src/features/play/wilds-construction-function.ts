@@ -1,8 +1,10 @@
 import { nearbyWildsConstruction } from "./wilds-construction-neighborhood";
 import { deeplyImmutable } from "./wilds-construction-geometry";
+import { createWildsExactProofCache } from "./wilds-exact-proof-cache";
 import { projectWildsConstructionProgress, verifyWildsConstructionComponent, verifyWildsMaterialContribution, verifyWildsWorkContribution, type WildsConstructionComponentV1, type WildsConstructionMaterialContributionV1, type WildsConstructionWorkContributionV1 } from "./wilds-construction-component";
 import { verifyWildsStructure, type WildsStewardWorkbenchV1, type WildsStructureV1 } from "./wilds-steward-construction";
 import type { WildsWorldProjection } from "./wilds-world-state";
+const admittedComponent = createWildsExactProofCache().guard(verifyWildsConstructionComponent);
 
 /** Evidence remains a component, never a fabricated legacy structure. */
 export type WildsConstructionFunctionSource = Readonly<{
@@ -20,7 +22,7 @@ export function verifyWildsConstructionFunctionSource(value: unknown, kind: "wor
   try {
     const source = value as WildsConstructionFunctionSource;
     const c = source.component;
-    if (source.schema !== "wildz.construction-function-source.v1" || !verifyWildsConstructionComponent(c) || c.kind !== kind
+    if (source.schema !== "wildz.construction-function-source.v1" || !admittedComponent(c) || c.kind !== kind
       || source.structureId !== c.componentId || source.head !== c.head || source.ownerReceizId !== c.ownerReceizId
       || source.position.x !== c.transform.position.x || source.position.y !== c.transform.position.y || source.position.z !== c.transform.position.z
       || !Array.isArray(source.materials) || !Array.isArray(source.work)) return false;
@@ -36,10 +38,10 @@ export function verifyWildsCraftWorkstation(value: unknown): value is WildsCraft
 }
 function resolveWildsConstructionFunctionUncached(world: WildsWorldProjection, id: string, kind: "workshop" | "storage" | "bed"): WildsConstructionFunctionSource | null {
   const component = world.constructionComponents[id];
-  if (!component || component.kind !== kind || (kind !== "storage" && (world.constructionConditions?.[id]?.integrity ?? 100) < 50)) return null;
+  if (!admittedComponent(component) || component.kind !== kind || (kind !== "storage" && (world.constructionConditions?.[id]?.integrity ?? 100) < 50)) return null;
   const source: WildsConstructionFunctionSource = { schema: "wildz.construction-function-source.v1", component,
-    materials: Object.values(world.constructionMaterialContributions).filter((p) => p.componentId === id),
-    work: Object.values(world.constructionWorkContributions).filter((p) => p.componentId === id),
+    materials: Object.values(world.constructionMaterialContributions).filter((p) => p && p.componentId === id),
+    work: Object.values(world.constructionWorkContributions).filter((p) => p && p.componentId === id),
     structureId: id, head: component.head, ownerReceizId: component.ownerReceizId, position: component.transform.position };
   if (!verifyWildsConstructionFunctionSource(source, kind)) return null;
   const progress = projectWildsConstructionProgress(component, source.materials, source.work);
@@ -94,7 +96,7 @@ export function canSleepInWildsBed(bed: WildsConstructionFunctionSource, player:
 
 export function selectWildsBedAtPlayer(world: WildsWorldProjection, player: { x: number; z: number }, space: { spaceId: string; position: { y: number } }): WildsConstructionFunctionSource | null {
   const candidates = nearbyWildsConstruction(world.constructionComponents, player, 2)
-    .filter(component => component.kind === "bed")
+    .filter(component => component.kind === "bed" && typeof component.componentId === "string")
     .sort((a, b) => Math.hypot(a.transform.position.x - player.x, a.transform.position.z - player.z)
       - Math.hypot(b.transform.position.x - player.x, b.transform.position.z - player.z) || a.componentId.localeCompare(b.componentId));
   for (const component of candidates) {

@@ -22,6 +22,7 @@ import { canSleepInWildsBed, selectWildsBedAtPlayer, resolveWildsConstructionFun
 import dynamic from "next/dynamic";
 import {creationFloorSupportAt,type CreationNavigation} from './creation/navigation';
 import {reconcileWildsBedRest} from './wilds-bed-rest-runtime';
+import { startWildsVisibleDisplayClock } from "./wilds-visible-display-clock";
 import type {CreationController} from "./creation/controller";
 import {createWorldCreationController,type WorldCreationControllerInput} from "./creation/world-controller";
 import {createCreationPhysicalWorkerClient} from "./creation/physical-worker-client";
@@ -1459,7 +1460,6 @@ export function PlayCampaign({
   const trailSynergy = useMemo(() => deriveLoadoutSynergy(trailPack, worldProgression.chapter.name), [trailPack, worldProgression.chapter.name]);
 
   useEffect(() => {
-    let timer = 0;
     const elapsedNow = () => performance.now();
     const updateKaiMoment = () => {
       const observedUPulse = observeWildsKaiUPulse();
@@ -1470,16 +1470,12 @@ export function PlayCampaign({
       });
       setKaiUPulse(kaiRuntimeClockRef.current.read(elapsedMs, observedUPulse));
     };
-    const scheduleNextKaiMoment = () => {
-      updateKaiMoment();
-      timer = window.setTimeout(scheduleNextKaiMoment, millisecondsUntilNextKaiPulse());
-    };
-    updateKaiMoment();
-    timer = window.setTimeout(scheduleNextKaiMoment, millisecondsUntilNextKaiPulse());
-    document.addEventListener("visibilitychange", updateKaiMoment);
+    const displayClock = startWildsVisibleDisplayClock({ hidden: () => document.hidden, read: updateKaiMoment,
+      schedule: tick => window.setTimeout(tick, millisecondsUntilNextKaiPulse()), cancel: timer => window.clearTimeout(timer) });
+    document.addEventListener("visibilitychange", displayClock.visibilityChanged);
     return () => {
-      window.clearTimeout(timer);
-      document.removeEventListener("visibilitychange", updateKaiMoment);
+      displayClock.dispose();
+      document.removeEventListener("visibilitychange", displayClock.visibilityChanged);
     };
   }, []);
 

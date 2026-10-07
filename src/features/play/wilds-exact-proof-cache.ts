@@ -2,13 +2,16 @@
 export function createWildsExactProofCache(options: { maxEntries?: number; maxBytes?: number } = {}) {
   const maxEntries = options.maxEntries ?? 4096;
   const maxBytes = options.maxBytes ?? 4 * 1024 * 1024;
-  const entries = new Map<string, { result: boolean; bytes: number }>();
+  type Entry = { result: boolean; bytes: number; key: string | null };
+  const entries = new Map<string, Entry>();
+  const immutableEntries = new WeakMap<object, WeakMap<Function, Entry>>();
   const validators = new WeakMap<Function, number>();
   let nextValidator = 0;
   let bytes = 0;
 
-  function exactDataKey(value: unknown): string | null {
+  function inspectDataKey(value: unknown): { key: string; immutable: boolean } | null {
     let length = 0;
+    let immutable = true;
     const active = new Set<object>();
     const part = (text: string) => {
       length += text.length * 2;
@@ -25,6 +28,10 @@ export function createWildsExactProofCache(options: { maxEntries?: number; maxBy
       const prototype = Object.getPrototypeOf(item);
       if (array ? prototype !== Array.prototype : prototype !== Object.prototype && prototype !== null) throw new Error("uncacheable");
       const descriptors = Object.getOwnPropertyDescriptors(item);
+      if (Object.isExtensible(item) || Reflect.ownKeys(descriptors).some(key => {
+        const descriptor = descriptors[key as string]!;
+        return descriptor.configurable !== false || ("value" in descriptor && descriptor.writable !== false);
+      })) immutable = false;
       const keys = Reflect.ownKeys(descriptors);
       if (keys.some(key => typeof key !== "string" || key === "toJSON")) throw new Error("uncacheable");
       for (const key of keys as string[]) {
@@ -48,8 +55,9 @@ export function createWildsExactProofCache(options: { maxEntries?: number; maxBy
       active.delete(item);
       return result;
     };
-    try { return visit(value, 0); } catch { return null; }
+    try { return { key: visit(value, 0), immutable }; } catch { return null; }
   }
+  function exactDataKey(value: unknown): string | null { return inspectDataKey(value)?.key ?? null; }
 
   const cache = {
     /** Returns null for accessor-bearing, non-plain, cyclic, or oversized data. */
@@ -58,24 +66,40 @@ export function createWildsExactProofCache(options: { maxEntries?: number; maxBy
       return (value: unknown): value is T => cache.verify(value, validator);
     },
     verify<T>(value: T, validator: (value: T) => boolean): boolean {
-      const data = exactDataKey(value);
-      if (data === null) return validator(value);
+      const object = value !== null && typeof value === "object" ? value : null;
+      const immutableHit = object ? immutableEntries.get(object)?.get(validator) : undefined;
+      if (immutableHit?.key !== null && immutableHit?.key !== undefined) {
+        entries.delete(immutableHit.key); entries.set(immutableHit.key, immutableHit);
+        return immutableHit.result;
+      }
+      const inspected = inspectDataKey(value);
+      if (inspected === null) return validator(value);
+      const data = inspected.key;
       let validatorId = validators.get(validator);
       if (validatorId === undefined) { validatorId = ++nextValidator; validators.set(validator, validatorId); }
       const key = `${validatorId}:${data}`;
       const found = entries.get(key);
-      if (found) { entries.delete(key); entries.set(key, found); return found.result; }
-      const result = validator(value);
+      const result = found ? found.result : validator(value);
       const size = key.length * 2;
+      let entry = found;
+      if (found) { entries.delete(key); entries.set(key, found); }
       if (size <= maxBytes && maxEntries > 0) {
-        while (entries.size >= maxEntries || bytes + size > maxBytes) {
-          const oldest = entries.keys().next().value;
-          if (oldest === undefined) break;
-          bytes -= entries.get(oldest)!.bytes;
-          entries.delete(oldest);
+        if (!found) {
+          while (entries.size >= maxEntries || bytes + size > maxBytes) {
+            const oldest = entries.keys().next().value;
+            if (oldest === undefined) break;
+            const expired = entries.get(oldest)!;
+            bytes -= expired.bytes; expired.key = null;
+            entries.delete(oldest);
+          }
+          entry = { result, bytes: size, key };
+          entries.set(key, entry); bytes += size;
         }
-        entries.set(key, { result, bytes: size });
-        bytes += size;
+        if (object && inspected.immutable && entry) {
+          let proofs = immutableEntries.get(object);
+          if (!proofs) { proofs = new WeakMap(); immutableEntries.set(object, proofs); }
+          proofs.set(validator, entry);
+        }
       }
       return result;
     },

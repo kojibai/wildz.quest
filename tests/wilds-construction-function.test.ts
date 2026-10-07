@@ -78,6 +78,34 @@ it("a bed is usable only after exact construction materials and work make it fun
   assert.equal(resolveWildsConstructionFunction(missing, finished.component.componentId, "bed"), null);
 });
 
+it("malformed nearby rows cannot crash bed selection or replace a valid bed", () => {
+  const { world, component } = fixture("bed", 100);
+  const player = { x: component.transform.position.x, z: component.transform.position.z };
+  const space = { ...initialPlayState.siteSpace, position: component.transform.position };
+  const expected = functions.selectWildsBedAtPlayer(world, player, space);
+  assert.ok(expected);
+  const broken = { kind: "bed", componentId: "broken" };
+  const nonfinite = { ...structuredClone(component), componentId: "nonfinite", transform: { ...component.transform, position: { x: NaN, y: 0, z: 2 } } };
+  const forged = { ...structuredClone(component), componentId: "forged" };
+  for (const frozen of [false, true]) {
+    const components = { ...world.constructionComponents, broken, nonfinite, forged } as unknown as typeof world.constructionComponents;
+    if (frozen) {
+      const freeze = (value: unknown): void => {
+        if (!value || typeof value !== "object" || Object.isFrozen(value)) return;
+        for (const child of Object.values(value)) freeze(child);
+        Object.freeze(value);
+      };
+      freeze(components);
+    }
+    const input = { ...world, constructionComponents: components,
+      constructionMaterialContributions: { ...world.constructionMaterialContributions, broken: null } as unknown as typeof world.constructionMaterialContributions,
+      constructionWorkContributions: { ...world.constructionWorkContributions, broken: null } as unknown as typeof world.constructionWorkContributions };
+    assert.equal(resolveWildsConstructionFunction(input, "broken", "bed"), null);
+    assert.equal(resolveWildsConstructionFunction(input, "forged", "bed"), null);
+    assert.deepEqual(functions.selectWildsBedAtPlayer(input, player, space), expected);
+  }
+});
+
 it("resting in a completed nearby bed restores more energy and rejects distant or unfinished beds", () => {
   const { world, component } = fixture("bed", 100);
   const bed = resolveWildsConstructionFunction(world, component.componentId, "bed")!;

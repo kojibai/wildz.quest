@@ -31,3 +31,19 @@ The first commit passed 3454 tests, with one pre-existing skip, plus typecheck, 
 - Used: loading order, worker ownership/recovery, CPU task measurement, exact history equivalence, before/after heartbeat and startup dependency checks.
 
 Remaining qualification: fresh device startup with the actual large account after deployment. This work cannot substantiate a guarantee that every possible startup or GPU/network failure is eliminated.
+
+## Additional startup and sleep follow-up
+
+Owner-bound runtime checkpoint restoration serialized the entire admitted inventory before parsing and discarding that copy. Restoration now serializes an empty inventory and reattaches the exact admitted handle through the existing owner-bound restore API. A synthetic 500-card, 4.63 MB inventory improved from 26.51 ms median to 5.88 ms on this host; the handle, position, food, sleep and source boundaries remain the same.
+
+The exact proof cache now reuses deeply frozen plain proof objects without walking and rebuilding their exact data keys on every hit. All nested descriptors are checked during first inspection; mutable, root-only frozen, accessor-bearing or unsupported data retains exact-data revalidation. LRU eviction invalidates identity tokens and releases their retained keys. A synthetic 1,000-project warm pass improved from 8.14 ms to 0.11 ms.
+
+Worker transfer and JSON parsing remove object freezing. Private received construction proof rows are frozen again without freezing caller-owned state or projection maps. Normal admission still validates them. First geometry preparation yields before work and between 8 ms target slices; cancellation prevents late adoption and interrupts unresolved worker preparation. In a 200-component / 1,000-contribution fixture, repeated geometry fell from 223.99 ms to 0.11 ms. First preparation took 263.49 ms across 26 rendering opportunities with a 14.50 ms maximum heartbeat gap. Initial freezing, grouping and a single expensive verifier are outside the slice bound. Reproduce with `node scripts/benchmark-world-startup-proofs.mjs` after test compilation.
+
+Display Kai updates now pause while hidden and catch up once when visible. Analytical sleep/energy settlement, save timers, visible animations and command authority are preserved. This is a background cost reduction, not an explanation of the reported actively watched application error.
+
+A malformed manual construction component could throw before bed-source verification. Bed resolution now verifies components before reading their transforms; broad-phase indexing skips missing/nonfinite horizontal positions, and null contribution rows cannot crash bed selection. A valid bed still requires its original exact funding/work/custody proof and footprint. The reproduced defensive bug predates the latest startup commits and has not been established as the user's live exception.
+
+Unexpected client exceptions now retain four bounded local error reports and offer explicit retry/copy controls instead of the default white application-error screen. Reports capture error fields only, remove URL credentials/query/fragment, do not capture game-state objects, and do not make network requests. They preserve the actual stack needed to diagnose a recurrence; no general catch resets the game or invents recovered progress.
+
+Follow-up validation: 3,470 tests passed with one pre-existing skip, plus typecheck, changed-file lint and independent review. Targeted error-normalization checks also passed after defensive handling of malformed error objects. An isolated production build succeeded; the production browser world rendered with movement and zero captured client errors during the check. Production build and browser qualification used a separate temporary checkout so the existing main runtime and `.next` assets remain intact. The browser check used a synthetic local explorer, not the real large account.

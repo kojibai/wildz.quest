@@ -1,4 +1,5 @@
 import type { WildzIdentitySession } from "./wildz-identity-repository";
+import { prepareReceivedWildsWorldProofs } from "../../features/play/wilds-received-proof-immutability";
 import { parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import { parseWildsWorldIdentityPublicationDraft, type WildsWorldIdentityPublicationDraft } from "./wilds-world-identity-publication";
 
@@ -134,6 +135,7 @@ export async function bootstrapWildzSharedWorld(
       || Number(projection.revision) < 1) {
       throw new Error("wildz_world_bootstrap_unavailable");
     }
+    await prepareReceivedWildsWorldProofs(projection);
     return identityPublication
       ? { ...value, publication: { published: false, required: "identity_proof", draft: identityPublication } } as WildzSharedWorldBootstrap
       : value as WildzSharedWorldBootstrap;

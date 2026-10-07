@@ -3,6 +3,17 @@ import { test } from "node:test";
 import { bootstrapWildzSharedWorld } from "../src/lib/receiz/wildz-session-bridge";
 import { WildsWorldService } from "../src/features/play/wilds-world-service";
 import { readFileSync } from "node:fs";
+import { createWildsConstructionProject, verifyWildsConstructionProject } from "../src/features/play/wilds-construction-project";
+
+test("bootstrap retains private received construction proofs for safe reuse without changing their authority", async () => {
+  const project = createWildsConstructionProject({ ownerReceizId: "owner", name: "House", region: { x: 0, z: 0 }, kaiUPulse: 1 });
+  const result = await bootstrapWildzSharedWorld(async () => Response.json({ ok: true, mode: "receiz_live",
+    projection: { schema: "receiz.wilds_world_projection.v3", worldId: "wilds:global:v3", revision: 2,
+      constructionProjects: { [project.projectId]: project } } }));
+  const proof = (result.projection as unknown as { constructionProjects: Record<string, typeof project> }).constructionProjects[project.projectId]!;
+  assert.ok(Object.isFrozen(proof)); assert.ok(Object.isFrozen(proof.permissions));
+  assert.ok(verifyWildsConstructionProject(proof));
+});
 
 test("shared-world bootstrap accepts only an acknowledged live canonical projection", async () => {
   const requests: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];

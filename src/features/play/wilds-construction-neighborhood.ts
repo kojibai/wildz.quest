@@ -3,8 +3,12 @@ import { createWildsConstructionGeometryProjector, deeplyImmutable } from "./wil
 import type { WildsWorldProjection } from "./wilds-world-state";
 
 type Components = WildsWorldProjection["constructionComponents"];
+function hasConstructionPosition(component: Components[string]): boolean {
+  const position = component?.transform?.position;
+  return !!position && Number.isFinite(position.x) && Number.isFinite(position.z);
+}
 export function indexWildsConstruction(components: Components) {
-  return createWildsOrderedSpatialIndex(Object.values(components), component => {
+  return createWildsOrderedSpatialIndex(Object.values(components).filter(hasConstructionPosition), component => {
     const { x, z } = component.transform.position;
     return { minX: x, maxX: x, minZ: z, maxZ: z };
   });
@@ -13,7 +17,7 @@ const indexes = new WeakMap<Components, ReturnType<typeof indexWildsConstruction
 export function nearbyWildsConstruction(components: Components, point: { x: number; z: number }, radius: number) {
   let query = indexes.get(components);
   if (!query) {
-    if (!deeplyImmutable(components)) return Object.values(components);
+    if (!deeplyImmutable(components)) return Object.values(components).filter(hasConstructionPosition);
     query = indexWildsConstruction(components);
     // Imported mutable proofs must never leave a stale authoritative index.
     indexes.set(components, query);

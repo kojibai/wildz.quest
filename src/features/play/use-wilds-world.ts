@@ -1,4 +1,5 @@
 "use client";
+import { prepareReceivedWildsWorldProofs } from "./wilds-received-proof-immutability";
 import { createWildsWorldRefreshCoordinator } from "./wilds-world-refresh-coordinator";
 import type { WildsBurrowRequest } from "./wilds-burrow";
 import { settleWildsBuild } from "./wilds-steward-build-settlement";
@@ -298,6 +299,8 @@ export function useWildsWorld(input: {
         error.status = response.status;
         throw error;
       }
+      await prepareReceivedWildsWorldProofs(value.projection, { cancelled: () => controller.signal.aborted });
+      controller.signal.throwIfAborted();
       return value;
     } finally {
       controllers.current.delete(controller);

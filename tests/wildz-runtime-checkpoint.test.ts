@@ -66,6 +66,22 @@ test("runtime checkpoints persist gameplay without serializing verified Vault ca
   assert.deepEqual(restored.explorationAtlas, moved.explorationAtlas);
 });
 
+test("checkpoint restoration never serializes the admitted Vault only to discard its parsed cards", () => {
+  const actorId = "runtime_serialization_keeper", keyId = "runtime-serialization-key";
+  const base = createOwnerBoundInitialPlayState(actorId);
+  let inventorySerializations = 0;
+  Object.defineProperty(base.inventory, "toJSON", { value: () => {
+    inventorySerializations++;
+    return [...base.inventory];
+  } });
+  const storage = new MemoryStorage();
+  writeWildzRuntimeCheckpoint(storage, { keyId, actorId, playState: { ...base, player: { x: 12, z: 8 } } });
+  const restored = readWildzRuntimeCheckpoint(storage, { keyId, actorId, playState: base });
+  assert.equal(restored.inventory, base.inventory);
+  assert.deepEqual(restored.player, { x: 12, z: 8 });
+  assert.equal(inventorySerializations, 0, "owner-bound admitted cards are carried by their handle, without JSON work");
+});
+
 test("a runtime checkpoint cannot attach to a changed Vault", () => {
   const storage = new MemoryStorage();
   const base = createOwnerBoundInitialPlayState("runtime_keeper");

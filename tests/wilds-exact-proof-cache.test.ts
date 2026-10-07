@@ -20,6 +20,53 @@ test("equal worker clones reuse verification but every nested data change revali
   assert.equal(cache.verify({ head: "same-head", nested: { owner: "owner" } }, otherVerify), false);
 });
 
+test("deeply immutable plain proofs reuse validation without another full descriptor walk", () => {
+  const cache = createWildsExactProofCache();
+  let inspections = 0, verifications = 0;
+  const nested = new Proxy(Object.freeze({ owner: "owner" }), {
+    getOwnPropertyDescriptor(target, key) { inspections++; return Reflect.getOwnPropertyDescriptor(target, key); }
+  });
+  const proof = Object.freeze({ nested });
+  const verify = (value: typeof proof) => { verifications++; return value.nested.owner === "owner"; };
+  assert.equal(cache.verify(proof, verify), true);
+  const firstInspections = inspections;
+  assert.ok(firstInspections > 0);
+  assert.equal(cache.verify(proof, verify), true);
+  assert.equal(verifications, 1);
+  assert.equal(inspections, firstInspections, "immutable proof data cannot change and needs no repeated traversal");
+});
+
+test("freezing only the proof root never hides mutable nested evidence", () => {
+  const cache = createWildsExactProofCache();
+  const proof = Object.freeze({ nested: { owner: "owner" } });
+  const verify = (value: typeof proof) => value.nested.owner === "owner";
+  assert.equal(cache.verify(proof, verify), true);
+  proof.nested.owner = "intruder";
+  assert.equal(cache.verify(proof, verify), false);
+  const accessor = Object.freeze({ get owner() { return proof.nested.owner; } });
+  const accessorVerify = (value: typeof accessor) => value.owner === "owner";
+  assert.equal(cache.verify(accessor, accessorVerify), false);
+  proof.nested.owner = "owner";
+  assert.equal(cache.verify(accessor, accessorVerify), true);
+});
+
+test("immutable identity reuse respects eviction, validator identity, and disabled caching", () => {
+  const cache = createWildsExactProofCache({ maxEntries: 1 });
+  const first = Object.freeze({ value: "first" }), second = Object.freeze({ value: "second" });
+  let calls = 0;
+  const verify = () => { calls++; return true; };
+  cache.verify(first, verify); cache.verify(first, verify);
+  assert.equal(calls, 1);
+  cache.verify(second, verify); cache.verify(first, verify);
+  assert.equal(calls, 3, "evicted identity tokens cannot retain keys or skip validation");
+  assert.equal(cache.verify(first, () => false), false);
+  const disabled = createWildsExactProofCache({ maxEntries: 0 });
+  const before = calls;
+  disabled.verify(first, verify); disabled.verify(first, verify);
+  assert.equal(calls, before + 2);
+  assert.deepEqual(disabled.stats(), { entries: 0, bytes: 0 });
+});
+
 test("getters, toJSON, non-data prototypes, symbols, hidden fields and sparse arrays never use the cache", () => {
   const cache = createWildsExactProofCache();
   let calls = 0, getterCalls = 0;

@@ -3,6 +3,7 @@ import { WILDZ_PRODUCT } from "@/lib/wildz/product";
 import "./globals.css";
 import { PwaController } from "@/features/pwa/PwaController";
 import { NativeInteractionGuard } from "@/features/pwa/NativeInteractionGuard";
+import { WildzClientErrorCapture } from "@/features/pwa/WildzClientErrorCapture";
 
 export const metadata: Metadata = {
   metadataBase: new URL(WILDZ_PRODUCT.origin),
@@ -82,7 +83,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body><NativeInteractionGuard />{children}<PwaController /></body>
+      <body><NativeInteractionGuard /><WildzClientErrorCapture />{children}<PwaController /></body>
     </html>
   );
 }

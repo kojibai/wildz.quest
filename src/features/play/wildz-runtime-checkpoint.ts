@@ -277,7 +277,10 @@ export function readWildzRuntimeCheckpoint(storage: RuntimeStorage, input: {
     }
     const restored = restorePlayState(serializePlayState({
       ...checkpoint.playState,
-      inventory
+      // The owner-bound handle already carries the exact admitted cards.
+      // Restore uses those references; serializing another Vault copy here
+      // would only parse and immediately discard it.
+      inventory: []
     } as PlayState), input.actorId, admittedInventory);
     if (hasLaterWildsPlayerLedger(input.playState, restored)) return input.playState;
     const traversalAssetIds = [restored.selectedAssetId, ...restored.supportAssetIds].filter((assetId): assetId is string => Boolean(assetId));
