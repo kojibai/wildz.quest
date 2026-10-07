@@ -610,7 +610,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(await readFile("src/features/play/wilds-card-artwork.ts", "utf8"), /fit:\s*"full-body"/);
     assert.match(cardExport, /renderHeartboundSvg/);
     assert.match(growth, /What remains/);
-    assert.match(growth, /Revision history/);
+    assert.match(growth, /Growth history/);
     assert.match(transformation, /aria-label="Living card transformation"/);
     assert.match(transformation, /aria-live="assertive"/);
     assert.match(ceremony, /Both parents remain yours/);

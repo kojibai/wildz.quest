@@ -12,6 +12,19 @@ import { resolveLocalWildzCard } from "../src/lib/receiz/wildz-local-card-resolv
 import * as vaultAdmission from "../src/lib/receiz/wildz-vault-card-admission";
 import * as publicCardRegistry from "../src/features/play/public-card-registry";
 
+test("a verified card published through its owner profile needs no duplicate publication", async () => {
+  const asset = initialPlayState.inventory[0]!;
+  const record = createPublicWildsCardRecord(asset, "https://wildz.quest", "2026-10-07T06:00:00.000Z");
+  const calls: Array<{ url: string; method: string; credentials: RequestCredentials | undefined }> = [];
+  const fetcher = (async (url: string, init?: RequestInit) => {
+    calls.push({ url, method: init?.method ?? "GET", credentials: init?.credentials });
+    return url.endsWith("?profile=owner.receiz.id")
+      ? Response.json({ ok: true, record }) : Response.json({ ok: false }, { status: 404 });
+  }) as typeof fetch;
+  assert.equal((await publicCardRegistry.requireGloballyAvailablePublicWildsCard(asset, fetcher, { profileHandle: "owner.receiz.id" })).asset.proof.digest, asset.proof.digest);
+  assert.deepEqual(calls, [{ url: `/api/cards/${encodeURIComponent(asset.id)}?profile=owner.receiz.id`, method: "GET", credentials: "omit" }]);
+});
+
 test("full and compact card parameters resolve one canonical asset", () => {
   assert.deepEqual(parsePublicCardParam("wilds:0123456789abcdef01234567"), {
     assetId: "wilds:0123456789abcdef01234567",

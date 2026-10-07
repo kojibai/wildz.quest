@@ -39,9 +39,33 @@ export function createCreationSceneRuntime(input: {
         chunks.push(p.chunk);
         groups.set(p.projection, chunks);
     } return [...groups].map(([p, chunks]) => ({ ...p, chunks, solids: chunks.flatMap(c => c.solids), walkable: chunks.flatMap(c => c.walkable), interiors: chunks.flatMap(c => c.interiors), connections: chunks.flatMap(c => c.connections) })); };
-    const publish = () => { if (deferred || closed)
-        return; deferred = true; const epoch = generation; input.defer(() => { if (closed || epoch !== generation)
-        return; deferred = false; const uploaded = scheduler?.paintSnapshot().active || [], ids = new Set(uploaded.map(r => r.chunk.id)), physicalIds = new Set([...ids].filter(id => rendered.has(id))); const changedPhysical = !equalIds(physicalIds, physicalIdsCache), changedVisible = !equalIds(ids, visibleIds), projections = changedPhysical ? collect(physicalIds) : snapshot.projections; physicalIdsCache = physicalIds; visibleIds = ids; snapshot = { ...snapshot, revision: snapshot.revision + 1, projections, renderProjections: changedVisible ? collect(ids) : snapshot.renderProjections, navigation: changedPhysical ? prepareCreationNavigation(projections) : snapshot.navigation, queued: scheduler?.paintSnapshot().queued || 0 }; listeners.forEach(fn => fn()); }); };
+    const publish = () => {
+        if (deferred || closed) return;
+        deferred = true;
+        const epoch = generation;
+        input.defer(() => {
+            if (closed || epoch !== generation) return;
+            deferred = false;
+            const uploaded = scheduler?.paintSnapshot().active || [], ids = new Set(uploaded.map(r => r.chunk.id));
+            const physicalIds = new Set([...ids].filter(id => rendered.has(id)));
+            // A page becomes physical only with all rendered support pages.
+            // Pruning to a fixed point also makes a mutually dependent group
+            // activate together after its paced uploads have all rendered.
+            let removed: boolean;
+            do {
+                removed = false;
+                for (const id of physicalIds) if (pages.pages.get(id)?.dependencies.some(dependency => !physicalIds.has(dependency))) {
+                    physicalIds.delete(id);
+                    removed = true;
+                }
+            } while (removed);
+            const changedPhysical = !equalIds(physicalIds, physicalIdsCache), changedVisible = !equalIds(ids, visibleIds), projections = changedPhysical ? collect(physicalIds) : snapshot.projections;
+            physicalIdsCache = physicalIds;
+            visibleIds = ids;
+            snapshot = { ...snapshot, revision: snapshot.revision + 1, projections, renderProjections: changedVisible ? collect(ids) : snapshot.renderProjections, navigation: changedPhysical ? prepareCreationNavigation(projections) : snapshot.navigation, queued: scheduler?.paintSnapshot().queued || 0 };
+            listeners.forEach(fn => fn());
+        });
+    };
     return { snapshot: () => snapshot, subscribe(fn: () => void) { listeners.add(fn); return () => { listeners.delete(fn); }; },
         refresh(next: Pick<CreationPhysicalSnapshot, 'projections' | 'definitions'>, budget: CreationResidencyBudget) {
             if (closed)

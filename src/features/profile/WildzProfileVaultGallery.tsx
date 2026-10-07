@@ -190,8 +190,8 @@ export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({
       </header>
       <div className="wildz-profile-card-viewer-body">
         {viewerState === "loading" ? <div className="wildz-profile-card-state" role="status"><RotateCcw aria-hidden="true" size={24} /><strong>Recovering verified card…</strong></div> : null}
-        {viewerState === "unavailable" ? <div className="wildz-profile-card-state" role="status"><ShieldCheck aria-hidden="true" size={24} /><strong>Verified card unavailable</strong><span>The public proof could not be recovered right now.</span><button type="button" onClick={() => { if (originRef.current) void openCard(selectedCard, originRef.current); }}>Retry card</button><a href={standaloneCardUrl(selectedCard.id, window.location.origin)}>Open latest published card</a></div> : null}
-        {selectedAsset && selectedAsset.proof.digest !== selectedCard.proofDigest && <p role="status">Showing the current published card. This profile lists an earlier revision.</p>}
+        {viewerState === "unavailable" ? <div className="wildz-profile-card-state" role="status"><ShieldCheck aria-hidden="true" size={24} /><strong>Verified card unavailable</strong><span>The public proof could not be recovered right now.</span><button type="button" onClick={() => { if (originRef.current) void openCard(selectedCard, originRef.current); }}>Retry card</button><a href={standaloneCardUrl(selectedCard.id, window.location.origin)}>Open published card</a></div> : null}
+        {selectedAsset && selectedAsset.proof.digest !== selectedCard.proofDigest && <p role="status">Showing the verified public card. This saved profile hasn’t synced with its public link yet.</p>}
         {selectedAsset ? <WildsCardScene
           asset={selectedAsset}
           origin={window.location.origin}

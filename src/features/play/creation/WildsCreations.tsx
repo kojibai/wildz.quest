@@ -31,7 +31,7 @@ export default memo(function WildsCreations({ source, worldId, spaceId, position
     profile: WildsQualityProfile;
     onNavigation: (navigation: CreationNavigation | null) => void;
 }) {
-    const gl = useThree(state => state.gl), [runtime] = useState(() => createCreationSceneRuntime({ defer: queueMicrotask }));
+    const gl = useThree(state => state.gl), [runtime] = useState(() => createCreationSceneRuntime({ defer: work => queueMicrotask(work) }));
     const snapshot = useSyncExternalStore(runtime.subscribe, runtime.snapshot, runtime.snapshot), lifecycle = useMemo(() => ({ epoch: 0 }), []);
     const renderMeter = useRef({ calls: 0, triangles: 0 });
     const onRendered = (id: string, vertices: number) => { renderMeter.current.calls++; renderMeter.current.triangles += vertices / 3; runtime.rendered(id); };

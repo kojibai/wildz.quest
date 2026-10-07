@@ -18,32 +18,16 @@ export function createCreationPageIndex(input: readonly CreationPageRef[]): Crea
             throw Error('creation_page_ref_invalid');
         pages.set(p.pageId, p);
     }
-    // Validate dependency topology once, never during actor movement or rendering.
-    const remaining = new Map<string, number>(), children = new Map<string, string[]>();
+    // Validate references once. Regional grouping can turn an admitted acyclic
+    // node chain into mutually dependent pages; selection takes their complete
+    // dependency closure together instead of rejecting that derived cycle.
     for (const p of pages.values()) {
-        remaining.set(p.pageId, p.dependencies.length);
         for (const id of p.dependencies) {
             const d = pages.get(id);
             if (!d || d.worldId !== p.worldId || d.spaceId !== p.spaceId)
                 throw Error('creation_page_dependency_invalid');
-            const list = children.get(id) || [];
-            list.push(p.pageId);
-            children.set(id, list);
         }
     }
-    const ready = [...remaining].filter(([, n]) => n === 0).map(([id]) => id);
-    let processed = 0;
-    for (let i = 0; i < ready.length; i++) {
-        processed++;
-        for (const id of children.get(ready[i]) || []) {
-            const n = remaining.get(id)! - 1;
-            remaining.set(id, n);
-            if (n === 0)
-                ready.push(id);
-        }
-    }
-    if (processed !== pages.size)
-        throw Error('creation_page_dependency_cycle');
     const index = createCreationSpatialIndex([...pages.values()].map(p => ({ instanceId: p.pageId, head: p.head, definitionDigest: p.head, worldId: p.worldId, spaceId: p.spaceId, bounds: p.bounds, regionIds: creationRegionIds(p.bounds) })));
     return { ...index, pages };
 }

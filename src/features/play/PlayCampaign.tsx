@@ -125,6 +125,7 @@ import { landmarkAtPosition, WILDS_FLAGSHIP_LANDMARKS, type WildsLandmarkId } fr
 import { evaluateLandmarkAccess, type WildsLandmarkProgress } from "@/features/play/wilds-landmark-access";
 import { authorizeRiftTravel, type RiftTravelGrant } from "@/features/play/wilds-rift-travel";
 import { projectWildzHud } from "@/features/play/wildz-gameplay-hud";
+import { adoptWildsExplorerSagaProgress } from "@/features/play/wilds-explorer-progression";
 import { shouldRunWildzOffHotPathWork } from "@/features/play/wilds-network-status";
 import { nextCreatureContinuityDueAt } from "@/features/play/creature-continuity";
 import { WildzReferenceHud } from "@/features/play/WildzReferenceHud";
@@ -1287,6 +1288,13 @@ export function PlayCampaign({
     memories: livingWorld.snapshot?.story.memories ?? []
   }), [kaiMoment, livingWorld.snapshot?.story.memories]);
   const sagaPlayer = livingWorld.snapshot?.players[ownerReceizId] ?? null;
+  const explorerWorldRevision = livingWorld.snapshot?.revision;
+  useEffect(() => {
+    if (explorerWorldRevision === undefined || !sagaPlayer) return;
+    setState(current => adoptWildsExplorerSagaProgress(current, {
+      ownerReceizId, worldRevision: explorerWorldRevision, player: sagaPlayer
+    }));
+  }, [explorerWorldRevision, sagaPlayer, ownerReceizId]);
   const wildBattleActive = isWildBattleModalOwner(state.encounter.phase, Boolean(state.battle));
   const { sagaMissions, sagaProgressPercent } = useMemo(() => {
     const sagaContributions: WildsMissionContribution[] = saga.chapter.missions.flatMap((mission) => mission.nodes.flatMap((node) => {
@@ -2770,6 +2778,15 @@ export function PlayCampaign({
       status: `${saga.act.ark} · ${saga.chapter.title}`,
       content: (
         <div className="wilds-command-content wilds-mission-content">
+          <section className="wilds-saga-grid" aria-label="Explorer progression">
+            <article className="wilds-saga-objective">
+              <small>Earned explorer progress</small>
+              <strong>Level {hudModel.player.level}</strong>
+              <p>{hudModel.xp.current} earned XP · {hudModel.xp.achievementCount} achievements</p>
+              <div className="wilds-progress" role="progressbar" aria-label="Explorer level progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={hudModel.xp.progress} aria-valuetext={hudModel.xp.remaining ? `${hudModel.xp.levelXp} of 100 XP toward the next level` : "Maximum explorer level reached"}><span style={{ width: `${hudModel.xp.progress}%` }} /></div>
+              <p>{hudModel.xp.remaining ? `${hudModel.xp.remaining} XP to level ${hudModel.player.level + 1}.` : "Maximum explorer level reached."} Complete captures, battles, companion milestones, and story objectives to grow.</p>
+            </article>
+          </section>
           <WildsJourneyPanel step={nextJourneyStep} companionName={activeAsset?.manifest.name} memories={journeyMemories} home={journeyHome ? { label: "Your trail shelter", distance: homeDistance } : undefined} onAction={followJourneyStep} onReturnHome={() => { if (!journeyHome) return; setTrackedDestination({ label: "Your shelter", ...journeyHome.position }); closeJourney(); showWorldFeedback(`Your trail shelter is ${wildsTrailDirection(state.player, journeyHome.position)}. Rest beside it to recover for your next journey.`, true); }} onRest={restAtJourneyHome} canRest={homeDistance <= 6 && state.siteSpace.spaceId === "wildz.space.outer.v1" && !state.battle} />
           {companionChapter ? <WildsCompanionChapter chapter={companionChapter} onFindPlace={(position, kind) => {
             if (!interactionEnabled || modalOwner !== "none" || worldOverlayState.panelKey !== "mission") return;

@@ -1,0 +1,42 @@
+.panel { gap: 14px; }
+.intro { padding-bottom: 0; }
+.intro h3 { font-size: 23px; }
+.browser { position: sticky; top: 0; z-index: 2; display: grid; gap: 10px; padding: 10px; border: 1px solid #83d8bf30; border-radius: 17px; background: #0d2a30f7; box-shadow: 0 6px 18px #0002; }
+.search { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 10px; border: 1px solid #a0dfc936; border-radius: 11px; color: #acd4c7; background: #071c24; }
+.search input { flex: 1; min-width: 0; min-height: 44px; padding: 0; border: 0; outline: 0; color: #f0fff7; background: transparent; font: inherit; font-size: 16px; }
+.search input::placeholder { color: #8daea6; }
+.search:focus-within { outline: 2px solid #f0df9c; outline-offset: 2px; }
+.search input::-webkit-search-cancel-button { display: none; }
+.search button { display: grid; place-items: center; width: 36px; min-height: 44px; margin: 0 -7px 0 0; border: 0; border-radius: 8px; color: #e0f2e9; background: transparent; }
+.tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.filters { display: flex; flex-wrap: wrap; gap: 5px; }
+.filters button, .sort select, .pagination button, .pagination select, .empty button { min-height: 44px; padding: 6px 11px; border: 1px solid #84c8b338; border-radius: 10px; color: #d5eae2; background: #122f33; font-size: 11px; font-weight: 650; }
+.filters button[aria-pressed="true"] { color: #e5fff0; border-color: #83e5ba; background: #255b4a; }
+.sort { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #a7c7bc; }
+.sort select { max-width: 160px; }
+.results { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; color: #b8d5ca; font-size: 11px; font-variant-numeric: tabular-nums; }
+.pagination { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.pagination button { display: grid; place-items: center; width: 44px; padding: 0; }
+.pagination select { width: 80px; padding-inline: 5px; }
+.pagination button:disabled { opacity: .35; cursor: default; }
+.browser button:focus-visible, .browser select:focus-visible, .empty button:focus-visible { outline: 2px solid #f0df9c; outline-offset: 2px; }
+.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 12px; }
+.card { padding: 10px; border-radius: 17px; }
+.card legend { gap: 7px; padding-inline: 3px; }
+.card legend strong { font-size: 15px; }
+.portrait { width: 66px; height: 66px; flex: 0 0 66px; border-radius: 0; background: transparent; }
+.species { display: block; margin-top: 3px; color: #a7c7ba; font-size: 10px; font-style: normal; line-height: 1.4; overflow-wrap: anywhere; }
+.card :global(.wilds-expedition-actions) { margin-top: 5px; gap: 5px; }
+.card :global(.wilds-expedition-actions button) { padding: 8px 5px; gap: 5px; font-size: 10px; }
+.card :global(.wilds-expedition-status) { padding-top: 9px; font-size: 10px; }
+.card :global(.wilds-travel-journal) { margin-top: 9px; }
+.empty { display: grid; justify-items: center; gap: 8px; padding: 24px 12px; text-align: center; color: #dbece3; }
+.empty p { margin: 0; color: #a7c7bc; font-size: 12px; }
+.srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 520px) {
+  .grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .intro h3 { font-size: 21px; }
+  .card legend strong { font-size: 17px; }
+  .portrait { width: 72px; height: 72px; flex-basis: 72px; }
+  .card :global(.wilds-expedition-actions button) { font-size: 11px; }
+}

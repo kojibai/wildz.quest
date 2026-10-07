@@ -21,11 +21,11 @@ type Key = typeof keys[number];
 // Reuse only exact proof bytes; nested mutations and worker clones are checked safely.
 const proofCache = createWildsExactProofCache();
 const descriptors = {
-  constructionProjects: ["projectId", proofCache.guard(verifyWildsConstructionProject)],
-  constructionChunks: ["chunkId", proofCache.guard(verifyWildsConstructionChunk)],
-  constructionComponents: ["componentId", proofCache.guard(verifyWildsConstructionComponent)],
-  constructionMaterialContributions: ["contributionId", proofCache.guard(verifyWildsMaterialContribution)],
-  constructionWorkContributions: ["contributionId", proofCache.guard(verifyWildsWorkContribution)]
+  constructionProjects: ["projectId", proofCache.guard(verifyWildsConstructionProject), "wildz.construction-project.v1"],
+  constructionChunks: ["chunkId", proofCache.guard(verifyWildsConstructionChunk), "wildz.construction-chunk.v1"],
+  constructionComponents: ["componentId", proofCache.guard(verifyWildsConstructionComponent), "wildz.construction-component.v1"],
+  constructionMaterialContributions: ["contributionId", proofCache.guard(verifyWildsMaterialContribution), "wildz.construction-material-contribution.v1"],
+  constructionWorkContributions: ["contributionId", proofCache.guard(verifyWildsWorkContribution), "wildz.construction-work-contribution.v1"]
 } as const;
 const entries = (value: unknown): [string, unknown][] => value && typeof value === "object" && !Array.isArray(value) ? Object.entries(value) : [];
 const idOf = (value: Source, key: Key): string => (value as unknown as Record<string, string>)[descriptors[key][0]];
@@ -33,11 +33,19 @@ const sameOwner = (a: string, b: string) => a.trim().toLowerCase() === b.trim().
 export function emptyWildsConstructionPersistence(): WildsConstructionPersistence {
   return { burrows: {}, constructionProjects: {}, constructionChunks: {}, constructionComponents: {}, constructionMaterialContributions: {}, constructionWorkContributions: {}, constructionRecoverySources: {}, constructionCommandReceipts: {} };
 }
+function verifySource(value: unknown, key: Key): value is Source {
+  try {
+    // Recovery contains every proof type. Reject unrelated schemas before the
+    // exact-data cache scans their complete bytes; matching sources still take
+    // the same full verifier, including seals, identities and nested evidence.
+    return Boolean(value && typeof value === "object" && (value as { schema?: unknown }).schema === descriptors[key][2]
+      && descriptors[key][1](value));
+  } catch { return false; }
+}
 function sources(input: Partial<WildsConstructionPersistence>, key: Key): Source[] {
-  const verify = descriptors[key][1];
   const result = new Map<string, Source>();
-  for (const [id, value] of entries(input[key])) if (verify(value) && idOf(value, key) === id) result.set(value.head, value);
-  for (const [head, value] of entries(input.constructionRecoverySources)) if (verify(value) && value.head === head) result.set(head, value);
+  for (const [id, value] of entries(input[key])) if (verifySource(value, key) && idOf(value, key) === id) result.set(value.head, value);
+  for (const [head, value] of entries(input.constructionRecoverySources)) if (verifySource(value, key) && value.head === head) result.set(head, value);
   return [...result.values()];
 }
 /** Parent links are necessary, but an append-only page must also retain every exact reference. */
@@ -81,7 +89,7 @@ export function mergeWildsConstructionPersistence(left: Partial<WildsConstructio
     const selected: Record<string, Source> = {};
     // Canonical sources first; recovery must never silently replace a divergent active source.
     for (const input of [left, right]) for (const [id, value] of entries(input[key])) {
-      if (!descriptors[key][1](value) || idOf(value, key) !== id) continue;
+      if (!verifySource(value, key) || idOf(value, key) !== id) continue;
       const current = selected[id];
       if (!current || descendant(value, current, all, key)) selected[id] = value;
     }

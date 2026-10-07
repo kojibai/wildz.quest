@@ -1139,6 +1139,20 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wildz-listing-composer label { display: flex; align-items: center; padding: 0 9px; }.wildz-listing-composer input { width: 100%; border: 0; outline: 0; color: inherit; background: transparent; font: inherit; }.wildz-listing-composer button { padding: 0 17px; color: #092016; background: #b9e49e; font-weight: 900; }
 .wildz-market-list { display: grid; gap: 7px; }.wildz-market-list > button { display: grid; grid-template-columns: 36px 1fr auto; gap: 9px; align-items: center; padding: 10px; border: 1px solid rgba(255,255,255,.1); border-radius: 14px; color: #f8f5e9; background: rgba(255,255,255,.05); text-align: left; }.wildz-market-list i { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 10px; background: #214535; }.wildz-market-list span { display: grid; }.wildz-market-list small { color: #9cbaa9; }.wildz-market-list > button > b { color: #e5d58a; }
 .wildz-trade-confirm { display: flex; align-items: center; gap: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.1); }.wildz-trade-confirm span { color: #9cbaa9; }.wildz-trade-confirm strong { margin-left: auto; color: #e5d58a; }.wildz-trade-confirm button { min-height: 40px; padding: 0 14px; border: 0; border-radius: 12px; background: #b9e49e; font-weight: 900; }.wildz-market-status { margin: 0; color: #e5d58a; font-size: 13px; }
+.wildz-market-resources { display: grid; gap: 12px; margin-top: 8px; padding-top: 18px; border-top: 1px solid rgba(255,255,255,.12); }
+.wildz-market-resources > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.wildz-market-resources > header span { color: #b9cfbf; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.wildz-market-resources h3 { margin: 4px 0 0; color: #f8f5e9; font-size: 20px; line-height: 1.25; }
+.wildz-market-sheet header > b { flex-shrink: 0; padding: 5px 9px; border-radius: 20px; background: rgba(185,228,158,.1); color: #c7dfbd; font-size: 12px; font-weight: 700; }
+.wildz-market-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #b9cfbf; font-size: 13px; line-height: 1.4; }
+.wildz-market-toolbar button, .wildz-market-retry { min-height: 40px; padding: 8px 13px; border: 1px solid rgba(185,228,158,.3); border-radius: 11px; background: rgba(185,228,158,.09); color: #d7edcb; font-size: 13px; font-weight: 700; cursor: pointer; }
+.wildz-market-sheet button:disabled { opacity: .55; cursor: default; }
+.wildz-market-sheet .wildz-sheet-empty { margin: 0; padding: 16px; border-radius: 12px; background: rgba(255,255,255,.04); color: #c3d1c7; font-size: 14px; line-height: 1.55; text-align: left; }
+.wildz-market-list > button span { min-width: 0; gap: 4px; }
+.wildz-market-list strong { overflow-wrap: anywhere; font-size: 14px; line-height: 1.4; }
+.wildz-market-list small { font-size: 12px; line-height: 1.4; }
+.wildz-market-sheet .wildz-market-status { padding: 12px 14px; border-left: 3px solid #b9e49e; border-radius: 4px 12px 12px 4px; background: rgba(185,228,158,.07); color: #dfebd8; font-size: 14px; line-height: 1.55; }
+.wildz-market-sheet .wildz-trade-confirm { flex-wrap: wrap; font-size: 13px; line-height: 1.5; }
 @media (max-width: 540px) { .wildz-listing-composer { grid-template-columns: 1fr 84px; }.wildz-listing-composer button { grid-column: 1 / -1; }.wildz-trade-confirm { flex-wrap: wrap; }.wildz-trade-confirm button { width: 100%; } }
 .wildz-pwa-notice { position: fixed; z-index: 2000; left: 50%; bottom: max(14px,env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.13); border-radius: 14px; color: #f8f5e9; background: rgba(8,20,13,.92); box-shadow: 0 14px 40px rgba(0,0,0,.4); font-size: 12px; transform: translateX(-50%); backdrop-filter: blur(18px); }.wildz-pwa-notice button { min-height: 34px; border: 0; border-radius: 10px; background: #b9e49e; font-weight: 900; }
 

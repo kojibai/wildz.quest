@@ -59,6 +59,7 @@ import { deriveAscensionGenome } from "./heartbound-genome";
 import { isLivingCardAsset, type GrowthPath, type LivingGrowthSnapshot } from "./living-card-types";
 import { createLivingChildTransaction, lineageEligibility } from "./living-lineage";
 import { worldMasteryAward, type WorldMasteryVerb } from "./world-progression";
+import {createWildsExplorerProgress,restoreWildsExplorerProgress,projectWildsExplorerProgress,type WildsExplorerProgress} from "./wilds-explorer-progression";
 import { validateRiftGrant, type RiftTravelGrant } from "./wilds-rift-travel";
 import { movementScale, type WildsMovementMode } from "./wilds-movement";
 import { resolveWildsGroundMovement } from "./wilds-grounded-movement";
@@ -246,6 +247,7 @@ export type PlayState = {
   quarantinedInventory?: PortableCardAsset[];
   lastEvent: string;
   level: number;
+  explorerProgress?:WildsExplorerProgress;
   missionProgress: number;
   ownedWorldAdditions: WildsOwnedWorldAdditions;
   lastSearchPoint: { x: number; z: number } | null;
@@ -417,7 +419,7 @@ export const initialPlayState: PlayState = {
   actionHistory: [],
   activeAction: "explore",
   beans: 28,
-  cardXp: 136,
+  cardXp: 0,
   challenge: 42,
   combo: 0,
   companionProgress: Object.fromEntries(creatureCards.map((card) => [card.id, { level: 1, xp: 0, bond: 0 }])),
@@ -429,7 +431,8 @@ export const initialPlayState: PlayState = {
   encounter: idleEncounterState,
   inventory: admitLocallySealedWildsInventory([{ ...starterCardAsset, status: "verified", synchronizedAt: "2026-06-29T12:00:00.000Z" }]),
   lastEvent: "SealCub joined your deck. Walk near another wild companion.",
-  level: 7,
+  level: 1,
+  explorerProgress:createWildsExplorerProgress(LEGACY_PLACEHOLDER_OWNER),
   missionProgress: 0,
   ownedWorldAdditions: {
     constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {},
@@ -454,7 +457,7 @@ export const initialPlayState: PlayState = {
   battle: null,
   fusionSparks: 1,
   fusionCooldowns: {},
-  achievements: ["first_spark"],
+  achievements: [],
   livingProgress: { [starterCardAsset.id]: emptyLivingGrowth(0) },
   ascensionCatalysts: [],
   bondCooldowns: {},
@@ -487,6 +490,7 @@ export function createOwnerBoundInitialPlayState(ownerReceizId: string, createdA
     ...structuredClone(initialPlayState),
     playerNourishment: createWildsNourishmentState(owner),
     playerLivestock: createWildsLivestockState(owner),
+    explorerProgress:createWildsExplorerProgress(owner),
     discoveredCardIds: [starter.manifest.familyId],
     inventory: admitLocallySealedWildsInventory([{ ...starter, status: "verified", synchronizedAt: starter.manifest.capturedAt }]),
     lastEvent: `${starter.manifest.name} joined your deck. Walk near another wild companion.`,
@@ -764,11 +768,22 @@ export function restorePlayState(
     const restoredWorldAdditions = normalizeOwnedWorldAdditions(saved.ownedWorldAdditions,ownerReceizId);
     const restoredLivestock = restoreWildsLivestockState(saved.playerLivestock, ownerReceizId);
     const restoredNourishment = retainWildsAnimalFoodSources(restoreWildsNourishmentState(saved.playerNourishment, ownerReceizId), restoredLivestock);
+    // Legacy player continuity is bound to its owner by the caller. A card's
+    // immutable source owner and nourishment's separate owner cannot identify
+    // the explorer whose authenticated Vault contains them.
+    const recordedOwner=saved.explorerProgress?.schema==="wildz.explorer-progress.v1"
+      && typeof saved.explorerProgress.ownerReceizId==="string" && saved.explorerProgress.ownerReceizId.trim().length>0
+      ? saved.explorerProgress.ownerReceizId:undefined;
+    const explorerOwner=ownerReceizId ?? recordedOwner ?? LEGACY_PLACEHOLDER_OWNER;
+    const foreignExplorer=Boolean(ownerReceizId && recordedOwner && recordedOwner!==LEGACY_PLACEHOLDER_OWNER
+      && recordedOwner!==ownerReceizId && !sameWildzPlayerCoordinate(recordedOwner,ownerReceizId));
     return withWorldProgress({
       ...fallback,
       ...saved,
       playerNourishment: restoredNourishment,
       playerLivestock: restoredLivestock,
+      explorerProgress:restoreWildsExplorerProgress(saved.explorerProgress,explorerOwner),
+      achievements:foreignExplorer?[]:Array.isArray(saved.achievements)?[...new Set(saved.achievements.filter((id):id is string=>typeof id==="string" && id.length>0 && id!=="first_spark"))].slice(-4096):[],
       journeyJournal: sanitizeWildsJourneyJournal(saved.journeyJournal, ownerReceizId),
       crewPreferences: sanitizeWildsCrewPreferences(saved.crewPreferences, migratedInventory, ownerReceizId),
       partyTravelRevision: Number.isSafeInteger(saved.partyTravelRevision) && saved.partyTravelRevision! >= 0 ? saved.partyTravelRevision : 0,
@@ -781,10 +796,11 @@ export function restorePlayState(
       siteSpace: restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
       explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, restoredPlayer),
       ownedWorldAdditions: restoredWorldAdditions,
-      missionProgress: typeof saved.missionProgress === "number" && Number.isFinite(saved.missionProgress)
+      missionProgress: !foreignExplorer && typeof saved.missionProgress === "number" && Number.isFinite(saved.missionProgress)
         ? Math.max(0, Math.min(99, Math.floor(saved.missionProgress)))
-        : fallback.missionProgress,
-      completedMissionIds: Array.isArray(saved.completedMissionIds)
+        : 0,
+      completed:foreignExplorer?false:saved.completed ?? fallback.completed,
+      completedMissionIds: !foreignExplorer && Array.isArray(saved.completedMissionIds)
         ? Array.from(new Set(saved.completedMissionIds.filter((id): id is string => typeof id === "string" && id.length > 0))).slice(-2_048)
         : [],
       discoveredCardIds,
@@ -863,7 +879,7 @@ export function restorePlayState(
       bondCooldowns: saved.bondCooldowns && typeof saved.bondCooldowns === "object" ? saved.bondCooldowns : {},
       transformation: saved.transformation ?? null,
       lineageReveal: saved.lineageReveal ?? null,
-      worldMastery: typeof saved.worldMastery === "number" && Number.isFinite(saved.worldMastery) ? Math.max(0, Math.floor(saved.worldMastery)) : fallback.worldMastery,
+      worldMastery: !foreignExplorer && typeof saved.worldMastery === "number" && Number.isFinite(saved.worldMastery) ? Math.max(0, Math.floor(saved.worldMastery)) : 0,
       civicEvents: civicProjection.events,
       regionalReputation: civicProjection.reputation > 0 ? { "wayfinder-hollow": civicProjection.reputation } : {},
       ecologyEvents: ecologyProjection.events,
@@ -1231,7 +1247,8 @@ function strongestGrowthPath(progress: LivingGrowthSnapshot): GrowthPath {
 }
 
 function awardWorldMastery(state: PlayState, verb: WorldMasteryVerb) {
-  return { ...state, worldMastery: state.worldMastery + worldMasteryAward(verb) };
+  const next={...state,worldMastery:state.worldMastery+worldMasteryAward(verb)};
+  return {...next,level:projectWildsExplorerProgress(next).level};
 }
 
 function livingMissionOrdinal(state: Pick<PlayState, "completedMissionIds">) {
@@ -1251,7 +1268,7 @@ function advanceLivingMission(state: PlayState, amount: number): PlayState {
     progress -= 100;
   }
   const completedCount = completedMissionIds.length - state.completedMissionIds.length;
-  return {
+  const next={
     ...state,
     missionProgress: progress,
     completedMissionIds,
@@ -1259,6 +1276,7 @@ function advanceLivingMission(state: PlayState, amount: number): PlayState {
     completed: state.completed || completedCount > 0,
     achievements: completedCount > 0 ? Array.from(new Set([...state.achievements, "first-light"])) : state.achievements
   };
+  return {...next,level:projectWildsExplorerProgress(next).level};
 }
 
 export function applyWildsInput(state: PlayState, input: WildsInput): PlayState {
@@ -2188,7 +2206,6 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       encounter: { ...normalizedEncounter, phase: "sealed", assetId: sealed.id },
       inventory: admitLocallySealedWildsInventory([...state.inventory, sealed]),
       lastEvent: `${sealed.manifest.name} was captured and sealed as one portable card.`,
-      level: nextDiscovered.length >= 3 ? Math.max(state.level, 8) : state.level,
       pendingSyncAssetIds: [...state.pendingSyncAssetIds, sealed.id],
       selectedAssetId: sealed.id,
       selectedCardId: sealed.manifest.familyId,
@@ -2483,7 +2500,6 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       inventory: admitLocallySealedWildsInventory([...state.inventory, sealed]),
       lastEvent: `${nearest.card.name} card collected and sealed for offline use. ${nearest.card.businessLogic}.`,
       combo: state.combo + 1,
-      level: nextDiscovered.length >= 3 ? Math.max(state.level, 8) : state.level,
       pendingSyncAssetIds: [...state.pendingSyncAssetIds, sealed.id],
       selectedAssetId: sealed.id,
       selectedCardId: nearest.card.id,
@@ -2567,7 +2583,7 @@ function withWorldProgress(state: PlayState): PlayState {
       : state.discoveredCardIds.length >= 2
         ? "Trail keeper"
         : "Grove scout";
-  return { ...state, bossUnlocked, worldRank };
+  return { ...state, bossUnlocked, worldRank,level:projectWildsExplorerProgress(state).level };
 }
 
 function movePlayer(

@@ -32,7 +32,9 @@ function json(body: unknown, status = 200) {
 export async function GET(request: NextRequest) {
   try {
     const actor = await resolveWildzCookieActor(request);
-    const adapter = createReceizCommerceAdapter({ accessToken: actor.accessToken });
+    const adapter = actor.accessToken
+      ? createReceizCommerceAdapter({ accessToken: actor.accessToken })
+      : createReceizCommerceAdapter();
     const repository = createReceizWildzMarketRepository({
       rail: resolveWildzMarketConditionalAppendRail(adapter)
     });

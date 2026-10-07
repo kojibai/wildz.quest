@@ -1,0 +1,17 @@
+.publicLinkStatus {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  margin: 12px 0;
+  border: 1px solid rgba(128, 226, 191, .24);
+  border-radius: 14px;
+  background: #122720;
+  color: #d6ede3;
+  text-align: left;
+}
+
+.publicLinkStatus > svg { flex: 0 0 auto; margin-top: 2px; color: #8ee8c6; }
+.publicLinkStatus > div { min-width: 0; }
+.publicLinkStatus strong { display: block; font-size: 13px; line-height: 1.4; color: #effff7; }
+.publicLinkStatus span { display: block; margin-top: 3px; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }

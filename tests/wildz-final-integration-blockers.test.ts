@@ -305,7 +305,7 @@ test("passive market presentation stays locally unavailable without probing an a
   const app = read("src/features/shell/WildzApp.tsx");
   const market = read("src/features/market/WildzMarketSheet.tsx");
   assert.match(app, /connected=\{proofSessionConnected\}/);
-  assert.match(market, /if \(!connected\) return/);
+  assert.match(market, /if \(!shouldRefreshWildzMarket\(connected\)\) return/);
 });
 
 test("modal admission tokens reject delayed work after another owner wins or closes", () => {

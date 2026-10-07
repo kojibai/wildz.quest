@@ -4,12 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { verifyWildsResourcePackage, type WildsResourcePackageV1 } from "../play/wilds-resource-package";
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import type { PublicResourcePackageListing, ResourcePackageMarketHead } from "./resource-package-market";
+import { friendlyWildzMarketError, readWildzMarket } from "./market-session-read";
 
 const ENDPOINT = "/api/market/resource-packages";
 function friendlyMarketError(value: unknown, fallback: string) {
-  return value === "receiz_conditional_resource_custody_unavailable" || value === "market_capability_unavailable"
-    ? "Resource trading is unavailable right now."
-    : typeof value === "string" ? value : fallback;
+  return friendlyWildzMarketError(value, fallback);
 }
 function admittedHead(value: unknown): ResourcePackageMarketHead | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -26,17 +25,36 @@ export function ResourcePackageMarketSection({ connected, buyer, onSettlement }:
   const [pending, setPending] = useState<{ tradeId: string; head: ResourcePackageMarketHead; status?: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const refresh = useCallback(async () => {
+  const [loading, setLoading] = useState(false);
+  const [readError, setReadError] = useState("");
+  const refresh = useCallback(async (signal?: AbortSignal) => {
     if (!connected) return;
-    const response = await fetch(ENDPOINT, { credentials: "same-origin", cache: "no-store" });
-    const result = await response.json().catch(() => null);
-    const nextHead = admittedHead(result?.head);
-    if (!response.ok || result?.status !== "ready" || !Array.isArray(result.listings) || !nextHead) throw new Error(friendlyMarketError(result?.error ?? result?.status, "Resource market is reconnecting."));
-    setListings(result.listings); setHead(nextHead);
-    const recovery = Array.isArray(result.pendingPurchases) ? result.pendingPurchases.find((purchase: { status?: string; expiresAt?: string }) => purchase.status !== "reserved" || (purchase.expiresAt && Date.parse(purchase.expiresAt) > Date.now())) : null;
-    if (recovery && typeof recovery.tradeId === "string") setPending({ tradeId: recovery.tradeId, head: nextHead, status: recovery.status });
+    setLoading(true);
+    try {
+      const { response, result } = await readWildzMarket<{
+        head?: unknown; listings?: unknown; status?: unknown; error?: unknown;
+        pendingPurchases?: Array<{ tradeId?: unknown; status?: string; expiresAt?: string }>;
+      }>(ENDPOINT, { signal });
+      signal?.throwIfAborted();
+      const nextHead = admittedHead(result?.head);
+      if (!response.ok || result?.status !== "ready" || !Array.isArray(result.listings) || !nextHead) throw new Error(friendlyMarketError(result?.error ?? result?.status, "Resource listings could not load. Refresh to try again."));
+      setListings(result.listings as PublicResourcePackageListing[]); setHead(nextHead); setReadError("");
+      const recovery = Array.isArray(result.pendingPurchases) ? result.pendingPurchases.find(purchase => purchase.status !== "reserved" || (purchase.expiresAt && Date.parse(purchase.expiresAt) > Date.now())) : null;
+      if (recovery && typeof recovery.tradeId === "string") setPending({ tradeId: recovery.tradeId, head: nextHead, status: recovery.status });
+    } catch (cause) {
+      if (!signal?.aborted) {
+        setHead(null);
+        setReadError(friendlyMarketError(cause, "Resource listings could not load. Refresh to try again."));
+      }
+      throw cause;
+    } finally { if (!signal?.aborted) setLoading(false); }
   }, [connected]);
-  useEffect(() => { if (connected) void refresh().catch(cause => setMessage(cause instanceof Error ? cause.message : "Resource market is reconnecting.")); }, [connected, refresh]);
+  useEffect(() => {
+    if (!connected) { setLoading(false); return; }
+    const controller = new AbortController();
+    void refresh(controller.signal).catch(() => undefined);
+    return () => controller.abort();
+  }, [connected, refresh]);
   async function settle(tradeId: string, checkoutHead: ResourcePackageMarketHead) {
     const priorStatus = pending?.tradeId === tradeId ? pending.status : "reserved";
     setPending({ tradeId, head: checkoutHead, status: priorStatus });
@@ -57,7 +75,7 @@ export function ResourcePackageMarketSection({ connected, buyer, onSettlement }:
     } else throw new Error(friendlyMarketError(result?.error, "Package purchase could not be admitted."));
   }
   async function buy() {
-    if (!selected || !head) return;
+    if (!selected || !head || !connected || loading) return;
     setBusy(true); setMessage("");
     const nonce = attemptKey ?? `pack-buy:${selected.id}:${crypto.randomUUID()}`;
     setAttemptKey(nonce);
@@ -66,11 +84,11 @@ export function ResourcePackageMarketSection({ connected, buyer, onSettlement }:
       const result = await response.json().catch(() => null), checkoutHead = admittedHead(result?.head);
       if (!response.ok || typeof result?.trade?.id !== "string" || !checkoutHead) throw new Error(friendlyMarketError(result?.error ?? result?.status, "Package reservation changed. Refresh the market and try again."));
       await settle(result.trade.id, checkoutHead);
-    } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Package purchase failed."); }
+    } catch (cause) { setMessage(friendlyMarketError(cause, "The purchase could not be reached. Refresh the market and try again.")); }
     finally { setBusy(false); }
   }
   async function releaseReservation() {
-    if (!pending) return;
+    if (!pending || !connected || loading) return;
     setBusy(true);
     try {
       const response = await fetch(`${ENDPOINT}/trades`, { method: "DELETE", credentials: "same-origin", headers: { "content-type": "application/json", "idempotency-key": `pack-release:${pending.tradeId}` }, body: JSON.stringify({ tradeId: pending.tradeId, expectedRevision: pending.head.revision, expectedAppendAnchorId: pending.head.appendAnchorId }) });
@@ -82,11 +100,11 @@ export function ResourcePackageMarketSection({ connected, buyer, onSettlement }:
         return;
       }
       setPending(null); setSelected(null); setMessage("Reservation released."); await refresh();
-    } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Reservation release failed."); }
+    } catch (cause) { setMessage(friendlyMarketError(cause, "Your reservation could not be released yet. Try again when connected.")); }
     finally { setBusy(false); }
   }
   async function cancelListing() {
-    if (!selected || !head) return;
+    if (!selected || !head || !connected || loading) return;
     setBusy(true);
     try {
       const response = await fetch(ENDPOINT, { method: "DELETE", credentials: "same-origin", headers: { "content-type": "application/json", "idempotency-key": `pack-unlist:${selected.id}` }, body: JSON.stringify({ listingId: selected.id, expectedRevision: head.revision, expectedAppendAnchorId: head.appendAnchorId }) });
@@ -98,22 +116,23 @@ export function ResourcePackageMarketSection({ connected, buyer, onSettlement }:
         return;
       }
       setSelected(null); setMessage("Listing cancelled. The package is available in your resource pack."); await refresh();
-    } catch (cause) { setMessage(cause instanceof Error ? cause.message : "Listing cancellation failed."); }
+    } catch (cause) { setMessage(friendlyMarketError(cause, "Your listing could not be cancelled yet. Try again when connected.")); }
     finally { setBusy(false); }
   }
   async function retry() {
-    if (!pending) return;
+    if (!pending || !connected || loading) return;
     setBusy(true); try { await settle(pending.tradeId, pending.head); }
-    catch (cause) { setMessage(cause instanceof Error ? cause.message : "Purchase recovery failed."); }
+    catch (cause) { setMessage(friendlyMarketError(cause, "Your purchase could not be reached. Resume it when connected.")); }
     finally { setBusy(false); }
   }
-  return <section aria-label="Resource package marketplace">
+  return <section className="wildz-market-resources" aria-label="Resource package marketplace">
     <header><div><span>Gathered resources</span><h3>Food &amp; resource packages</h3></div><b>{listings.length} listed</b></header>
-    <div className="wildz-market-list">{listings.length ? listings.map(listing => <button type="button" key={listing.id} disabled={busy || Boolean(pending)} onClick={() => { setSelected(listing); setAttemptKey(null); }}><i>▣</i><span><strong>{listing.contents.map(item => `${item.quantity} ${label(item.kind)}`).join(" · ")}</strong><small>{listing.sellerHandle}</small></span><b>${(listing.priceCents / 100).toFixed(2)}</b></button>) : <p className="wildz-sheet-empty">List a single gathered item or a mixed package from your Resources pack.</p>}</div>
-    {selected && !pending ? <div className="wildz-trade-confirm"><span>{selected.contents.map(item => `${item.quantity} ${label(item.kind)}`).join(" · ")}</span><strong>${(selected.priceCents / 100).toFixed(2)}</strong><button type="button" disabled={!connected || busy || ownsListing(selected)} onClick={() => void buy()}>{busy ? "Confirming…" : ownsListing(selected) ? "Your listing" : "Buy resource package"}</button></div> : null}
-    {selected && !pending && ownsListing(selected) ? <button type="button" className="wildz-market-retry" disabled={busy} onClick={() => void cancelListing()}>{selected.status === "cancelled" ? "Retry listing cancellation" : "Cancel resource listing"}</button> : null}
-    {pending && pending.status !== "released" ? <button type="button" className="wildz-market-retry" disabled={busy} onClick={() => void retry()}>{busy ? "Checking purchase…" : "Resume package purchase"}</button> : null}
-    {pending?.status === "reserved" || pending?.status === "released" ? <button type="button" className="wildz-market-retry" disabled={busy} onClick={() => void releaseReservation()}>{pending.status === "released" ? "Retry reservation release" : "Release package reservation"}</button> : null}
-    {message ? <p role="status" className="wildz-market-status">{message}</p> : null}
+    <div className="wildz-market-toolbar"><span>{loading ? "Connecting to resource listings…" : "Single items or mixed packages"}</span><button type="button" disabled={!connected || loading || busy} onClick={() => { setMessage(""); void refresh().catch(() => undefined); }}>{loading ? "Loading…" : "Refresh"}</button></div>
+    <div className="wildz-market-list">{listings.length ? listings.map(listing => <button type="button" key={listing.id} disabled={!connected || !head || loading || busy || Boolean(pending)} onClick={() => { setSelected(listing); setAttemptKey(null); }}><i>▣</i><span><strong>{listing.contents.map(item => `${item.quantity} ${label(item.kind)}`).join(" · ")}</strong><small>{listing.sellerHandle}</small></span><b>${(listing.priceCents / 100).toFixed(2)}</b></button>) : <p className="wildz-sheet-empty">{loading || !connected ? "Resource listings will appear when your market session is ready." : readError ? "Resource listings could not be loaded yet. Refresh to check again." : "No resource packages listed yet. List gathered items from your Resources pack."}</p>}</div>
+    {selected && !pending ? <div className="wildz-trade-confirm"><span>{selected.contents.map(item => `${item.quantity} ${label(item.kind)}`).join(" · ")}</span><strong>${(selected.priceCents / 100).toFixed(2)}</strong><button type="button" disabled={!connected || !head || loading || busy || ownsListing(selected)} onClick={() => void buy()}>{busy ? "Confirming…" : ownsListing(selected) ? "Your listing" : "Buy resource package"}</button></div> : null}
+    {selected && !pending && ownsListing(selected) ? <button type="button" className="wildz-market-retry" disabled={busy || !connected || loading} onClick={() => void cancelListing()}>{selected.status === "cancelled" ? "Retry listing cancellation" : "Cancel resource listing"}</button> : null}
+    {pending && pending.status !== "released" ? <button type="button" className="wildz-market-retry" disabled={busy || !connected || loading} onClick={() => void retry()}>{busy ? "Checking purchase…" : "Resume package purchase"}</button> : null}
+    {pending?.status === "reserved" || pending?.status === "released" ? <button type="button" className="wildz-market-retry" disabled={busy || !connected || loading} onClick={() => void releaseReservation()}>{pending.status === "released" ? "Retry reservation release" : "Release package reservation"}</button> : null}
+    {message || readError ? <p role="status" className="wildz-market-status">{message || readError}</p> : null}
   </section>;
 }

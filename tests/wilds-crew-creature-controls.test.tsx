@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { WildsCrewCreatureControls } from "../src/features/play/WildsCrewCreatureControls";
-import type { PortableCardAsset } from "../src/features/play/portable-card";
+import {sealCollectedCard} from "../src/features/play/portable-card";
 import type { WildsCrewMode } from "../src/features/play/wilds-crew-preferences";
 
-const card = { id: "crew-one", manifest: { name: "Ember", ownerReceizId: "owner-one" }, proof: { digest: "proof-one" } } as PortableCardAsset;
+const card=sealCollectedCard({formId:"mintcub-1",ownerReceizId:"owner-one",encounterId:"crew-control-one",capturedAt:"2026-10-07T12:00:00.000Z"});
 
 test("exploration controls reflect supplied mode and send commands for the selected card", () => {
   const commands: [string, WildsCrewMode][] = [];
@@ -16,7 +16,7 @@ test("exploration controls reflect supplied mode and send commands for the selec
   assert.equal(buttons[1].props["aria-pressed"], true);
   buttons[0].props.onClick();
   buttons[1].props.onClick();
-  assert.deepEqual(commands, [["crew-one", "follow"], ["crew-one", "roam"]]);
+  assert.deepEqual(commands, [[card.id, "follow"], [card.id, "roam"]]);
   const recalled = WildsCrewCreatureControls({ ...props, mode: "follow" });
   assert.equal(recalled.props.children[1].props.children[0].props["aria-pressed"], true);
 });

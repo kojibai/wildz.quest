@@ -7,11 +7,12 @@ import { WildzTradeConfirm } from "@/features/market/WildzTradeConfirm";
 import { ResourcePackageMarketSection } from "@/features/market/ResourcePackageMarketSection";
 import type { WildsResourcePackageV1 } from "@/features/play/wilds-resource-package";
 import { shouldRefreshWildzMarket } from "@/features/market/market-refresh-policy";
+import { friendlyWildzMarketError, readWildzMarket } from "./market-session-read";
 
 type MarketListing = Pick<
   WildzListing,
   "schema" | "id" | "assetId" | "proofDigest" | "sellerActorId" | "priceCents" | "currency" | "status" | "createdAt"
-> & { seller?: string; revision?: number };
+> & { seller?: string; revision?: number; name?: string };
 
 type MarketHead = { revision: number; appendAnchorId: string | null };
 type PendingSettlement = { tradeId: string; checkoutHead: MarketHead };
@@ -63,6 +64,8 @@ export function WildzMarketSheet({
   const [pending, setPending] = useState<PendingSettlement | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [readError, setReadError] = useState("");
 
   const admitSettledAsset = useCallback(async (result: unknown) => {
     const projection = settledMarketProjection(result);
@@ -74,40 +77,41 @@ export function WildzMarketSheet({
     }
   }, [onSettlement]);
 
-  const refreshMarket = useCallback(async () => {
+  const refreshMarket = useCallback(async (signal?: AbortSignal) => {
     if (!shouldRefreshWildzMarket(connected)) return;
-    const response = await fetch("/api/market/listings", {
-      method: "GET",
-      credentials: "same-origin",
-      cache: "no-store"
-    });
-    const result = await response.json().catch(() => null) as {
-      listings?: unknown;
-      head?: unknown;
-      status?: unknown;
-      error?: unknown;
-    } | null;
-    const nextHead = marketHead(result?.head);
-    if (!response.ok || result?.status !== "ready" || !Array.isArray(result.listings) || !nextHead) {
-      throw new Error(typeof result?.error === "string" ? result.error : "Global market additions are reconnecting.");
+    setLoading(true);
+    try {
+      const { response, result } = await readWildzMarket<{
+        listings?: unknown; head?: unknown; status?: unknown; error?: unknown;
+      }>("/api/market/listings", { signal });
+      signal?.throwIfAborted();
+      const nextHead = marketHead(result?.head);
+      if (!response.ok || result?.status !== "ready" || !Array.isArray(result.listings) || !nextHead) {
+        throw new Error(friendlyWildzMarketError(result?.error ?? result?.status, "The market could not load. Refresh to try again."));
+      }
+      setListings(result.listings as MarketListing[]);
+      setHead(nextHead);
+      setReadError("");
+    } catch (cause) {
+      if (!signal?.aborted) {
+        setHead(null);
+        setReadError(friendlyWildzMarketError(cause, "The market could not load. Refresh to try again."));
+      }
+      throw cause;
+    } finally {
+      if (!signal?.aborted) setLoading(false);
     }
-    setListings(result.listings as MarketListing[]);
-    setHead(nextHead);
   }, [connected]);
 
   useEffect(() => {
-    if (!connected) return;
-    let active = true;
-    void refreshMarket().catch((cause) => {
-      if (active) setMessage(cause instanceof Error && !/unavailable|capability/i.test(cause.message)
-        ? cause.message
-        : "Your Receiz ID is active. Global market additions are reconnecting; verified local custody remains available.");
-    });
-    return () => { active = false; };
+    if (!connected) { setLoading(false); return; }
+    const controller = new AbortController();
+    void refreshMarket(controller.signal).catch(() => undefined);
+    return () => controller.abort();
   }, [connected, refreshMarket]);
 
   const checkout = async () => {
-    if (!selected || !head) return;
+    if (!selected || !head || !connected || loading) return;
     setBusy(true);
     setMessage("");
     try {
@@ -164,7 +168,7 @@ export function WildzMarketSheet({
         throw new Error(typeof result?.error === "string" ? result.error : "Payment did not settle. No ownership changed.");
       }
     } catch (cause) {
-      setMessage(cause instanceof Error ? cause.message : "Checkout could not be reached. No ownership changed.");
+      setMessage(friendlyWildzMarketError(cause, "Checkout could not be reached. Refresh the market and try again."));
       await refreshMarket().catch(() => undefined);
     } finally {
       setBusy(false);
@@ -172,7 +176,7 @@ export function WildzMarketSheet({
   };
 
   const retrySettlement = async () => {
-    if (!pending) return;
+    if (!pending || !connected || loading) return;
     setBusy(true);
     try {
       const { tradeId, checkoutHead } = pending;
@@ -206,19 +210,20 @@ export function WildzMarketSheet({
         throw new Error(typeof result?.error === "string" ? result.error : "Settlement recovery could not be completed.");
       }
     } catch (cause) {
-      setMessage(cause instanceof Error ? cause.message : "Settlement recovery could not be reached.");
+      setMessage(friendlyWildzMarketError(cause, "Your purchase could not be reached. Resume it when the connection returns."));
     } finally {
       setBusy(false);
     }
   };
 
   return <div className="wildz-market-sheet">
-    <header><div><span>Player market</span><h2>Trade on the trail</h2></div><b>{listings.length} nearby</b></header>
-    <div className="wildz-market-list">{listings.length ? listings.map((listing) => <button type="button" key={listing.id} onClick={() => setSelected(listing)}><i>✦</i><span><strong>{listing.assetId}</strong><small>{listing.seller ?? listing.sellerActorId}</small></span><b>${(listing.priceCents / 100).toFixed(2)}</b></button>) : <p className="wildz-sheet-empty">No nearby listings yet. List a verified companion from your Card Vault.</p>}</div>
-    {selected ? <section className="wildz-market-consequence" aria-label="Trade consequence"><small>Vault consequence</small><strong>{selected.assetId} joins your verified collection only after Receiz admits ownership.</strong><span>${(selected.priceCents / 100).toFixed(2)} · seller {selected.seller ?? selected.sellerActorId}</span></section> : null}
-    {selected ? <WildzTradeConfirm listing={selected} busy={busy} onConfirm={() => void checkout()} /> : null}
-    {pending ? <button type="button" className="wildz-market-retry" disabled={busy} onClick={() => void retrySettlement()}>{busy ? "Checking Receiz…" : "Retry ownership admission"}</button> : null}
+    <header><div><span>Player market</span><h2>Trade on the trail</h2></div><b>{listings.length} listed</b></header>
+    <div className="wildz-market-toolbar"><span>{loading ? "Connecting to the market…" : !connected ? "Connecting your Receiz ID…" : "Cards from fellow explorers"}</span><button type="button" disabled={!connected || loading || busy} onClick={() => { setMessage(""); void refreshMarket().catch(() => undefined); }}>{loading ? "Loading…" : "Refresh"}</button></div>
+    <div className="wildz-market-list">{listings.length ? listings.map((listing) => <button type="button" key={listing.id} disabled={!connected || !head || loading || busy} onClick={() => setSelected(listing)}><i>✦</i><span><strong>{listing.name ?? "Companion card"}</strong><small>{listing.seller ?? listing.sellerActorId}</small></span><b>${(listing.priceCents / 100).toFixed(2)}</b></button>) : <p className="wildz-sheet-empty">{loading || !connected ? "Listings will appear when your market session is ready." : readError ? "Listings could not be loaded yet. Refresh to check again." : "No cards listed yet. List a verified companion from your Card Vault."}</p>}</div>
+    {selected ? <section className="wildz-market-consequence" aria-label="Trade consequence"><small>Before you buy</small><strong>{selected.name ?? "This card"} joins your Vault when the purchase completes.</strong><span>${(selected.priceCents / 100).toFixed(2)} · seller {selected.seller ?? selected.sellerActorId}</span></section> : null}
+    {selected ? <WildzTradeConfirm listing={selected} busy={busy} disabled={!connected || !head || loading} onConfirm={() => void checkout()} /> : null}
+    {pending ? <button type="button" className="wildz-market-retry" disabled={busy || !connected || loading} onClick={() => void retrySettlement()}>{busy ? "Checking purchase…" : "Resume purchase"}</button> : null}
+    {message || readError ? <p role="status" className="wildz-market-status">{message || readError}</p> : null}
     <ResourcePackageMarketSection connected={connected} buyer={buyer} onSettlement={onResourcePackageSettlement} />
-    {message ? <p role="status" className="wildz-market-status">{message}</p> : !connected ? <p role="status" className="wildz-market-status">Your Receiz ID remains the local authority. Global market additions will appear when synchronization reconnects.</p> : null}
   </div>;
 }

@@ -71,6 +71,7 @@ export function publicWildzListing(listing: WildzListing) {
     schema: listing.schema,
     id: listing.id,
     assetId: listing.assetId,
+    name: listing.asset.manifest.name,
     proofDigest: listing.proofDigest,
     sellerActorId: listing.sellerActorId,
     seller: listing.sellerActorId,

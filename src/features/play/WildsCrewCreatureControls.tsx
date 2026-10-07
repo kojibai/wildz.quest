@@ -3,6 +3,8 @@ import { Icons } from "@/components/icons";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsCrewMode } from "./wilds-crew-preferences";
 import { WildsCrewTravelJournal, type WildsCrewTravelHistory } from "./WildsCrewTravelJournal";
+import {WildsCreatureThumbnail} from "./WildsCreatureThumbnail";
+import styles from "./WildsCrewPanel.module.css";
 
 /** Both Vault and the HUD issue commands to the campaign's expedition controller. */
 export function WildsCrewCreatureControls({ card, mode, accompanying, report, disabled = false, onModeChange, readHistory }: {
@@ -14,8 +16,8 @@ export function WildsCrewCreatureControls({ card, mode, accompanying, report, di
   onModeChange: (assetId: string, mode: WildsCrewMode) => void;
   readHistory?: WildsCrewTravelHistory;
 }) {
-  return <fieldset className="wilds-expedition-card">
-    <legend><span className="wilds-expedition-emblem"><Icons.roam size={22} aria-hidden="true" /></span><span><small>Trail companion</small><strong>{card.manifest.name}</strong></span></legend>
+  return <fieldset className={`wilds-expedition-card ${styles.card}`}>
+    <legend><WildsCreatureThumbnail asset={card} className={styles.portrait} /><span><small>{accompanying ? "With you" : mode==="roam" ? "Roam mode" : "Trail companion"}</small><strong>{card.manifest.name}</strong><em className={styles.species}>{card.manifest.species} · {card.manifest.rarity}</em></span></legend>
     <div role="group" aria-label={`${card.manifest.name} movement`} className="wilds-expedition-actions">
       {(["follow", "roam"] as const).map(value => <button key={value} disabled={disabled} type="button" aria-pressed={mode === value}
         onClick={() => onModeChange(card.id, value)}>

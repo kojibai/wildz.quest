@@ -18,8 +18,12 @@ const json = (body: unknown, status = 200) => NextResponse.json(body, { status, 
 export async function GET(request: NextRequest) {
   try {
     const actor = await resolveWildzCookieActor(request);
-    if (!actor.accessToken) throw new Error("receiz_authority_required");
-    const adapter = createReceizCommerceAdapter({ accessToken: actor.accessToken });
+    // A signed ID may browse the public feed before wallet delegation arrives.
+    // Application credentials stay confined to this read; mutations below still
+    // require the same owner's live player token.
+    const adapter = actor.accessToken
+      ? createReceizCommerceAdapter({ accessToken: actor.accessToken })
+      : createReceizCommerceAdapter();
     requireWildsResourceCustodyRail(adapter);
     const repository = createResourcePackageMarketRepository(adapter);
     const loaded = await repository.load();

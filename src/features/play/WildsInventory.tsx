@@ -4,6 +4,7 @@ import type { WildzPreparedIdentityPlayerVault } from "../../lib/receiz/wildz-pr
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { scheduleAfterPaint } from "./schedule-after-paint";
+import styles from "./WildsInventory.module.css";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { emitWildsPlaytestEvent } from "./wilds-playtest-events";
@@ -232,7 +233,7 @@ export function WildsInventory({
           return;
         }
         setPublicLinkStatus("Checking public card link…");
-        const record = await requireGloballyAvailablePublicWildsCard(asset, globalThis.fetch, { signal: controller.signal });
+        const record = await requireGloballyAvailablePublicWildsCard(asset, globalThis.fetch, { signal: controller.signal, profileHandle: ownerReceizId });
         if (!active) return;
         setPublicLinkStatus("");
         try {
@@ -243,7 +244,7 @@ export function WildsInventory({
         }
       } catch {
         if (active) {
-          setPublicLinkStatus("Could not confirm the latest public card revision. Retrying automatically…");
+          setPublicLinkStatus("Could not verify this card’s public sharing link yet. Retrying automatically…");
           retry = setTimeout(() => void prepare(), 30_000);
         }
       } finally {
@@ -582,7 +583,7 @@ export function WildsInventory({
               {selectedRetired ? <div className="wilds-vault-card-memorial"><WildsCardScene onSaveProof={() => saveVerifiedCard(selected)} asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} speaking={false} /><strong>Retired memorial · swipe to view death record</strong></div> : <WildsCardScene onSaveProof={() => saveVerifiedCard(selected)} asset={selected} condition={state.adventureConditions[selected.id]} origin={origin} qr={qr} speaking={speakingAssetId === selected.id} />}
               {cardSaveState === "success" ? <span aria-hidden="true" className="wilds-card-save-celebration"><i /><i /><i /><i /></span> : null}
             </div>
-            {publicLinkStatus ? <p role="status" className="wilds-card-public-link-status">{publicLinkStatus}</p> : null}
+            {publicLinkStatus ? <div role="status" className={`wilds-card-public-link-status ${styles.publicLinkStatus}`}><Icons.external aria-hidden="true" size={18} /><div><strong>Public sharing link</strong><span>{publicLinkStatus}</span></div></div> : null}
             <CreatureConsciousnessPanel
               asset={selected}
               ownerReceizId={ownerReceizId}

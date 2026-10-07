@@ -24,6 +24,9 @@ import { createWildsMaterialHarvest, initialWildsHarvestedSourceState } from '..
 import { checkpointWildsWorld, initialWildsWorldProjection, replayWildsWorld } from '../src/features/play/wilds-world-state';
 import { createWildsWorldEdgeAdmissionQueue, persistWildsWorldCommandDurably } from '../src/features/play/wilds-world-outbox';
 import { createReceizInMemoryOfflineProofQueueStorage } from '@receiz/sdk';
+import { createCreationSceneRuntime } from '../src/features/play/creation/scene-runtime';
+import { createCreationRenderGeometry } from '../src/features/play/creation/render-geometry';
+import { resolveCreationMovement } from '../src/features/play/creation/navigation';
 
 type Hook = ReturnType<typeof useCreationConversation>;
 async function mountConversation(saved?: string, overrides: Partial<Parameters<typeof useCreationConversation>[0]> = {}) {
@@ -184,6 +187,23 @@ for (const workflow of ['ask', 'select', 'restore'] as const) {
       assert.equal(source.instance.stage, 'functional');
       assert.equal(controller.snapshot().projections.length, 1);
       assert.ok(controller.snapshot().projections[0].solids.length > 0);
+      const scene = createCreationSceneRuntime({ defer: work => work() });
+      scene.refresh(controller.snapshot(), { maximumPages: 4, maximumVertices: 24000, maximumDrawCalls: 12, maximumTextureBytes: 0, maximumUploadBytesPerPaint: 98304 });
+      assert.equal(scene.select({ worldId: context.worldId, spaceId: context.spaceId, position: context.pose.position, radius: 64, limit: 128 }), true);
+      scene.paint();
+      assert.equal(scene.snapshot().renderProjections.length, 1);
+      assert.equal(scene.snapshot().navigation.instanceCount, 0);
+      for (const chunk of scene.snapshot().renderProjections[0].chunks) {
+        const geometry = createCreationRenderGeometry(chunk);
+        assert.ok(geometry.getAttribute('position').count > 0);
+        assert.ok(Array.from(geometry.getAttribute('uv').array).every(Number.isFinite));
+        geometry.dispose();
+        scene.rendered(chunk.id);
+      }
+      assert.equal(scene.snapshot().navigation.instanceCount, 1);
+      const start = { ...context.pose.position, y: context.pose.position.y + .15 }, end = { ...start, x: start.x + 4 };
+      assert.equal(resolveCreationMovement(scene.snapshot().navigation, context.spaceId, start, end).blocked, true);
+      scene.close();
       assert.equal(source.command.resources.length, preview.requiredResources.timber);
       assert.ok(source.command.resources.every(lot => queue.current().consumedMaterialLots[lot.id] === instanceId));
       assert.equal(replayWildsWorld([], checkpointWildsWorld(queue.current())).creations![instanceId].instance.head, source.instance.head);
