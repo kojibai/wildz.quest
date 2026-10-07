@@ -20,7 +20,8 @@ export function creationMetricUVs(positions: Float32Array, normals: Float32Array
   return uv;
 }
 export function creationRenderUploadBytes(chunk: Pick<CreationChunk,'positions'|'normals'>): number {
-  return chunk.positions.byteLength+chunk.normals.byteLength+chunk.positions.length/3*8;
+  const vertices=chunk.positions.length/3,indexBytes=vertices<=65535?2:4;
+  return chunk.positions.byteLength+chunk.normals.byteLength+vertices*(8+indexBytes);
 }
 export function createCreationRenderGeometry(chunk: Pick<CreationChunk,'positions'|'normals'|'materials'>): BufferGeometry {
   const geometry=new BufferGeometry();

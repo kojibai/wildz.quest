@@ -10,7 +10,7 @@ export class LocalCreationPlannerError extends Error {}
 function unsupported(reason: string): never { throw new LocalCreationPlannerError(`${reason} Your draft is saved.`); }
 type Intent = 'home' | 'bed' | 'storage' | 'table' | 'bench' | 'garden' | 'tool' | 'weapon' | 'box' | 'cylinder' | 'ellipsoid' | 'arch' | 'shell' | 'extrusion';
 const nouns: Readonly<Record<Intent, RegExp>> = {
-  home: /\b(home|shelter|house|room|cabin|hut)\b/,
+  home: /\b(homes?|shelters?|houses?|rooms?|cabins?|huts?|mansions?|manors?)\b/,
   bed: /\b(bed|mattress)\b/,
   storage: /\b(storage|chest|crate)\b/,
   table: /\btable\b/,
@@ -47,7 +47,7 @@ function dimensions(text: string): Dimensions {
 const materialNames = '(hay|timber|wood|wooden|stone|straw)';
 const normalizeMaterial = (value: string) => value === 'wood' || value === 'wooden' ? 'timber' : value === 'straw' ? 'hay' : value;
 function materialFor(text: string, intent: Intent, request: CreationPlannerRequest, fallback?: string): string {
-  const intentWords: Record<Intent, string> = { home: 'home|shelter|house|room|cabin|hut', bed: 'bed|mattress', storage: 'storage|chest|crate', table: 'table', bench: 'bench', garden: 'garden|planter', tool: 'tool|hammer|axe|pickaxe|shovel', weapon: 'weapon|sword|spear', box: 'box|block|cube', cylinder: 'cylinder', ellipsoid: 'ellipsoid|sphere|ball', arch: 'arch', shell: 'shell', extrusion: 'extrusion' };
+  const intentWords: Record<Intent, string> = { home: 'homes?|shelters?|houses?|rooms?|cabins?|huts?|mansions?|manors?', bed: 'bed|mattress', storage: 'storage|chest|crate', table: 'table', bench: 'bench', garden: 'garden|planter', tool: 'tool|hammer|axe|pickaxe|shovel', weapon: 'weapon|sword|spear', box: 'box|block|cube', cylinder: 'cylinder', ellipsoid: 'ellipsoid|sphere|ball', arch: 'arch', shell: 'shell', extrusion: 'extrusion' };
   const targeted = text.match(new RegExp(`\\b${materialNames}\\s+(?:(?:usable|small|large|raised)\\s+)*(?:${intentWords[intent]})\\b`)) || text.match(new RegExp(`\\b(?:${intentWords[intent]})\\s+(?:made of|in|of|from|using)\\s+${materialNames}\\b`));
   if (targeted) return normalizeMaterial(targeted[1]);
   const general = text.match(new RegExp(`\\b(?:use|using|with|from|made of|into|make it|make this)\\s+${materialNames}\\b`));
@@ -117,8 +117,89 @@ function intentFor(text: string): Intent | null {
   // A garden bed is a planter, not a sleeping bed.
   return (['home', 'garden', 'tool', 'weapon', 'storage', 'table', 'bench', 'bed', 'cylinder', 'ellipsoid', 'arch', 'shell', 'extrusion', 'box'] as Intent[]).find(intent => nouns[intent].test(text)) || null;
 }
+const smallCounts: Readonly<Record<string, number>> = Object.freeze({ zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19 });
+const countTens: Readonly<Record<string, number>> = Object.freeze({ twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 });
+function buildingCounts(text: string) {
+  const read = (label: string) => {
+    const words = `(?:${Object.keys(countTens).join('|')})(?:[ -](?:${Object.keys(smallCounts).filter(word => smallCounts[word] > 0 && smallCounts[word] < 10).join('|')}))?|${Object.keys(smallCounts).join('|')}`;
+    const match = text.match(new RegExp(`(?<![\\w.])-?(?:\\d+(?:\\.\\d+)?|\\.\\d+|${words})[ -]*(?:${label})\\b`));
+    if (!match) return undefined;
+    const token = match[0].replace(new RegExp(`[ -]*(?:${label})$`), '').trim();
+    const normalized = token.replace(/-/g, ' '), [tens, unit] = normalized.split(' ');
+    const count = smallCounts[normalized] ?? (countTens[tens] !== undefined ? countTens[tens] + (smallCounts[unit] || 0) : Number(token));
+    if (!Number.isSafeInteger(count) || count < 1) unsupported('Room and floor counts must be positive whole numbers.');
+    return count;
+  };
+  const mansion = /\b(mansions?|manors?)\b/.test(text);
+  const floors = read('floors?|storeys?|stories|story') ?? (/\b(?:multiple|multi)[ -]*(?:floors?|storeys?|stories|story)\b/.test(text) || mansion ? 2 : 1);
+  const rooms = read('rooms?') ?? (mansion ? 10 : floors > 1 ? floors * 2 : /\bmultiple rooms\b/.test(text) ? 4 : 1);
+  if (rooms > 24 || floors > 4 || /\b(?:hundreds?|thousands?|millions?|billions?)\b[^.,;]*(?:rooms?|floors?|storeys?|stories?)\b/.test(text)) unsupported('A local building supports up to 24 rooms across up to 4 floors. Use an explicit connected graph for a larger project.');
+  if (rooms < floors) unsupported('Provide at least one room per requested floor.');
+  return { rooms, floors };
+}
+
+/** Open galleries and external switchback stairs leave each shell's single
+ * doorway accessible without inventing an unregistered multi-door shape. */
+function buildingNodes(request: CreationPlannerRequest, text: string, counts: { rooms: number; floors: number }): CreationNode[] {
+  const material = materialFor(text, 'home', request);
+  const shape = withDimensions({ kind: 'shell', width: 4.2, height: 3.2, depth: 5, thickness: .1, doorway: { width: 1.4, height: 2.4 } }, dimensions(text));
+  const columns = Math.ceil(counts.rooms / counts.floors), width = columns * shape.width;
+  if (width > 128 || shape.depth + 6 > 128 || shape.height * counts.floors > 32 || (shape.thickness || .1) > .2) unsupported('Keep a composed building within 128m width and depth, 32m total height, and 0.2m floor thickness so its rooms and stairs stay usable.');
+  const thickness = shape.thickness || .1, galleryDepth = 2.4, galleryZ = -shape.depth / 2 - galleryDepth / 2;
+  const steps = Math.ceil(shape.height / .2), stairWidth = 1.6, stairRun = counts.floors > 1 ? steps * .4 : 6.4, landingX = stairRun / 2 + stairWidth / 2;
+  const stairZ = [galleryZ - galleryDepth / 2 - stairWidth / 2, galleryZ - galleryDepth / 2 - stairWidth * 1.5 - .4];
+  const landingNear = -shape.depth / 2, landingFar = stairZ[1] - stairWidth / 2;
+  const nodes: CreationNode[] = [], floorRooms: CreationNode[][] = [];
+  let roomIndex = 0;
+  for (let floor = 0; floor < counts.floors; floor++) {
+    const count = Math.floor(counts.rooms / counts.floors) + Number(floor < counts.rooms % counts.floors);
+    const rooms: CreationNode[] = [];
+    for (let column = 0; column < count; column++) {
+      const id = roomIndex++ === 0 ? 'room' : `room-${roomIndex}`;
+      const below = floorRooms[floor - 1]?.[column];
+      const room = node(id, shape, material, { x: (column - (columns - 1) / 2) * shape.width, y: floor * shape.height, z: 0 }, null, below ? [below.id] : [], 'habitat');
+      rooms.push(room); nodes.push(room);
+    }
+    floorRooms.push(rooms);
+    const galleryId = `gallery-${floor + 1}`;
+    nodes.push(node(galleryId, box(Math.max(width, stairRun + stairWidth * 2), thickness, galleryDepth), material, { x: 0, y: floor * shape.height, z: galleryZ }, null, rooms.map(room => room.id)));
+    const side = floor % 2 ? 1 : -1;
+    const landingId = `landing-${floor + 1}`;
+    nodes.push(node(landingId, box(stairWidth, thickness, landingNear - landingFar), material, { x: side * landingX, y: floor * shape.height, z: (landingNear + landingFar) / 2 }, null, [galleryId, ...(floor ? [`stair-${floor}-step-${steps}`] : [])]));
+    if (floor === counts.floors - 1) continue;
+    for (let step = 0; step < steps; step++) {
+      const rise = shape.height / steps, tread = stairRun / steps;
+      nodes.push(node(`stair-${floor + 1}-step-${step + 1}`, box(tread, rise, stairWidth), material,
+        { x: side * (stairRun / 2 - (step + .5) * tread), y: floor * shape.height + thickness + step * rise, z: stairZ[floor % 2] }, null,
+        [step ? `stair-${floor + 1}-step-${step}` : landingId]));
+    }
+  }
+  nodes.push(...bedNodes(request, text, floorRooms[0][0]));
+  if (nouns.garden.test(text)) nodes.push(...gardenNodes(request, text, width / 2 + 1.8));
+  if (nouns.storage.test(text)) {
+    const room = floorRooms[0][0], storage = furnitureNodes('storage', request, text);
+    nodes.push(...storage.map(n => n.id === 'storage' ? { ...n, parentId: room.id, supports: [room.id], pose: { ...n.pose, position: { x: shape.width / 2 - .8, y: thickness, z: shape.depth / 2 - .65 } } } : n));
+  }
+  if (nodes.length > 128) unsupported('This room and floor layout exceeds 128 connected parts. Reduce the counts or floor height, or provide a smaller explicit graph.');
+  // Generated shells, boxes and bedding have zero local yaw; include parent
+  // offsets so optional attachments cannot escape the composed size ceiling.
+  const origins = new Map<string, CreationNode['pose']['position']>();
+  const min = { x: Infinity, y: Infinity, z: Infinity }, max = { x: -Infinity, y: -Infinity, z: -Infinity };
+  for (const n of nodes) {
+    const parent = n.parentId ? origins.get(n.parentId)! : { x: 0, y: 0, z: 0 };
+    const p = { x: parent.x + n.pose.position.x, y: parent.y + n.pose.position.y, z: parent.z + n.pose.position.z };
+    origins.set(n.id, p);
+    min.x = Math.min(min.x, p.x - n.shape.width / 2); max.x = Math.max(max.x, p.x + n.shape.width / 2);
+    min.y = Math.min(min.y, p.y); max.y = Math.max(max.y, p.y + n.shape.height);
+    min.z = Math.min(min.z, p.z - n.shape.depth / 2); max.z = Math.max(max.z, p.z + n.shape.depth / 2);
+  }
+  if (max.x - min.x > 128 || max.z - min.z > 128 || max.y - min.y > 32) unsupported('Keep the complete building and its attachments within 128m width and depth and 32m height.');
+  return nodes;
+}
 function composition(intent: Intent, request: CreationPlannerRequest, text: string): CreationNode[] {
   if (intent === 'home') {
+    const counts = buildingCounts(text);
+    if (counts.rooms > 1 || counts.floors > 1) return buildingNodes(request, text, counts);
     const material = materialFor(text, 'home', request), shape = withDimensions({ kind: 'shell', width: 3.4, height: 2.6, depth: 4.2, thickness: .1, doorway: { width: 1.1, height: 2.05 } }, dimensions(text));
     const room = node('room', shape, material, undefined, null, [], 'habitat'), nodes = [room, ...bedNodes(request, text, room)];
     if (nouns.garden.test(text)) nodes.push(...gardenNodes(request, text, shape.width / 2 + 1.8));
@@ -224,5 +305,7 @@ export function proposeLocalCreation(request: CreationPlannerRequest, signal: Ab
   const nodes = composition(intent!, request, text);
   const definition = createCreationDefinition({ schema: 'wildz.creation-definition.v1', grammarVersion: 1, seed: `local:${request.requestId}`, creatorId: request.actorId, nodes, assets: [] });
   checkComponents(definition);
-  return { requestId: request.requestId, reply: `Deterministic local ${intent} proposal using registered parts. ${intent === 'home' ? 'The roof and open doorway belong to the room shell; its separate bed frame, mattress and pillow leave the central entrance clear. ' : intent === 'garden' ? 'The garden starts empty; growth still requires actual seeds, water and elapsed Kai time. ' : intent === 'tool' || intent === 'weapon' ? 'The grip supports a working part with the registered equipment behavior. ' : ''}The compiler determines costs and required creature techniques and checks physical overlap. Nothing has been built or spent.`, definition };
+  const rooms = nodes.filter(n => n.behaviors.some(b => b.id === 'habitat'));
+  const homeDescription = rooms.length > 1 ? `${rooms.length} rooms across ${new Set(rooms.map(room => room.pose.position.y)).size} floors, with wide open doorways, front galleries${nodes.some(n => n.id.startsWith('stair-')) ? ' and connecting stairs' : ''}. The first room has a separate bed. ` : 'The roof and open doorway belong to the room shell; its separate bed frame, mattress and pillow leave the central entrance clear. ';
+  return { requestId: request.requestId, reply: `Deterministic local ${intent} proposal using registered parts. ${intent === 'home' ? homeDescription : intent === 'garden' ? 'The garden starts empty; growth still requires actual seeds, water and elapsed Kai time. ' : intent === 'tool' || intent === 'weapon' ? 'The grip supports a working part with the registered equipment behavior. ' : ''}The compiler determines costs and required creature techniques and checks physical overlap. Nothing has been built or spent.`, definition };
 }

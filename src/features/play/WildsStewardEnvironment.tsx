@@ -15,6 +15,7 @@ import { useWildsReadability } from "./WildsReadabilityContext";
 import { constructionSourceCellKey, constructionSourcesNear, type WildsStewardPlacement } from "./wilds-steward-craft";
 import { createWildsProximityIndex } from "./wilds-proximity-index";
 import type { WildsConstructionSiteV1 } from "./wilds-construction-site";
+import { wildsConstructionOccludesCamera } from "./wilds-construction-camera";
 
 function createGeometry() {
   return {
@@ -309,13 +310,26 @@ function TrailShelter({ geometry, materials, player, structure, terrainElevation
   const foundation = useRef<THREE.Group>(null);
   const frame = useRef<THREE.Group>(null);
   const finish = useRef<THREE.Group>(null);
+  const roof = useRef<THREE.Mesh>(null);
+  const cameraPoint = useRef(new THREE.Vector3()), targetPoint = useRef(new THREE.Vector3());
+  const roofBox = useMemo(() => {
+    if (!geometry.roof.boundingBox) geometry.roof.computeBoundingBox();
+    const box = geometry.roof.boundingBox!, center = box.getCenter(new THREE.Vector3()), halfExtents = box.getSize(new THREE.Vector3()).multiplyScalar(.5);
+    return { center, halfExtents };
+  }, [geometry]);
   const progress = useRef(0);
-  useFrame((_, delta) => {
-    if (progress.current >= 1) return;
-    progress.current = Math.min(1, progress.current + Math.min(delta, .05) * .9);
-    writeConstructionStage(foundation.current, progress.current, 0, .28);
-    writeConstructionStage(frame.current, progress.current, .2, .72);
-    writeConstructionStage(finish.current, progress.current, .62, 1);
+  useFrame(({ camera, controls }, delta) => {
+    if (progress.current < 1) {
+      progress.current = Math.min(1, progress.current + Math.min(delta, .05) * .9);
+      writeConstructionStage(foundation.current, progress.current, 0, .28);
+      writeConstructionStage(frame.current, progress.current, .2, .72);
+      writeConstructionStage(finish.current, progress.current, .62, 1);
+    }
+    if (!roof.current) return;
+    cameraPoint.current.copy(camera.position); roof.current.worldToLocal(cameraPoint.current);
+    const target = (controls as { target?: THREE.Vector3 } | null)?.target;
+    targetPoint.current.set(target?.x ?? 0, target?.y ?? .9, target?.z ?? 0); roof.current.worldToLocal(targetPoint.current);
+    roof.current.visible = !wildsConstructionOccludesCamera(roofBox, cameraPoint.current, targetPoint.current);
   });
   const position = projectWildsTerrainActorPosition(structure.position, player, 0, { actorElevation: structure.position.y, anchorElevation: terrainElevation });
   const rotation = structure.rotationQuarterTurns * Math.PI / 2;
@@ -329,7 +343,7 @@ function TrailShelter({ geometry, materials, player, structure, terrainElevation
       <Shared castShadow geometry={geometry.beam} material={materials.wood} position={[0, 2.65, 1.95]} />
     </group>
     <group name="construction-stage-finish" ref={finish} scale={[1, .035, 1]} visible={false}>
-      <Shared castShadow geometry={geometry.roof} material={materials.roof} position={[0, 3.25, 0]} rotation={[0, Math.PI / 4, 0]} scale={[1, 1, .82]} />
+      <Shared ref={roof} castShadow geometry={geometry.roof} material={materials.roof} position={[0, 3.25, 0]} rotation={[0, Math.PI / 4, 0]} scale={[1, 1, .82]} />
     </group>
   </group>;
 }

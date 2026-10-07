@@ -4,6 +4,8 @@ import { test } from 'node:test';
 import ts from 'typescript';
 import * as jsxRuntime from 'react/jsx-runtime';
 import * as renderGeometry from '../src/features/play/creation/render-geometry';
+import * as cameraPresentation from '../src/features/play/creation/camera-presentation';
+import * as THREE from 'three';
 import * as materialLibrary from '../src/features/play/creation/material-library';
 import * as sceneRuntime from '../src/features/play/creation/scene-runtime';
 import * as preview from '../src/features/play/creation/preview';
@@ -26,7 +28,7 @@ test('mounting the creation renderer schedules its first scene refresh with a va
   const modules: Record<string, unknown> = {
     react, 'react/jsx-runtime': jsxRuntime,
     '@react-three/fiber': { useThree: (select: (state: { gl: typeof gl }) => unknown) => select({ gl }), useFrame: () => {} },
-    './render-geometry': renderGeometry, './material-library': materialLibrary,
+    './render-geometry': renderGeometry, './camera-presentation': cameraPresentation, three: THREE, './material-library': materialLibrary,
     './scene-runtime': { ...sceneRuntime, createCreationSceneRuntime(input: Parameters<typeof sceneRuntime.createCreationSceneRuntime>[0]) {
       runtime = sceneRuntime.createCreationSceneRuntime(input);
       return runtime;

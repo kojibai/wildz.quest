@@ -11,6 +11,7 @@ import { verifyAnyWildsCard, type PortableCardAsset } from '@/features/play/port
 import { verifyWildsMaterialLot, type WildsMaterialLotV1 } from '@/features/play/wilds-steward-construction';
 import { validateCreationBudget } from '@/features/play/creation/resources';
 import { assertCreationData } from '@/features/play/creation/definition';
+import { CREATION_WORLD_RULE } from '@/features/play/creation/world-source';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
 export const maxDuration=30;
@@ -21,7 +22,17 @@ export async function POST(request:NextRequest){
   const input=JSON.parse(text) as CreationPlannerRequest & {cards:PortableCardAsset[];cardAdmissions:Record<string,unknown>;lots:WildsMaterialLotV1[]};assertCreationData(input);
   const actor=await resolveWildzGameplayCookieActor(request);if(input.actorId!==actor.actorId)return reply({status:'blocked',reason:'Creation owner changed.'},403);
   let proofSession:ReturnType<typeof readWildzProofSessionCookie>|null=null;try{proofSession=readWildzProofSessionCookie(request);}catch{}
-  if(!Array.isArray(input.cards)||!input.cards.length||input.cards.length>8||input.cards.some(card=>!verifyAnyWildsCard(card).ok||!canCurrentWildzOwnerObserveCreature({actorId:actor.actorId,profileHandle:actor.profileHandle,proofSession,card,cardAdmission:input.cardAdmissions?.[card.id]})))return reply({status:'blocked',reason:'Current creature ownership could not be verified.'},403);
+  if(!Array.isArray(input.cards))return reply({status:'blocked',reason:'Creature evidence is unavailable. Select your crew again.'},422);
+  if(!input.cards.length)return reply({status:'blocked',reason:'Select at least one ready creature.'},422);
+  if(input.cards.length>CREATION_WORLD_RULE.maximumWorkers)return reply({status:'blocked',reason:`Choose up to ${CREATION_WORLD_RULE.maximumWorkers} creatures for one creation.`},422);
+  for(const card of input.cards){
+   let verified=false;try{verified=verifyAnyWildsCard(card).ok;}catch{}
+   if(!verified)return reply({status:'blocked',reason:'A creature proof could not be verified. Select your crew again.'},403);
+   if(!canCurrentWildzOwnerObserveCreature({actorId:actor.actorId,profileHandle:actor.profileHandle,proofSession,card,cardAdmission:input.cardAdmissions?.[card.id]}))return reply({status:'blocked',reason:`Current creature ownership could not be verified for ${card.manifest.name}.`},403);
+  }
+  const cardIds=new Set(input.cards.map(card=>card.id));
+  if(cardIds.size!==input.cards.length)return reply({status:'blocked',reason:'Selected creature evidence contains duplicates. Select your crew again.'},422);
+  if(!Array.isArray(input.workers)||input.workers.length!==input.cards.length||new Set(input.workers.map(worker=>worker?.assetId)).size!==cardIds.size||input.workers.some(worker=>!cardIds.has(worker?.assetId)))return reply({status:'blocked',reason:'Selected creatures changed. Select your crew again.'},422);
   // This is proposal evidence only. Execution rechecks live conditions, custody, heads, mandates, and physical chunks atomically.
   const workers=projectCreationWorkers(input.cards,Object.fromEntries(input.cards.map(card=>[card.id,emptyAdventureCondition(card.id)])));
   validateCreationBudget(input.context.budget);const carried:Record<string,number>={},seen=new Set<string>();

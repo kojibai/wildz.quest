@@ -10,8 +10,60 @@ function insert<T extends CreationSolid|CreationSurface>(map:Map<string,Entry<T>
 export function prepareCreationNavigation(projections:readonly CreationPhysicalProjection[]):CreationNavigation{const instances=new Map<string,string>(),spaces=new Map<string,SpaceIndex>();for(const p of projections){const previous=instances.get(p.instanceId);if(previous){if(previous!==p.head)throw Error('creation_projection_head_conflict');continue;}instances.set(p.instanceId,p.head);const index=spaces.get(p.spaceId)||{solids:new Map(),surfaces:new Map()};p.solids.forEach(value=>insert(index.solids,{instanceId:p.instanceId,value}));p.walkable.forEach(value=>insert(index.surfaces,{instanceId:p.instanceId,value}));spaces.set(p.spaceId,index);}return {instanceCount:instances.size,spaces};}
 function local(v:CreationSolid|CreationSurface,p:CreationPoint){const x=p.x-v.center.x,z=p.z-v.center.z,c=Math.cos(v.yaw),s=Math.sin(v.yaw);return {x:x*c-z*s,z:x*s+z*c};}
 function floor(index:SpaceIndex,p:CreationPoint,baseY:number,radius:number){let y=baseY;for(const {value:s} of index.surfaces.get(key(p.x,p.z))||[]){const q=local(s,p);if(Math.abs(q.x)<=s.halfExtents.x+radius&&Math.abs(q.z)<=s.halfExtents.z+radius&&s.center.y<=p.y+STEP&&s.center.y>=baseY)y=Math.max(y,s.center.y);}return y;}
-function blocked(index:SpaceIndex,p:CreationPoint,radius:number){return (index.solids.get(key(p.x,p.z))||[]).some(({value:s})=>{if(p.y>=s.center.y+s.halfExtents.y-.00001||p.y+HEIGHT<=s.center.y-s.halfExtents.y+.00001)return false;const q=local(s,p);return Math.abs(q.x)<s.halfExtents.x+radius&&Math.abs(q.z)<s.halfExtents.z+radius;});}
-export function resolveCreationMovement(runtime:CreationNavigation,spaceId:string,from:CreationPoint,to:CreationPoint,radius=.35){if(![from.x,from.y,from.z,to.x,to.y,to.z,radius].every(Number.isFinite)||radius<0||radius>.5)throw Error('creation_movement_invalid');const index=runtime.spaces.get(spaceId);if(!index)return {position:to,blocked:false};const distance=Math.hypot(to.x-from.x,to.z-from.z),steps=Math.max(1,Math.ceil(distance/.08));if(steps>256)return {position:from,blocked:true};let position=from;for(let i=1;i<=steps;i++){const next={x:from.x+(to.x-from.x)*i/steps,y:position.y,z:from.z+(to.z-from.z)*i/steps};next.y=floor(index,next,from.y+(to.y-from.y)*i/steps,radius);if(blocked(index,next,radius))return {position,blocked:true};position=next;}return {position,blocked:false};}
+/** Prepared, space-local supports inform terrain traversal before collision.
+ * A floor above the reachable step band cannot grant support from underneath. */
+export function creationFloorSupportAt(runtime:CreationNavigation,spaceId:string,p:CreationPoint,inset=0){
+ const index=runtime.spaces.get(spaceId);if(!index)return null;
+ let deckY=-Infinity;
+ for(const {value:s} of index.surfaces.get(key(p.x,p.z))||[]){
+  if(s.center.y>p.y+STEP||s.center.y<p.y-STEP)continue;
+  const q=local(s,p);
+  if(Math.abs(q.x)<=s.halfExtents.x-Math.min(inset,s.halfExtents.x*.1)+.000001&&Math.abs(q.z)<=s.halfExtents.z-Math.min(inset,s.halfExtents.z*.1)+.000001)deckY=Math.max(deckY,s.center.y);
+ }
+ return Number.isFinite(deckY)?{deckY}:null;
+}
+/** Circle against an oriented footprint gives rounded doorway corners and a
+ * wall normal for sliding. Vertically separated floors and ceilings stay clear. */
+function contact(s:CreationSolid,p:CreationPoint,radius:number){
+ if(p.y>=s.center.y+s.halfExtents.y-.00001||p.y+HEIGHT<=s.center.y-s.halfExtents.y+.00001)return null;
+ const q=local(s,p),hx=s.halfExtents.x,hz=s.halfExtents.z;
+ const dx=q.x-Math.max(-hx,Math.min(hx,q.x)),dz=q.z-Math.max(-hz,Math.min(hz,q.z)),distance=Math.hypot(dx,dz);
+ let nx:number,nz:number,depth:number;
+ if(distance>0){if(distance>=radius-.000001)return null;nx=dx/distance;nz=dz/distance;depth=radius-distance;}
+ else {const x=hx-Math.abs(q.x),z=hz-Math.abs(q.z);if(x<z){nx=q.x<0?-1:1;nz=0;depth=x+radius;}else{nx=0;nz=q.z<0?-1:1;depth=z+radius;}}
+ const c=Math.cos(s.yaw),sn=Math.sin(s.yaw);
+ return {x:nx*c+nz*sn,z:nz*c-nx*sn,depth};
+}
+function blocked(index:SpaceIndex,p:CreationPoint,radius:number){return (index.solids.get(key(p.x,p.z))||[]).some(({value:s})=>contact(s,p,radius)!==null);}
+export function creationPositionIsClear(runtime:CreationNavigation,spaceId:string,p:CreationPoint,radius=.35){
+ if(![p.x,p.y,p.z,radius].every(Number.isFinite)||radius<0||radius>.5)return false;
+ const index=runtime.spaces.get(spaceId);return !index||!blocked(index,p,radius);
+}
+export function resolveCreationMovement(runtime:CreationNavigation,spaceId:string,from:CreationPoint,to:CreationPoint,radius=.35){
+ if(![from.x,from.y,from.z,to.x,to.y,to.z,radius].every(Number.isFinite)||radius<0||radius>.5)throw Error('creation_movement_invalid');
+ const index=runtime.spaces.get(spaceId);if(!index)return {position:to,blocked:false};
+ const distance=Math.hypot(to.x-from.x,to.z-from.z),steps=Math.max(1,Math.ceil(distance/.08));
+ if(steps>256)return {position:from,blocked:true};
+ const dx=(to.x-from.x)/steps,dz=(to.z-from.z)/steps;let position=from,hit=false;
+ for(let i=1;i<=steps;i++){
+  const next={x:position.x+dx,y:position.y,z:position.z+dz},baseY=from.y+(to.y-from.y)*i/steps;
+  next.y=floor(index,next,baseY,radius);
+  for(let pass=0;pass<4;pass++){
+   let adjusted=false;
+   for(const {value:s} of index.solids.get(key(next.x,next.z))||[]){
+    const overlap=contact(s,next,radius);if(!overlap)continue;
+    // Recover small landing/restore overlaps without teleporting out of a large solid.
+    if(overlap.depth>radius+.08)return {position,blocked:true};
+    next.x+=overlap.x*(overlap.depth+.00001);next.z+=overlap.z*(overlap.depth+.00001);hit=true;adjusted=true;
+   }
+   if(!adjusted)break;
+  }
+  next.y=floor(index,next,baseY,radius);
+  if(blocked(index,next,radius))return {position,blocked:true};
+  position=next;
+ }
+ return {position,blocked:hit};
+}
 /** Cached regional queries only. A route that exceeds the local work budget is deferred. */
 export function findCreationRoute(runtime:CreationNavigation,spaceId:string,from:CreationPoint,to:CreationPoint){
  const reject=()=>({reachable:false,points:[] as CreationPoint[]}),index=runtime.spaces.get(spaceId);

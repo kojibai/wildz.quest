@@ -12,13 +12,13 @@ import { createWildsCrewTravelAuthority } from "./wilds-crew-travel-authority";
 import { createWildsCrewPhysicalScheduler, writeWildsCrewVisualPosition, WILDS_CREW_PHYSICAL_TICK_MS } from "./wilds-crew-physical-scheduler";
 import { wildsCrewUsesFrameWriter, writeWildsCrewRetainedTravelPosition, wildsCrewResidentExcludedIds, type WildsCrewTravelRuntime } from "./wilds-crew-travel-runtime";
 
-import { writeWildsInteriorCameraPosition, writeWildsObstacleCameraPosition } from "./wilds-site-runtime";
+import { writeWildsInteriorCameraPosition } from "./wilds-site-runtime";
 
 import { WildsHomeResidents, type WildsHomeResidentsInput } from "./WildsHomeResidents";
 import { projectWildsHomeResidents } from "./wilds-home-residents";
 import type { WildsBurrowPreview } from "./wilds-burrow";
 import { WildsBurrowGhost } from "./WildsBurrowGhost";
-import {writeCreationAerialCollision,writeCreationCameraPosition,type CreationNavigation} from './creation/navigation';
+import {writeCreationAerialCollision,type CreationNavigation} from './creation/navigation';
 import type {CreationPhysicalSnapshot} from './creation/physical-store';
 import type {CreationPhysicalProjection} from "./creation/projection";
 import type { CreationPreview } from "./creation/preview";
@@ -128,7 +128,7 @@ import { creatureContinuityProjection } from "@/features/play/creature-continuit
 import { readWildsCrewCondition } from "./wilds-crew-policy";
 import { canWildsCrewTravel, createWildsCrewPhysicalSampler } from "./wilds-crew-physical-navigation";
 import { createWildsCrewPathStepState, planWildsCrewPathNearTarget, wildsCrewRouteNeedsReplan, writeWildsCrewAlongsideTarget, writeWildsCrewTransportPosition, writeWildsCrewFollowingStep, type WildsCrewNavigationPoint, type WildsCrewNavigationAuthority } from "./wilds-crew-navigation";
-import { buildWildsObstacleIndex, WILDS_RENDERED_PHYSICAL_OBSTACLES } from "./wilds-terrain-obstacles";
+import { WILDS_RENDERED_PHYSICAL_OBSTACLES } from "./wilds-terrain-obstacles";
 
 export type WildsCrewModes = Readonly<Record<string, "follow" | "roam">>;
 
@@ -507,7 +507,7 @@ function WildsScene({
       {!interior && <WildsCelestialSky expression={kaiExpression} qualityProfile={qualityProfile} />}
       <WildsAtmosphere interior={interior} encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} nightRig={nightRig} player={state.player} qualityProfile={qualityProfile} />
       {!interior && <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />}
-      <CameraRig creationNavigation={creationNavigation} livingPhysicalObstacles={livingPhysicalObstacles} terrainElevation={activeFloorY} actualCameraSubmergedRef={actualCameraSubmergedRef} verticalTraversalRef={verticalTraversalRef} aquaticPresentation={aquaticPresentation} onCameraHeadingChange={onCameraHeadingChange} vistaHeading={vistaHeading} siteRuntime={siteRuntime} siteSpace={siteSpace} player={state.player} />
+      <CameraRig terrainElevation={activeFloorY} actualCameraSubmergedRef={actualCameraSubmergedRef} verticalTraversalRef={verticalTraversalRef} aquaticPresentation={aquaticPresentation} onCameraHeadingChange={onCameraHeadingChange} vistaHeading={vistaHeading} siteRuntime={siteRuntime} siteSpace={siteSpace} player={state.player} />
       <WildsUnderwaterAtmosphere cameraSubmergedRef={actualCameraSubmergedRef} qualityProfile={qualityProfile} surfaceFog={interior ? "#020304" : kaiFog} surfaceFogFar={interior ? 22 : fogFar} surfaceFogNear={interior ? 2 : fogNear} surfaceSky={interior ? "#020304" : kaiSky} />
       {WILDS_DIAGNOSTICS_ENABLED ? <WildsDiagnostics environment={{
         authoredDarkness: interior ? 1 : darkness.amount,
@@ -1369,9 +1369,7 @@ function RemoteExplorer({
   );
 }
 
-function CameraRig({ creationNavigation, livingPhysicalObstacles, terrainElevation, actualCameraSubmergedRef, verticalTraversalRef, aquaticPresentation, onCameraHeadingChange, vistaHeading, siteRuntime, siteSpace, player }: {
-  creationNavigation?: CreationNavigation;
-  livingPhysicalObstacles: readonly WildsTerrainObstacle[];
+function CameraRig({ terrainElevation, actualCameraSubmergedRef, verticalTraversalRef, aquaticPresentation, onCameraHeadingChange, vistaHeading, siteRuntime, siteSpace, player }: {
   terrainElevation: number;
   actualCameraSubmergedRef: MutableRefObject<boolean>;
   verticalTraversalRef: MutableRefObject<WildsVerticalTraversalState>;
@@ -1385,11 +1383,10 @@ function CameraRig({ creationNavigation, livingPhysicalObstacles, terrainElevati
   const { camera } = useThree();
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const desiredCamera = useMemo(() => camera.clone(), [camera]);
-  const obstacleIndex = useMemo(() => buildWildsObstacleIndex(livingPhysicalObstacles), [livingPhysicalObstacles]);
   const cameraOrigin = useRef({ x: player.x, y: terrainElevation, z: player.z });
   // Input handlers can update controls synchronously between frames. Keep their
-  // camera independent of render collision so wheel, pinch and rotation retain
-  // the requested orbit. Controls update at -1; render collision runs at -.25.
+  // camera independent of cave presentation so wheel, pinch and rotation retain
+  // the requested orbit. Buildings use cutaways instead of camera collision.
   useFrame(() => {
     camera.position.copy(desiredCamera.position);
     camera.quaternion.copy(desiredCamera.quaternion);
@@ -1475,9 +1472,7 @@ function CameraRig({ creationNavigation, livingPhysicalObstacles, terrainElevati
       camera.position.copy(desiredCamera.position);
       const origin = cameraOrigin.current;
       origin.x = player.x; origin.y = terrainElevation; origin.z = player.z;
-      if (creationNavigation) writeCreationCameraPosition(camera.position, creationNavigation, siteSpace.spaceId, origin, orbit.target);
-      writeWildsObstacleCameraPosition(camera.position, obstacleIndex, siteSpace.spaceId, origin, orbit.target);
-      writeWildsInteriorCameraPosition(camera.position, siteRuntime, siteSpace.spaceId, origin, orbit.target.y);
+      if (siteSpace.spaceId !== "wildz.space.outer.v1") writeWildsInteriorCameraPosition(camera.position, siteRuntime, siteSpace.spaceId, origin, orbit.target.y);
       camera.lookAt(orbit.target);
     }
     const heading = Math.atan2(camera.position.x, camera.position.z);

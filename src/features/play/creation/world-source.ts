@@ -126,7 +126,7 @@ export function creationWorldAvailability(world: WildsWorldProjection, actorId: 
 export function creationWorldWorkers(sources: readonly WildsCreationWorkerSource[], actorId: string) {
   if (!sources.length || sources.length > CREATION_WORLD_RULE.maximumWorkers || new Set(sources.map(s => s.card.id)).size !== sources.length) throw Error('creation_world_workers_invalid');
   for (const source of sources) {
-    if (!verifyAnyWildsCard(source.card).ok || source.card.manifest.ownerReceizId !== actorId || source.condition.assetId !== source.card.id) throw Error('creation_world_worker_source_invalid');
+    if (!verifyAnyWildsCard(source.card).ok || (source.card.manifest.ownerReceizId !== actorId && !sameWildzPlayerCoordinate(source.card.manifest.ownerReceizId, actorId)) || source.condition.assetId !== source.card.id) throw Error('creation_world_worker_source_invalid');
     validateAdventureCondition(source.condition);
   }
   const cards = sources.map(source => source.card);

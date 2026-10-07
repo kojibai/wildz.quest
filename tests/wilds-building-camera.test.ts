@@ -71,19 +71,19 @@ function mountCamera(desired:THREE.Vector3,projection?:CreationPhysicalProjectio
   };
 }
 
-test('camera retracts before a moved, rotated prompt wall and preserves the requested orbit',()=>{
-  const desired=turn(6,.9,0),mounted=mountCamera(desired,house());
+test('real camera freely zooms outside and inside a moved, rotated prompt building',()=>{
+  const desired=turn(Math.sqrt(34.56),2.1,0),mounted=mountCamera(desired,house(),[],true);
   mounted.frame();
-  const local=turn(mounted.camera.position.x,mounted.camera.position.y,mounted.camera.position.z,-.61);
-  assert.ok(local.x>1.5&&local.x<1.68,'camera must stop inside the wall with near-plane clearance');
-  mounted.restore();assert.ok(mounted.camera.position.distanceTo(desired)<1e-8,'controls must receive the original desired orbit before their next update');
-  mounted.orbit.object.position.copy(turn(0,.9,-7));mounted.frame();
-  assert.ok(mounted.camera.position.distanceTo(turn(0,.9,-7))<1e-8,'an open doorway must restore the full clear view');
+  assert.ok(mounted.camera.position.distanceTo(mounted.orbit.object.position)<1e-8,'walls must not pull a requested exterior view toward the player');
+  for(let event=0;event<40;event++){mounted.input('wheel',{deltaY:100});mounted.frame();}
+  assert.ok(mounted.camera.position.distanceTo(mounted.orbit.target)>12,'zooming out must stay outside the building');
+  for(let event=0;event<100;event++){mounted.input('wheel',{deltaY:-100});mounted.frame();}
+  assert.ok(mounted.camera.position.distanceTo(mounted.orbit.target)<.46,'zooming in must enter the interior freely');
 });
 
 test('real OrbitControls wheel zoom persists after a clipped frame restores its desired view',()=>{
   const desired=new THREE.Vector3(Math.sqrt(34.56),2.1,0),clipped=mountCamera(desired,house(0),[],true),clear=mountCamera(desired,undefined,[],true);
-  clipped.frame();clear.frame();assert.ok(clipped.camera.position.distanceTo(clipped.orbit.target)<2);
+  clipped.frame();clear.frame();
   for(const deltaY of [-100,-100,100]){clipped.input('wheel',{deltaY});clear.input('wheel',{deltaY});clipped.frame();clear.frame();}
   clipped.props.creationNavigation=undefined;clipped.render();clipped.frame();clear.frame();
   assert.ok(clear.camera.position.distanceTo(clear.orbit.target)<5.8);
@@ -119,21 +119,20 @@ test('real OrbitControls rotation and damping match a clear orbit while the rend
   assert.ok(clipped.camera.position.distanceTo(clear.camera.position)<1e-8,'collision must retain the immediate rotation as well as remaining damping');
 });
 
-test('camera sweeps vertically before prompt roofs and floors using the rendered floor origin',()=>{
-  const mounted=mountCamera(turn(0,5,0),house());mounted.frame();
-  assert.ok(mounted.camera.position.y>2.5&&mounted.camera.position.y<2.68,'roof is at local 2.85, despite stale site-space elevation');
-  mounted.restore();mounted.orbit.object.position.set(0,-1,0);mounted.frame();
-  assert.ok(mounted.camera.position.y>.32&&mounted.camera.position.y<.35,'camera must stay above the solid floor');
+test('real camera can zoom above a prompt roof without being pulled under it',()=>{
+  const mounted=mountCamera(turn(3,5,0),house(),[],true);mounted.frame();
+  assert.ok(mounted.camera.position.y>4.99,'roof camera presentation must not impose player collision');
+  assert.ok(mounted.camera.position.distanceTo(mounted.orbit.object.position)<1e-8);
 });
 
-test('manual wall and roof collision uses the prepared obstacle index only in outer space',()=>{
+test('manual walls and roofs permit the requested free camera view',()=>{
   const solids:obstacles.WildsTerrainObstacle[]=[
     {id:'manual:wall',kind:'structure',material:'solid',position:{x:origin.x+2,y:origin.y+1.5,z:origin.z},radius:3,shape:{kind:'box',halfX:.1,halfY:1.5,halfZ:3},visualScale:1},
     {id:'manual:roof',kind:'ceiling',material:'solid',position:{x:origin.x,y:origin.y+3,z:origin.z},radius:4,shape:{kind:'box',halfX:3,halfY:.1,halfZ:3},visualScale:1}
   ];
   const mounted=mountCamera(new THREE.Vector3(6,.9,0),undefined,solids);mounted.frame();
-  assert.ok(mounted.camera.position.x>1.6&&mounted.camera.position.x<1.73);
-  mounted.restore();mounted.orbit.object.position.set(0,5,0);mounted.frame();assert.ok(mounted.camera.position.y>2.6&&mounted.camera.position.y<2.73);
+  assert.equal(mounted.camera.position.x,6);
+  mounted.restore();mounted.orbit.object.position.set(0,5,0);mounted.frame();assert.equal(mounted.camera.position.y,5);
   mounted.unchangedAuthority();
   mounted.restore();mounted.props.siteSpace.spaceId='other-space';
   mounted.props.siteRuntime=siteRuntime.prepareWildsSiteRuntime({...mounted.props.siteRuntime.physical,surfaces:[{id:'other-floor',siteKey:'fixture',spaceId:'other-space',kind:'interior-floor',center:origin,halfExtents:{x:10,y:.05,z:10},flooded:false}]});
@@ -148,7 +147,7 @@ test('clear outdoor camera views allow close ground zoom and isolate creation sp
   mounted.orbit.object.position.set(.45,.9,0);mounted.frame();assert.equal(mounted.camera.position.x,.45);
 });
 
-test('camera frame work stays regional and reuses prepared authority and obstacle indexes',()=>{
+test('free building camera frames never query or rebuild player collision authority',()=>{
   const mounted=mountCamera(turn(6,.9,0),house());
   const nearby=house(),distant=Array.from({length:6000},(_,i)=>({...nearby,instanceId:`far:${i}`,solids:nearby.solids.map(s=>({...s,center:{...s.center,x:10000+i*32}})),walkable:[]}));
   mounted.props.creationNavigation=navigation.prepareCreationNavigation([nearby,...distant]);mounted.render();
@@ -157,8 +156,8 @@ test('camera frame work stays regional and reuses prepared authority and obstacl
   map.get=(key:string)=>{reads++;return get(key);};
   map.values=()=>{throw Error('camera must not scan all creation solids');};
   for(let frame=0;frame<120;frame++){mounted.render();mounted.frame();}
-  assert.ok(reads>0&&reads<120*16,'each view queries a bounded group of cached buckets');
-  assert.equal(mounted.indexBuilds(),1,'manual collision index must be retained between frames and renders');
+  assert.equal(reads,0,'camera freedom must not depend on player collision queries');
+  assert.equal(mounted.indexBuilds(),0,'free camera frames do not need a construction obstacle index');
   mounted.unchangedAuthority();
 });
 

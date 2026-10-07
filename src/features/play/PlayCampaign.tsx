@@ -20,7 +20,7 @@ import { requestWildsDive } from "./wilds-vertical-traversal";
 import { canSleepInWildsBed, selectWildsBedAtPlayer, resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
-import type {CreationNavigation} from './creation/navigation';
+import {creationFloorSupportAt,type CreationNavigation} from './creation/navigation';
 import type {CreationController} from "./creation/controller";
 import {createWorldCreationController,type WorldCreationControllerInput} from "./creation/world-controller";
 import {createCreationPhysicalWorkerClient} from "./creation/physical-worker-client";
@@ -1062,10 +1062,11 @@ export function PlayCampaign({
     () => structures ? projectWildsStructureSupports({ structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions }) : [],
     [structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions]
   );
-  const playerStructureSupport = useMemo(
-    () => wildsStructureSupportAt(state.player, livingStructureSupports, 0, state.siteSpace.position.y),
-    [livingStructureSupports, state.player, state.siteSpace.position.y]
-  );
+  const playerStructureSupport = useMemo(() => {
+    const manual=wildsStructureSupportAt(state.player,livingStructureSupports,0,state.siteSpace.position.y);
+    const created=creationNavigation?creationFloorSupportAt(creationNavigation,state.siteSpace.spaceId,state.siteSpace.position):null;
+    return created&&(!manual||created.deckY>manual.deckY)?created:manual;
+  },[creationNavigation,livingStructureSupports,state.player,state.siteSpace]);
   const [aerialMode, setAerialMode] = useState<WildsAerialMode>("ground");
   const aquaticPresentation = useMemo(() => projectWildsAquaticPresentationAtPosition({
     x: state.player.x,

@@ -1,5 +1,7 @@
 # Building entry, camera and global map — 2026-10-07
 
+The subsequent [free zoom and construction follow-up](2026-10-07-building-free-zoom.md) supersedes the ground-building camera retraction described below and adds movement, mansion and crew-selection fixes.
+
 Repeatedly hashing and reconstructing a home's bed definition while checking whether Sleep was available added measurable CPU work near buildings. Room page bounds also admitted out-of-reach beds into that expensive path. The selector now rejects against the admitted mattress footprint first and reuses a validated source only while its immutable instance, definition and admitted projection remain current. Replacement, access, occupancy and damage checks remain enforced. Settled scene pages no longer publish unchanged residency snapshots on every movement update, and completed upload queues skip idle painting work.
 
 The ground camera can zoom to 0.45 units. Cached creation solids and manual construction obstacles constrain the camera ray against walls, floors and roofs while preserving doorway openings. OrbitControls owns a stable desired-camera clone, so collision retraction cannot discard synchronous wheel, pinch or rotation input. The rendered camera uses the rendered floor elevation and can retract inside buildings. Queries are bounded to 64 cells and 4,096 candidates. Existing discovery-site and flight camera rules remain in effect.

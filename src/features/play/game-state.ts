@@ -1,4 +1,4 @@
-import {resolveCreationMovement,resolveCreationFlight,type CreationNavigation} from './creation/navigation';
+import {resolveCreationMovement,resolveCreationFlight,creationFloorSupportAt,creationPositionIsClear,type CreationNavigation} from './creation/navigation';
 import {createPlayerBreaths,restorePlayerBreaths,isPlayerBreaths,advancePlayerBreaths,recordPlayerExertion,playerBreathEnergy,recoverPlayerBreaths} from "./player-breath-energy";
 import { canSleepInCreationBed, type CreationBedSource } from './creation/bed';
 import { projectWildsCreationPersistence, type WildsCreationSourceRecord } from './creation/world-source';
@@ -62,7 +62,7 @@ import { worldMasteryAward, type WorldMasteryVerb } from "./world-progression";
 import {createWildsExplorerProgress,restoreWildsExplorerProgress,projectWildsExplorerProgress,type WildsExplorerProgress} from "./wilds-explorer-progression";
 import { validateRiftGrant, type RiftTravelGrant } from "./wilds-rift-travel";
 import { movementScale, type WildsMovementMode } from "./wilds-movement";
-import { resolveWildsGroundMovement } from "./wilds-grounded-movement";
+import { resolveWildsGroundMovement, type WildsAdditionalGroundSupport } from "./wilds-grounded-movement";
 import { regionForPosition } from "./multiplayer-core";
 import {
   createInitialWildsExplorationAtlas,
@@ -2335,10 +2335,12 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       y: wildsTerrainElevation(state.player.x, state.player.z),
       z: state.player.z
     });
+    const creationSupportAt:WildsAdditionalGroundSupport|undefined=input.creationNavigation&&!admittedAirborne
+      ? (point,inset,footY)=>creationFloorSupportAt(input.creationNavigation!,currentSpace.spaceId,{x:point.x,y:footY,z:point.z},inset):undefined;
     const movement = currentSpace.spaceId === "wildz.space.outer.v1"
       ? input.type === "move"
-        ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles, input.kaiUPulse)
-        : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles, input.kaiUPulse)
+        ? movePlayer(state.player, input.direction, movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles, input.kaiUPulse,creationSupportAt)
+        : movePlayerVector(state.player, input.x, input.z, movementScale(input.mode ?? "walk"), movementCapabilities, admittedAirborne ? input.aerialMode : undefined, input.verticalClearance, admittedAirborne ? input.verticalWorldY : currentSpace.position.y, input.structureSupports, input.additionalObstacles, input.kaiUPulse,creationSupportAt)
       : movePlayerInsideSite(state.player, input);
     const siteMovement = input.siteRuntime ? writeWildsSiteRuntimeMovement(
       input.siteMovementOutput ?? { x: movement.position.x, z: movement.position.z, floorY: movement.elevation, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null, flooded: false, blocked: false, blockedByClimb: false },
@@ -2355,12 +2357,37 @@ function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
       admittedAirborne ? input.verticalWorldY : undefined
     ) : null;
     if (siteMovement && !admittedAirborne && currentSpace.spaceId === "wildz.space.outer.v1") {
-      const builtFloor = wildsStructureSupportAt({ x: siteMovement.x, z: siteMovement.z }, input.structureSupports, 0, currentSpace.position.y);
+      const manualFloor = wildsStructureSupportAt({ x: siteMovement.x, z: siteMovement.z }, input.structureSupports, 0, currentSpace.position.y),createdFloor=creationSupportAt?.({x:siteMovement.x,z:siteMovement.z},0,currentSpace.position.y);
+      const builtFloor=createdFloor&&(!manualFloor||createdFloor.deckY>manualFloor.deckY)?createdFloor:manualFloor;
       if (builtFloor && builtFloor.deckY >= siteMovement.floorY && builtFloor.deckY + 1.55 <= siteMovement.ceilingY) siteMovement.floorY = builtFloor.deckY;
     }
     const proposedPlayer=siteMovement?{x:siteMovement.x,z:siteMovement.z}:movement.position;
     const proposedY=siteMovement?.floorY??(currentSpace.spaceId==='wildz.space.outer.v1'?movement.elevation:currentSpace.position.y);
-    const creationMovement=input.creationNavigation?(admittedAirborne?resolveCreationFlight:resolveCreationMovement)(input.creationNavigation,currentSpace.spaceId,{x:state.player.x,y:admittedAirborne?(input.verticalWorldY??currentSpace.position.y):currentSpace.position.y,z:state.player.z},{x:proposedPlayer.x,y:admittedAirborne?(input.verticalWorldY??proposedY):proposedY,z:proposedPlayer.z}):null;
+    let creationMovement=input.creationNavigation?(admittedAirborne?resolveCreationFlight:resolveCreationMovement)(input.creationNavigation,currentSpace.spaceId,{x:state.player.x,y:admittedAirborne?(input.verticalWorldY??currentSpace.position.y):currentSpace.position.y,z:state.player.z},{x:proposedPlayer.x,y:admittedAirborne?(input.verticalWorldY??proposedY):proposedY,z:proposedPlayer.z},admittedAirborne?.35:.38):null;
+    if(creationMovement&&!admittedAirborne&&Math.hypot(creationMovement.position.x-proposedPlayer.x,creationMovement.position.z-proposedPlayer.z)>.00001){
+      // Creation contact may slide sideways after terrain/site collision. The
+      // adjusted endpoint must still satisfy both earlier collision domains.
+      const point=creationMovement.position;
+      let ground=currentSpace.spaceId==='wildz.space.outer.v1'?resolveWildsGroundMovement(point,point,{
+        capabilities:movementCapabilities,verticalWorldY:point.y,structureSupports:input.structureSupports,
+        additionalObstacles:input.additionalObstacles,additionalSupportAt:creationSupportAt
+      }):null;
+      let site=input.siteRuntime?writeWildsSiteRuntimeMovement(
+        {x:point.x,z:point.z,floorY:point.y,ceilingY:Infinity,surfaceId:null,flooded:false,blocked:false,blockedByClimb:false},
+        input.siteRuntime,currentSpace.spaceId,point.x,point.y,point.z,point.x,point.z,.38,ground?.elevation??point.y,movementCapabilities.includes('climb')
+      ):null;
+      const floorY=ground||site?Math.max(ground?.elevation??-Infinity,site?.floorY??-Infinity):point.y;
+      const settled={...point,y:floorY};
+      if(ground&&Math.abs(floorY-point.y)>.00001)ground=resolveWildsGroundMovement(settled,settled,{
+        capabilities:movementCapabilities,verticalWorldY:floorY,structureSupports:input.structureSupports,
+        additionalObstacles:input.additionalObstacles,additionalSupportAt:creationSupportAt
+      });
+      if(site&&Math.abs(floorY-point.y)>.00001)site=writeWildsSiteRuntimeMovement(site,input.siteRuntime!,currentSpace.spaceId,point.x,floorY,point.z,point.x,point.z,.38,floorY,movementCapabilities.includes('climb'));
+      const groundClear=!ground||(!ground.traversalBlockedBy&&Math.hypot(ground.position.x-point.x,ground.position.z-point.z)<=.00001);
+      const siteClear=!site||(!site.blocked&&Math.hypot(site.x-point.x,site.z-point.z)<=.00001&&floorY+1.55<=site.ceilingY+.00001);
+      if(!groundClear||!siteClear||!creationPositionIsClear(input.creationNavigation!,currentSpace.spaceId,settled,.38))creationMovement={position:{x:state.player.x,y:currentSpace.position.y,z:state.player.z},blocked:true};
+      else creationMovement={...creationMovement,position:settled};
+    }
     const nextPlayer=creationMovement?{x:creationMovement.position.x,z:creationMovement.position.z}:proposedPlayer;
     const movementFloorY=creationMovement?.position.y??proposedY;
     const previousRegion = regionForPosition(state.player);
@@ -2595,7 +2622,8 @@ function movePlayer(
   verticalWorldY?: number,
   structureSupports?: readonly WildsStructureSupport[],
   additionalObstacles?: readonly WildsTerrainObstacle[],
-  kaiUPulse?: number
+  kaiUPulse?: number,
+  additionalSupportAt?: WildsAdditionalGroundSupport
 ) {
   const next = { ...player };
 
@@ -2613,7 +2641,7 @@ function movePlayer(
     intended.x = clamp(intended.x, worldBounds.min, worldBounds.max);
     intended.z = clamp(intended.z, worldBounds.min, worldBounds.max);
   }
-  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports, additionalObstacles });
+  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports, additionalObstacles,additionalSupportAt });
 }
 
 function movePlayerVector(
@@ -2627,12 +2655,13 @@ function movePlayerVector(
   verticalWorldY?: number,
   structureSupports?: readonly WildsStructureSupport[],
   additionalObstacles?: readonly WildsTerrainObstacle[],
-  kaiUPulse?: number
+  kaiUPulse?: number,
+  additionalSupportAt?: WildsAdditionalGroundSupport
 ) {
   const safeX = Number.isFinite(x) ? x : 0;
   const safeZ = Number.isFinite(z) ? z : 0;
   const magnitude = Math.hypot(safeX, safeZ);
-  if (magnitude < 0.08) return resolveWildsGroundMovement(player, player, { capabilities, aerialMode, obstacles: [], verticalClearance, verticalWorldY, structureSupports });
+  if (magnitude < 0.08) return resolveWildsGroundMovement(player, player, { capabilities, aerialMode, obstacles: [], verticalClearance, verticalWorldY, structureSupports,additionalSupportAt });
   const scale = worldBounds.analogStep * movementMultiplier / Math.max(1, magnitude);
   const intended = {
     x: clamp(player.x + safeX * scale, worldBounds.min, worldBounds.max),
@@ -2643,7 +2672,7 @@ function movePlayerVector(
     intended.x = clamp(intended.x, worldBounds.min, worldBounds.max);
     intended.z = clamp(intended.z, worldBounds.min, worldBounds.max);
   }
-  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports, additionalObstacles });
+  return resolveWildsGroundMovement(player, intended, { capabilities, aerialMode, verticalClearance, verticalWorldY, structureSupports, additionalObstacles,additionalSupportAt });
 }
 
 function movePlayerInsideSite(player: PlayState["player"], input: Extract<WildsInput, { type: "move" | "move-vector" }>) {

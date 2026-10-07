@@ -8,6 +8,7 @@ import { createCreationAdmissionPort, prepareCreationOperation, type CreationOpe
 import { projectCreationPhysical } from '../src/features/play/creation/projection';
 import { creationDefinitionFixture } from './support/creation-fixtures';
 import type { CreationNode } from '../src/features/play/creation/types';
+import { creationRenderUploadBytes } from '../src/features/play/creation/render-geometry';
 const budget = { maximumPages: 4, maximumVertices: 24000, maximumDrawCalls: 12, maximumTextureBytes: 0, maximumUploadBytesPerPaint: 65536 };
 async function fixture(nodes?: readonly CreationNode[]) {
     const original = creationOperationContextFixture(), definition = nodes ? creationDefinitionFixture({ nodes }) : original.definition;
@@ -113,7 +114,8 @@ test('a supported node chain can cross regions and return without crashing page 
     assert.doesNotThrow(() => runtime.refresh(source, { ...budget, maximumPages: 1 }));
     runtime.select(query); runtime.paint(); flush();
     assert.equal(runtime.snapshot().renderProjections.length, 0, 'the support group must fit together before any page is selected');
-    runtime.refresh(source, { ...budget, maximumUploadBytesPerPaint: 2304 });
+    const onePageBytes = Math.max(...source.projections[0].chunks.map(creationRenderUploadBytes));
+    runtime.refresh(source, { ...budget, maximumUploadBytesPerPaint: onePageBytes });
     runtime.select(query); runtime.paint(); flush();
     const first = runtime.snapshot().renderProjections[0].chunks;
     assert.equal(first.length, 1, 'uploads still respect the per-paint byte allowance');

@@ -2,6 +2,8 @@
 import { memo, useMemo, useEffect, useState, useRef, useSyncExternalStore, useCallback } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { createCreationRenderGeometry } from './render-geometry';
+import { prepareCreationCameraCutaway } from './camera-presentation';
+import { Vector3, type Mesh } from 'three';
 import { createCreationMaterialLibrary } from './material-library';
 import type { CreationPhysicalSnapshot } from './physical-store';
 import type { CreationNavigation } from './navigation';
@@ -17,10 +19,20 @@ const Page = memo(function Page({ chunk, materials, onRendered }: {
     onRendered: (id: string, vertices: number) => void;
 }) {
     const geometry = useMemo(() => createCreationRenderGeometry(chunk), [chunk]);
+    const cutaway = useMemo(() => prepareCreationCameraCutaway(chunk, geometry), [chunk, geometry]);
+    const mesh = useRef<Mesh>(null), origin = useRef(new Vector3()), cameraPoint = useRef(new Vector3()), targetPoint = useRef(new Vector3());
     const shared = useMemo(() => chunk.materials.map(m => materials.material(m.material)), [chunk, materials]);
     useEffect(() => { chunk.materials.forEach(m => { void materials.load(m.material); }); }, [chunk, materials]);
     useEffect(() => () => { geometry.dispose(); }, [geometry]);
-    return <mesh geometry={geometry} material={shared} onAfterRender={(_renderer, _scene, _camera, _geometry, _material, group) => onRendered(chunk.id, group?.count ?? chunk.positions.length / 3)} castShadow receiveShadow/>;
+    useFrame(({ camera, controls }) => {
+        if (!mesh.current) return;
+        mesh.current.getWorldPosition(origin.current);
+        cameraPoint.current.copy(camera.position).sub(origin.current);
+        const target = (controls as { target?: CreationPoint } | null)?.target;
+        targetPoint.current.set(target?.x ?? 0, target?.y ?? .9, target?.z ?? 0).sub(origin.current);
+        cutaway.write(cameraPoint.current, targetPoint.current);
+    });
+    return <mesh ref={mesh} geometry={geometry} material={shared} onAfterRender={(_renderer, _scene, _camera, _geometry, _material, group) => onRendered(chunk.id, group?.count ?? chunk.positions.length / 3)} castShadow receiveShadow/>;
 });
 /** Only the admission store can supply source projections. Rendering and collision share paced page residency. */
 export default memo(function WildsCreations({ source, worldId, spaceId, position, profile, onNavigation }: {

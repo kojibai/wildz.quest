@@ -17,6 +17,7 @@ import {
 import { wildsStructureSupportAt, type WildsStructureSupport } from "./wilds-structure-support";
 
 type Point = Readonly<{ x: number; z: number }>;
+export type WildsAdditionalGroundSupport = (point:Point,inset:number,footY:number)=>{deckY:number}|null;
 const livingObstacleIndexes = new WeakMap<readonly WildsTerrainObstacle[], ReturnType<typeof buildWildsObstacleIndex>>();
 
 /** Arrays are immutable world projections; a new world snapshot gets a new index. */
@@ -446,6 +447,7 @@ export function resolveWildsGroundMovement(
     obstacles?: readonly WildsTerrainObstacle[];
     additionalObstacles?: readonly WildsTerrainObstacle[];
     structureSupports?: readonly WildsStructureSupport[];
+    additionalSupportAt?: WildsAdditionalGroundSupport;
   } = {}
 ): WildsGroundMovementResult {
   if (!finitePoint(start) || !finitePoint(intended)) throw new Error("wilds_ground_movement_invalid");
@@ -454,7 +456,11 @@ export function resolveWildsGroundMovement(
   const intendedTerrain = sampleWildsTerrain(intended.x, intended.z);
   const capabilities = new Set(options.capabilities ?? []);
   const footY = Number.isFinite(options.verticalWorldY) ? options.verticalWorldY! : startTerrain.elevation;
-  const intendedSupport = wildsStructureSupportAt(intended, options.structureSupports, capsuleRadius, footY);
+  const supportAt=(point:Point,inset:number)=>{
+    const built=wildsStructureSupportAt(point,options.structureSupports,inset,footY),additional=options.additionalSupportAt?.(point,inset,footY);
+    return additional&&(!built||additional.deckY>built.deckY)?additional:built;
+  };
+  const intendedSupport = supportAt(intended,capsuleRadius);
   const intendedMode = options.aerialMode ?? (intendedSupport ? "walk" : traversalModeFor(intendedTerrain, capabilities));
   const speedMultiplier = speedForTraversalMode(intendedMode);
   const target = {
@@ -464,7 +470,7 @@ export function resolveWildsGroundMovement(
   const targetTerrain = target.x === intended.x && target.z === intended.z
     ? intendedTerrain
     : sampleWildsTerrain(target.x, target.z);
-  const targetSupport = wildsStructureSupportAt(target, options.structureSupports, capsuleRadius, footY);
+  const targetSupport = supportAt(target,capsuleRadius);
   const airborneClearance = options.aerialMode
     ? Math.max(0, Number.isFinite(options.verticalWorldY)
       ? options.verticalWorldY! - startTerrain.elevation
@@ -530,10 +536,10 @@ export function resolveWildsGroundMovement(
   // A capsule meets the slab edge before its centre enters the support area.
   // Read the leading foot contact so a reachable floor does not act like a wall.
   const travel = Math.hypot(target.x - start.x, target.z - start.z);
-  const leadingSupport = travel > 0 ? wildsStructureSupportAt({
+  const leadingSupport = travel > 0 ? supportAt({
     x: target.x + (target.x - start.x) / travel * (capsuleRadius + .02),
     z: target.z + (target.z - start.z) / travel * (capsuleRadius + .02)
-  }, options.structureSupports, 0, footY) : null;
+  }, 0) : null;
   const collisionSupport = targetSupport ?? leadingSupport;
   const obstacles = airborneClearance === null
     ? allObstacles.filter(obstacle => !obstacle.id.startsWith("wildz.component:") || (
@@ -548,7 +554,7 @@ export function resolveWildsGroundMovement(
   const resolvedTerrain = collision.position.x === target.x && collision.position.z === target.z
     ? targetTerrain
     : sampleWildsTerrain(collision.position.x, collision.position.z);
-  const resolvedSupport = wildsStructureSupportAt(collision.position, options.structureSupports, 0, footY);
+  const resolvedSupport = supportAt(collision.position,0);
   const pushedIntoMissingTraversal = airborneClearance !== null
     ? null
     : resolvedSupport ? null : resolvedTerrain.traversal.find((requirement) => !capabilities.has(requirement.kind))?.kind ?? null;

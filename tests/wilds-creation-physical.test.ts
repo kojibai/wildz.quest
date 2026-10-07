@@ -57,3 +57,72 @@ test('aerial ceiling and floor samples use the same cached creation solids as mo
  writeCreationAerialCollision(sample,runtime,'other',{x:0,y:1,z:0},0);
  assert.equal(sample.floorY,0);assert.ok(Number.isNaN(sample.ceilingY));assert.equal(sample.blockerId,null);
 });
+
+function wallRuntime(yaw=0) {
+ const f=fixture(),p=projectCreationPhysical(f.instance,f.definition,f.plan);
+ return prepareCreationNavigation([{...p,solids:[{id:'wall',center:{x:0,y:1.5,z:0},halfExtents:{x:.1,y:1.5,z:5},yaw}],walkable:[]}]);
+}
+test('walking diagonally against a created wall slides along it instead of freezing',()=>{
+ const result=resolveCreationMovement(wallRuntime(),'surface',{x:-.5,y:0,z:-2},{x:.5,y:0,z:2});
+ assert.equal(result.blocked,true);
+ assert.ok(result.position.x<=-.44999);
+ assert.ok(result.position.z>1.99);
+});
+test('a small restored overlap with a created wall can be escaped by walking away',()=>{
+ const runtime=wallRuntime(),first=resolveCreationMovement(runtime,'surface',{x:-.3,y:0,z:0},{x:-.325,y:0,z:.025});
+ assert.ok(first.position.x<=-.44999);
+ const result=resolveCreationMovement(runtime,'surface',first.position,{x:-1,y:0,z:1});
+ assert.ok(result.position.x<-.99);assert.ok(result.position.z>.99);
+});
+test('wall sliding follows the wall orientation at arbitrary building rotations',()=>{
+ const yaw=Math.PI/3,c=Math.cos(yaw),s=Math.sin(yaw),world=(x:number,z:number)=>({x:x*c+z*s,y:0,z:z*c-x*s});
+ const result=resolveCreationMovement(wallRuntime(yaw),'surface',world(-.5,-2),world(.5,2));
+ const x=result.position.x*c-result.position.z*s,z=result.position.x*s+result.position.z*c;
+ assert.equal(result.blocked,true);assert.ok(x<=-.44999);assert.ok(z>1.99);
+});
+test('a diagonal doorway approach can round a jamb and then enter and leave repeatedly',()=>{
+ const definition=creationDefinitionFixture(),context=creationContextFixture(),compiled=compileCreation(definition,context);
+ if(compiled.status!=='ready')throw Error('fixture');
+ const initial=createCreationInstance({instanceId:'door-round-trip',definition,ownerId:'owner',worldId:'wildz',spaceId:'surface',pose:compiled.plan.pose,kaiUPulse:1});
+ const {head,...basis}=initial;void head;
+ const runtime=prepareCreationNavigation([projectCreationPhysical(sealCreationInstance({...basis,stage:'functional'}),definition,compiled.plan)]);
+ let position={x:.65,y:.15,z:-3};
+ for(let i=0;i<4;i++){
+  position=resolveCreationMovement(runtime,'surface',position,{x:0,y:.15,z:0}).position;
+  assert.ok(position.z>-1,'the diagonal approach must slide past the jamb');
+  position=resolveCreationMovement(runtime,'surface',position,{x:0,y:.15,z:0}).position;
+  assert.ok(Math.abs(position.x)<.01&&Math.abs(position.z)<.01,JSON.stringify(position));
+  position=resolveCreationMovement(runtime,'surface',position,{x:0,y:.15,z:-3}).position;
+  assert.ok(Math.abs(position.z+3)<.01);
+ }
+});
+
+test('gameplay walks on a created floor over deep water and retains swim gates outside it',async()=>{
+ const {sampleWildsTerrain}=await import('../src/features/play/wilds-terrain-authority');
+ const p={x:-1000,z:-1000},base=creationDefinitionFixture().nodes[0],context=creationContextFixture({spaceId:'wildz.space.outer.v1',pose:{position:{x:p.x,y:100,z:p.z},yaw:Math.PI/3},budget:{timber:100}});
+ assert.ok(sampleWildsTerrain(p.x+1.05,p.z).traversal.some(t=>t.kind==='swim'));
+ const definition=creationDefinitionFixture({nodes:[{...base,shape:{kind:'box',width:8,height:.01,depth:8},pose:{position:{x:0,y:0,z:0},yaw:0},behaviors:[]}]}),compiled=compileCreation(definition,context);
+ if(compiled.status!=='ready')throw Error('fixture');
+ const {head,...basis}=createCreationInstance({instanceId:'water-floor',definition,ownerId:'owner',worldId:'wildz',spaceId:context.spaceId,pose:compiled.plan.pose,kaiUPulse:1});void head;
+ const navigation=prepareCreationNavigation([projectCreationPhysical(sealCreationInstance({...basis,stage:'functional'}),definition,compiled.plan)]);
+ const state={...initialPlayState,player:p,siteSpace:{version:'wildz.site-space-state.v1' as const,spaceId:context.spaceId,siteKey:null,surfaceId:null,position:{...p,y:100.01},flooded:false}};
+ const walked=applyWildsInput(state,{type:'move',direction:'east',creationNavigation:navigation});
+ assert.ok(walked.player.x>p.x+1);assert.ok(Math.abs(walked.siteSpace.position.y-100.01)<1e-8);assert.doesNotMatch(walked.lastEvent,/deep water/i);
+ const outside=applyWildsInput(state,{type:'move',direction:'east'});
+ assert.equal(outside.player.x,p.x);assert.match(outside.lastEvent,/deep water/i);
+ const underneath=applyWildsInput({...state,siteSpace:{...state.siteSpace,position:{...state.siteSpace.position,y:0}}},{type:'move',direction:'east',creationNavigation:navigation});
+ assert.equal(underneath.player.x,p.x);assert.match(underneath.lastEvent,/deep water/i);
+});
+test('a sideways wall slide adopts the real floor at its adjusted endpoint',async()=>{
+ const {wildsTerrainElevation}=await import('../src/features/play/wilds-terrain-authority');
+ const p={x:-12,z:12},y=wildsTerrainElevation(p.x,p.z),base=creationDefinitionFixture().nodes[0];
+ const context=creationContextFixture({spaceId:'wildz.space.outer.v1',pose:{position:{x:p.x,y,z:p.z},yaw:0},budget:{timber:100}});
+ const definition=creationDefinitionFixture({nodes:[{...base,shape:{kind:'box',width:.2,height:3,depth:10},pose:{position:{x:.5,y:0,z:0},yaw:Math.PI/4},behaviors:[]}]}),compiled=compileCreation(definition,context);
+ if(compiled.status!=='ready')throw Error('fixture');
+ const {head,...basis}=createCreationInstance({instanceId:'slope-wall',definition,ownerId:'owner',worldId:context.worldId,spaceId:context.spaceId,pose:compiled.plan.pose,kaiUPulse:1});void head;
+ const navigation=prepareCreationNavigation([projectCreationPhysical(sealCreationInstance({...basis,stage:'functional'}),definition,compiled.plan)]);
+ const state={...initialPlayState,player:p,siteSpace:{version:'wildz.site-space-state.v1' as const,spaceId:context.spaceId,siteKey:null,surfaceId:null,position:{x:p.x,y,z:p.z},flooded:false}};
+ const moved=applyWildsInput(state,{type:'move',direction:'east',creationNavigation:navigation});
+ assert.ok(Math.hypot(moved.player.x-p.x,moved.player.z-p.z)>.1,'a safe wall slide should still travel');
+ assert.ok(Math.abs(moved.siteSpace.position.y-wildsTerrainElevation(moved.player.x,moved.player.z))<.000001,'feet must follow terrain after sideways adjustment');
+});

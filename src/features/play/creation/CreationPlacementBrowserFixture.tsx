@@ -17,7 +17,7 @@ import { creationWorldSourceHead } from './world-source';
 import { combineCreationTechniques, projectCreationWorkers } from './capabilities';
 import { createWorldCreationController } from './world-controller';
 import { createCreationPhysicalWorkerClient } from './physical-worker-client';
-import { resolveCreationMovement, writeCreationCameraPosition, type CreationNavigation } from './navigation';
+import { resolveCreationMovement, type CreationNavigation } from './navigation';
 import WildsCreations from './WildsCreations';
 
 const owner = 'fixture:creation-placement', capturedAt = '2026-10-07T06:00:00.000Z';
@@ -63,7 +63,8 @@ function PlacementScene({ fixture }: { fixture: ReturnType<typeof createFixture>
   const [viewer, setViewer] = useState({ ...position, z: position.z - 3.5 });
   const [travel, setTravel] = useState('Outside');
   const [cameraReadout, setCameraReadout] = useState('');
-  const [cameraView, setCameraView] = useState<'doorway' | 'inside' | 'wall'>('doorway');
+  const [cameraView, setCameraView] = useState<'doorway' | 'inside' | 'wall' | 'outside'>('doorway');
+  const world=fixture.queue.current(),carried=Object.values(world.materialLots).filter(lot=>!world.consumedMaterialLots[lot.lotId]).length;
   const move = (x: number, z: number, steps = 1) => {
     if (!navigation?.instanceCount) return;
     let next = viewer, blocked = false;
@@ -95,21 +96,24 @@ function PlacementScene({ fixture }: { fixture: ReturnType<typeof createFixture>
       <button onClick={() => { sessionStorage.removeItem(storageKey); location.reload(); }}>Reset fixture</button>
       <p><button disabled={!navigation?.instanceCount} onClick={() => move(0, .25, 14)}>Walk through doorway</button>{' '}<button disabled={!navigation?.instanceCount} onClick={() => move(0, -.25, 14)}>Walk outside</button></p>
       <p><button disabled={!navigation?.instanceCount} onClick={() => move(-.25, 0)}>Walk left</button>{' '}<button disabled={!navigation?.instanceCount} onClick={() => move(.25, 0)}>Walk right</button></p>
-      <p><button onClick={() => setCameraView('inside')}>Camera inside</button>{' '}<button onClick={() => setCameraView('wall')}>Orbit toward wall</button>{' '}<button onClick={() => setCameraView('doorway')}>Camera doorway</button></p>
+      <p><button disabled={!navigation?.instanceCount} onClick={() => move(.25, .25, 8)}>Walk diagonally along wall</button></p>
+      <p><button onClick={() => setCameraView('inside')}>Camera inside</button>{' '}<button onClick={() => setCameraView('wall')}>Orbit toward wall</button>{' '}<button onClick={() => setCameraView('outside')}>Camera outside</button>{' '}<button onClick={() => setCameraView('doorway')}>Camera doorway</button></p>
       </details>
       <p><output data-testid="creation-placement-state">{result} · admitted: {source.projections.length} · rendered collision: {navigation?.instanceCount ?? 0}</output></p>
       <p><output data-testid="creation-walk-state">{travel}</output></p>
       <p><output data-testid="creation-camera-state">{cameraReadout}</output></p>
+      <p><output data-testid="creation-resource-state">Timber carried: {carried} · spent: {Object.keys(world.consumedMaterialLots).length}</output></p>
     </aside>
   </>;
 }
 
-function PlacementCamera({ navigation, viewer, spaceId, view, onReadout }: { navigation: CreationNavigation | null; viewer: typeof position; spaceId: string; view: 'doorway' | 'inside' | 'wall'; onReadout: (value: string) => void }) {
+function PlacementCamera({ navigation, view, onReadout }: { navigation: CreationNavigation | null; viewer: typeof position; spaceId: string; view: 'doorway' | 'inside' | 'wall' | 'outside'; onReadout: (value: string) => void }) {
   const { camera } = useThree(), controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const desiredCamera = useMemo(() => camera.clone(), [camera]), previous = useRef('');
   useEffect(() => {
     if (view === 'inside') desiredCamera.position.set(0, 1.5, -1.1);
     else if (view === 'wall') desiredCamera.position.set(6, 3, 0);
+    else if (view === 'outside') desiredCamera.position.set(12, 3, 0);
     else desiredCamera.position.set(0, 3, -7);
     controls.current?.update();
   }, [desiredCamera, view]);
@@ -117,13 +121,11 @@ function PlacementCamera({ navigation, viewer, spaceId, view, onReadout }: { nav
     const orbit = controls.current;
     if (!orbit || !navigation) return;
     camera.position.copy(desiredCamera.position);
-    writeCreationCameraPosition(camera.position, navigation, spaceId, viewer, orbit.target);
-    const clipped = camera.position.distanceToSquared(desiredCamera.position) > .000001;
     camera.lookAt(orbit.target);
-    const value = `Camera · x ${camera.position.x.toFixed(2)} · y ${camera.position.y.toFixed(2)} · z ${camera.position.z.toFixed(2)} · ${clipped ? 'clear interior view' : 'full orbit'}`;
+    const value = `Camera · x ${camera.position.x.toFixed(2)} · y ${camera.position.y.toFixed(2)} · z ${camera.position.z.toFixed(2)} · distance ${camera.position.distanceTo(orbit.target).toFixed(2)} · free zoom`;
     if (value !== previous.current) { previous.current = value; onReadout(value); }
   }, -.25);
-  return <OrbitControls ref={controls} camera={desiredCamera} target={[0, .9, 0]} minDistance={.45} maxDistance={12.5} enablePan={false} />;
+  return <OrbitControls ref={controls} camera={desiredCamera} makeDefault target={[0, .9, 0]} minDistance={.45} maxDistance={12.5} enablePan={false} />;
 }
 
 export default function CreationPlacementBrowserFixture() {

@@ -9,7 +9,7 @@ test('metric mapping keeps metre-scale detail across wall sizes and rotations', 
   assert.deepEqual([...creationMetricUVs(positions,normals)], [0,0,4,0,4,3]);
   const rotated = new Float32Array([0,0,0, 0,0,-4, 0,3,-4]);
   assert.deepEqual([...creationMetricUVs(rotated,new Float32Array([1,0,0,1,0,0,1,0,0]))], [0,0,4,0,4,3]);
-  assert.equal(creationRenderUploadBytes({positions,normals}), 96);
+  assert.equal(creationRenderUploadBytes({positions,normals}), 102);
   assert.throws(()=>creationMetricUVs(positions,new Float32Array(1)), /geometry/);
 });
 test('materials load only when requested and reuse the same three maps across all objects', async () => {

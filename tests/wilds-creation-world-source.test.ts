@@ -19,6 +19,12 @@ import { sealCreationInstance } from '../src/features/play/creation/instance';
 import { reviseCreationInstance } from '../src/features/play/creation/evolution';
 import { resolveWildsLivestockShelter } from '../src/features/play/wilds-livestock';
 import { projectCreationPhysical } from '../src/features/play/creation/projection';
+import { prepareCreationNavigation, resolveCreationMovement } from '../src/features/play/creation/navigation';
+import type { CreationPoint, CreationPose, CreationShape } from '../src/features/play/creation/types';
+import { applyWildsInput, initialPlayState, type PlayState } from '../src/features/play/game-state';
+import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition } from '../src/features/play/wilds-discovery-sites';
+import { prepareWildsSiteRuntime } from '../src/features/play/wilds-site-runtime';
+import { sampleWildsTerrain } from '../src/features/play/wilds-terrain-authority';
 import { wildsTerrainObstaclesForTile } from '../src/features/play/wilds-terrain-obstacles';
 import { constructionProofDigest } from '../src/features/play/wilds-construction-project';
 import { projectWildsOwnedWorldAdditions, mergeWildsOwnedWorldAdditions, mergeWildsOwnedAdditionSets } from '../src/features/play/wilds-player-world-additions';
@@ -30,20 +36,83 @@ import type { ReceizOfflineProofQueueSnapshot } from '@receiz/sdk';
 
 const actorId = 'owner:creation-world', pulse = '2026-10-06T12:00:00.000Z';
 const authority = { actorId, canonical: true, pulse, occurredAt: pulse, uPulse: 20 };
-function fixture() {
+function fixture(ownerId = actorId, captureOwnerId = ownerId) {
   const source = Array.from({ length: 25 }, (_, index) => projectWildsResourceRegion(index - 12, 0)).flat().find(candidate => candidate.kind === 'timber')!;
-  const harvested = createWildsMaterialHarvest({ source, current: initialWildsHarvestedSourceState(source), ownerReceizId: actorId, actorPosition: source.position, kaiUPulse: 10 });
+  const harvested = createWildsMaterialHarvest({ source, current: initialWildsHarvestedSourceState(source), ownerReceizId: ownerId, actorPosition: source.position, kaiUPulse: 10 });
   const world = { ...initialWildsWorldProjection(), materialLots: { [harvested.lot.lotId]: harvested.lot }, harvestedSources: { [source.sourceId]: harvested.source } };
-  const card = sealCollectedCard({ capturedAt: pulse, encounterId: 'creation-world-source-card', formId: 'mintcub-1', ownerReceizId: actorId });
+  const card = sealCollectedCard({ capturedAt: pulse, encounterId: 'creation-world-source-card', formId: 'mintcub-1', ownerReceizId: captureOwnerId });
   const condition = emptyAdventureCondition(card.id);
-  const definition = createCreationDefinition({ schema: 'wildz.creation-definition.v1', grammarVersion: 1, seed: 'creation-world-source', creatorId: actorId, assets: [], nodes: [{ id: 'bench', parentId: null, pose: { position: { x: 0, y: 0, z: 0 }, yaw: 0 }, shape: { kind: 'box', width: .8, height: .3, depth: .8 }, material: 'timber', attachments: [], supports: [], behaviors: [] }] });
+  const definition = createCreationDefinition({ schema: 'wildz.creation-definition.v1', grammarVersion: 1, seed: 'creation-world-source', creatorId: ownerId, assets: [], nodes: [{ id: 'bench', parentId: null, pose: { position: { x: 0, y: 0, z: 0 }, yaw: 0 }, shape: { kind: 'box', width: .8, height: .3, depth: .8 }, material: 'timber', attachments: [], supports: [], behaviors: [] }] });
   const context: CreationCompileContext = { worldId: world.worldId, spaceId: 'wildz.space.outer.v1', pose: { position: { x: 5000, y: 100, z: 5000 }, yaw: 0 }, sourceHead: creationWorldSourceHead(world), budget: { timber: 1 }, techniques: combineCreationTechniques(projectCreationWorkers([card], { [card.id]: condition })), physical: [], quality: 'low' };
   const compiled = compileCreation(definition, context); if (compiled.status !== 'ready') throw Error('fixture_compile');
-  const resources = selectCreationResources(Object.values(world.materialLots), context.budget, compiled.plan.requiredResources, creationWorldAvailability(world, actorId));
+  const resources = selectCreationResources(Object.values(world.materialLots), context.budget, compiled.plan.requiredResources, creationWorldAvailability(world, ownerId));
   const command: WildsCreationConstructCommand = { type: 'creation.construct', commandId: 'creation:command:source', instanceId: 'creation:instance:source', definition, context, planDigest: compiled.plan.digest, workerSources: [{ card, condition }], resources: resources.lots, actorPosition: context.pose.position };
   return { world, card, condition, definition, context, plan: compiled.plan, command, lotId: harvested.lot.lotId };
 }
 const entry = (command: WildsCreationBuildCommand): WildsWorldOutboxEntry => ({ schema: 'receiz.wilds_world_outbox_entry.v1', actorId, guestId: 'guest:creation-source', command, queuedAt: pulse });
+
+function admittedMovementCreation(shape: CreationShape, pose: CreationPose, instanceId: string) {
+  const f = fixture();
+  const { digest, ...basis } = f.definition;
+  void digest;
+  const definition = createCreationDefinition({ ...basis, nodes: [{ ...f.definition.nodes[0], id: 'movement-geometry', shape }] });
+  const context = { ...f.context, pose };
+  const compiled = compileCreation(definition, context);
+  assert.equal(compiled.status, 'ready');
+  if (compiled.status !== 'ready') throw Error('movement_fixture_compile');
+  const resources = selectCreationResources(Object.values(f.world.materialLots), context.budget, compiled.plan.requiredResources, creationWorldAvailability(f.world, actorId));
+  assert.deepEqual(resources.deficits, {});
+  const command = { ...f.command, commandId: `command:${instanceId}`, instanceId, definition, context, planDigest: compiled.plan.digest, resources: resources.lots, actorPosition: pose.position };
+  const result = new WildsWorldService({ checkpoint: checkpointWildsWorld(f.world) }).execute(command, authority);
+  assert.equal(result.constitution.result, 'VALID');
+  const source = result.projection.creations![instanceId];
+  assert.equal(source.instance.stage, 'functional');
+  const projection = projectCreationPhysical(source.instance, source.command.definition, compileWorldCreationSource(source));
+  return { source, projection, navigation: prepareCreationNavigation([projection]) };
+}
+
+function movementState(position: CreationPoint): PlayState {
+  return { ...initialPlayState, player: { x: position.x, z: position.z }, siteSpace: { version: 'wildz.site-space-state.v1', spaceId: 'wildz.space.outer.v1', siteKey: null, surfaceId: null, position, flooded: false } };
+}
+
+function naturalMovementRuntime(position: CreationPoint) {
+  const region = wildsDiscoverySiteRegionForPosition(position);
+  return prepareWildsSiteRuntime(admitWildsDiscoveryPhysicalNeighborhood(region.x, region.z));
+}
+
+for (const { requirement, x, z } of [{ requirement: 'swim', x: -1000, z: -1000 }, { requirement: 'climb', x: 76, z: -124 }] as const) {
+  test(`an admitted created floor permits walking over ${requirement}-restricted ground without granting terrain traversal`, () => {
+    const pose = { position: { x, y: 100, z }, yaw: 0 };
+    const f = admittedMovementCreation({ kind: 'box', width: 8, height: .01, depth: 8 }, pose, `floor-over-${requirement}`);
+    const start = { x, y: 100.01, z }, state = movementState(start), siteRuntime = naturalMovementRuntime(start);
+    assert.ok(sampleWildsTerrain(x + 1.05, z).traversal.some(entry => entry.kind === requirement));
+    const moved = applyWildsInput(state, { type: 'move', direction: 'east', siteRuntime, creationNavigation: f.navigation });
+    assert.ok(Math.abs(moved.player.x - x - 1.05) < .000001, moved.lastEvent);
+    assert.ok(Math.abs(moved.siteSpace.position.y - start.y) < .000001);
+    const edgeFloor = admittedMovementCreation({ kind: 'box', width: 8, height: .01, depth: 8 }, { position: { x: x - 3.6, y: 100, z }, yaw: 0 }, `floor-edge-${requirement}`);
+    const edge = start, leaving = applyWildsInput(movementState(edge), { type: 'move', direction: 'east', siteRuntime, creationNavigation: edgeFloor.navigation });
+    assert.ok(sampleWildsTerrain(edge.x + 1.05, z).traversal.some(entry => entry.kind === requirement));
+    assert.deepEqual(leaving.player, { x: edge.x, z: edge.z }, 'the floor must not grant traversal outside its footprint');
+    assert.ok(Math.abs(leaving.siteSpace.position.y - edge.y) < .000001);
+  });
+}
+
+test('sliding against an admitted created wall preserves the generated trunk collision checked earlier in gameplay', () => {
+  const tree = wildsTerrainObstaclesForTile(-5, 1).find(obstacle => obstacle.id === 'wildz.terrain.v1:-5:1:tree:0')!;
+  assert.equal(tree.kind, 'tree');
+  const pose = { position: { x: tree.position.x - tree.radius - .12, y: tree.position.y - .2, z: tree.position.z }, yaw: 0 };
+  const f = admittedMovementCreation({ kind: 'box', width: .2, height: 1.6, depth: 2 }, pose, 'wall-beside-generated-trunk');
+  const point = { x: tree.position.x - tree.radius + .34, z: tree.position.z - tree.radius - .48 };
+  const start = { x: point.x, y: sampleWildsTerrain(point.x, point.z).elevation, z: point.z }, state = movementState(start), siteRuntime = naturalMovementRuntime(start);
+  const input = { type: 'move-vector' as const, x: 0, z: 1, siteRuntime };
+  const groundOnly = applyWildsInput(state, input), moved = applyWildsInput(state, { ...input, creationNavigation: f.navigation });
+  const trunkDistance = (position: PlayState['player']) => Math.hypot(position.x - tree.position.x, position.z - tree.position.z);
+  const clearance = tree.radius + .38;
+  assert.ok(trunkDistance(groundOnly.player) >= clearance - .00001);
+  assert.ok(trunkDistance(moved.player) >= clearance - .00001, `creation sliding entered the natural trunk: ${trunkDistance(moved.player)} < ${clearance}`);
+  const stationary = resolveCreationMovement(f.navigation, f.source.instance.spaceId, moved.siteSpace.position, moved.siteSpace.position);
+  assert.equal(stationary.blocked, false, 'preserving trunk clearance must also preserve the creation wall constraint');
+});
 
 test('unchanged complete creation source reuses compilation while returned geometry and nested mutations remain isolated', () => {
   const f = fixture(), result = new WildsWorldService({ checkpoint: checkpointWildsWorld(f.world) }).execute(f.command, authority);
@@ -94,6 +163,39 @@ test('registered source admission consumes exact finite materials, replays and d
   const secondContext = { ...f.context, sourceHead: creationWorldSourceHead(result.projection), pose: { ...f.context.pose, position: { ...f.context.pose.position, x: 5005 } } };
   const secondPlan = compileCreation(f.definition, secondContext); assert.equal(secondPlan.status, 'ready');
   assert.throws(() => service.execute({ ...f.command, commandId: 'creation:command:spent', instanceId: 'creation:instance:spent', context: secondContext, planDigest: secondPlan.status === 'ready' ? secondPlan.plan.digest : '', actorPosition: secondContext.pose.position }, authority), /materials_unavailable/);
+});
+
+test('world execution accepts the same owner handle and Receiz profile alias without rewriting worker proofs', () => {
+  for (const [owner, captureOwner] of [['creation_keeper', 'creation_keeper.receiz.id'], ['creation_keeper.receiz.id', 'creation_keeper']] as const) {
+    const f = fixture(owner, captureOwner), service = new WildsWorldService({ checkpoint: checkpointWildsWorld(f.world) });
+    const result = service.execute(f.command, { ...authority, actorId: owner });
+    assert.equal(result.constitution.result, 'VALID');
+    assert.equal(result.events.length, 1);
+    const source = result.projection.creations![f.command.instanceId];
+    assert.equal(source.instance.ownerId, owner);
+    assert.deepEqual(source.command.workerSources[0].card, f.card);
+    assert.equal(source.command.workerSources[0].card.manifest.ownerReceizId, captureOwner);
+    assert.deepEqual(source.instance.embeddedResources, [{ id: f.lotId, head: f.world.materialLots[f.lotId].head, kind: 'timber', quantity: 1 }]);
+    assert.equal(result.projection.consumedMaterialLots[f.lotId], source.instance.instanceId);
+    assert.equal(compileWorldCreationSource(source).digest, f.plan.digest);
+    assert.deepEqual(replayWildsWorld(result.events, checkpointWildsWorld(f.world)), result.projection);
+    assert.equal(service.execute(f.command, { ...authority, actorId: owner }).events.length, 0);
+  }
+});
+
+test('owner alias matching cannot admit another owner, a forged card or a mismatched condition', () => {
+  for (const captureOwner of ['creation_keeper_other.receiz.id', 'creation_keeper.receiz.id.evil', 'previous_keeper.receiz.id']) {
+    const f = fixture('creation_keeper', captureOwner), service = new WildsWorldService({ checkpoint: checkpointWildsWorld(f.world) });
+    assert.throws(() => service.execute(f.command, { ...authority, actorId: 'creation_keeper' }), /creation_world_worker_source_invalid/);
+    assert.deepEqual(service.snapshot(), f.world);
+  }
+  const f = fixture('creation_keeper', 'creation_keeper.receiz.id');
+  const forged = structuredClone(f.card); forged.proof.digest = `sha256:${'f'.repeat(64)}`;
+  for (const worker of [{ card: forged, condition: f.condition }, { card: f.card, condition: { ...f.condition, assetId: 'another:card' } }]) {
+    const service = new WildsWorldService({ checkpoint: checkpointWildsWorld(f.world) });
+    assert.throws(() => service.execute({ ...f.command, workerSources: [worker] }, { ...authority, actorId: 'creation_keeper' }), /creation_world_worker_source_invalid/);
+    assert.deepEqual(service.snapshot(), f.world);
+  }
 });
 
 test('source boundary rejects altered plans, foreign cards, exhausted crew and omitted canonical tree chunks', () => {
