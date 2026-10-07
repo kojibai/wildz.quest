@@ -7,8 +7,14 @@ import {
 } from "../src/features/play/wilds-ambient-life";
 import { sampleWildsTerrain } from "../src/features/play/wilds-terrain-authority";
 import { WILDS_WATERLINE_ELEVATION } from "../src/features/play/wilds-terrain-rendering";
+import { readFile } from 'node:fs/promises';
 
 describe("quality-bounded ambient Wilds life", () => {
+  it('renders aerial birds without triangle placeholders or additional flock draw calls', async () => {
+    const source = await readFile('src/features/play/WildsAmbientLife.tsx', 'utf8');
+    assert.doesNotMatch(source, /tetrahedronGeometry/);
+    assert.equal((source.match(/<instancedMesh\b/g) ?? []).length, 2, 'the school and flock each remain one instanced draw');
+  });
   it("reuses one immutable projection throughout movement inside an admitted region", () => {
     const first = projectWildsAmbientLifeNeighborhood({ x: -95.5, z: -239.5 }, "high");
     const afterFirst = wildsAmbientLifeDiagnostics();

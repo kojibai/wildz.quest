@@ -120,11 +120,27 @@ export function resolveWildsLivestockShelter(world: WildsHusbandryWorld, shelter
   } catch { return null; }
 }
 export function selectWildsLivestockShelter(world: WildsHusbandryWorld, player: { x: number; z: number }, ownerReceizId: string, spaceId = 'wildz.space.outer.v1') {
+  return nearestLivestockShelter(world, player, spaceId, id => resolveWildsLivestockShelter(world, id, ownerReceizId));
+}
+function nearestLivestockShelter(world: WildsHusbandryWorld, player: { x: number; z: number }, spaceId: string, resolve: (id: string) => WildsLivestockShelter | null) {
   const ids = [...Object.values(world.constructionComponents).filter(c => ['garden', 'habitat', 'room'].includes(c.kind)
     && Math.hypot(c.transform.position.x - player.x, c.transform.position.z - player.z) <= 8).map(c => c.componentId), ...Object.keys(world.creations ?? {})];
-  return ids.map(id => resolveWildsLivestockShelter(world, id, ownerReceizId)).filter((source): source is WildsLivestockShelter => Boolean(source && source.spaceId === spaceId
+  return ids.map(resolve).filter((source): source is WildsLivestockShelter => Boolean(source && source.spaceId === spaceId
     && Math.hypot(source.position.x - player.x, source.position.z - player.z) <= 8))
     .sort((a, b) => Math.hypot(a.position.x - player.x, a.position.z - player.z) - Math.hypot(b.position.x - player.x, b.position.z - player.z) || a.shelterId.localeCompare(b.shelterId))[0] ?? null;
+}
+
+/** Verify each shelter once per immutable world snapshot; movement only checks reach. */
+export function createWildsLivestockShelterSelector() {
+  let retainedWorld: WildsHusbandryWorld | undefined, retainedOwner: string | undefined;
+  const sources = new Map<string, WildsLivestockShelter | null>();
+  return (world: WildsHusbandryWorld, player: { x: number; z: number }, owner: string, spaceId = 'wildz.space.outer.v1') => {
+    if (world !== retainedWorld || owner !== retainedOwner) { sources.clear(); retainedWorld = world; retainedOwner = owner; }
+    return nearestLivestockShelter(world, player, spaceId, id => {
+      if (!sources.has(id)) sources.set(id, resolveWildsLivestockShelter(world, id, owner));
+      return sources.get(id)!;
+    });
+  };
 }
 export function projectWildsWildAnimals(input: { player: { x: number; z: number; y?: number }; radius: number; kaiUPulse: number; sourceStates?: WildsAnimalSources; spaceId?: string }) {
   if (![input.player.x, input.player.z, input.radius].every(Number.isFinite) || input.radius < 0 || !validKai(input.kaiUPulse)

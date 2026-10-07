@@ -72,6 +72,12 @@ export function selectCreationBedAtPlayer(snapshot: CreationBedSnapshot, player:
       if (!instance) continue;
       for (const state of Object.values(instance.nodeStates)) {
         if (state.kind !== 'bed') continue;
+        // Admitted chunk bounds are a broad phase only. Beds in reach still
+        // undergo every current-source, access and mattress-footprint check.
+        if (!projection.chunks.some(chunk => chunk.nodeIds.includes(state.nodeId)
+          && player.x >= chunk.bounds.min.x - Math.SQRT2 * .4 && player.x <= chunk.bounds.max.x + Math.SQRT2 * .4
+          && player.z >= chunk.bounds.min.z - Math.SQRT2 * .4 && player.z <= chunk.bounds.max.z + Math.SQRT2 * .4
+          && space.position.y > chunk.bounds.min.y - .8 && space.position.y < chunk.bounds.max.y + .8)) continue;
         const source = resolveCreationBed(snapshot, instance.instanceId, state.nodeId, actorId, kaiUPulse);
         if (source && canSleepInCreationBed(source, player, space, actorId, kaiUPulse)) beds.push(source);
       }

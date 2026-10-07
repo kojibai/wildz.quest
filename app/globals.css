@@ -17468,6 +17468,21 @@ body:has(.wilds-stage.is-creation-placement) .wildz-pwa-notice { visibility: hid
 .wildz-nourishment-pill button:not(:disabled):active { background: rgba(184, 229, 151, .23); }
 .wildz-nourishment-pill button:focus-visible { outline: 2px solid #daefb9; outline-offset: -3px; border-radius: 999px; }
 .wildz-nourishment-pill.is-unavailable .wildz-nourishment-count > svg { opacity: .6; }
+
+.wilds-animal-actions { position: absolute; z-index: 9; bottom: max(194px, calc(env(safe-area-inset-bottom) + 186px)); left: 50%; transform: translateX(-50%); width: min(228px, calc(100% - 28px)); padding: 8px 10px; border: 1px solid #c9dfab44; border-radius: 16px; color: #edf4dc; background: #10251fe8; box-shadow: 0 5px 18px #0004; touch-action: manipulation; }
+.wilds-animal-actions header { display: flex; align-items: center; gap: 9px; }
+.wilds-animal-actions header > span { flex: 1; min-width: 0; }
+.wilds-animal-actions strong { display: block; font-size: 11px; }
+.wilds-animal-actions small { display: block; color: #b4cba8; font-size: 11px; line-height: 1.4; }
+.wilds-animal-actions button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 44px; border: 1px solid #c4dea42b; border-radius: 11px; background: #c6de9b12; color: #eef5dc; font-weight: 700; font-size: 9px; cursor: pointer; }
+.wilds-animal-actions button:disabled { opacity: .45; cursor: default; }
+.wilds-animal-actions button:focus-visible { outline: 2px solid #e1f2b5; outline-offset: 2px; }
+.wilds-animal-actions .wilds-animal-close { flex: 0 0 44px; background: transparent; }
+.wilds-animal-action-buttons { display: flex; justify-content: center; gap: 8px; margin-top: 5px; }
+.wilds-animal-action-buttons > button { flex: 1; }
+.wilds-animal-actions p { margin: 9px 0 0; font-size: 11px; line-height: 1.45; color: #d0dec3; }
+.wilds-animal-capture-reason { margin-top: 6px; }
+@media (max-height: 540px) { .wilds-animal-actions { bottom: 118px; padding: 9px; } }
 @keyframes wildz-food-count-in { from { color: #efffcf; transform: scale(.85); } to { transform: scale(1); } }
 @media (prefers-reduced-motion: no-preference) { .wildz-nourishment-count > span { animation: wildz-food-count-in 180ms ease-out; } }
 

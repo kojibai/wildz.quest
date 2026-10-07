@@ -4,7 +4,7 @@ import { KAI_N_DAY_MICRO } from '../src/features/play/kai-klok-moment';
 import { initialPlayState, applyWildsInput, serializePlayState, restorePlayState, projectWildsRestedCompanionCondition } from '../src/features/play/game-state';
 import { createPlayerBreaths } from '../src/features/play/player-breath-energy';
 import { wildsWildAnimalsForTile, projectWildsWildAnimalPosition, type WildsWildAnimal } from '../src/features/play/wilds-animal-ecology';
-import { createWildsLivestockState, wildsAnimalHead, huntWildsAnimal, captureWildsLivestock, collectWildsLivestock, resolveWildsLivestockShelter, selectWildsHuntingSupport, type WildsHusbandryWorld } from '../src/features/play/wilds-livestock';
+import { createWildsLivestockState, wildsAnimalHead, huntWildsAnimal, captureWildsLivestock, collectWildsLivestock, resolveWildsLivestockShelter, createWildsLivestockShelterSelector, selectWildsHuntingSupport, type WildsHusbandryWorld } from '../src/features/play/wilds-livestock';
 import { regionForPosition } from '../src/features/play/multiplayer-core';
 import { constructionProofDigest, createWildsConstructionProject } from '../src/features/play/wilds-construction-project';
 import { createWildsConstructionComponent, createWildsMaterialContribution, createWildsWorkContribution, projectWildsConstructionProgress } from '../src/features/play/wilds-construction-component';
@@ -48,6 +48,25 @@ function request(animal = animalFixture()) {
     expectedAnimalHead: wildsAnimalHead(animal.animalId), kaiUPulse: BASE,
     player: projectWildsWildAnimalPosition(animal, BASE).position, spaceId: 'wildz.space.outer.v1' };
 }
+test('movement reuses verified shelters while changes to ownership, reach or the world invalidate readiness', () => {
+  const { world, component } = shelterFixture();
+  let proofReads = 0;
+  const observed = { ...world, get constructionMaterialContributions() { proofReads++; return world.constructionMaterialContributions; } };
+  const select = createWildsLivestockShelterSelector(), player = component.transform.position;
+  assert.equal(select(observed, player, OWNER)?.shelterId, component.componentId);
+  const initialReads = proofReads;
+  assert.ok(initialReads > 0);
+  for (let i = 0; i < 100; i++) assert.equal(select(observed, { ...player, x: player.x + i / 100 }, OWNER)?.shelterId, component.componentId);
+  assert.equal(proofReads, initialReads, 'moving within an immutable world does not reverify material proofs');
+  assert.equal(select(observed, { ...player, x: player.x + 9 }, OWNER), null);
+  assert.equal(select(observed, player, OWNER, 'wildz.space.other'), null);
+  assert.equal(select(observed, player, 'another-owner'), null);
+  assert.equal(select(observed, player, OWNER)?.shelterId, component.componentId);
+  const damage = { componentId: component.componentId, componentHead: component.head, integrity: 25,
+    throughWindow: 10, kaiUPulse: BASE, parentHead: null, priorHeads: [] };
+  const damaged: WildsHusbandryWorld = { ...observed, constructionConditions: { [component.componentId]: { ...damage, head: constructionProofDigest(damage) } } };
+  assert.equal(select(damaged, player, OWNER), null, 'new world snapshots revalidate shelter integrity');
+});
 test('landscape fauna wander deterministically while keeping one finite individual identity', () => {
   const animal = animalFixture(), first = projectWildsWildAnimalPosition(animal, BASE), later = projectWildsWildAnimalPosition(animal, BASE + 1_000_000);
   assert.notDeepEqual(first.position, later.position);

@@ -221,7 +221,9 @@ import { saveWorldCreationProofImage } from './creation/world-image';
 import { WildsBodyReadout } from './command-center/WildsBodyReadout';
 import { WildsNourishmentPanel, type WildsNourishmentPlantProjection, type WildsWildAnimalProjection, type WildsOwnedLivestockProjection } from './WildsNourishmentPanel';
 import { projectWildsNourishmentPlants, wildsNourishmentSourceAt, availableWildsFood, WILDS_NOURISHMENT_GATHER_REACH, WILDS_NOURISHMENT_VERTICAL_REACH, WILDS_NOURISHMENT_PACK_CAPACITY, type WildsFoodItem } from './wilds-nourishment';
-import { projectWildsWildAnimals, projectWildsOwnedLivestock, selectWildsLivestockShelter, selectWildsHuntingSupport, WILDS_ANIMAL_INTERACTION_REACH } from './wilds-livestock';
+import { WildsNourishmentActions } from './WildsNourishmentActions';
+import { confirmWildsAnimalHunt, WILDS_HUNT_PRESENTATION_MS, type WildsAnimalHuntRequest, type WildsAnimalHuntPresentation } from './wilds-animal-interaction';
+import { projectWildsWildAnimals, projectWildsOwnedLivestock, createWildsLivestockShelterSelector, selectWildsHuntingSupport, WILDS_ANIMAL_INTERACTION_REACH } from './wilds-livestock';
 import { projectWildsWildAnimalPosition } from './wilds-animal-ecology';
 import { projectWildsWorkCapabilityMeters, selectNearestWildsWorkSource, selectWildsResourceWorkPartner, type WildsVisibleWorkFamily } from "@/features/play/wilds-work-capability";
 import { projectWildsCapabilityControls, projectWildsQuickCapabilityControls } from "@/features/play/wilds-world-capability-controls";
@@ -634,6 +636,9 @@ export function PlayCampaign({
   const [trainerEncounter, setTrainerEncounter] = useState<TrainerEncounterState | null>(null);
   const [kaiUPulse, setKaiUPulse] = useState(0);
   const [inspectedNourishmentId, setInspectedNourishmentId] = useState<string | null>(null);
+  const [nourishmentActionId, setNourishmentActionId] = useState<string | null>(null);
+  const pendingHunt = useRef<WildsAnimalHuntRequest | null>(null);
+  const [huntPresentation, setHuntPresentation] = useState<WildsAnimalHuntPresentation | null>(null);
   const [storedFoodFocusSignal, setStoredFoodFocusSignal] = useState(0);
   const kaiRuntimeClockRef = useRef<ReturnType<typeof createWildsKaiRuntimeClock> | null>(null);
   const readActionKaiUPulse=useCallback(()=>kaiRuntimeClockRef.current?.read(performance.now(),observeWildsKaiUPulse())??observeWildsKaiUPulse(),[]);
@@ -1155,16 +1160,34 @@ export function PlayCampaign({
   const nourishmentPlants = useMemo(() => projectWildsNourishmentPlants({ player: nourishmentPlayer, radius: 28, kaiUPulse:nourishmentKaiUPulse, sourceStates: state.playerNourishment?.sources, spaceId: state.siteSpace.spaceId }), [nourishmentPlayer, nourishmentKaiUPulse, state.playerNourishment?.sources, state.siteSpace.spaceId]);
   const wildAnimals = useMemo(() => projectWildsWildAnimals({ player: nourishmentPlayer, radius: 28, kaiUPulse:nourishmentKaiUPulse, sourceStates: state.playerLivestock?.animals, spaceId: state.siteSpace.spaceId }), [nourishmentPlayer, nourishmentKaiUPulse, state.playerLivestock?.animals, state.siteSpace.spaceId]);
   const ownedLivestock = useMemo(() => livingWorld.snapshot ? projectWildsOwnedLivestock(state.playerLivestock, livingWorld.snapshot, nourishmentKaiUPulse) : [], [state.playerLivestock, livingWorld.snapshot, nourishmentKaiUPulse]);
-  const livestockShelter = useMemo(() => livingWorld.snapshot ? selectWildsLivestockShelter(livingWorld.snapshot, state.player, ownerReceizId, state.siteSpace.spaceId) : null, [livingWorld.snapshot, state.player, ownerReceizId, state.siteSpace.spaceId]);
+  const nourishmentActionSource = nourishmentActionId ? nourishmentPlants.find(plant => plant.sourceId === nourishmentActionId)
+    ?? wildAnimals.find(animal => animal.animalId === nourishmentActionId && animal.status === 'wild')
+    ?? ownedLivestock.find(animal => animal.animalId === nourishmentActionId) ?? null : null;
+  const wildAnimalActionsOpen = Boolean(nourishmentActionSource && 'status' in nourishmentActionSource);
+  const farmCaptureOpen = Boolean(nourishmentActionSource && 'status' in nourishmentActionSource && nourishmentActionSource.capturable);
+  const selectLivestockShelter = useMemo(createWildsLivestockShelterSelector, []);
+  const livestockShelter = useMemo(() => (worldOverlayState.panelKey === 'satchel' || farmCaptureOpen) && livingWorld.snapshot ? selectLivestockShelter(livingWorld.snapshot, state.player, ownerReceizId, state.siteSpace.spaceId) : null, [worldOverlayState.panelKey, farmCaptureOpen, livingWorld.snapshot, state.player, ownerReceizId, state.siteSpace.spaceId, selectLivestockShelter]);
   const captureBlocker = !livestockShelter ? 'Finish a nearby room, habitat or garden to shelter livestock.'
     : Object.values(state.playerLivestock?.animals ?? {}).filter(animal => animal.status === 'captured' && animal.shelterId === livestockShelter.shelterId).length >= livestockShelter.capacity
       ? 'This farm is full. Finish another nearby shelter for livestock.' : null;
   const foodPackFull = useMemo(() => availableWildsFood(state.playerNourishment).length >= WILDS_NOURISHMENT_PACK_CAPACITY, [state.playerNourishment]);
-  const huntingSupport = useMemo(() => worldOverlayState.panelKey === 'satchel' ? selectWildsHuntingSupport({
+  const huntingCondition = activeAsset ? projectWildsRestedCompanionCondition(state, nourishmentKaiUPulse, activeAsset.id) : undefined;
+  const huntingSupport = useMemo(() => worldOverlayState.panelKey === 'satchel' || wildAnimalActionsOpen ? selectWildsHuntingSupport({
     state: state.playerLivestock, ownerReceizId, kaiUPulse: nourishmentKaiUPulse,
-    companion: activeAsset ?? undefined, condition: activeAsset ? projectWildsRestedCompanionCondition(state, nourishmentKaiUPulse, activeAsset.id) : undefined,
+    companion: activeAsset ?? undefined, condition: huntingCondition,
     toolWorld: livingWorld.snapshot ?? undefined
-  }) : { hunter: null, blocker: null }, [worldOverlayState.panelKey, state, ownerReceizId, nourishmentKaiUPulse, activeAsset, livingWorld.snapshot]);
+  }) : { hunter: null, blocker: null }, [worldOverlayState.panelKey, wildAnimalActionsOpen, state.playerLivestock, ownerReceizId, nourishmentKaiUPulse, activeAsset, huntingCondition, livingWorld.snapshot]);
+  useEffect(() => {
+    setNourishmentActionId(null); pendingHunt.current = null; setHuntPresentation(null);
+  }, [ownerReceizId, state.siteSpace.spaceId]);
+  useEffect(() => {
+    if (modalOwner !== 'none' || worldOverlayState.panelKey !== null || creationOpen) setNourishmentActionId(null);
+  }, [modalOwner, worldOverlayState.panelKey, creationOpen]);
+  useEffect(() => {
+    if (!huntPresentation) return;
+    const timer = window.setTimeout(() => setHuntPresentation(null), Math.max(0, huntPresentation.startedAtMs + WILDS_HUNT_PRESENTATION_MS - performance.now()));
+    return () => window.clearTimeout(timer);
+  }, [huntPresentation]);
 
   const energyActivity=aerialMode!=='ground'?aerialMode:verticalReadout.layer==='water'?'swim':'active';
   // Persist elapsed energy on lifecycle/activity changes. The display clock is read-only.
@@ -1328,6 +1351,13 @@ export function PlayCampaign({
     enabled,
     initialAudioSettings: initialPlayerContinuity?.settings.audio
   });
+  const playHuntCue = presentation.playCue;
+  useEffect(() => {
+    const request = pendingHunt.current;
+    if (!request) return;
+    const confirmed = confirmWildsAnimalHunt(request, state.playerLivestock, performance.now());
+    if (confirmed) { pendingHunt.current = null; setHuntPresentation(confirmed); playHuntCue('battle-hit'); }
+  }, [state.playerLivestock, playHuntCue]);
   const vaultWorldId = livingWorld.snapshot ? "wilds:global:v3" : initialPlayerContinuity?.canonicalCursor.worldId ?? "wilds:global:v3";
   const vaultWorldRevision = livingWorld.snapshot?.revision ?? initialPlayerContinuity?.canonicalCursor.revision ?? 0;
   const vaultWorldEventId = livingWorld.snapshot ? livingWorld.snapshot.cursor?.eventId ?? null : initialPlayerContinuity?.canonicalCursor.eventId ?? null;
@@ -1985,8 +2015,7 @@ export function PlayCampaign({
     if (!canForage()) return;
     setStoredFoodFocusSignal(0);
     setInspectedNourishmentId('sourceId' in source ? source.sourceId : source.animalId);
-    setRequestedCommand('satchel');
-    showWorldFeedback(`${source.label} · ${'sourceId' in source ? 'Gather within reach, then eat from your food pack.' : 'status' in source ? 'Choose Hunt or Capture in Food & farm.' : 'Collect eggs or milk in Food & farm.'}`);
+    setNourishmentActionId('sourceId' in source ? source.sourceId : source.animalId);
   };
   const gatherFood = (plant: WildsNourishmentPlantProjection) => {
     if (!canForage()) return;
@@ -1997,6 +2026,7 @@ export function PlayCampaign({
       inspectNourishment(plant); showWorldFeedback(crop.remaining ? 'Move closer on the ground to gather food.' : 'This crop is depleted. It grows back with Kai days.'); return;
     }
     beginWorldActionFeedback();
+    setNourishmentActionId(null);
     dispatch({ type: 'gather-food', ownerReceizId, sourceId: plant.sourceId, expectedSourceHead: crop.head, kaiUPulse: actionKai, verticalWorldY: verticalTraversalRef.current.worldY });
   };
   const huntAnimal = (animal: WildsWildAnimalProjection) => {
@@ -2006,10 +2036,15 @@ export function PlayCampaign({
     const support = selectWildsHuntingSupport({ state: state.playerLivestock, ownerReceizId, kaiUPulse: actionKai,
       companion: activeAsset ?? undefined, condition: activeAsset ? projectWildsRestedCompanionCondition(state, actionKai, activeAsset.id) : undefined, toolWorld: livingWorld.snapshot ?? undefined });
     if (!support.hunter) { showWorldFeedback(support.blocker ?? 'Choose a ready companion or equip an axe.'); return; }
-    const position = projectWildsWildAnimalPosition(animal, actionKai).position;
+    const motion = projectWildsWildAnimalPosition(animal, actionKai), position = motion.position;
     if (Math.hypot(state.player.x - position.x, state.player.z - position.z) > WILDS_ANIMAL_INTERACTION_REACH
       || Math.abs(verticalTraversalRef.current.worldY - position.y) > 1.8) { showWorldFeedback('Move within reach on the same ground to hunt.'); return; }
     beginWorldActionFeedback();
+    pendingHunt.current = { animal, ownerReceizId, spaceId: state.siteSpace.spaceId, requestedKaiUPulse: actionKai,
+      before: state.playerLivestock, hunterAssetId: support.hunter.kind === 'creature' ? support.hunter.assetId : null, reducedMotion: qualityProfile.reducedMotion,
+      from: { x: state.player.x + (support.hunter.kind === 'creature' ? -1.08 : 0), y: verticalTraversalRef.current.worldY + .7, z: state.player.z + (support.hunter.kind === 'creature' ? .42 : 0) },
+      position, heading: motion.heading, gait: motion.gait, pose: motion.pose };
+    setNourishmentActionId(null);
     dispatch({ type: 'hunt-animal', ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: actionKai, verticalWorldY: verticalTraversalRef.current.worldY,
       hunter: support.hunter, toolWorld: livingWorld.snapshot ?? undefined });
   };
@@ -2020,6 +2055,7 @@ export function PlayCampaign({
     if (Math.hypot(state.player.x - position.x, state.player.z - position.z) > WILDS_ANIMAL_INTERACTION_REACH
       || Math.abs(verticalTraversalRef.current.worldY - position.y) > 1.8) { showWorldFeedback('Move within reach on the same ground to capture livestock.'); return; }
     beginWorldActionFeedback();
+    setNourishmentActionId(null);
     dispatch({ type: 'capture-livestock', ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: actionKai, verticalWorldY: verticalTraversalRef.current.worldY, shelterId: livestockShelter.shelterId, husbandryWorld: livingWorld.snapshot });
   };
   const collectLivestockFood = (animal: WildsOwnedLivestockProjection) => {
@@ -2028,6 +2064,7 @@ export function PlayCampaign({
     if (Math.hypot(state.player.x - animal.position.x, state.player.z - animal.position.z) > 4
       || Math.abs(verticalTraversalRef.current.worldY - animal.position.y) > 1.8) { showWorldFeedback('Approach your farm to collect its produce.'); return; }
     beginWorldActionFeedback();
+    setNourishmentActionId(null);
     dispatch({ type: 'collect-livestock', ownerReceizId, animalId: animal.animalId, kaiUPulse: readActionKaiUPulse(), husbandryWorld: livingWorld.snapshot });
   };
 
@@ -2985,7 +3022,7 @@ export function PlayCampaign({
               activeCapabilityFamily={burrowBuilder.busy ? "burrow" : activeWorldCapability}
               activeWorkSource={activeWorkSource}
               sleepingCreationBed={sleepingInBed ? availableCreationBed : null}
-              nourishment={{plants:nourishmentPlants, animals:wildAnimals, livestock:ownedLivestock, onInspect:inspectNourishment, onGather:gatherFood, onHunt:huntAnimal, onCapture:captureLivestock, onProduce:collectLivestockFood}}
+              nourishment={{plants:nourishmentPlants, animals:wildAnimals, livestock:ownedLivestock, hunt:huntPresentation, selectedAnimalId:nourishmentActionId, reducedMotion:qualityProfile.reducedMotion, onInspect:inspectNourishment, onGather:gatherFood, onHunt:huntAnimal, onCapture:captureLivestock, onProduce:collectLivestockFood}}
               stewardPlacementPreview={stewardPlacementPreview}
               burrowPreview={burrowBuilder.preview ? {...burrowBuilder.preview,blocker:burrowBuilder.blocker} : null}
               creationPreview={creationPreview}
@@ -3309,6 +3346,10 @@ export function PlayCampaign({
               requestedCommand={requestedCommand}
               traversalCapabilities={activeTraversalCapabilities}
             />
+
+            {nourishmentActionSource && exclusiveOwner === 'none' && !creationOpen ? <WildsNourishmentActions source={nourishmentActionSource}
+              player={nourishmentPlayer} huntBlocker={huntingSupport.blocker} captureBlocker={captureBlocker} packFull={foodPackFull}
+              onClose={() => setNourishmentActionId(null)} onGather={gatherFood} onHunt={huntAnimal} onCapture={captureLivestock} onProduce={collectLivestockFood} /> : null}
 
             {exclusiveOwner === "combat" && combatSurface === "wild" && wildBattleActive && state.battle ? (
               <WildsBattle

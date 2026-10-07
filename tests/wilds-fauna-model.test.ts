@@ -51,6 +51,24 @@ test('resting fauna keep breathing and attending while their planted feet remain
     assert.deepEqual(first.filter(part => part[7] === feet), next.filter(part => part[7] === feet), `${species} shuffled planted feet`);
   }
 });
+
+test('slow farm goats and hares visibly lift and advance their feet while travelling', () => {
+  for (const species of ['meadow-goat','hare'] as const) {
+    const feet = species === 'meadow-goat' ? '#514b40' : '#bcaa8e';
+    const positions: number[][] = [];
+    for (let index = 0; index < 1_000; index++) {
+      const parts = livingPose(species, 100_000_000 + index * 10_000, .35).filter(part => part[7] === feet);
+      parts.forEach((part, foot) => (positions[foot] ??= []).push(Number(part[3])));
+    }
+    assert.ok(positions.some(values => Math.max(...values) - Math.min(...values) > .06), `${species} slid through its farm with almost motionless feet`);
+  }
+});
+
+test('birds bend both upper and lower legs as their alternating feet step', () => {
+  const legs = pose('ground-bird', Math.PI / 2, true).filter(part => part[0] === 'limb' && part[7] === '#c79345');
+  assert.equal(legs.length, 4, 'each bird needs an articulated thigh and shin');
+  assert.notEqual(legs[0]![8], legs[1]![8], 'the bird knee must bend');
+});
 test('anatomy blends smoothly between walking, scanning, and feeding instead of snapping head height', () => {
   const interval = Math.round(50 / KAI_PULSE_DURATION_MS * 1_000_000);
   for (const species of ['ground-bird','meadow-goat','hare'] as const) {

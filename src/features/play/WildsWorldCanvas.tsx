@@ -1,5 +1,6 @@
 "use client";
 import { WildsNourishmentEnvironment, type WildsNourishmentEnvironmentProps } from './WildsNourishmentEnvironment';
+import type { WildsAnimalHuntPresentation } from './wilds-animal-interaction';
 import { projectCreationBedSleepPose, type CreationBedSource } from './creation/bed';
 import { WildsFirstFrame } from "./WildsFirstFrame";
 import { WildsShaderPrewarm } from "./WildsShaderPrewarm";
@@ -582,9 +583,9 @@ function WildsScene({
           style={character.gender}
           worldPosition={state.player}
         />
-        {!crewTravelRuntime?.current.has(state.selectedAssetId) && (<ActiveCompanion suspended={suspended} world={livingWorld} partyCanClimb={partyCanClimb} crewTravelRuntime={crewTravelRuntime} crewRelocationKey={state.partyTravelRevision ?? 0} key={`${state.selectedAssetId}:${siteSpace.spaceId}`} kaiUPulse={kaiMoment.uPulse} locomotion={swimming ? "swim" : aerialStateRef.current.mode !== "ground" ? "air" : "ground"} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} crewModes={crewModes} obstacles={crewObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} state={state} terrainElevation={activeFloorY} />)}
+        {!crewTravelRuntime?.current.has(state.selectedAssetId) && (<ActiveCompanion hunt={nourishment?.hunt} suspended={suspended} world={livingWorld} partyCanClimb={partyCanClimb} crewTravelRuntime={crewTravelRuntime} crewRelocationKey={state.partyTravelRevision ?? 0} key={`${state.selectedAssetId}:${siteSpace.spaceId}`} kaiUPulse={kaiMoment.uPulse} locomotion={swimming ? "swim" : aerialStateRef.current.mode !== "ground" ? "air" : "ground"} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} crewModes={crewModes} obstacles={crewObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} state={state} terrainElevation={activeFloorY} />)}
       </AerialPlayerFrame>
-      {crewTravelRuntime?.current.get(state.selectedAssetId)?.spaceId === siteSpace.spaceId && (<ActiveCompanion suspended={suspended} world={livingWorld} partyCanClimb={partyCanClimb} crewTravelRuntime={crewTravelRuntime} crewRelocationKey={state.partyTravelRevision ?? 0} key={`${state.selectedAssetId}:${siteSpace.spaceId}`} kaiUPulse={kaiMoment.uPulse} locomotion="ground" activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} crewModes={crewModes} obstacles={crewObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} state={state} terrainElevation={activeFloorY} />)}
+      {crewTravelRuntime?.current.get(state.selectedAssetId)?.spaceId === siteSpace.spaceId && (<ActiveCompanion hunt={nourishment?.hunt} suspended={suspended} world={livingWorld} partyCanClimb={partyCanClimb} crewTravelRuntime={crewTravelRuntime} crewRelocationKey={state.partyTravelRevision ?? 0} key={`${state.selectedAssetId}:${siteSpace.spaceId}`} kaiUPulse={kaiMoment.uPulse} locomotion="ground" activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} crewModes={crewModes} obstacles={crewObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} state={state} terrainElevation={activeFloorY} />)}
       <group name="grounded-support-companions" visible={!swimming}>
         <SupportCompanions suspended={suspended} world={livingWorld} partyCanClimb={partyCanClimb} crewTravelRuntime={crewTravelRuntime} crewRelocationKey={state.partyTravelRevision ?? 0} kaiUPulse={kaiMoment.uPulse} cards={supportCards} conditions={state.adventureConditions} crewModes={crewModes} obstacles={crewObstacles} player={state.player} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />
       </group>
@@ -1108,7 +1109,7 @@ function useCrewFollower(input: {
   return { group, gait };
 }
 
-function ActiveCompanion({ suspended = false, world, partyCanClimb, crewTravelRuntime, crewRelocationKey, kaiUPulse, locomotion, activeWorkSource, activeCapabilityFamily, crewModes, obstacles, siteRuntime, siteSpace, state, terrainElevation }: { suspended?: boolean; world?: WildsWorldProjection | null; partyCanClimb?: boolean; crewTravelRuntime?: MutableRefObject<WildsCrewTravelRuntime>; crewRelocationKey?: string | number; kaiUPulse: number; locomotion: "ground" | "swim" | "air"; activeWorkSource?: WildsActiveWorkSource | null; activeCapabilityFamily: WildsWorldCapabilityFamily | null; crewModes?: WildsCrewModes; obstacles: readonly WildsTerrainObstacle[]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; state: PlayState; terrainElevation: number }) {
+function ActiveCompanion({ hunt, suspended = false, world, partyCanClimb, crewTravelRuntime, crewRelocationKey, kaiUPulse, locomotion, activeWorkSource, activeCapabilityFamily, crewModes, obstacles, siteRuntime, siteSpace, state, terrainElevation }: { hunt?: WildsAnimalHuntPresentation | null; suspended?: boolean; world?: WildsWorldProjection | null; partyCanClimb?: boolean; crewTravelRuntime?: MutableRefObject<WildsCrewTravelRuntime>; crewRelocationKey?: string | number; kaiUPulse: number; locomotion: "ground" | "swim" | "air"; activeWorkSource?: WildsActiveWorkSource | null; activeCapabilityFamily: WildsWorldCapabilityFamily | null; crewModes?: WildsCrewModes; obstacles: readonly WildsTerrainObstacle[]; siteRuntime: WildsSiteRuntimeProjection; siteSpace: WildsSiteSpaceState; state: PlayState; terrainElevation: number }) {
   const card = selectedCard(state);
   const asset = state.inventory.find((candidate) => candidate.id === state.selectedAssetId);
   const formId = asset?.manifest.formId ?? `${card.id}-1`;
@@ -1128,12 +1129,24 @@ function ActiveCompanion({ suspended = false, world, partyCanClimb, crewTravelRu
   }, [asset,condition]);
   const { group, gait } = useCrewFollower({ suspended, world, travelerCanClimb, partyCanClimb, assetId: asset?.id ?? state.selectedAssetId, proofDigest: asset?.proof.digest ?? "", crewTravelRuntime, crewRelocationKey, kaiUPulse, locomotion, enabled, player: state.player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance?.cadenceMs ?? 3200, seed, offsetX: -1.08, offsetZ: .42, workSource: activeWorkSource });
   const working = Boolean(activeWorkSource);
+  const hunting = Boolean(hunt && hunt.hunterAssetId === asset?.id);
+  const huntMotion = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (!huntMotion.current) return;
+    if (!hunting || !hunt) { huntMotion.current.position.set(0, 0, 0); huntMotion.current.rotation.y = 0; return; }
+    const progress = hunting && hunt ? Math.max(0, Math.min(1, (performance.now() - hunt.startedAtMs) / 420)) : 1;
+    const surge = hunt.reducedMotion || progress === 1 ? 0 : Math.sin(progress * Math.PI) * .22;
+    const facing = hunting && hunt && group.current
+      ? Math.atan2(hunt.position.x - state.player.x - group.current.position.x, hunt.position.z - state.player.z - group.current.position.z) - group.current.rotation.y : 0;
+    huntMotion.current.position.set(Math.sin(facing) * surge, 0, Math.cos(facing) * surge);
+    huntMotion.current.rotation.y = facing;
+  });
   const capabilityPresentation = useMemo(() => activeCapabilityFamily
     ? projectWildsCapabilityPresentation({ family: activeCapabilityFamily, targetId: activeWorkSource?.sourceId ?? null })
     : null, [activeCapabilityFamily, activeWorkSource?.sourceId]);
   return (
     <group name="active-companion" ref={group} scale={0.82}>
-      <WildsCreatureActor grounded gait={gait} accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} locomotion={locomotion} morphology={appearance?.morphology} pose={working ? "work" : capabilityPresentation?.actorPose ?? "curious"} primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} />
+      <group ref={huntMotion}><WildsCreatureActor grounded gait={gait} accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} locomotion={locomotion} morphology={appearance?.morphology} pose={hunting ? "attack" : working ? "work" : capabilityPresentation?.actorPose ?? "curious"} primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} /></group>
       {capabilityPresentation ? <>
         <mesh position={[0, .035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <torusGeometry args={[.58, .025, 8, 40]} />

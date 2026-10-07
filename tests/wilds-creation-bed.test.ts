@@ -58,6 +58,28 @@ test('rotated beds use their real local footprint and align the sleep pose along
   assert.ok(Math.abs(pose.heading - Math.PI / 2) < 1e-9); assert.equal(pose.pitch, Math.PI / 2);
 });
 
+test('walking past distant beds never reparses their definitions', async () => {
+  const f = await fixture(), snapshot = f.store.snapshot();
+  let reads = 0;
+  const definitions = { ...snapshot.definitions };
+  Object.defineProperty(definitions, f.instance.definitionDigest, { enumerable: true, get() { reads++; return f.definition; } });
+  const source = { ...snapshot, definitions };
+  for (let index = 0; index < 100; index++) {
+    assert.equal(selectCreationBedAtPlayer(source, { x: 100 + index, z: 100 }, f.space, 'owner', 2), null);
+  }
+  assert.equal(reads, 0);
+  assert.ok(selectCreationBedAtPlayer(source, { x: 10, z: 5 }, f.space, 'owner', 2));
+  assert.ok(reads > 0, 'beds within reach must still pass source validation');
+});
+
+test('diagonally rotated mattress edges retain their full local sleep reach', async () => {
+  const yaw = Math.PI / 4, f = await fixture(yaw);
+  const player = { x: 10 + .8 * Math.cos(yaw) + 1.35 * Math.sin(yaw), z: 5 - .8 * Math.sin(yaw) + 1.35 * Math.cos(yaw) };
+  const source = resolveCreationBed(f.store.snapshot, f.instance.instanceId, 'bed', 'owner', 2)!;
+  assert.equal(canSleepInCreationBed(source, player, f.space, 'owner', 2), true);
+  assert.ok(selectCreationBedAtPlayer(f.store.snapshot, player, f.space, 'owner', 2));
+});
+
 test('a retained bed source becomes unusable after current transfer, damage or occupancy', async () => {
   const f = await fixture(), player = { x: 10, z: 5 };
   const bed = resolveCreationBed(f.store.snapshot, 'creation:bed', 'bed', 'owner', 2); assert.ok(bed);

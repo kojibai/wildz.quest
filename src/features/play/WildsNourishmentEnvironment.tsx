@@ -4,10 +4,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createWildsKaiRuntimeClock } from './wilds-kai-runtime';
-import { projectWildsWildAnimalPosition } from './wilds-animal-ecology';
+import { projectWildsWildAnimalPosition, type WildsWildAnimal } from './wilds-animal-ecology';
+import { WildsAnimalHuntEffect } from './WildsAnimalHuntEffect';
+import { createWildsHuntAnimationFrame, writeWildsHuntAnimationFrame, type WildsAnimalHuntPresentation, type WildsHuntAnimationFrame } from './wilds-animal-interaction';
 import { projectWildsFaunaMotion, type WildsFaunaLifePose } from './wilds-fauna-motion';
 import { drawWildsFauna, type WildsFaunaPart } from './wilds-fauna-model';
-import { projectWildsFruitAttachments } from './wilds-nourishment-visuals';
+import { createWildsNourishmentPlantRenderCache, projectWildsFruitAttachments, type WildsNourishmentPlantRenderRow } from './wilds-nourishment-visuals';
 import { createWildsFruitTouchRaycast } from './wilds-nourishment-picking';
 import { createWildsAppleGeometry, createWildsFoodLeafGeometry, createWildsNourishmentTexture } from './wilds-nourishment-materials';
 import { wildsTerrainObstaclesForTile } from './wilds-terrain-obstacles';
@@ -28,6 +30,9 @@ export type WildsNourishmentEnvironmentProps = Readonly<{
   qualityTier?: WildsQualityTier;
   harvestedSources?: WildsWorldProjection['harvestedSources'];
   siteRuntime?: WildsSiteRuntimeProjection;
+  selectedAnimalId?: string | null;
+  hunt?: WildsAnimalHuntPresentation | null;
+  reducedMotion?: boolean;
   onGather?: (plant: WildsNourishmentPlantProjection) => void;
   onInspect?: (source: WildsNourishmentPlantProjection | WildsWildAnimalProjection | WildsOwnedLivestockProjection) => void;
   onHunt?: (animal: WildsWildAnimalProjection) => void;
@@ -37,12 +42,12 @@ export type WildsNourishmentEnvironmentProps = Readonly<{
 const CAPACITY=1536;
 const DETAIL={low:{plants:24,animals:6,livestock:3,segments:8,rings:6},medium:{plants:32,animals:10,livestock:4,segments:10,rings:6},high:{plants:48,animals:12,livestock:6,segments:12,rings:8}};
 type Shape = WildsFaunaPart | 'apple' | 'leaf';
-type Pick = { kind:'plant'; plant:WildsNourishmentPlantProjection } | { kind:'animal'; animal:WildsWildAnimalProjection | WildsOwnedLivestockProjection };
-type Batch = { mesh:THREE.InstancedMesh | null; count:number; picks:Pick[] };
+type Pick = { kind:'plant'; plant:WildsNourishmentPlantProjection } | { kind:'animal'; animal:WildsWildAnimalProjection | WildsOwnedLivestockProjection } | { kind:'hunt' };
+type Batch = { mesh:THREE.InstancedMesh | null; count:number; picks:Pick[]; tones:string[]; colorsChanged:boolean };
 const SHAPES: Shape[]=['body','limb','tip','apple','leaf'];
 const ANIMAL_SHAPES: WildsFaunaPart[]=['body','limb','tip'];
 function batches(): Record<Shape, Batch> {
-  const batch = (): Batch => ({ mesh: null, count: 0, picks: [] });
+  const batch = (): Batch => ({ mesh: null, count: 0, picks: [], tones: [], colorsChanged: false });
   return { body: batch(), limb: batch(), tip: batch(), apple: batch(), leaf: batch() };
 }
 
@@ -50,6 +55,18 @@ function batches(): Record<Shape, Batch> {
 export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentProps) {
   const quality=props.qualityTier??'medium';
   const latest=useRef(props), plants=useRef(batches()), animals=useRef(batches());
+  const sceneOrigin=useRef({ ...props.origin });
+  const sceneGroup=useRef<THREE.Group>(null);
+  const selectionRing=useRef<THREE.Mesh>(null);
+  const renderedSelection=useRef(props.selectedAnimalId);
+  const renderedHunt=useRef<WildsAnimalHuntPresentation|null|undefined>(undefined);
+  const huntFrame=useMemo(createWildsHuntAnimationFrame,[]);
+  const huntPick=useMemo<Pick>(()=>({kind:'hunt'}),[]);
+  const plantPicks=useRef(new Map<string, Extract<Pick,{kind:'plant'}>>());
+  const animalPicks=useRef(new Map<string, Extract<Pick,{kind:'animal'}>>());
+  const retainPlantRows=useMemo(createWildsNourishmentPlantRenderCache,[]);
+  const renderedPlants=useRef<readonly WildsNourishmentPlantRenderRow[]|null>(null);
+  const renderedAnimals=useRef<readonly (WildsWildAnimalProjection|WildsOwnedLivestockProjection)[]>([]);
   const fruitTouchRadii=useRef<number[]>([]);
   const fruitRaycast=useMemo(()=>createWildsFruitTouchRaycast(fruitTouchRadii.current),[]);
   const time=useRef<{observedKai:number;clock:ReturnType<typeof createWildsKaiRuntimeClock>|null;lastDraw:number}>({observedKai:props.kaiUPulse,clock:null,lastDraw:0});
@@ -72,30 +89,40 @@ export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentPr
       fruitMaterial:new THREE.MeshStandardMaterial({color:'#ffffff',map:fruit,roughness:.48}), textures:[coat,fruit,leaf]
     };
   },[quality]);
+  const renderedResources=useRef(resources);
   useEffect(()=>()=>{Object.values(resources.geometries).forEach(g=>g.dispose());resources.animalMaterial.dispose();resources.plantMaterial.dispose();resources.fruitMaterial.dispose();resources.textures.forEach(t=>t.dispose());},[resources]);
   const write=(collection:Record<Shape,Batch>, shape:Shape, p:{x:number;y:number;z:number}, scale:[number,number,number], tone:string, pick:Pick, rotation:[number,number,number]=[0,0,0])=>{
     const batch=collection[shape], mesh=batch.mesh;
     if(!mesh||batch.count>=CAPACITY) return;
-    transform.position.set(p.x-latest.current.origin.x,p.y-latest.current.origin.y,p.z-latest.current.origin.z);
+    transform.position.set(p.x-sceneOrigin.current.x,p.y-sceneOrigin.current.y,p.z-sceneOrigin.current.z);
     transform.scale.set(...scale);transform.rotation.set(rotation[0],rotation[1],rotation[2],'YXZ');transform.updateMatrix();
-    mesh.setMatrixAt(batch.count,transform.matrix);mesh.setColorAt(batch.count,color.set(tone));batch.picks[batch.count++]=pick;
+    mesh.setMatrixAt(batch.count,transform.matrix);
+    if(batch.tones[batch.count]!==tone){mesh.setColorAt(batch.count,color.set(tone));batch.tones[batch.count]=tone;batch.colorsChanged=true;}
+    batch.picks[batch.count++]=pick;
   };
-  const reset=(collection:Record<Shape,Batch>,shapes:readonly Shape[])=>shapes.forEach(shape=>{collection[shape].count=0;});
+  const reset=(collection:Record<Shape,Batch>,shapes:readonly Shape[])=>shapes.forEach(shape=>{collection[shape].count=0;collection[shape].colorsChanged=false;});
   const finish=(collection:Record<Shape,Batch>,shapes:readonly Shape[])=>shapes.forEach(shape=>{
     const batch=collection[shape];batch.picks.length=batch.count;
-    if(batch.mesh){batch.mesh.count=batch.count;batch.mesh.instanceMatrix.needsUpdate=true;batch.mesh.boundingSphere=null;if(batch.mesh.instanceColor)batch.mesh.instanceColor.needsUpdate=true;}
+    if(batch.mesh){
+      batch.mesh.count=batch.count;
+      batch.mesh.instanceMatrix.clearUpdateRanges();
+      if(batch.count)batch.mesh.instanceMatrix.addUpdateRange(0,batch.count*16);
+      batch.mesh.instanceMatrix.needsUpdate=true;batch.mesh.boundingSphere=null;
+      if(batch.colorsChanged&&batch.mesh.instanceColor){
+        batch.mesh.instanceColor.clearUpdateRanges();
+        if(batch.count)batch.mesh.instanceColor.addUpdateRange(0,batch.count*3);
+        batch.mesh.instanceColor.needsUpdate=true;
+      }
+    }
   });
-  const drawPlants=()=>{
-    const current=latest.current, outer=!current.spaceId||current.spaceId==='wildz.space.outer.v1';reset(plants.current,SHAPES);
+  const drawPlants=(rows:readonly WildsNourishmentPlantRenderRow[])=>{
+    reset(plants.current,SHAPES);
     fruitTouchRadii.current.length=0;
-    if(outer) for(const plant of (current.plants??[]).slice(0,DETAIL[current.qualityTier??'medium'].plants)) {
-      const pick:Pick={kind:'plant',plant}, p=plant.position;
-      const ground=current.siteRuntime?wildsSiteRuntimeGroundY(current.siteRuntime,current.spaceId??'wildz.space.outer.v1',p.x,p.z,p.y):p.y;
+    for(const {plant,groundY:ground,tree:placement} of rows) {
+      const pick=plantPicks.current.get(plant.sourceId)!, p=plant.position;
       const add=(shape:Shape,x:number,y:number,z:number,sx:number,sy:number,sz:number,tone:string,tilt=0,heading=0,roll=0)=>write(plants.current,shape,{x,y,z},[sx,sy,sz],tone,pick,[tilt,heading,roll]);
       if(plant.kind==='fruit-tree') {
-        const tree=wildsTerrainObstaclesForTile(Math.floor(p.x/WILDS_TERRAIN_TILE_SIZE),Math.floor(p.z/WILDS_TERRAIN_TILE_SIZE)).find(o=>o.id===plant.terrainTreeId);
-        if(!tree)continue;
-        const placement=resourcePlacements([tree],current.harvestedSources,current.kaiUPulse,null).trees[0]!;
+        if(!placement)continue;
         for(const [index,fruit] of projectWildsFruitAttachments(plant,placement,plant.remaining).entries()) {
           const fp={...fruit.position,y:fruit.position.y+ground-p.y},r=fruit.radius;
           fruitTouchRadii.current[plants.current.apple.count]=fruit.touchRadius;
@@ -123,10 +150,15 @@ export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentPr
   };
   const drawAnimals=(kai:number)=>{
     const current=latest.current,outer=!current.spaceId||current.spaceId==='wildz.space.outer.v1';reset(animals.current,ANIMAL_SHAPES);
-    const drawAnimal=(animal:WildsWildAnimalProjection|WildsOwnedLivestockProjection,p:{x:number;y:number;z:number},heading:number,gait:number,moving:boolean,grazing:boolean,pose:WildsFaunaLifePose)=>{
-      const pick:Pick={kind:'animal',animal},cos=Math.cos(heading),sin=Math.sin(heading);
+    if(selectionRing.current)selectionRing.current.visible=false;
+    const drawAnimal=(animal:WildsWildAnimal,p:{x:number;y:number;z:number},heading:number,gait:number,moving:boolean,grazing:boolean,pose:WildsFaunaLifePose,effect?:WildsHuntAnimationFrame,overridePick?:Pick)=>{
+      const pick=overridePick??animalPicks.current.get(animal.animalId),cos=Math.cos(heading),sin=Math.sin(heading);
+      if(!pick)return;
+      const size=effect?.scale??1,lean=effect?.lean??0,cosLean=Math.cos(lean),sinLean=Math.sin(lean);
+      if(selectionRing.current&&current.selectedAnimalId===animal.animalId&&!effect){selectionRing.current.visible=true;selectionRing.current.position.set(p.x-sceneOrigin.current.x,p.y-sceneOrigin.current.y+.025,p.z-sceneOrigin.current.z);selectionRing.current.scale.setScalar(animal.species==='meadow-goat'?.55:.32);}
       drawWildsFauna(animal.species,gait,moving,grazing,(shape,x,y,z,sx,sy,sz,tone,tilt=0,roll=0,yaw=0)=>{
-        write(animals.current,shape,{x:p.x+x*cos+z*sin,y:p.y+y,z:p.z+z*cos-x*sin},[sx,sy,sz],tone,pick,[tilt,heading+yaw,roll]);
+        const localY=(y*cosLean-z*sinLean)*size,localZ=(y*sinLean+z*cosLean)*size,localX=x*size;
+        write(animals.current,shape,{x:p.x+localX*cos+localZ*sin,y:p.y+localY+(effect?.lift??0),z:p.z+localZ*cos-localX*sin},[sx*size,sy*size,sz*size],tone,pick,[tilt+lean,heading+yaw,roll]);
       },pose);
     };
     if(outer) for(const animal of (current.animals??[]).filter(a=>a.status==='wild').slice(0,DETAIL[current.qualityTier??'medium'].animals)) {
@@ -138,32 +170,72 @@ export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentPr
       drawAnimal(animal,{...animal.position,x:animal.position.x+motion.offset.x,z:animal.position.z+motion.offset.z},
         motion.heading,motion.gait,motion.moving,motion.grazing,motion.pose);
     }
+    if(current.hunt&&current.hunt.spaceId===(current.spaceId??'wildz.space.outer.v1')){
+      writeWildsHuntAnimationFrame(huntFrame,performance.now()-current.hunt.startedAtMs,current.reducedMotion);
+      if(huntFrame.active)drawAnimal(current.hunt.animal,current.hunt.position,current.hunt.heading,current.hunt.gait,false,false,current.hunt.pose,huntFrame,huntPick);
+    }
     finish(animals.current,ANIMAL_SHAPES);
   };
   useLayoutEffect(()=>{
     latest.current=props;
+    const resourcesChanged=renderedResources.current!==resources;
+    const originChanged=Math.abs(sceneOrigin.current.x-props.origin.x)>128
+      ||Math.abs(sceneOrigin.current.y-props.origin.y)>128||Math.abs(sceneOrigin.current.z-props.origin.z)>128;
+    if(originChanged){sceneOrigin.current={...props.origin};sceneGroup.current?.position.set(0,0,0);renderedPlants.current=null;}
+    if(resourcesChanged){
+      renderedResources.current=resources;renderedPlants.current=null;
+      for(const collection of [plants.current,animals.current])for(const shape of SHAPES)collection[shape].tones=[];
+    }
     const now=performance.now();
     let clock=time.current.clock;
-    if(!clock||time.current.observedKai!==props.kaiUPulse) {
+    const clockChanged=!clock||time.current.observedKai!==props.kaiUPulse;
+    if(clockChanged) {
       const floor=clock?.read(now)??props.kaiUPulse;
       clock=createWildsKaiRuntimeClock({baselineUPulse:props.kaiUPulse,baselineElapsedMs:now,floorUPulse:floor});
       time.current={observedKai:props.kaiUPulse,clock,lastDraw:now};
     }
-    drawPlants();drawAnimals(clock.read(now));
+    const outer=!props.spaceId||props.spaceId==='wildz.space.outer.v1';
+    const visiblePlants=outer?(props.plants??[]).slice(0,DETAIL[quality].plants):[];
+    const nextPlantPicks=new Map<string, Extract<Pick,{kind:'plant'}>>();
+    const rows=retainPlantRows(visiblePlants.map(plant=>{
+      const pick=plantPicks.current.get(plant.sourceId)??{kind:'plant' as const,plant};
+      pick.plant=plant;nextPlantPicks.set(plant.sourceId,pick);
+      const p=plant.position;
+      const groundY=props.siteRuntime?wildsSiteRuntimeGroundY(props.siteRuntime,props.spaceId??'wildz.space.outer.v1',p.x,p.z,p.y):p.y;
+      const obstacle=plant.kind==='fruit-tree'?wildsTerrainObstaclesForTile(Math.floor(p.x/WILDS_TERRAIN_TILE_SIZE),Math.floor(p.z/WILDS_TERRAIN_TILE_SIZE)).find(o=>o.id===plant.terrainTreeId):undefined;
+      return {plant,groundY,tree:obstacle?resourcePlacements([obstacle],props.harvestedSources,props.kaiUPulse,null).trees[0]:undefined};
+    }));
+    plantPicks.current=nextPlantPicks;
+    if(renderedPlants.current!==rows){renderedPlants.current=rows;drawPlants(rows);}
+    const visibleAnimals=[...(outer?(props.animals??[]).filter(a=>a.status==='wild').slice(0,DETAIL[quality].animals):[]),...residentLivestock];
+    const nextAnimalPicks=new Map<string, Extract<Pick,{kind:'animal'}>>();
+    for(const animal of visibleAnimals){const pick=animalPicks.current.get(animal.animalId)??{kind:'animal' as const,animal};pick.animal=animal;nextAnimalPicks.set(animal.animalId,pick);}
+    animalPicks.current=nextAnimalPicks;
+    const animalChanged=visibleAnimals.length!==renderedAnimals.current.length||visibleAnimals.some((animal,index)=>{
+      const prior=renderedAnimals.current[index]!;
+      return animal.animalId!==prior.animalId||animal.species!==prior.species||animal.position.x!==prior.position.x||animal.position.y!==prior.position.y||animal.position.z!==prior.position.z;
+    });
+    renderedAnimals.current=visibleAnimals;
+    const presentationChanged=renderedHunt.current!==props.hunt||renderedSelection.current!==props.selectedAnimalId;
+    renderedHunt.current=props.hunt;renderedSelection.current=props.selectedAnimalId;
+    if(clockChanged||animalChanged||resourcesChanged||originChanged||presentationChanged){time.current.lastDraw=now;drawAnimals(clock!.read(now));}
   });
   useFrame(()=>{
     const now=performance.now();
-    if(!time.current.clock||now-time.current.lastDraw<50||(!(latest.current.animals?.length)&&!(latest.current.livestock?.length)))return;
+    if(!time.current.clock||(!renderedAnimals.current.length&&!latest.current.hunt))return;
     time.current.lastDraw=now;
     drawAnimals(time.current.clock.read(now));
   });
   const activate=(event:ThreeEvent<MouseEvent>,collection:Record<Shape,Batch>,shape:Shape)=>{
     const pick=event.instanceId===undefined?undefined:collection[shape].picks[event.instanceId];if(!pick)return;event.stopPropagation();
-    if(pick.kind==='plant'){if(pick.plant.canGather)latest.current.onGather?.(pick.plant);else latest.current.onInspect?.(pick.plant);}
+    if(pick.kind==='hunt')return;
+    if(pick.kind==='plant'){if(latest.current.onInspect)latest.current.onInspect(pick.plant);else if(pick.plant.canGather)latest.current.onGather?.(pick.plant);}
     else latest.current.onInspect?.(pick.animal);
   };
-  return <group name="wilds-nourishment-landscape">
+  return <group ref={sceneGroup} name="wilds-nourishment-landscape" position={[sceneOrigin.current.x-props.origin.x,sceneOrigin.current.y-props.origin.y,sceneOrigin.current.z-props.origin.z]}>
     {SHAPES.map(shape=><instancedMesh key={`plant-${shape}`} name={`nourishment-plants-${shape}`} ref={mesh=>{plants.current[shape].mesh=mesh;}} args={[resources.geometries[shape],shape==='apple'?resources.fruitMaterial:resources.plantMaterial,CAPACITY]} raycast={shape==='apple'?fruitRaycast:undefined} frustumCulled={false} userData={{nourishment:true}} castShadow receiveShadow onClick={event=>activate(event,plants.current,shape)} />)}
     {ANIMAL_SHAPES.map(shape=><instancedMesh key={`animal-${shape}`} name={`landscape-fauna-${shape}`} ref={mesh=>{animals.current[shape].mesh=mesh;mesh?.instanceMatrix.setUsage(THREE.DynamicDrawUsage);}} args={[resources.geometries[shape],resources.animalMaterial,CAPACITY]} frustumCulled={false} userData={{nourishment:true}} castShadow receiveShadow onClick={event=>activate(event,animals.current,shape)} />)}
+    <mesh ref={selectionRing} name="selected-landscape-animal" visible={false} rotation={[-Math.PI/2,0,0]} raycast={()=>{}}><torusGeometry args={[1,.027,6,28]} /><meshBasicMaterial color="#dfebae" transparent opacity={.72} depthWrite={false} /></mesh>
+    {props.hunt?<WildsAnimalHuntEffect hunt={props.hunt} origin={sceneOrigin} reducedMotion={props.reducedMotion??false}/>:null}
   </group>;
 }

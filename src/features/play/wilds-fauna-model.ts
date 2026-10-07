@@ -26,10 +26,12 @@ export function drawWildsFauna(species: WildsAnimalSpecies, gait: number, moving
   };
   const eyeOpen = Math.max(.08, 1 - (life?.blink ?? 0));
   const foot = (phase: number, length: number) => {
-    if (!life) return { z:Math.sin(phase)*length*.5*activity, lift:Math.max(0,Math.sin(phase))*.075*activity };
+    const stepping=life?.footActivity??activity;
+    if(!stepping)return {z:0,lift:0};
+    if (!life) return { z:Math.sin(phase)*length*.5*stepping, lift:Math.max(0,Math.sin(phase))*.075*stepping };
     const at=((phase/(Math.PI*2))%1+1)%1, swing=at>.62, travel=swing?(at-.62)/.38:at/.62;
     const eased=travel*travel*(3-2*travel);
-    return {z:(swing?-.5+eased:.5-travel)*length*activity,lift:swing?Math.sin(travel*Math.PI)*.075*activity:0};
+    return {z:(swing?-.5+eased:.5-travel)*length*stepping,lift:swing?Math.sin(travel*Math.PI)*.075*stepping:0};
   };
   const link = (shape: 'limb' | 'tip', a: [number, number, number], b: [number, number, number], width: number, tone: string) => {
     const dy = b[1] - a[1], dz = b[2] - a[2], dx = b[0] - a[0];
@@ -55,10 +57,10 @@ export function drawWildsFauna(species: WildsAnimalSpecies, gait: number, moving
       link('tip',headPoint(side*.085,1.29-headDrop,.39),headPoint(side*.075,1.38-headDrop,.3),.028,'#6a6250');
       for (const front of [-1,1]) {
         const step=foot(gait+(side<0?Math.PI:0)+(front<0?Math.PI*.5:0),life?.stride??.3);
-        const z = front*.28, kneeZ=z+step.z*.65, footZ=z+step.z, lift=step.lift;
-        link('limb',[side*.16,.67,z],[side*.17,.32,kneeZ],.045,coat);
-        body(side*.17,.32,kneeZ,.042,.05,.045,'#b1a084');
-        link('limb',[side*.17,.32,kneeZ],[side*.17,.075+lift,footZ],.028,'#b9a98d');
+        const z = front*.28, kneeZ=z+step.z*.65, footZ=z+step.z, lift=step.lift,kneeY=.32+lift*.5;
+        link('limb',[side*.16,.67,z],[side*.17,kneeY,kneeZ],.045,coat);
+        body(side*.17,kneeY,kneeZ,.042,.05,.045,'#b1a084');
+        link('limb',[side*.17,kneeY,kneeZ],[side*.17,.075+lift,footZ],.028,'#b9a98d');
         body(side*.17,.055+lift,footZ+.012,.044,.055,.065,'#514b40');
       }
     }
@@ -75,7 +77,9 @@ export function drawWildsFauna(species: WildsAnimalSpecies, gait: number, moving
       for (let feather=0;feather<3;feather++) body(side*(.14+feather*.012),.25+feather*.026,-.1,.012,.07,.115,'#8d6743',-.28);
       head(side*.07,.604-headDrop,.223,.012,.013*eyeOpen,.007,'#24211a');
       const step=foot(gait+(side<0?Math.PI:0),life?.stride??.12);
-      link('limb',[side*.045,.21,.03],[side*.045,.08+step.lift,.03+step.z],.012,'#c79345');
+      const knee:[number,number,number]=[side*.045,.13+step.lift*.45,-.012+step.z*.45];
+      link('limb',[side*.045,.21,.03],knee,.013,'#c79345');
+      link('limb',knee,[side*.045,.04+step.lift,.03+step.z],.01,'#c79345');
       for (const toe of [-1,0,1]) link('limb',[side*.045,.04+step.lift,.03+step.z],[side*.045+toe*.021,.022+step.lift,.1+step.z],.006,'#b9863b');
     }
     const beak=headPoint(0,.565-headDrop,.292);part('tip',...beak,.028,.072,.03,'#d5a649',Math.PI/2+headPitch,0,headYaw);
@@ -94,9 +98,15 @@ export function drawWildsFauna(species: WildsAnimalSpecies, gait: number, moving
       head(side*.05,.49-headDrop,.12,.035,.18,.032,'#92785d',earTilt,side*.13);
       head(side*.05,.5-headDrop,.143,.018,.14,.01,'#c19a87',earTilt,side*.13);
       body(side*.11,.13,-.13,.08,.1,.1);
-      body(side*.1,.045,.0+pace*.065,.047,.04,.12,'#b29a7c',-.1);
-      link('limb',[side*.07,.23,.115],[side*.07,.05,.17-pace*.035],.024,'#9c8469');
-      body(side*.07,.033,.198-pace*.035,.028,.023,.065,'#bcaa8e');
+      const rear=foot(gait+Math.PI,life?.stride??.3),front=foot(gait,life?.stride??.3);
+      const hock:[number,number,number]=[side*.1,.095+rear.lift*.5,-.08+rear.z*.45];
+      link('limb',[side*.11,.16,-.13],hock,.035,'#9c8469');
+      link('limb',hock,[side*.1,.045+rear.lift,rear.z],.025,'#9c8469');
+      body(side*.1,.045+rear.lift,rear.z,.047,.04,.12,'#b29a7c',-.1);
+      const elbow:[number,number,number]=[side*.07,.14+front.lift*.4,.12+front.z*.45];
+      link('limb',[side*.07,.23,.115],elbow,.024,'#9c8469');
+      link('limb',elbow,[side*.07,.05+front.lift,.17+front.z],.018,'#9c8469');
+      body(side*.07,.033+front.lift,.198+front.z,.028,.023,.065,'#bcaa8e');
     }
     body((life?.tail??0)*.12,.25,-.265,.058,.06,.057,'#d9ccaf');
   }

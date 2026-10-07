@@ -71,6 +71,7 @@ function curve(id: string, seed: number, index: number): Curve {
 export type WildsFaunaLifePose = Readonly<{
   breath: number; locomotion: number; forage: number; headYaw: number; headPitch: number;
   ear: number; tail: number; blink: number; chew: number; stride: number; variant: number; size: number;
+  footActivity?: number;
 }>;
 
 /** A random-access simulation from absolute Kai time, not a replaying animation clip.
@@ -93,6 +94,9 @@ export function projectWildsFaunaMotion(id: string, species: WildsAnimalSpecies,
   }
   const clockRate = 1 / span + .16 * fieldDerivative(pulse / (span * PHI), seed, 32) / (span * PHI);
   const speed = Math.hypot(direction.x, direction.z) * radius * derivative(travel) * clockRate / (end - start) / (KAI_PULSE_DURATION_MS / 1000);
+  // Slow farm travel still needs a full planted-foot step. Blend only at the
+  // start/end of movement, rather than damping every stride by walking speed.
+  const footActivity = ease(speed / .035);
   const locomotion = ease(speed / (species === 'hare' ? .7 : .45));
   const breathRate = species === 'ground-bird' ? PHI * PHI : species === 'hare' ? PHI : 1;
   const breathClock = pulse * breathRate + unit(seed, 0, 41) + .06 * field(pulse / PHI, seed, 42);
@@ -103,11 +107,12 @@ export function projectWildsFaunaMotion(id: string, species: WildsAnimalSpecies,
   const blinkClock = pulse / PHI + unit(seed, 0, 44), blinkIndex = Math.floor(blinkClock), blinkPhase = blinkClock - blinkIndex;
   const blink = unit(seed, blinkIndex, 45) > .35 && blinkPhase > .45 && blinkPhase < .52
     ? Math.sin((blinkPhase - .45) / .07 * Math.PI) ** 2 : 0;
-  const stride = (species === 'meadow-goat' ? .24 : species === 'ground-bird' ? .12 : .3) * PHI * (1 + .12 * field(pulse / PHI, seed, 46));
+  const stride = (species === 'meadow-goat' ? .24 : species === 'ground-bird' ? .12 : .3) * PHI
+    * Math.max(.2, Math.min(1, radius / .9)) * (1 + .12 * field(pulse / PHI, seed, 46));
   const sample = Math.min(11, Math.floor(t * 12)), blend = t * 12 - sample;
   const travelled = path.distances[sample]! + (path.distances[sample + 1]! - path.distances[sample]!) * blend;
   const gait = unit(seed, index, 47) * TAU + travelled * radius * .62 / stride * TAU;
-  const pose: WildsFaunaLifePose = { breath, locomotion, forage,
+  const pose: WildsFaunaLifePose = { breath, locomotion, forage, footActivity,
     headYaw: field(pulse / PHI, seed, 48) * .3 * (1 - locomotion * .5),
     headPitch: field(pulse * PHI, seed, 49) * .045, ear: field(pulse * PHI * PHI, seed, 50) * .12,
     tail: field(pulse / PHI, seed, 51) * .22, blink, chew: field(pulse * PHI * PHI, seed, 52) * forage,

@@ -305,6 +305,11 @@ test('canonical card affinity grants and paid typed creations qualify livestock,
     const shelter = resolveWorldCreationLivestockShelter(result.projection, command.instanceId, actorId);
     assert.equal(shelter?.shelterId, command.instanceId); assert.ok(shelter!.capacity > 0);
     assert.deepEqual(resolveWildsLivestockShelter(result.projection, command.instanceId, actorId), shelter);
+    let unrelatedReads = 0;
+    const creations = { ...result.projection.creations };
+    Object.defineProperty(creations, 'creation:unrelated', { enumerable: true, get() { unrelatedReads++; return result.projection.creations![command.instanceId]; } });
+    assert.deepEqual(resolveWorldCreationLivestockShelter({ ...result.projection, creations }, command.instanceId, actorId), shelter);
+    assert.equal(unrelatedReads, 0, 'a shelter lookup must verify its own source without scanning every other creation');
     assert.equal(resolveWorldCreationLivestockShelter(result.projection, command.instanceId, 'owner:foreign'), null);
     assert.equal(resolveWorldCreationLivestockShelter({ ...result.projection, consumedMaterialLots: {} }, command.instanceId, actorId), null);
     assert.equal(resolveWorldCreationLivestockShelter({ ...result.projection, creationEvents: {} }, command.instanceId, actorId), null);

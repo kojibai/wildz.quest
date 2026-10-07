@@ -1,9 +1,31 @@
-import type { WildsNourishmentPlant } from './wilds-nourishment';
+import type { WildsNourishmentPlant, projectWildsNourishmentPlants } from './wilds-nourishment';
 import { projectWildsTreePart } from './wilds-tree-structure';
 import type { projectWildsObstaclePlacement } from './wilds-terrain-obstacles';
 import type { WildsResourceBodyProjection } from './wilds-work-presentation';
 
 type TreePlacement = ReturnType<typeof projectWildsObstaclePlacement> & { resourceBody?: WildsResourceBodyProjection };
+export type WildsNourishmentPlantRenderRow = Readonly<{
+  plant: ReturnType<typeof projectWildsNourishmentPlants>[number];
+  groundY: number;
+  tree?: TreePlacement;
+}>;
+
+/** Reach, crop heads and player-relative distances belong to picking, not GPU buffers. */
+export function createWildsNourishmentPlantRenderCache() {
+  let retained: readonly WildsNourishmentPlantRenderRow[] = [];
+  return (rows: readonly WildsNourishmentPlantRenderRow[]): readonly WildsNourishmentPlantRenderRow[] => {
+    if (rows.length === retained.length && rows.every((row, index) => {
+      const prior = retained[index]!, a = row.plant, b = prior.plant;
+      return row.groundY === prior.groundY && row.tree === prior.tree
+        && a.sourceId === b.sourceId && a.kind === b.kind && a.remaining === b.remaining
+        && a.capacity === b.capacity && a.terrainTreeId === b.terrainTreeId
+        && a.position.x === b.position.x && a.position.y === b.position.y && a.position.z === b.position.z;
+    })) return retained;
+    retained = rows;
+    return retained;
+  };
+}
+
 /** Fruit shares the tree's rendered, harvested canopy. Cleared trees never leave floating fruit. */
 export function projectWildsFruitAttachments(plant: WildsNourishmentPlant, tree: TreePlacement, remaining: number) {
   if (Math.hypot(tree.x, tree.z) < 13.6) return [];

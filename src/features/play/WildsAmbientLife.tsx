@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { PlayState } from "./game-state";
@@ -11,6 +11,7 @@ import {
   type WildsAmbientLifeProjection
 } from "./wilds-ambient-life";
 import { wildsSiteRuntimeGroundY, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
+import { createWildsAmbientBirdGeometry, createWildsAmbientBirdMaterial, writeWildsAmbientBirdPath, type WildsAmbientBirdFlightFrame } from './wilds-ambient-birds';
 
 type AmbientMember = Readonly<{ life: WildsAmbientLifeProjection; member: number }>;
 type AmbientRuntime = {
@@ -19,6 +20,7 @@ type AmbientRuntime = {
   rotation: THREE.Euler;
   position: THREE.Vector3;
   scale: THREE.Vector3;
+  flight: WildsAmbientBirdFlightFrame;
 };
 
 const EMPTY_MEMBERS = Object.freeze([]) as readonly AmbientMember[];
@@ -54,11 +56,12 @@ function writeAmbientInstances(
     const point = path[pointIndex]!;
     const next = path[nextIndex]!;
     const separation = (entry.member - (entry.life.members - 1) / 2) * .13;
-    const directionX = next.x - point.x;
-    const directionZ = next.z - point.z;
-    const worldX = point.x + directionX * amount - directionZ * separation;
-    const worldZ = point.z + directionZ * amount + directionX * separation;
-    const rawWorldY = point.y + (next.y - point.y) * amount + (entry.life.medium === "aerial" ? separation * .24 : separation * .08);
+    const flight=entry.life.medium==='aerial'?writeWildsAmbientBirdPath(runtime.flight,path,progress):null;
+    const directionX = flight?.directionX ?? next.x - point.x;
+    const directionZ = flight?.directionZ ?? next.z - point.z;
+    const worldX = (flight?.x ?? point.x + directionX * amount) - directionZ * separation;
+    const worldZ = (flight?.z ?? point.z + directionZ * amount) + directionX * separation;
+    const rawWorldY = (flight?.y ?? point.y + (next.y - point.y) * amount) + (entry.life.medium === "aerial" ? separation * .24 : separation * .08);
     const worldY = entry.life.medium === "aerial"
       ? Math.max(rawWorldY, wildsSiteRuntimeGroundY(siteRuntime, "wildz.space.outer.v1", worldX, worldZ, rawWorldY) + .65)
       : rawWorldY;
@@ -68,12 +71,12 @@ function writeAmbientInstances(
       worldZ - playerZ
     );
     runtime.rotation.set(
-      entry.life.medium === "aquatic" ? Math.sin(progress * Math.PI * 2) * .08 : -.08,
+      entry.life.medium === "aquatic" ? Math.sin(progress * Math.PI * 2) * .08 : flight!.pitch,
       Math.atan2(directionX, directionZ),
-      entry.life.medium === "aerial" ? Math.sin(progress * Math.PI * 4 + entry.member) * .18 : 0
+      entry.life.medium === "aerial" ? flight!.bank : 0
     );
     runtime.quaternion.setFromEuler(runtime.rotation);
-    const size = entry.life.medium === "aquatic" ? .16 + entry.life.variant * .025 : .13 + entry.life.variant * .018;
+    const size = entry.life.medium === "aquatic" ? .16 + entry.life.variant * .025 : .19 + entry.life.variant * .025;
     runtime.scale.set(size, size, size);
     runtime.matrix.compose(runtime.position, runtime.quaternion, runtime.scale);
     mesh.setMatrixAt(index, runtime.matrix);
@@ -101,6 +104,19 @@ export function WildsAmbientLife({
     : Object.freeze([]) as readonly WildsAmbientLifeProjection[], [enabled, qualityProfile.tier, regionX, regionZ]);
   const aquatic = useMemo(() => membersFor(projections, "aquatic"), [projections]);
   const aerial = useMemo(() => membersFor(projections, "aerial"), [projections]);
+  const birdTime=useMemo(()=>({value:0}),[]);
+  const birdMaterial=useMemo(()=>createWildsAmbientBirdMaterial(birdTime),[birdTime]);
+  const birdGeometry=useMemo(createWildsAmbientBirdGeometry,[]);
+  useLayoutEffect(()=>{
+    const flight=new Float32Array(aerial.length*2);
+    aerial.forEach(({life,member},index)=>{
+      flight[index*2]=life.phase*Math.PI*2+member*2.399;
+      flight[index*2+1]=(2.6+life.variant*.2+member*.035)*Math.PI*2;
+    });
+    birdGeometry.setAttribute('birdFlight',new THREE.InstancedBufferAttribute(flight,2));
+  },[aerial,birdGeometry]);
+  useEffect(()=>()=>birdGeometry.dispose(),[birdGeometry]);
+  useEffect(()=>()=>birdMaterial.dispose(),[birdMaterial]);
   const aquaticMesh = useRef<THREE.InstancedMesh>(null);
   const aerialMesh = useRef<THREE.InstancedMesh>(null);
   const playerRef = useRef(player);
@@ -113,7 +129,8 @@ export function WildsAmbientLife({
     quaternion: new THREE.Quaternion(),
     rotation: new THREE.Euler(),
     position: new THREE.Vector3(),
-    scale: new THREE.Vector3()
+    scale: new THREE.Vector3(),
+    flight: {x:0,y:0,z:0,directionX:0,directionZ:0,pitch:0,bank:0}
   };
 
   useLayoutEffect(() => {
@@ -124,6 +141,7 @@ export function WildsAmbientLife({
   useFrame(({ clock }) => {
     const currentPlayer = playerRef.current;
     const timeSeconds = qualityProfile.reducedMotion ? 0 : clock.elapsedTime;
+    birdTime.value=timeSeconds;
     const runtime = runtimeRef.current!;
     writeAmbientInstances(aquaticMesh.current, aquatic, timeSeconds, currentPlayer.x, currentPlayer.z, terrainElevationRef.current, siteRuntime, runtime);
     writeAmbientInstances(aerialMesh.current, aerial, timeSeconds, currentPlayer.x, currentPlayer.z, terrainElevationRef.current, siteRuntime, runtime);
@@ -135,9 +153,6 @@ export function WildsAmbientLife({
       <coneGeometry args={[1, 2.4, 5]} />
       <meshStandardMaterial color="#55bfc4" roughness={.68} />
     </instancedMesh>
-    <instancedMesh args={[undefined, undefined, aerial.length]} frustumCulled={false} name="ambient-aerial-flock" ref={aerialMesh}>
-      <tetrahedronGeometry args={[1, 0]} />
-      <meshStandardMaterial color="#b8c8b0" roughness={.88} />
-    </instancedMesh>
+    <instancedMesh args={[birdGeometry, birdMaterial, aerial.length]} frustumCulled={false} name="ambient-aerial-flock" ref={aerialMesh} />
   </group>;
 }

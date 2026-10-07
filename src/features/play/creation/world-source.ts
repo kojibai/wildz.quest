@@ -50,7 +50,9 @@ export type WildsCreationShelterWorld = CreationPersistenceInput;
 
 /** A husbandry site must be a paid, admitted, functional typed component. */
 export function resolveWorldCreationLivestockShelter(world: WildsCreationShelterWorld, instanceId: string, ownerId: string): Readonly<{ shelterId: string; head: string; ownerReceizId: string; position: Readonly<{ x: number; y: number; z: number }>; spaceId: string; capacity: number }> | null {
-  const source = projectWildsCreationPersistence(world, ownerId).creations[instanceId];
+  const candidate = world.creations?.[instanceId];
+  if (!candidate) return null;
+  const source = projectWildsCreationPersistence({ ...world, creations: { [instanceId]: candidate } }, ownerId).creations[instanceId];
   if (!source || source.instance.ownerId !== ownerId) return null;
   const plan = compileWorldCreationSource(source), physical = projectCreationPhysical(source.instance, source.command.definition, plan), live = new Set(physical.chunks.flatMap(chunk => chunk.nodeIds)), poses = creationNodePoses(source.command.definition, source.instance.pose);
   for (const node of Object.values(source.instance.nodeStates).sort((a, b) => a.nodeId.localeCompare(b.nodeId))) {
