@@ -36,6 +36,7 @@ import {
   verifyAndAdmitWildsCard,
   type AdmittedWildsInventory
 } from "./admitted-inventory";
+import { compareWildsInventoryHistoryHeads, migrateWildsInventoryCard } from "./wilds-inventory-convergence";
 import { encounterFromSearch, idleEncounterState, isCapturableEncounter, type EncounterState } from "./encounter-state";
 import { hotspotsForRegion, nearbyHiddenHotspots, searchHiddenHotspots } from "./hidden-hotspots";
 import { applyKaiAffinityToHotspot } from "./kai-encounter-affinity";
@@ -49,7 +50,6 @@ import {
   admitLegacyCard,
   appendLivingCardHistory,
   appendLivingCardRevision,
-  compareLivingCardHistoryHeads,
   currentCreatureHistoryProjection,
   currentLivingGenome,
   currentRevision,
@@ -517,26 +517,33 @@ export function serializePlayState(state: PlayState) {
  */
 export function normalizeWildsRuntimePlayState(state: PlayState, ownerReceizId: string): PlayState {
   const admitted = createAdmittedWildsInventory(state.inventory, ownerReceizId);
-  return restorePlayState(
-    serializePlayState(admitted ? { ...state, inventory: [] } : state),
+  // A convergence array is new even when its exact immutable cards are already
+  // admitted. Preserve those objects while still running normal migration and
+  // causal-head merging; an inventory handle would incorrectly skip that work.
+  const sourceCards = !admitted && Array.isArray(state.inventory)
+    && Array.from(state.inventory).every(isAdmittedWildsCard) ? state.inventory : undefined;
+  return restorePlayStateSource(
+    serializePlayState(admitted || sourceCards ? { ...state, inventory: [] } : state),
     ownerReceizId,
-    admitted ?? undefined
+    admitted ?? undefined,
+    sourceCards
   );
 }
 
 function admitAndMergeInventory(assets: PortableCardAsset[]) {
   const merged = new Map<string, PortableCardAsset>();
   for (const source of assets) {
-    const asset = isLivingCardAsset(source) ? source : admitLegacyCard(source, source.manifest.capturedAt);
+    const asset = migrateWildsInventoryCard(source);
     const existing = merged.get(asset.id);
     if (!existing) {
       merged.set(asset.id, asset);
       continue;
     }
+    if (existing === asset) continue;
     const existingRevision = isLivingCardAsset(existing) ? currentRevision(existing) : null;
     const candidateRevision = currentRevision(asset);
     if (isLivingCardAsset(existing) && existing.manifest.history && asset.manifest.history) {
-      const latest = compareLivingCardHistoryHeads(existing, asset);
+      const latest = compareWildsInventoryHistoryHeads(existing, asset);
       if (latest === "right") merged.set(asset.id, asset);
       continue;
     }
@@ -647,6 +654,15 @@ export function restorePlayState(
   ownerReceizId?: string,
   admittedInventory?: AdmittedWildsInventory
 ): PlayState {
+  return restorePlayStateSource(value, ownerReceizId, admittedInventory);
+}
+
+function restorePlayStateSource(
+  value: string | null | undefined,
+  ownerReceizId?: string,
+  admittedInventory?: AdmittedWildsInventory,
+  admittedSourceCards?: PortableCardAsset[]
+): PlayState {
   let recovery: PlayState | undefined;
   const recover = () => recovery ?? (recovery = fallbackPlayState(ownerReceizId));
   if (!value) return recover();
@@ -665,7 +681,7 @@ export function restorePlayState(
     const sameSessionInventory = ownerReceizId ? restoreAdmittedWildsInventory(admittedInventory, ownerReceizId) : null;
     const quarantinedInventory = Array.isArray(saved.quarantinedInventory)
       ? saved.quarantinedInventory.filter((asset): asset is PortableCardAsset => Boolean(asset) && verifyAnyWildsCard(asset).ok) : [];
-    const restoredInventory = sameSessionInventory ?? (Array.isArray(saved.inventory)
+    const restoredInventory = sameSessionInventory ?? admittedSourceCards ?? (Array.isArray(saved.inventory)
       ? saved.inventory.filter((asset): asset is PortableCardAsset => Boolean(asset) && verifyAndAdmitWildsCard(asset as PortableCardAsset))
       : []);
     const ownerScopedInventory = ownerReceizId && !sameSessionInventory

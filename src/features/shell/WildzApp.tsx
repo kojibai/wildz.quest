@@ -93,8 +93,7 @@ import { canRestoreFocus } from "@/features/play/focus-recovery";
 import type { WildzPlayerStateRecord } from "@/lib/receiz/wildz-player-state-sync";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
 import type { WildzPlayerStateReceipt } from "@/lib/performance/wildz-player-state-transport";
-import { mergeWildsRemotePlayerPlayState } from "@/features/play/wilds-player-vault";
-import { mergePlayerContinuity } from "@/features/identity/wildz-restore";
+import { prepareWildzRemotePlayerSnapshot } from "@/features/identity/wildz-remote-player-admission";
 import { wildzPlayerStateSerializer } from "@/lib/performance/wildz-player-state-serializer";
 import { wildzJsonSerializer } from "@/lib/performance/wildz-json-serializer";
 import { projectWildzContinuityExplorer } from "@/features/play/wildz-explorer-proof";
@@ -1024,24 +1023,13 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }, [claimAndRestoreVaultArtifact]);
 
   const admitRemotePlayerState = useCallback(async (record: WildzPlayerStateRecord | null) => {
-    if (!record || record.sourceDigest === lastRemotePlayerDigestRef.current) return;
-    const current = continuityRef.current;
-    if (!current?.playState || !sameWildzPlayerCoordinate(current.session.actorId, record.playerId)) return;
-    const remoteIsNewer = hasLaterWildsPlayerLedger(record.player.playState, current.playState);
-    const playState = mergeWildsRemotePlayerPlayState({
-      local: current.playState,
-      restored: record.player.playState,
-      actorId: current.session.actorId
-    });
-    const snapshot: WildzContinuitySnapshot = {
-      ...current,
-      playState,
-      character: remoteIsNewer ? record.player.character ?? current.character : current.character,
-      playerContinuity: {
-        ...mergePlayerContinuity(current.playerContinuity, record.player)!,
-        settings: remoteIsNewer ? record.player.settings : current.playerContinuity?.settings ?? record.player.settings,
-      }
-    };
+    if (!record) return false;
+    const source = continuityRef.current;
+    if (!source?.playState || !sameWildzPlayerCoordinate(source.session.actorId, record.playerId)) return false;
+    if (record.sourceDigest === lastRemotePlayerDigestRef.current) return true;
+    const snapshot = await prepareWildzRemotePlayerSnapshot(source, record, () => continuityRef.current);
+    if (!snapshot?.playState) return false;
+    const playState = snapshot.playState;
     lastRemotePlayerDigestRef.current = record.sourceDigest;
     adoptingRemotePlayStateRef.current = playState;
     acceptSnapshot(snapshot);
@@ -1056,6 +1044,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       snapshot.playerContinuity!,
       snapshot.character
     ).catch(() => null);
+    return true;
   }, [acceptSnapshot, runtimeCheckpointStore]);
 
   const queueGlobalPlayerStateSync = useCallback((snapshot: WildzContinuitySnapshot) => {
@@ -1104,7 +1093,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           // A response racing newer local input still needs to be pulled later.
           // Do not mark an unconsumed converged Vault as already downloaded.
           if (playerStateMutationRef.current !== mutationAtSubmit) return;
-          await admitRemotePlayerState(result.record);
+          if (!await admitRemotePlayerState(result.record)
+            || !isCurrentWildzGameplaySource(continuityRef.current, queued)) return;
         }
         knownRemotePlayerHeadRef.current = { keyId: queued.session.keyId, restoreEpoch: queued.restoreEpoch, digest: head.sourceDigest };
       }).catch(() => undefined).finally(() => {
@@ -1163,7 +1153,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           && restoreEpochAtRead !== undefined && restoreEpochAtRead === continuityRef.current?.restoreEpoch
           && playerStateMutationRef.current === mutationAtRead
           && playerStateMutationRef.current === playerStateSubmittedMutationRef.current) {
-          await admitRemotePlayerState(result.record);
+          if (!await admitRemotePlayerState(result.record)
+            || !active || restoreEpochAtRead !== continuityRef.current?.restoreEpoch
+            || identity.keyId !== continuityRef.current?.session.keyId) return;
           knownRemotePlayerHeadRef.current = { keyId: identity.keyId, restoreEpoch: restoreEpochAtRead, digest: result.record.sourceDigest };
         }
       }).catch(() => undefined).finally(() => {

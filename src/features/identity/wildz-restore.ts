@@ -1,4 +1,5 @@
 import { createAdmittedWildsInventory } from "../play/admitted-inventory";
+import { prepareWildsIncomingInventory } from "../play/wilds-incoming-inventory";
 import { hasLaterWildsPlayerLedger } from "../play/wilds-play-state-source";
 import { isVerifiedWildzCardDescendant } from "../../lib/receiz/wildz-card-descendant";
 import { readWildzArtifactCrewCustody, mergeWildzCrewCustody, wildzCrewCustodySources, type WildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
@@ -393,7 +394,17 @@ export async function loadWildzRestoredOwnerState(input: {
   session: WildzIdentitySession;
 }) {
   const scope = wildzOwnerScope(input.session.keyId, input.session.actorId);
-  return storedOwnerState(await input.database.read<unknown>("ownerStates", scope), input.session);
+  const value = await input.database.read<unknown>("ownerStates", scope);
+  if (value && typeof value === "object") {
+    const record = value as Partial<StoredWildzOwnerState>;
+    if (record.keyId === input.session.keyId && record.actorId === input.session.actorId
+      && (record.schema === OWNER_STATE_SCHEMA || record.schema === LEGACY_OWNER_PLAY_STATE_SCHEMA)
+      && Array.isArray(record.playState?.inventory)) {
+      const inventory = await prepareWildsIncomingInventory(record.playState.inventory);
+      return storedOwnerState({ ...record, playState: { ...record.playState, inventory } }, input.session);
+    }
+  }
+  return storedOwnerState(value, input.session);
 }
 
 export async function loadWildzRestoredPlayState(input: {
