@@ -4,6 +4,7 @@ import type { WildsBurrowRequest } from "./wilds-burrow";
 import { settleWildsBuild } from "./wilds-steward-build-settlement";
 import { playerStewardBuilder } from "./wilds-steward-construction";
 import type { WildsActivityEntry } from "./wallet/wilds-activity-history";
+import { projectWildsStoryActivity } from "./wilds-story-activity";
 import { resolveWildsCraftWorkstation } from "./wilds-construction-function";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -239,7 +240,7 @@ export function useWildsWorld(input: {
         setSnapshot((current) => acceptWildsWorldSnapshot(current, projection, ownedWorldAdditions.current));
         for (const event of events) {
           if (event.actorId !== entry.actorId) continue;
-          activityListener.current?.({ id: event.eventId, kind: "activity", title: event.kind.replaceAll(".", " ").replaceAll("_", " "), detail: "Admitted world activity on this device", uPulse: event.uPulse, authority: "world", constitution });
+          activityListener.current?.(projectWildsStoryActivity(event, constitution));
         }
       }
     }) };

@@ -23,12 +23,12 @@ import dynamic from "next/dynamic";
 import type {CreationNavigation} from './creation/navigation';
 import type {CreationController} from "./creation/controller";
 import {createWorldCreationController,type WorldCreationControllerInput} from "./creation/world-controller";
-import {creationWorldSourceHead} from "./creation/world-source";
 import {createCreationPhysicalWorkerClient} from "./creation/physical-worker-client";
 import type {CreationObjectLibraryInput} from "./creation/library-session";
 import type {CreationPhysicalSnapshot} from "./creation/physical-store";
 import type { CreationPreview } from "./creation/preview";
-import {projectCreationCompilePhysical} from "./creation/compile-environment";
+import { projectActiveCreationContext, type CreationContextSeed } from "./creation/live-context";
+import { describeWildsPoint } from "./wilds-world-geography";
 import {projectPlayerBreathState, playerBreathReadout} from "./player-breath-energy";
 import type { CreationCompileContext } from "./creation/compiler";
 import creationPanelClasses from "./creation/creation.module.css";
@@ -385,7 +385,7 @@ export function PlayCampaign({
   const [creationPlacing,setCreationPlacing]=useState(false);
   const [creationPreview,setCreationPreview]=useState<CreationPreview|null>(null);
   const creationPoint=useRef<((pose:CreationCompileContext["pose"])=>void)|null>(null);
-  const [creationContext,setCreationContext]=useState<CreationCompileContext|null>(null);
+  const [creationContext,setCreationContext]=useState<CreationContextSeed|null>(null);
   const [state, setState] = useState(() => initialState);
   const crewPreferences = useMemo(() => sanitizeWildsCrewPreferences(state.crewPreferences, state.inventory, ownerReceizId, crewCustody), [state.crewPreferences, state.inventory, ownerReceizId, crewCustody]);
   const admittedSourceStateRef = useRef(initialState);
@@ -695,7 +695,8 @@ export function PlayCampaign({
   const canSwim = activeTraversalCapabilities.includes("swim");
   const [activeVistaId, setActiveVistaId] = useState<WildsOverlookId | null>(null);
   const deckCards = state.inventory;
-  const priorVaultIdsRef = useRef(new Set(state.inventory.map((asset) => asset.id)));
+  const priorVaultIdsRef = useRef<Set<string> | null>(null);
+  if (!priorVaultIdsRef.current) priorVaultIdsRef.current = new Set(state.inventory.map((asset) => asset.id));
   const [newRosterAssetId, setNewRosterAssetId] = useState<string | null>(null);
   const [initialVaultAdmission] = useState<WildzVaultCardAdmission>(() => vaultAdmission ?? deriveWildzVaultCardAdmission({
     cards: initialState.inventory,
@@ -703,7 +704,7 @@ export function PlayCampaign({
   }));
   const currentVaultAdmission = vaultAdmission ?? initialVaultAdmission;
   useEffect(() => {
-    const prior = priorVaultIdsRef.current;
+    const prior = priorVaultIdsRef.current!;
     const added = state.inventory.filter((asset) => !prior.has(asset.id));
     priorVaultIdsRef.current = new Set(state.inventory.map((asset) => asset.id));
     if (!added.length) return;
@@ -1074,9 +1075,16 @@ export function PlayCampaign({
   const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
   const currentCreationWorldSource=livingWorld.currentSource;
   const creationWorldSnapshot=livingWorld.snapshot;
-  const creationWorldHead=useMemo(()=>{void creationWorldSnapshot;return creationWorldSourceHead(currentCreationWorldSource());},[creationWorldSnapshot,currentCreationWorldSource]);
-  const creationCompilePhysical=useMemo(()=>projectCreationCompilePhysical({worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId,sourceHead:creationWorldHead,projections:creationPhysical.projections,obstacles:livingPhysicalObstacles,sites:sitePhysical}),[state.siteSpace.spaceId,creationWorldHead,creationPhysical.projections,livingPhysicalObstacles,sitePhysical]);
-  const liveCreationContext=useMemo(()=>creationContext?{...creationContext,spaceId:state.siteSpace.spaceId,sourceHead:creationWorldHead,physical:creationCompilePhysical}:null,[creationContext,state.siteSpace.spaceId,creationWorldHead,creationCompilePhysical]);
+  const liveCreationContext = useMemo(() => {
+    // World refreshes must not hash a full checkpoint or rebuild compiler
+    // solids while the player is exploring with the builder closed.
+    void creationWorldSnapshot;
+    return projectActiveCreationContext({ active: creationOpen,
+      context: creationContext ? { ...creationContext, spaceId: state.siteSpace.spaceId } : null,
+      world: currentCreationWorldSource,
+      physical: { projections: creationPhysical.projections, obstacles: livingPhysicalObstacles, sites: sitePhysical }
+    });
+  }, [creationOpen, creationContext, state.siteSpace.spaceId, creationWorldSnapshot, currentCreationWorldSource, creationPhysical.projections, livingPhysicalObstacles, sitePhysical]);
   creationRuntime.current={
     environment:()=>({ownerId:ownerReceizId,worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId}),
     world:livingWorld.currentSource,
@@ -2732,13 +2740,17 @@ export function PlayCampaign({
           }} /> : null}
           {homeLife ? <WildsHomeLife home={homeLife} onAction={doHomeActivity} /> : null}
           {discoveryStory ? <WildsDiscoveryStory discovery={discoveryStory} onExplore={() => followJourneyStep("explore")} /> : null}
-          <section aria-label="Φ earned through world work" style={{ fontSize: 13, lineHeight: 1.6 }}>
-            <strong>Φ{formatWildsPhiExact(earnedWorldPhi.totalPhiMicro)} earned through world work</strong>
-            <p>Small rewards for useful work: stone Φ0.01, timber Φ0.02, and funded building work Φ0.01. A helping companion can earn more. Rewards depend on the world’s available supply; your wallet balance is shown separately.</p>
-          </section>
-          <details><summary>Playtest tools</summary><WildsPlaytestPanel playtest={playtest} /></details>
-          <p className="wilds-saga-deck-count"><strong>{deckCards.length}/∞</strong> living cards in your deck</p>
           <WildsSagaPanel
+            actionHistory={state.actionHistory}
+            journeyMemories={journeyMemories}
+            location={{ name: state.siteSpace.spaceId === "wildz.space.outer.v1" ? describeWildsPoint(state.player) : "Within an inner world", position: state.player }}
+            onOpenLedger={() => {
+              if (!interactionEnabled || modalOwner !== "none" || worldOverlayState.panelKey !== "mission") return;
+              closeJourney();
+              walletController.navigate("ledger");
+              claimPlayModalOwner("wallet");
+              walletController.openTerminal();
+            }}
             missions={sagaMissions}
             mode={livingWorld.mode}
             onBattleTrainer={(trainer) => openTrainerEncounter(trainer, "mission")}
@@ -2758,6 +2770,14 @@ export function PlayCampaign({
             tournament={sagaTournament}
             trainers={sagaTrainers}
           />
+          <div className="wilds-story-utilities">
+            <section className="wilds-story-rewards" aria-label="Φ earned through world work"><Icons.gift size={23} aria-hidden="true" /><div>
+              <small>Φ earned through world work</small><strong>Φ{formatWildsPhiExact(earnedWorldPhi.totalPhiMicro)}</strong>
+              <p>Stone Φ0.01 · timber Φ0.02 · funded building Φ0.01. Companions can help you earn more. Rewards depend on the world’s available supply; your wallet balance is shown separately.</p>
+            </div></section>
+            <div className="wilds-story-collection wilds-saga-deck-count"><Icons.assets size={22} aria-hidden="true" /><div><small>Your living collection</small><strong>{deckCards.length}/∞ living cards in your deck</strong></div></div>
+          </div>
+          <details className="wilds-story-tools"><summary><span><Icons.analytics size={15} aria-hidden="true" />Playtest tools</span><Icons.chevronDown size={14} aria-hidden="true" /></summary><WildsPlaytestPanel playtest={playtest} /></details>
         </div>
       )
     },
@@ -3301,7 +3321,7 @@ export function PlayCampaign({
             <WildzWorldControls
               onOpenCreation={()=>{
                 continuousBuilder.close();burrowBuilder.close();dispatchStageOverlay({type:'dismiss'});
-                setCreationContext({worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId,sourceHead:creationWorldHead,pose:{position:{x:state.player.x+3,y:state.siteSpace.position.y,z:state.player.z},yaw:0},budget:{...stewardMaterials},techniques:[],physical:creationCompilePhysical,quality:qualityProfile.tier==='low'?'low':'high'});
+                setCreationContext({worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId,pose:{position:{x:state.player.x+3,y:state.siteSpace.position.y,z:state.player.z},yaw:0},budget:{...stewardMaterials},techniques:[],quality:qualityProfile.tier==='low'?'low':'high'});
                 setCreationOpen(true);
               }}
               onOpenCrew={() => setRequestedCommand("crew")}

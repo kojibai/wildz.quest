@@ -1,6 +1,14 @@
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import type { WildsChapterMemory, WildsSagaProjection, WildsSagaInstanceIds } from "./wilds-saga-director";
 import type { WildsAchievementDefinition, WildsGameplayVerb, WildsReward, WildsSagaScope } from "./wilds-saga-types";
+import { wildsSagaFramework } from "./wilds-saga-content";
+
+const STORY_OUTCOMES = {
+  success: { label: "Path restored", cause: "restored a route that still shapes the world", detail: "The path flourished. Its keepers carry that work into the next chapter." },
+  partial: { label: "Work continues", cause: "left unfinished work for the next keepers", detail: "Some of the work was completed. The remaining effort carries into the next chapter." },
+  failure: { label: "A lasting scar", cause: "left a scar that the world still remembers", detail: "The trial was lost. Its consequences remain part of the world and the stories that follow." },
+  unopposed: { label: "A quiet chapter", cause: "passed without an answer to its challenge", detail: "The chapter settled without a challenge. Its unanswered call carries into what follows." }
+} as const;
 
 export type WildsAchievementProgressEvent = Readonly<{
   eventId: string;
@@ -77,12 +85,18 @@ export function projectSagaReturnContinuity(input: {
     .sort((left, right) => left.settledAt.localeCompare(right.settledAt))
     .slice(-3);
   const latest = memories.at(-1);
+  const storyMemories = memories.map(memory => ({ ...memory,
+    title: wildsSagaFramework().dailyChapters.find(chapter => chapter.id === memory.chapterId)?.title ?? "An earlier chapter",
+    ...STORY_OUTCOMES[memory.outcome]
+  }));
+  const latestStory = storyMemories.at(-1);
   return {
     greeting: memories.length ? `Welcome back, ${name}. The world remembers your path.` : `Welcome, ${name}. The living story is already moving.`,
     memories,
+    storyMemories,
     causeSummary: latest
-      ? `${input.saga.chapter.title} begins this way because ${latest.chapterId} ended in ${latest.outcome} and left ${latest.hookId}.`
-      : `${input.saga.chapter.title} begins from the geometry of ${input.saga.momentCoordinate}.`,
+      ? `${input.saga.chapter.title} begins this way because ${latestStory!.title} ${latestStory!.cause}.`
+      : `${input.saga.chapter.title} unfolds in ${input.saga.chapter.featuredRegionId}. Each completed objective helps shape what follows.`,
     nextHook: input.saga.act.directive
   };
 }

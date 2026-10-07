@@ -18,7 +18,7 @@ test("Wildz app owns the game and overlay state", () => {
   assert.match(source, /wildz-app/);
 });
 
-test("optional shell surfaces and card previews stay off the first-world-draw path", () => {
+test("optional shell surfaces stay off the first-world-draw path", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   for (const name of ["Profile", "Vault"]) {
     assert.doesNotMatch(source, new RegExp(`import \\{ Wildz${name}Sheet \\} from`));
@@ -31,9 +31,6 @@ test("optional shell surfaces and card previews stay off the first-world-draw pa
   assert.match(surfaceWarmup, /if \(!worldPainted\) return/);
   assert.match(surfaceWarmup, /for \(const load of[\s\S]*await wildzGameplayBackground\.run/);
   assert.doesNotMatch(surfaceWarmup, /Promise\.all/);
-  const previewWarmup = source.slice(source.lastIndexOf("useEffect(() =>", source.indexOf("// Prepare one preview")), source.indexOf("// Publish the same complete local collection"));
-  assert.match(previewWarmup, /if \(!worldPainted\) return/);
-  assert.match(previewWarmup, /ownerPlayState\.inventory, worldPainted/);
 });
 
 test("Wildz creates identity before deterministic character genesis and enters play immediately", () => {

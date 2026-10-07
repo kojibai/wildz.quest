@@ -269,7 +269,7 @@ function continuityFromOwner(state: StoredWildzOwnerState): WildzPlayerContinuit
   };
 }
 
-function mergePlayerContinuity(
+export function mergePlayerContinuity(
   local: WildzPlayerContinuity | null | undefined,
   restored: WildsPlayerVaultPayload | null | undefined
 ): WildzPlayerContinuity | null {

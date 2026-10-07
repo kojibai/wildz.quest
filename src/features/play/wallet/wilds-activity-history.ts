@@ -27,6 +27,16 @@ export function appendWildsActivity(history: readonly WildsActivityEntry[] | und
   return normalizeWildsActivityHistory([...(history ?? []), entry]);
 }
 
+/** Retain each device's records and the newest version of coalesced travel. */
+export function mergeWildsActivityHistories(left: unknown, right: unknown, preferLeft = false): WildsActivityEntry[] {
+  const entries = new Map(normalizeWildsActivityHistory(left).map(entry => [entry.id, entry]));
+  for (const entry of normalizeWildsActivityHistory(right)) {
+    const existing = entries.get(entry.id);
+    if (!existing || entry.uPulse > existing.uPulse || (entry.uPulse === existing.uPulse && !preferLeft)) entries.set(entry.id, entry);
+  }
+  return [...entries.values()].sort((a, b) => a.uPulse - b.uPulse || a.id.localeCompare(b.id));
+}
+
 /** Missing historical coordinates stay unknown; never substitute the current clock. */
 export function ledgerKaiTime(input: { uPulse?: number; occurredAt?: string }): { timing: string; uPulse: number | null } {
   try {

@@ -25,3 +25,12 @@ test("repeated gameplay actions with identical feedback each appear immediately"
   assert.equal(second.actionHistory.length,first.actionHistory.length+1);
   assert.equal(second.actionHistory.at(-1)?.uPulse,101);
 });
+test("player travel never rewrites a shared world event with the same title", () => {
+  const worldTravel = { id: "world:travel", kind: "activity" as const, title: "Travel", detail: "A shared traveler passed", uPulse: 100, authority: "world" as const };
+  const state = { ...initialPlayState, actionHistory: [worldTravel] };
+  const next = applyWildsInput(state, { type: "move", direction: "east", kaiUPulse: 101 });
+  assert.notDeepEqual(next.player, state.player);
+  assert.deepEqual(next.actionHistory[0], { ...worldTravel, constitution: undefined });
+  assert.equal(next.actionHistory.length, 2);
+  assert.equal(next.actionHistory.at(-1)?.authority, "local");
+});

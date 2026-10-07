@@ -13,6 +13,28 @@ import { projectMissionGraph } from "../src/features/play/wilds-saga-missions.js
 const source = (path: string) => readFileSync(resolve(process.cwd(), path), "utf8");
 
 describe("living saga interface", () => {
+  it("updates Story so far with completed objectives, the live next step and readable chapter memories", () => {
+    const framework = wildsSagaFramework();
+    const remembered = framework.dailyChapters[0]!;
+    const saga = projectWildsSaga({ moment: deriveKaiKlokMoment({ occurredAt: "2026-07-16T22:00:00.000Z", authority: "local" }), framework,
+      memories: [{ chapterId: remembered.id, dayId: "saga:day:previous", outcome: "success", hookId: remembered.outcomeHooks.success,
+        settledEventId: "story:previous", settledAt: "2026-07-15T22:00:00.000Z" }] });
+    const first = saga.chapter.missions.find(mission => mission.primary)!.nodes[0]!;
+    const missions = projectMissionGraph({ saga, playerId: "player:source", contributions: [{ eventId: "story:step", dayId: saga.dayId,
+      objectiveId: first.id, playerId: "player:source", verb: first.acceptedVerbs[0]!, amount: first.target }], currentDayId: saga.dayId });
+    const markup = renderToStaticMarkup(createElement(WildsSagaPanel, { saga, missions, player: null, trainers: [], tournament: null,
+      mode: "receiz_recovery_pending", playerId: "player:source", playerName: "Source Keeper", pending: false,
+      onContribute() {}, onBattleTrainer() {}, onEnterTournament() {} }));
+    const history = markup.slice(markup.indexOf('class="wilds-saga-history"'));
+    assert.match(history, /Completed/);
+    assert.ok(history.includes(first.title));
+    assert.ok(history.includes(missions.recommended!.definition.title));
+    assert.ok(history.includes(remembered.title));
+    assert.match(history, /Path restored/);
+    assert.ok(!history.includes(remembered.id));
+    assert.ok(!history.includes(remembered.outcomeHooks.success));
+  });
+
   it("keeps source-admissible story work available while global projection reconnects", () => {
     const saga = projectWildsSaga({
       moment: deriveKaiKlokMoment({ occurredAt: "2026-07-16T22:00:00.000Z", authority: "local" }),
@@ -35,8 +57,8 @@ describe("living saga interface", () => {
       onEnterTournament() {}
     }));
 
-    assert.match(markup, />Do: [^<]+<\/button>/);
-    assert.doesNotMatch(markup, /<button[^>]*disabled=""[^>]*>Do:/);
+    assert.match(markup, /<button class="wilds-saga-action is-primary"/);
+    assert.doesNotMatch(markup, /<button class="wilds-saga-action is-primary"[^>]*disabled=""/);
     assert.match(markup, /admitted locally/i);
   });
 

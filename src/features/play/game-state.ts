@@ -1004,13 +1004,23 @@ export function selectedAsset(state: PlayState) {
 
 export function isPlayableAsset(state: Pick<PlayState, "inventory" | "adventureConditions">, assetId: string) {
   const asset = state.inventory.find((candidate) => candidate.id === assetId);
-  if (!asset || (!isAdmittedWildsCard(asset) && !verifyAndAdmitWildsCard(asset)) || state.adventureConditions[assetId]?.life === "dead") return false;
+  return Boolean(asset && isPlayableCardAsset(asset, state.adventureConditions));
+}
+
+function isPlayableCardAsset(asset: PortableCardAsset, conditions: PlayState["adventureConditions"]) {
+  if ((!isAdmittedWildsCard(asset) && !verifyAndAdmitWildsCard(asset)) || conditions[asset.id]?.life === "dead") return false;
   const life = isLivingCardAsset(asset) ? currentRevision(asset).growth.life : null;
   return !life || (!life.retired && life.vitality > 0);
 }
 
 export function playableInventory(state: Pick<PlayState, "inventory" | "adventureConditions">) {
-  return state.inventory.filter((asset) => isPlayableAsset(state, asset.id));
+  // Evaluate the first exact card for each ID once. A find inside filter used
+  // to rescan the entire Vault for every card, making roster refresh quadratic.
+  const playable = new Map<string, boolean>();
+  return state.inventory.filter((asset) => {
+    if (!playable.has(asset.id)) playable.set(asset.id, isPlayableCardAsset(asset, state.adventureConditions));
+    return playable.get(asset.id)!;
+  });
 }
 
 export function applyCommittedArenaSettlement(state: PlayState, settlement: ArenaSettlement): PlayState {
@@ -1253,7 +1263,8 @@ export function applyWildsInput(state: PlayState, input: WildsInput): PlayState 
   const moving = input.type === "move" || input.type === "move-vector";
   if (moving && next.player.x === state.player.x && next.player.z === state.player.z) return next;
   const previous = state.actionHistory?.at(-1);
-  if (moving && previous?.title === "Travel" && input.kaiUPulse! - previous.uPulse < 1_000_000) {
+  if (moving && previous?.authority === "local" && previous.title === "Travel"
+    && input.kaiUPulse! >= previous.uPulse && input.kaiUPulse! - previous.uPulse < 1_000_000) {
     const updated = { ...previous, uPulse: input.kaiUPulse!, detail: `Moved to X ${next.player.x.toFixed(1)} · Z ${next.player.z.toFixed(1)}` };
     return { ...next, actionHistory: [...state.actionHistory.slice(0, -1), updated] };
   }

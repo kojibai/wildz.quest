@@ -9,7 +9,6 @@ import { validateWildsRoamingHandoffCard } from "../../lib/receiz/wilds-roaming-
 import { pruneWildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
 
 import { emitWildsPlaytestEvent } from "@/features/play/wilds-playtest-events";
-import { wildsCardArtwork } from "@/features/play/wilds-card-artwork";
 import { WildzMarketSheet } from "@/features/market/WildzMarketSheet";
 import { PlayCampaign } from "@/features/play/PlayCampaign";
 import { generateIdentityBoundWildzCharacter, type WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
@@ -92,6 +91,9 @@ import { openWildzArtifactSameOrigin } from "@/lib/receiz/wildz-same-origin-veri
 import { canRestoreFocus } from "@/features/play/focus-recovery";
 import type { WildzPlayerStateRecord } from "@/lib/receiz/wildz-player-state-sync";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
+import type { WildzPlayerStateReceipt } from "@/lib/performance/wildz-player-state-transport";
+import { mergeWildsRemotePlayerPlayState } from "@/features/play/wilds-player-vault";
+import { mergePlayerContinuity } from "@/features/identity/wildz-restore";
 import { wildzPlayerStateSerializer } from "@/lib/performance/wildz-player-state-serializer";
 import { wildzJsonSerializer } from "@/lib/performance/wildz-json-serializer";
 import { projectWildzContinuityExplorer } from "@/features/play/wildz-explorer-proof";
@@ -169,6 +171,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const playerStateSourceTimesRef = useRef(new WeakMap<WildzContinuitySnapshot, { mutation: number; exportedAt: string }>());
   const playerStateSubmittedMutationRef = useRef(0);
   const lastRemotePlayerDigestRef = useRef("");
+  const knownRemotePlayerHeadRef = useRef<{ keyId: string; restoreEpoch: WildzContinuitySnapshot["restoreEpoch"]; digest: string } | null>(null);
   const adoptingRemotePlayStateRef = useRef<PlayState | null>(null);
   const playStateSaveSchedulerRef = useRef<WildzPlayStatePersistenceCoordinator<PendingPlayStateSave> | null>(null);
   const [runtimeCheckpointStore] = useState(() => createWildzRuntimeCheckpointStore({
@@ -305,18 +308,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     explorer: character ?? campaignCharacter,
     assets: ownerPlayState.inventory
   }), [avatarImageUrl, character, campaignCharacter, identity?.displayName, ownerPlayState.inventory, ownerUsername]);
-  useEffect(() => {
-    if (!worldPainted) return;
-    let cancelled = false;
-    // Prepare one preview at a time before Profile is opened, yielding between cards.
-    void (async () => {
-      for (const asset of ownerPlayState.inventory) {
-        if (cancelled) return;
-        await wildzGameplayBackground.run(() => { if (!cancelled) wildsCardArtwork(asset); });
-      }
-    })().catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [ownerPlayState.inventory, worldPainted]);
   // Publish the same complete local collection shown in the owner’s profile.
   const publishablePublicProfile = ownerSourceProfile;
   // Equal public content must not cancel a request when gameplay saves replace object references.
@@ -429,10 +420,18 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     continuityRef.current = snapshot;
     setContinuity(snapshot);
     setCharacter(snapshot.character);
-    if (!previous || !sameWildzPlayerCoordinate(previous.session.actorId, snapshot.session.actorId)) {
+    if (!isCurrentWildzGameplaySource(previous, snapshot)) {
       playerStateMutationRef.current = 0;
       playerStateSubmittedMutationRef.current = 0;
       lastRemotePlayerDigestRef.current = "";
+      knownRemotePlayerHeadRef.current = null;
+      playerStateSyncQueuedRef.current = null;
+      if (playerStateSyncTimerRef.current !== null) window.clearTimeout(playerStateSyncTimerRef.current);
+      playerStateSyncTimerRef.current = null;
+    }
+    // A same-player Vault merge keeps its authenticated world session. Only
+    // delayed sync saves and remembered remote heads belong to the old restore.
+    if (!previous || !sameWildzPlayerCoordinate(previous.session.actorId, snapshot.session.actorId)) {
       setProofSessionConnected(false);
       setProofSessionGeneration("");
     }
@@ -1022,8 +1021,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (!record || record.sourceDigest === lastRemotePlayerDigestRef.current) return;
     const current = continuityRef.current;
     if (!current?.playState || !sameWildzPlayerCoordinate(current.session.actorId, record.playerId)) return;
-    if (!hasLaterWildsPlayerLedger(record.player.playState, current.playState)) return;
-    const playState = mergeWildsPlayerPlayStates({
+    const remoteIsNewer = hasLaterWildsPlayerLedger(record.player.playState, current.playState);
+    const playState = mergeWildsRemotePlayerPlayState({
       local: current.playState,
       restored: record.player.playState,
       actorId: current.session.actorId
@@ -1031,12 +1030,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const snapshot: WildzContinuitySnapshot = {
       ...current,
       playState,
-      character: record.player.character ?? current.character,
+      character: remoteIsNewer ? record.player.character ?? current.character : current.character,
       playerContinuity: {
-        settings: record.player.settings,
-        personalEvents: record.player.personalEvents,
-        canonicalCursor: record.player.canonicalCursor,
-        receipts: record.player.receipts
+        ...mergePlayerContinuity(current.playerContinuity, record.player)!,
+        settings: remoteIsNewer ? record.player.settings : current.playerContinuity?.settings ?? record.player.settings,
       }
     };
     lastRemotePlayerDigestRef.current = record.sourceDigest;
@@ -1056,7 +1053,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }, [acceptSnapshot, runtimeCheckpointStore]);
 
   const queueGlobalPlayerStateSync = useCallback((snapshot: WildzContinuitySnapshot) => {
-    if (!proofSessionConnected || !snapshot.playState || !snapshot.playerContinuity) return;
+    if (!proofSessionConnected || !snapshot.playState || !snapshot.playerContinuity
+      || !isCurrentWildzGameplaySource(continuityRef.current, snapshot)) return;
     playerStateSyncQueuedRef.current = snapshot;
     if (playerStateSyncTimerRef.current !== null || playerStateSyncInFlightRef.current) return;
     playerStateSyncTimerRef.current = window.setTimeout(() => {
@@ -1064,7 +1062,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       const queued = playerStateSyncQueuedRef.current;
       playerStateSyncQueuedRef.current = null;
       if (!queued?.playState || !queued.playerContinuity) return;
-      if (queued.session.keyId !== continuityRef.current?.session.keyId) return;
+      if (!isCurrentWildzGameplaySource(continuityRef.current, queued)) return;
       const source = playerStateSourceTimesRef.current.get(queued);
       // Retries carry the original gameplay timestamp and mutation, not retry time.
       if (!source) return;
@@ -1075,18 +1073,34 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         ?? wildzGameplayBackground.run(() => {
           const player = createWildsPlayerVault(projectionInput);
           return JSON.stringify({ player });
-        }, { timeoutMs: 1_500 })).then((body) => fetch("/api/wilds/player-state", {
-        method: "POST",
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: { "content-type": "application/json" },
-        body
-      })).then(async (response) => {
-        const result = await response.json().catch(() => null) as { ok?: boolean; record?: WildzPlayerStateRecord | null } | null;
-        if (!response.ok || !result?.ok || !result.record
-          || queued.session.keyId !== continuityRef.current?.session.keyId) return;
+        }, { timeoutMs: 1_500 })).then((body) => {
+        // A seal can be restored while the worker is preparing an old save.
+        if (!isCurrentWildzGameplaySource(continuityRef.current, queued)) return null;
+        return fetch("/api/wilds/player-state", {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: { "content-type": "application/json", "x-wildz-player-state-response": "compact" },
+          body
+        });
+      }).then(async (response) => {
+        if (!response) return;
+        const result = await response.json().catch(() => null) as { ok?: boolean; record?: WildzPlayerStateRecord | null; receipt?: WildzPlayerStateReceipt } | null;
+        const head = result?.record ?? result?.receipt;
+        if (!response.ok || !result?.ok || !head
+          || !sameWildzPlayerCoordinate(queued.session.actorId, head.playerId)
+          || !/^sha256:[a-f0-9]{64}$/.test(head.sourceDigest)
+          || !Number.isSafeInteger(head.revision) || head.revision < 1
+          || queued.session.keyId !== continuityRef.current?.session.keyId
+          || queued.restoreEpoch !== continuityRef.current?.restoreEpoch) return;
         playerStateSubmittedMutationRef.current = Math.max(playerStateSubmittedMutationRef.current, mutationAtSubmit);
-        if (playerStateMutationRef.current === mutationAtSubmit) await admitRemotePlayerState(result.record);
+        if (result.record) {
+          // A response racing newer local input still needs to be pulled later.
+          // Do not mark an unconsumed converged Vault as already downloaded.
+          if (playerStateMutationRef.current !== mutationAtSubmit) return;
+          await admitRemotePlayerState(result.record);
+        }
+        knownRemotePlayerHeadRef.current = { keyId: queued.session.keyId, restoreEpoch: queued.restoreEpoch, digest: head.sourceDigest };
       }).catch(() => undefined).finally(() => {
         playerStateSyncInFlightRef.current = false;
         const latest = playerStateSyncQueuedRef.current;
@@ -1128,15 +1142,23 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       }
       inFlight = true;
       const mutationAtRead = playerStateMutationRef.current;
+      const restoreEpochAtRead = continuityRef.current?.restoreEpoch;
+      const knownHead = knownRemotePlayerHeadRef.current;
       await fetch("/api/wilds/player-state", {
         credentials: "same-origin",
-        cache: "no-store"
+        cache: "no-store",
+        headers: knownHead?.keyId === identity.keyId && knownHead.restoreEpoch === continuityRef.current?.restoreEpoch
+          ? { "if-none-match": `"${knownHead.digest}"` } : undefined
       }).then(async (response) => {
+        if (response.status === 304) return;
         const result = await response.json().catch(() => null) as { ok?: boolean; record?: WildzPlayerStateRecord | null } | null;
         if (active && response.ok && result?.ok && result.record
+          && sameWildzPlayerCoordinate(identity.actorId, result.record.playerId)
+          && restoreEpochAtRead !== undefined && restoreEpochAtRead === continuityRef.current?.restoreEpoch
           && playerStateMutationRef.current === mutationAtRead
           && playerStateMutationRef.current === playerStateSubmittedMutationRef.current) {
           await admitRemotePlayerState(result.record);
+          knownRemotePlayerHeadRef.current = { keyId: identity.keyId, restoreEpoch: restoreEpochAtRead, digest: result.record.sourceDigest };
         }
       }).catch(() => undefined).finally(() => {
         inFlight = false;

@@ -7,6 +7,9 @@ import { WILDS_WORLD_ID } from "./wilds-world-event";
 import type { WildsWorldProjection } from "./wilds-world-state";
 import { normalizeWildsVisualSettings, type WildsVisualSettings } from "./wilds-night-visibility";
 import { mergeWildsOwnedAdditionSets } from "./wilds-player-world-additions";
+import { hasLaterWildsPlayerLedger } from "./wilds-play-state-source";
+import { adventureConditionToHearttree } from "./hearttree/card-capability";
+import { mergeWildsActivityHistories } from "./wallet/wilds-activity-history";
 
 export type WildzCardOrder = "rarity" | "newest" | "oldest";
 
@@ -209,6 +212,7 @@ export function mergeWildsPlayerPlayStates(input: {
   const mergedState: PlayState = {
     ...(input.preferLocalState ? restoredPlayState : input.local),
     ...(input.preferLocalState ? input.local : restoredPlayState),
+    actionHistory: mergeWildsActivityHistories(input.local.actionHistory, restoredPlayState.actionHistory, input.preferLocalState),
     // Preserve competing card heads until restore admission can resolve them by
     // causal creature history and authoritative Kai uPulse. A generic map
     // overwrite here would silently turn array order into temporal authority.
@@ -242,4 +246,23 @@ export function mergeWildsPlayerPlayStates(input: {
     adventureConditions
   };
   return normalizeWildsRuntimePlayState(mergedState, input.actorId);
+}
+
+/** Remote card histories can advance independently of the player's travel clock. */
+export function mergeWildsRemotePlayerPlayState(input: { local: PlayState; restored: PlayState; actorId: string }) {
+  const preferLocalState = !hasLaterWildsPlayerLedger(input.restored, input.local);
+  const merged = mergeWildsPlayerPlayStates({ ...input, preferLocalState });
+  if (!preferLocalState) return merged;
+  const localCards = new Map(input.local.inventory.map(card => [card.id, card]));
+  for (const card of merged.inventory) {
+    const condition = input.local.adventureConditions[card.id];
+    // Local work/recovery can advance between sealed card revisions. Keep that
+    // runtime projection only while its exact admitted card head is unchanged.
+    // An advanced card head or an admitted death still supplies its condition.
+    if (!condition || localCards.get(card.id)?.proof.digest !== card.proof.digest
+      || (merged.adventureConditions[card.id]?.life === "dead" && condition.life !== "dead")) continue;
+    merged.adventureConditions[card.id] = condition;
+    merged.hearttreeConditions[card.id] = adventureConditionToHearttree(condition);
+  }
+  return merged;
 }
