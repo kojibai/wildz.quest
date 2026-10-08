@@ -18,6 +18,7 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
   const captureTargetRef = useRef<HTMLButtonElement | null>(null);
   const boundsRef = useRef<DOMRect | null>(null);
   const frameRef = useRef<number | null>(null);
+  const lastEmissionRef = useRef<number | null>(null);
   const gestureRevisionRef = useRef(0);
   const input = useRef(onInput);
   const mode = useRef(movementMode);
@@ -27,9 +28,10 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
   input.current = onInput;
   mode.current = movementMode;
 
-  const emitMovement = useCallback((next = vector.current) => {
+  const emitMovement = useCallback((next = vector.current, sampledAt = performance.now()) => {
     if (Math.hypot(next.x, next.z) < 0.08) return;
     const relative = cameraRelativeMovement(next, cameraHeadingRef.current);
+    if (dragging.current) lastEmissionRef.current = sampledAt;
     input.current({ type: "move-vector", x: relative.x, z: relative.z, mode: mode.current });
   }, [cameraHeadingRef]);
 
@@ -43,6 +45,7 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
     gestureRevisionRef.current++;
     if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
+    lastEmissionRef.current = null;
     vector.current = { x: 0, z: 0 };
     if (knobRef.current) knobRef.current.style.transform = "translate(0px, 0px)";
     setActive(false);
@@ -55,13 +58,11 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
 
   const startRepeat = useCallback(() => {
     const revision = gestureRevisionRef.current;
-    let lastEmission = performance.now();
     const tick = (now: number) => {
       if (!dragging.current || revision !== gestureRevisionRef.current) return;
       frameRef.current = null;
-      if (now - lastEmission >= 45) {
-        lastEmission = now;
-        emitMovement();
+      if (lastEmissionRef.current === null || now - lastEmissionRef.current >= 45) {
+        emitMovement(vector.current, now);
       }
       if (dragging.current && revision === gestureRevisionRef.current) frameRef.current = window.requestAnimationFrame(tick);
     };
@@ -92,7 +93,10 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
     const movePointer = (event: PointerEvent) => {
       if (!dragging.current || activePointerIdRef.current !== event.pointerId) return;
       if (event.pointerType === 'mouse' && event.buttons === 0) reset();
-      else update(event);
+      else {
+        const next = update(event);
+        if (lastEmissionRef.current === null) emitMovement(next);
+      }
     };
     // Capture-phase document listeners survive a failed pointer capture and an
     // outside release, even when another overlay consumes the event.
@@ -109,7 +113,7 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
       document.removeEventListener("visibilitychange", stop);
       reset();
     };
-  }, [reset, update]);
+  }, [emitMovement, reset, update]);
 
   const release = (event?: ReactPointerEvent<HTMLButtonElement>) => {
     if (event && activePointerIdRef.current !== event.pointerId) return;
@@ -139,7 +143,8 @@ export function WildzDpad({ cameraHeadingRef, movementMode, onInput, cancelSigna
       }}
       onPointerMove={(event) => {
         if (!dragging.current || activePointerIdRef.current !== event.pointerId) return;
-        update(event);
+        const next = update(event);
+        if (lastEmissionRef.current === null) emitMovement(next);
       }}
       onPointerUp={release}
       onContextMenu={(event) => { event.preventDefault(); reset(); }}

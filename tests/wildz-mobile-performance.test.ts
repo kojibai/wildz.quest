@@ -35,9 +35,6 @@ test("camera orbit publishes heading through a ref without React state or diagno
   assert.match(world, /const stateRef = useRef\(state\)/);
   assert.match(world, /stateRef\.current = state/);
   assert.doesNotMatch(world, /\[camera, gl, qualityProfile, scene, size, state\]/);
-  assert.match(world, /function SmoothWorldFrame/);
-  assert.match(world, /THREE\.MathUtils\.damp/);
-  assert.match(world, /<SmoothWorldFrame\b[^>]*player=\{state\.player\}/);
 });
 
 test("drawer drag uses direct frame-local height without remounting card layouts", () => {

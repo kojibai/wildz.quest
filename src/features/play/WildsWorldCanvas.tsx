@@ -27,7 +27,7 @@ const WildsCreations=dynamic(()=>import("./creation/WildsCreations"),{ssr:false}
 const WildsCreationPreview=dynamic(()=>import("./creation/WildsCreationPreview"),{ssr:false});
 import { WildsContinuousConstruction } from "./WildsContinuousConstruction";
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type MutableRefObject, type ReactNode } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, type ComponentRef, type MutableRefObject, type ReactNode } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
@@ -524,7 +524,7 @@ function WildsScene({
         reducedMotion: qualityProfile.reducedMotion,
         starCount: wildsStarCountForTier(qualityProfile.tier)
       }} qualityProfile={qualityProfile} siteRuntime={siteRuntime} state={state} /> : null}
-      <SmoothWorldFrame player={state.player} terrainElevation={activeFloorY}>
+      <WorldFrame>
         <SearchableTerrain
           monumentLightState={monumentLightState}
           activeWorkSource={activeWorkSource}
@@ -573,7 +573,7 @@ function WildsScene({
             ? <TrainerExplorer key={trainer.id} trainer={trainer} localPlayer={state.player} onSelect={onSelectTrainer} siteRuntime={siteRuntime} siteSpace={siteSpace} terrainElevation={activeFloorY} />
             : null
         ))}
-      </SmoothWorldFrame>
+      </WorldFrame>
       <AerialPlayerFrame creationNavigation={creationNavigation} kaiUPulse={kaiMoment.uPulse} aquaticPresentation={aquaticPresentation} capabilities={aerialCapabilities} flightEndurancePotential={flightEndurancePotential} horizontalAllowedRef={horizontalAllowedRef} liftPotential={liftPotential} livingPhysicalObstacles={livingPhysicalObstacles} pressurePotential={pressurePotential} swimStamina={state.energy} onEnergyChange={onAerialEnergyChange} onModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} player={state.player} runtime={aerialStateRef} terrainObstacleNeighborhood={terrainObstacleNeighborhood} verticalIntentRef={verticalIntentRef} verticalTraversalRef={verticalTraversalRef} siteRuntime={siteRuntime} siteSpace={siteSpace}>
         <WildsExplorer
           aerialPalette={{
@@ -779,38 +779,17 @@ function AerialPlayerFrame({ creationNavigation, kaiUPulse, aquaticPresentation,
     }
     if (group.current) {
       const actorLocalY = layer === "ground" ? 0 : currentVertical.offset;
-      const nextActorY = THREE.MathUtils.damp(group.current.position.y, actorLocalY, 8, delta);
-      // Capture can immediately select a creature with different traversal
-      // anatomy. Never ease a prior underwater offset upward through solid
-      // terrain: grounded actors may settle from above, but never from below.
-      group.current.position.y = layer === "ground" ? Math.max(0, nextActorY) : nextActorY;
+      // Display the same height used by collision and the camera this frame.
+      group.current.position.y = actorLocalY;
     }
   }, -2);
   return <group ref={group}>{children}</group>;
 }
 
-function SmoothWorldFrame({ player, terrainElevation, children }: { player: PlayState["player"]; terrainElevation: number; children: ReactNode }) {
-  const group = useRef<THREE.Group>(null);
-  const previous = useRef(player);
-  const previousTerrainElevation = useRef(terrainElevation);
-  useLayoutEffect(() => {
-    const prior = previous.current;
-    const priorTerrainElevation = previousTerrainElevation.current;
-    previous.current = player;
-    previousTerrainElevation.current = terrainElevation;
-    if (!group.current) return;
-    group.current.position.x += player.x - prior.x;
-    group.current.position.y += terrainElevation - priorTerrainElevation;
-    group.current.position.z += player.z - prior.z;
-  }, [player, terrainElevation]);
-  useFrame((_, delta) => {
-    if (!group.current) return;
-    group.current.position.x = THREE.MathUtils.damp(group.current.position.x, 0, 18, delta);
-    // Restore the original ground rebase without moving the player or camera.
-    group.current.position.y = THREE.MathUtils.damp(group.current.position.y, 0, 14, delta);
-    group.current.position.z = THREE.MathUtils.damp(group.current.position.z, 0, 18, delta);
-  }, -.4); // Finish rebasing before Html projects labels at priority 0.
-  return <group ref={group}>{children}</group>;
+function WorldFrame({ children }: { children: ReactNode }) {
+  // Every child already projects relative to the accepted player/floor origin.
+  // A second, eased rebase made the visible world trail those coordinates.
+  return <group name="wilds-world-frame">{children}</group>;
 }
 
 function TrainerExplorer({ trainer, localPlayer, onSelect, siteRuntime, siteSpace, terrainElevation }: {
@@ -1261,10 +1240,10 @@ function IndependentCrewTravel({ suspended = false, world, runtime, state, obsta
     },500);
     return()=>{window.clearInterval(timer);window.clearInterval(visibilityTimer);scheduler.clear();visibleCandidates.clear();};
   },[runtime]);
-  return <SmoothWorldFrame player={state.player} terrainElevation={terrainElevation}><group name="independent-creature-travel">{visibleIds.map(id=>{
+  return <WorldFrame><group name="independent-creature-travel">{visibleIds.map(id=>{
     const card=cards.get(id);
     return card&&id!==state.selectedAssetId&&!state.supportAssetIds.includes(id)?<IndependentCrewActor key={id} card={card} runtime={runtime} player={state.player} terrainElevation={terrainElevation} spaceId={siteSpace.spaceId}/>:null;
-  })}</group></SmoothWorldFrame>;
+  })}</group></WorldFrame>;
 }
 function IndependentCrewActor({card,runtime,player,terrainElevation,spaceId}:{card:PortableCardAsset;runtime:MutableRefObject<WildsCrewTravelRuntime>;player:PlayState["player"];terrainElevation:number;spaceId:string}) {
   const appearance=useMemo(()=>projectCardKaiAppearance(card),[card]);
@@ -1456,7 +1435,7 @@ function CameraRig({ terrainElevation, actualCameraSubmergedRef, verticalTravers
       }
       writeUnderwaterCameraTarget(activeAquatic, surfaceTargetY, desiredCamera.position.y - orbit.target.y, projection, clearance);
       const priorTargetY = orbit.target.y;
-      orbit.target.y = THREE.MathUtils.damp(orbit.target.y, projection.targetY, 8, delta);
+      orbit.target.y = projection.targetY;
       desiredCamera.position.y += orbit.target.y - priorTargetY;
       if (Number.isFinite(siteCamera.ceilingY)) {
         const localCeiling = siteCamera.ceilingY - siteWorldY - .18;
@@ -1474,6 +1453,10 @@ function CameraRig({ terrainElevation, actualCameraSubmergedRef, verticalTravers
     } else if (vistaHeading !== null) {
       actualCameraSubmergedRef.current = false;
     }
+    publishCameraPose();
+  }, -.25);
+  function publishCameraPose() {
+    const orbit = controls.current;
     if (orbit) {
       camera.position.copy(desiredCamera.position);
       const origin = cameraOrigin.current;
@@ -1485,19 +1468,19 @@ function CameraRig({ terrainElevation, actualCameraSubmergedRef, verticalTravers
     if (Number.isFinite(lastHeading.current) && Math.abs(heading - lastHeading.current) < .001) return;
     lastHeading.current = heading;
     onCameraHeadingChange(heading);
-  }, -.25);
+  }
   return (
     <OrbitControls
       camera={desiredCamera}
       makeDefault
-      dampingFactor={.08}
-      enableDamping
+      enableDamping={false}
       enablePan={false}
       maxDistance={12.5}
       maxPolarAngle={Math.PI / 2.15}
       minDistance={.45}
       minPolarAngle={.38}
       rotateSpeed={.62}
+      onChange={publishCameraPose}
       ref={controls}
       target={[0, .9, 0]}
       touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }}

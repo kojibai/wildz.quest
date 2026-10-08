@@ -6,7 +6,7 @@ import { projectWildsExplorerAnatomy } from "./wilds-explorer-anatomy";
 import { createWildsExplorerFace, createWildsExplorerTorso } from "./wilds-explorer-face";
 import { useWildsCharacterTexture } from "./wilds-character-material";
 import { useWildsNaturalTexture } from "./wilds-natural-material";
-import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
@@ -292,7 +292,7 @@ export function WildsExplorer({
   const movingUntil = useRef(0);
   const facing = useRef(0);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const dx = worldPosition.x - previousPosition.current.x;
     const dz = worldPosition.z - previousPosition.current.z;
     if (Math.hypot(dx, dz) > 0.001) {
@@ -319,10 +319,10 @@ export function WildsExplorer({
       : airborne
         ? aerialMode === "glide" || moving ? -1.12 : verticalVelocity < -0.2 ? -0.32 : 0
         : 0;
-    const nextPitch = readability.motionScale === 0
-      ? bodyPitch
-      : THREE.MathUtils.damp(root.current.rotation.x, bodyPitch, 7, delta);
-    writeWildsExplorerOrientation(root.current.rotation, sleepPose?.heading ?? facing.current, nextPitch, remote ? 0.11 : 0.18);
+    const nextPitch = remote && readability.motionScale !== 0
+      ? THREE.MathUtils.damp(root.current.rotation.x, bodyPitch, 7, delta)
+      : bodyPitch;
+    writeWildsExplorerOrientation(root.current.rotation, sleepPose?.heading ?? facing.current, nextPitch, remote ? 0.11 : 1);
     root.current.position.x = sleepPose?.position[0] ?? 0;
     root.current.position.z = sleepPose?.position[2] ?? 0;
     root.current.position.y = sleepPose ? sleepPose.position[1] + breath * .15 : grounded && moving ? Math.abs(Math.sin(elapsed * 11.5)) * 0.026 * readability.motionScale : 0;

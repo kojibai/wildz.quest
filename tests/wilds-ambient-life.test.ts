@@ -51,6 +51,7 @@ describe("quality-bounded ambient Wilds life", () => {
           assert.ok(y > terrain.elevation && y < WILDS_WATERLINE_ELEVATION, life.id);
         } else {
           assert.ok(y >= terrain.elevation + 2.4, life.id);
+          assert.ok(y >= WILDS_WATERLINE_ELEVATION + 2.4, `a bird cannot fly below water: ${life.id}`);
         }
       }
     }

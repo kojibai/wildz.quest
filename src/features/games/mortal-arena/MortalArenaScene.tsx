@@ -91,6 +91,8 @@ function ArenaCamera({ state, impactTick }: { state: MortalArenaState; impactTic
   const { camera, size } = useThree();
   const shakeRef = useRef(0);
   const desired = useMemo(() => new THREE.Vector3(), []);
+  const shakeOffset = useMemo(() => new THREE.Vector3(), []);
+  const desiredShake = useMemo(() => new THREE.Vector3(), []);
   useEffect(() => { shakeRef.current = impactTick > 0 ? .16 : 0; }, [impactTick]);
   useFrame((_, delta) => {
     const left = state.sides[0].fighters[state.sides[0].activeIndex]!;
@@ -106,12 +108,16 @@ function ArenaCamera({ state, impactTick }: { state: MortalArenaState; impactTic
       verticalFovDegrees: camera instanceof THREE.PerspectiveCamera ? camera.fov : 43
     });
     desired.set(centerX, 6.4 + distance * .13, centerZ + distance);
+    desiredShake.set(0, 0, 0);
     if (shakeRef.current > .003) {
-      desired.x += Math.sin(impactTick * 2.17) * shakeRef.current;
-      desired.y += Math.cos(impactTick * 1.31) * shakeRef.current * .45;
+      desiredShake.x = Math.sin(impactTick * 2.17) * shakeRef.current;
+      desiredShake.y = Math.cos(impactTick * 1.31) * shakeRef.current * .45;
       shakeRef.current *= Math.pow(.045, delta);
     }
-    camera.position.lerp(desired, 1 - Math.pow(.0008, delta));
+    // Preserve the authored shake envelope while following accepted movement immediately.
+    shakeOffset.lerp(desiredShake, 1 - Math.pow(.0008, delta));
+    desired.add(shakeOffset);
+    camera.position.copy(desired);
     camera.lookAt(centerX, .72, centerZ);
   });
   return null;
@@ -125,9 +131,9 @@ function ArenaFighter({ card, fighter, opponent, side }: {
 }) {
   const group = useRef<THREE.Group>(null);
   const target = useMemo(() => new THREE.Vector3(), []);
-  useFrame((_, delta) => {
+  useFrame(() => {
     target.set(fighter.position.x / 1_000, fighter.position.y / 1_000 + .46, fighter.position.z / 1_000);
-    group.current?.position.lerp(target, 1 - Math.pow(.00005, delta));
+    group.current?.position.copy(target);
     if (group.current) group.current.rotation.y = fighter.facing > 0 ? Math.PI / 2 : -Math.PI / 2;
   });
   const primary = side === "player" ? card.manifest.variant.traits.palette.primary : opponent?.kind === "boss" ? "#ad2f28" : "#e29a2f";

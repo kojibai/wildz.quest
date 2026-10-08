@@ -147,6 +147,33 @@ test('a blocked placement expands the conversation so the build failure is visib
   assert.equal(rejected.instance, null);
 });
 
+test('a blocked full-footprint preview can move and retry the complete saved design without a new AI request or material spend', async () => {
+  let obstructed = true;
+  const session = await mountConversation(undefined, { validatePlacement: () => obstructed ? 'creation_world_canonical_overlap' : null });
+  try {
+    await session.change({ type: 'workers', ids: ['worker'] });
+    await session.change({ type: 'budget', budget: { timber: 10000 } });
+    await session.change({ type: 'selection', definition: session.definition });
+    assert.equal(session.current().state.status, 'blocked');
+    assert.equal(session.current().canBuild, false);
+    assert.match(session.current().state.reason!, /overlaps a tree, structure/);
+    assert.ok(session.current().state.plan, 'retain the full preview so the player can move it');
+    await session.current().build();
+    assert.equal(session.commits(), 0);
+    obstructed = false;
+    const pose = { position: { x: 20, y: 0, z: 12 }, yaw: .4 };
+    await session.change({ type: 'placement', pose });
+    await new Promise(resolve => setTimeout(resolve, 160)); await session.settle();
+    assert.equal(session.current().canBuild, true);
+    assert.equal(session.current().state.definition?.digest, session.definition.digest);
+    assert.deepEqual(session.current().state.placement, pose);
+    assert.deepEqual(session.current().state.budget, { timber: 10000 });
+    assert.equal(session.plannerCalls(), 0);
+    await session.current().build(); await session.settle();
+    assert.equal(session.commits(), 1);
+  } finally { session.unmount(); }
+});
+
 
 test('preparing a preset uses its crew and finite resource budget in one selection', async () => {
   const session = await mountConversation();

@@ -160,7 +160,7 @@ export function WildsCreatureActor({
   }, [formId, identityToken, morphology?.head, morphology?.limb, morphology?.symmetry, morphology?.torso]);
   const locomotionFrame = useRef<MutableWildsCreatureLocomotionFrame>({ rootY: 0, rootPitch: 0, rootRoll: 0, limbPitch: 0, wingAngle: 0 });
 
-  const poseInitialized = useRef(false);
+  const acceptedPose = useRef<{ pose: WildsCreaturePose; locomotion: WildsCreatureLocomotion; grounded: boolean; height: number } | null>(null);
   const groundFlightActive = useRef(false);
   const walking = useRef({ distance: 0, sourceDistance: 0, weight: 0 });
   useFrame((_, delta) => {
@@ -179,11 +179,15 @@ export function WildsCreatureActor({
     const motionMode = locomotion === "ground" && anatomy?.locomotion === "flying" && wingPlan.pairCount > 0 && groundFlightActive.current ? "air" : locomotion;
     const frame = writeWildsCreatureLocomotionFrame(locomotionFrame.current, motionMode, time, motion, identity.marking, pose);
     const rootY = grounded && motionMode === "ground" ? (legged ? .48 * identity.height : body === "serpentine" ? .56 : .4 * identity.height * .9) : frame.rootY;
-    const blend = poseInitialized.current ? 1 - Math.exp(-18 * Math.min(.1, delta)) : 1;
+    const previous = acceptedPose.current;
+    const changed = !previous || previous.pose !== pose || previous.locomotion !== motionMode || previous.grounded !== grounded || previous.height !== identity.height;
+    // Show accepted battle/locomotion state immediately; the continuing breath,
+    // impact, swimming and wing animation retains its original cadence.
+    const blend = changed ? 1 : 1 - Math.exp(-18 * Math.min(.1, delta));
     root.current.position.y += (rootY - root.current.position.y) * blend;
     root.current.rotation.x += (frame.rootPitch - root.current.rotation.x) * blend;
     root.current.rotation.z += (frame.rootRoll - root.current.rotation.z) * blend;
-    poseInitialized.current = true;
+    if (changed) acceptedPose.current = { pose, locomotion: motionMode, grounded, height: identity.height };
     root.current.scale.setScalar(pose === "capture" ? 0.9 + Math.sin(time * 5) * 0.035 * motion : 1);
     if (bodyMotion.current) {
       const slithering = grounded && motionMode === "ground" && !legged && gait;

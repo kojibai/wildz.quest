@@ -69,9 +69,9 @@ function mountDpad() {
   const event = (pointerId = 1, extra = {}) => ({ pointerId, button: 0, buttons: 1, pointerType: 'touch', clientX: 92, clientY: 50,
     currentTarget: button, preventDefault() {}, stopPropagation() {}, ...extra });
   const send = (type: string, pointerId = 1, extra = {}) => document.dispatchEvent(Object.assign(new Event(type), { pointerId, ...extra }));
-  const step = (elapsed = 60) => {
+  const step = (elapsed = 60, callbackDelay = 0) => {
     now += elapsed;
-    const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback(now));
+    const pending = [...frames.values()]; frames.clear(); pending.forEach(callback => callback(now - callbackDelay));
   };
   const initial = render(); flush();
   return { initial, render, flush, frames, inputs, event, send, step, knob, props, rectReads: () => rectReads,
@@ -84,6 +84,56 @@ test('holding the D-pad starts its repeat clock before the next React commit', (
   assert.equal(pad.inputs.length, 1, 'initial movement is immediate');
   pad.step();
   assert.equal(pad.inputs.length, 2, 'holding repeats even while a render is pending');
+  pad.unmount();
+});
+
+test('late frame callbacks preserve the original held-movement cadence', () => {
+  const pad = mountDpad();
+  pad.initial.onPointerDown(pad.event());
+  pad.step(60, 10);
+  assert.equal(pad.inputs.length, 2);
+  pad.step(50, 10);
+  assert.equal(pad.inputs.length, 3, 'callback delay must not slow down travel');
+  pad.unmount();
+});
+
+test('dragging out of the D-pad center starts movement without waiting for the repeat clock', () => {
+  const pad = mountDpad();
+  pad.initial.onPointerDown(pad.event(1, { clientX: 50, clientY: 50 }));
+  assert.equal(pad.inputs.length, 0);
+  pad.step(5);
+  pad.initial.onPointerMove(pad.event());
+  assert.equal(pad.inputs.length, 1, 'the first meaningful drag is immediate');
+  pad.step(20);
+  assert.equal(pad.inputs.length, 1, 'immediate feedback must not add repeat steps');
+  pad.step(30);
+  assert.equal(pad.inputs.length, 2);
+  pad.unmount();
+});
+
+test('the outside-capture fallback starts a centered drag immediately and avoids duplicate React events', () => {
+  const pad = mountDpad();
+  pad.initial.onPointerDown(pad.event(1, { clientX: 50, clientY: 50 }));
+  pad.send('pointermove', 1, { clientX: 92, clientY: 50, pointerType: 'touch', buttons: 1 });
+  pad.initial.onPointerMove(pad.event());
+  assert.equal(pad.inputs.length, 1);
+  for (let i = 0; i < 20; i++) pad.initial.onPointerMove(pad.event());
+  assert.equal(pad.inputs.length, 1, 'pointer event frequency must not increase travel speed');
+  pad.unmount();
+});
+
+test('D-pad keyboard movement reads the latest camera heading and travel mode', () => {
+  const pad = mountDpad();
+  pad.props.cameraHeadingRef.current = Math.PI / 2;
+  pad.props.movementMode = 'run';
+  const handlers = pad.render();
+  let prevented = false, stopped = false;
+  handlers.onKeyDown({ key: 'ArrowUp', preventDefault() { prevented = true; }, stopPropagation() { stopped = true; } });
+  assert.equal(pad.inputs.length, 1);
+  assert.equal(pad.inputs[0].x, -1);
+  assert.ok(Math.abs(pad.inputs[0].z) < 1e-12);
+  assert.equal((pad.inputs[0] as any).mode, 'run');
+  assert.equal(prevented, true); assert.equal(stopped, true);
   pad.unmount();
 });
 

@@ -3430,6 +3430,7 @@ export function PlayCampaign({
                 return { position: { ...position, x: position.x + 3 }, yaw: liveCreationContext.pose.yaw };
               }}
               recover={suppliedCreationController ? undefined : localCreation.controller.recover}
+              validatePlacement={suppliedCreationController ? undefined : localCreation.controller.validatePlacement}
               onSaveObject={async instanceId => {
                 const saved = await saveWorldCreationProofImage({ instanceId, resolve: localCreation.controller.resolve, world: livingWorld.currentSource, library: () => creationLibrary || null });
                 const url = URL.createObjectURL(new Blob([saved.bytes.slice().buffer as ArrayBuffer], {type: saved.mimeType}));

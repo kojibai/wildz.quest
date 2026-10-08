@@ -4,6 +4,33 @@ import { prepareAndPersistWildsWorldOutboxEntry, type WildsWorldOutboxEntry } fr
 import { createWildsWorldWorkerClient } from "../src/features/play/wilds-world-work-client.js";
 import { initialWildsWorldProjection } from "../src/features/play/wilds-world-state.js";
 import { createWildsConstructionProject, verifyWildsConstructionProject } from "../src/features/play/wilds-construction-project.js";
+import { retainReceivedWildsWorldProofs } from "../src/features/play/wilds-received-proof-immutability.js";
+import { encodeWildsWorldWorkerResult } from "../src/features/play/wilds-world-worker-transfer.js";
+
+test("admitting another action transfers only changed world fields and retains exact immutable proofs", async () => {
+  type Port = ReturnType<NonNullable<Parameters<typeof createWildsWorldWorkerClient>[0]>>;
+  const project = createWildsConstructionProject({ ownerReceizId: "keeper", name: "Saved house", region: { x: 0, z: 0 }, kaiUPulse: 1 });
+  const base = retainReceivedWildsWorldProofs({ ...initialWildsWorldProjection(), constructionProjects: { [project.projectId]: project } });
+  let wire: unknown;
+  const worker: Port = { onmessage: null, onerror: null, terminate() {}, postMessage(message) {
+    const request = structuredClone(message);
+    assert.ok("base" in request.work);
+    const next = { ...request.work.base, revision: 1, materialCustody: { lot: "keeper" } };
+    wire = encodeWildsWorldWorkerResult(request.work, next);
+    queueMicrotask(() => worker.onmessage?.({ data: { id: request.id, ok: true, value: structuredClone(wire) } } as MessageEvent));
+  } };
+  const client = createWildsWorldWorkerClient(() => worker);
+  try {
+    const pending = client.run({ kind: "restore", actorId: "keeper", base });
+    base.constructionProjects = {};
+    const restored = await pending as typeof base;
+    assert.equal(restored.constructionProjects[project.projectId], project, "unchanged frozen evidence keeps its admitted identity");
+    assert.notEqual(restored.constructionProjects, base.constructionProjects, "mutable caller maps are captured at dispatch");
+    assert.equal(restored.revision, 1);
+    assert.deepEqual(restored.materialCustody, { lot: "keeper" });
+    assert.equal(JSON.stringify(wire).includes(project.head), false, "unchanged construction proofs never make a round trip");
+  } finally { client.close(); }
+});
 
 test("received worker proofs retain immutability without freezing caller state or admitting altered evidence", async () => {
   let id = 0;
@@ -95,7 +122,7 @@ test("ordinary admission prepares and persists through one worker request", asyn
             persisted.push(entry.command.commandId);
           });
         })().then(
-          value => worker.onmessage?.({ data: { id: request.id, ok: true, value: structuredClone(value) } } as ReplyEvent),
+          value => worker.onmessage?.({ data: { id: request.id, ok: true, value: structuredClone(encodeWildsWorldWorkerResult(request.work, value)) } } as ReplyEvent),
           error => worker.onmessage?.({ data: { id: request.id, ok: false, error: error instanceof Error ? error.message : "unknown" } } as ReplyEvent)
         );
       });

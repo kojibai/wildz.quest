@@ -113,12 +113,10 @@ it("terrain snapshot changes ease vertically with the same bounded response as h
  }
 });
 
-it("world rebasing and trainer/remote poses precede HTML label projection", async () => {
+it("trainer/remote poses precede HTML label projection", async () => {
   const { readFileSync } = await import("node:fs");
   const source = readFileSync("src/features/play/WildsWorldCanvas.tsx", "utf8");
-  const world = source.slice(source.indexOf("function SmoothWorldFrame"), source.indexOf("function TrainerExplorer"));
   const trainer = source.slice(source.indexOf("function TrainerExplorer"), source.indexOf("function isBattleTelemetryPhase"));
-  assert.match(world, /\}, -\.4\)/);
   assert.match(trainer, /\}, -\.3\)/);
   assert.match(source, /displayedWorld\.current\.y - terrainElevation, displayedWorld\.current\.z - localPlayer\.z\);\s*\}, -\.3\)/);
 });

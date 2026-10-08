@@ -3585,7 +3585,6 @@ button.wildz-work-capability:focus-visible { outline: 2px solid #b8f5d9; outline
   border-radius: inherit;
   background: linear-gradient(90deg, color-mix(in srgb, var(--battle-stat-accent) 66%, #19352a), var(--battle-stat-accent));
   box-shadow: 0 0 7px var(--battle-stat-accent);
-  transition: width 220ms cubic-bezier(.2, .8, .2, 1);
 }
 
 .wilds-battle-world-stat.capture-ready {
@@ -12057,7 +12056,7 @@ button.product-purchase-secondary-link {
 .wilds-pvp-fighters span { color: #76e9c6; font-size: 9px; font-weight: 900; letter-spacing: .12em; }
 .wilds-pvp-fighters strong { overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
 .wilds-pvp-fighters [role="progressbar"] { height: 8px; overflow: hidden; background: rgb(0 0 0 / 38%); border-radius: 999px; }
-.wilds-pvp-fighters [role="progressbar"] i { display: block; height: 100%; background: linear-gradient(90deg, #37d688, #b6ff79); border-radius: inherit; transition: width .45s ease; }
+.wilds-pvp-fighters [role="progressbar"] i { display: block; height: 100%; background: linear-gradient(90deg, #37d688, #b6ff79); border-radius: inherit; }
 .wilds-pvp-battle > p { min-height: 34px; margin: 0; color: rgb(235 255 249 / 72%); font-size: 11px; line-height: 1.5; text-align: center; }
 .wilds-pvp-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .wilds-pvp-actions button { display: grid; min-height: 54px; gap: 2px; padding: 8px; color: #effffa; border: 1px solid rgb(126 235 205 / 24%); background: rgb(126 235 205 / 8%); border-radius: 13px; }
@@ -13644,7 +13643,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .mortal-arena-life > span strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .mortal-arena-life > span small { color: #c69a51; font-size: 7px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; }
 .mortal-arena-life > div { grid-column: 1 / -1; height: 6px; overflow: hidden; border-radius: 8px; background: rgb(255 255 255 / 10%); }
-.mortal-arena-life > div i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #57db93, #d8e852); box-shadow: 0 0 12px rgb(91 230 145 / 42%); transition: width .18s ease; }
+.mortal-arena-life > div i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #57db93, #d8e852); box-shadow: 0 0 12px rgb(91 230 145 / 42%); }
 .mortal-arena-life > b { grid-column: 2; grid-row: 1; align-self: center; color: #ffe58a; font-size: 15px; font-variant-numeric: tabular-nums; text-align: right; }
 .mortal-arena-life.is-rival { grid-column: 3; grid-row: 1; text-align: right; }
 .mortal-arena-life.is-rival > div i { margin-left: auto; background: linear-gradient(90deg, #ff9b45, #ff5f45); }
@@ -14250,7 +14249,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-dpad-east { top: 50%; right: 5%; translate: 0 -50%; }
 .wildz-dpad-south { bottom: 5%; left: 50%; translate: -50% 0; }
 .wildz-dpad-west { top: 50%; left: 5%; translate: 0 -50%; }
-.wildz-dpad-knob { position: absolute; inset: 35%; border: 1px solid rgba(238, 238, 197, .24); border-radius: 50%; background: rgba(181, 196, 154, .48); box-shadow: 0 4px 12px rgba(3, 15, 14, .28), inset 0 2px 7px rgba(255,255,255,.18); transition: transform 45ms linear; pointer-events: none; will-change: transform; }
+.wildz-dpad-knob { position: absolute; inset: 35%; border: 1px solid rgba(238, 238, 197, .24); border-radius: 50%; background: rgba(181, 196, 154, .48); box-shadow: 0 4px 12px rgba(3, 15, 14, .28), inset 0 2px 7px rgba(255,255,255,.18); pointer-events: none; will-change: transform; }
 
 .wildz-context-button {
   position: absolute;
@@ -14528,7 +14527,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-construction-site-card strong { color: #f0fff8; font-size: 12px; }
 .wilds-construction-site-card > header em { color: #9bf0cf; font-size: 14px; font-style: normal; font-weight: 950; font-variant-numeric: tabular-nums; }
 .wilds-construction-site-progress { height: 6px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.09); }
-.wilds-construction-site-progress i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #66dcb8, #d4e98d); box-shadow: 0 0 12px rgba(102, 220, 184, .34); transition: width .24s ease; }
+.wilds-construction-site-progress i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #66dcb8, #d4e98d); box-shadow: 0 0 12px rgba(102, 220, 184, .34); }
 .wilds-construction-site-ledger { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
 .wilds-construction-site-ledger span { display: flex; min-width: 0; align-items: center; gap: 5px; padding: 7px 8px; color: #adc8bd; border: 1px solid rgba(150, 218, 196, .14); border-radius: 10px; background: rgba(0,0,0,.16); font-size: 8px; }
 .wilds-construction-site-ledger svg { flex: 0 0 auto; color: #7ff0c5; }
@@ -15110,7 +15109,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-raid-health { display: grid; gap: 5px; padding: 5px max(12px, env(safe-area-inset-right)) 7px max(12px, env(safe-area-inset-left)); background: rgb(4 16 15 / 82%); }
 .wilds-raid-health div { display: flex; justify-content: space-between; gap: 12px; font-size: 10px; font-weight: 850; text-transform: uppercase; }
 .wilds-raid-health i { display: block; height: 7px; overflow: hidden; border-radius: 999px; background: rgb(255 255 255 / 10%); }
-.wilds-raid-health i::after { display: block; width: var(--raid-health); height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ff646c, var(--raid-accent)); box-shadow: 0 0 16px var(--raid-accent); content: ""; transition: width 240ms ease; }
+.wilds-raid-health i::after { display: block; width: var(--raid-health); height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ff646c, var(--raid-accent)); box-shadow: 0 0 16px var(--raid-accent); content: ""; }
 .wilds-raid-arena { position: relative; min-height: 0; overflow: hidden; touch-action: none; }
 .wilds-raid-telegraph, .wilds-raid-objective, .wilds-raid-card-pin { position: absolute; z-index: 2; display: grid; gap: 2px; max-width: min(42%, 300px); padding: 8px 10px; border: 1px solid rgb(124 242 202 / 16%); background: rgb(3 18 17 / 72%); backdrop-filter: blur(14px); }
 .wilds-raid-telegraph { top: 10px; left: max(10px, env(safe-area-inset-left)); border-radius: 16px 4px 16px 4px; }
@@ -15188,7 +15187,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .hearttree-objective strong { overflow-wrap: anywhere; font-size: clamp(14px, 2vw, 20px); line-height: 1.05; }
 .hearttree-objective span { color: #a8cabe; font-size: 9px; }
 .hearttree-vitals span { position: relative; display: flex; min-width: 0; height: 21px; align-items: center; padding: 0 7px; overflow: hidden; color: #f4fff9; border-radius: 4px; background: rgb(255 255 255 / 8%); font-size: 8px; font-variant-numeric: tabular-nums; }
-.hearttree-vitals i { position: absolute; z-index: -1; inset: 0 auto 0 0; background: linear-gradient(90deg, #176b48, #5edc96); transition: width .16s ease; }
+.hearttree-vitals i { position: absolute; z-index: -1; inset: 0 auto 0 0; background: linear-gradient(90deg, #176b48, #5edc96); }
 .hearttree-vitals span + span i { background: linear-gradient(90deg, #80641b, #e2c655); }
 .hearttree-pause { display: grid; width: 44px; height: 44px; place-items: center; color: #effff7; border: 1px solid rgb(135 255 196 / 24%); border-radius: 50%; background: rgb(3 24 18 / 82%); pointer-events: auto; }
 .hearttree-caption { position: absolute; z-index: 5; top: 92px; left: 50%; width: min(480px, calc(100% - 24px)); margin: 0; padding: 7px 12px; color: #dff7ea; text-align: center; border: 1px solid rgb(247 218 110 / 22%); border-radius: 99px; background: rgb(7 24 19 / 76%); font-size: 9px; line-height: 1.35; backdrop-filter: blur(10px); transform: translateX(-50%); pointer-events: none; }

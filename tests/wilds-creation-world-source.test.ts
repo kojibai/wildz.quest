@@ -217,6 +217,29 @@ test('source boundary rejects altered plans, foreign cards, exhausted crew and o
   reject({ ...f.command, context: treeContext, planDigest: treePlan.status === 'ready' ? treePlan.plan.digest : '', actorPosition: treeContext.pose.position }, /canonical_overlap/);
 });
 
+test('placement previews detect canonical terrain outside the supplied visible chunks without spending materials', () => {
+  const f = fixture();
+  const controller = createWorldCreationController({ environment: () => ({ ownerId: actorId, worldId: f.world.worldId, spaceId: f.context.spaceId }),
+    world: () => f.world, crew: () => ({ cards: [f.card], conditions: { [f.card.id]: f.condition } }), position: () => f.context.pose.position,
+    compileContext: () => f.context, admit: async () => { throw Error('preview must not admit'); }, project: async (instance, definition, plan) => projectCreationPhysical(instance, definition, plan) });
+  const validate = (controller as unknown as { validatePlacement?: (plan: CreationPlan) => string | null }).validatePlacement;
+  try {
+    assert.equal(typeof validate, 'function');
+    assert.equal(validate!(f.plan), null);
+    const tree = Array.from({ length: 30 }, (_, index) => wildsTerrainObstaclesForTile(index, 1)).flat().find(obstacle => obstacle.kind === 'tree')!;
+    // The hidden obstruction is in an offset wing, not at the mansion's origin.
+    const { digest, ...basis } = f.definition; void digest;
+    const definition = createCreationDefinition({ ...basis, nodes: [{ ...f.definition.nodes[0], pose: { position: { x: 40, y: 0, z: 0 }, yaw: 0 } }] });
+    const context = { ...f.context, pose: { position: { ...tree.position, x: tree.position.x - 40, y: tree.position.y + .4 }, yaw: 0 }, physical: [] };
+    const result = compileCreation(definition, context); assert.equal(result.status, 'ready');
+    if (result.status !== 'ready') throw Error('fixture_compile');
+    assert.match(validate!(result.plan)!, /overlaps.*world|world.*overlap/i);
+    assert.deepEqual(f.world.consumedMaterialLots, {});
+    assert.equal(controller.snapshot().projections.length, 0);
+    assert.equal(validate!({ ...f.plan, sourceHead: `sha256:${'e'.repeat(64)}` }) === null, false);
+  } finally { controller.close(); }
+});
+
 test('replay rejects a forged successor even if its enclosing event digest is recomputed', () => {
   const f = fixture(), service = new WildsWorldService({ checkpoint: checkpointWildsWorld(f.world) }), result = service.execute(f.command, authority), original = result.events[0];
   const payload = structuredClone(original.payload) as { record: { instance: { stage: string } } };

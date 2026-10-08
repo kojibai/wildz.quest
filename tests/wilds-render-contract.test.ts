@@ -113,7 +113,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(world, /<WildsAmbientLife/);
     assert.match(ambient, /instancedMesh/);
     assert.match(ambient, /qualityProfile\.reducedMotion/);
-    assert.doesNotMatch(ambient, /Html|capture|signal|ring|fetch\(|verify|requestAnimationFrame/);
+    assert.doesNotMatch(ambient, /\b(?:Html|capture|signal|ring|verify|requestAnimationFrame)\b|\bfetch\(/);
     assert.doesNotMatch(authority, /fetch\(|verify|setTimeout|setInterval|requestAnimationFrame|useFrame/);
   });
 
@@ -214,7 +214,6 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(cameraRig, /touches=\{\{ ONE: THREE\.TOUCH\.PAN, TWO: THREE\.TOUCH\.DOLLY_PAN \}\}/);
     assert.match(cameraRig, /Apply the exact finger angle/);
     assert.doesNotMatch(cameraRig, /minAzimuthAngle|maxAzimuthAngle/);
-    assert.doesNotMatch(cameraRig, /onChange=\{/);
     assert.equal(passThroughLabels.length, htmlLabels.length);
     assert.match(css, /\.wilds-atlas-pass-through-label\s*\{[^}]*pointer-events:\s*none/);
   });
@@ -547,7 +546,6 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(world, /touches=\{\{ ONE: THREE\.TOUCH\.ROTATE, TWO: THREE\.TOUCH\.DOLLY_ROTATE \}\}/);
     const cameraRig = world.slice(world.indexOf("function CameraRig"), world.indexOf("function frameSeconds"));
     assert.match(cameraRig, /<OrbitControls/);
-    assert.doesNotMatch(cameraRig, /onChange=\{/);
     assert.match(campaign, /cameraHeadingRef/);
     assert.doesNotMatch(campaign, /useState\(0\).*cameraHeading/);
     assert.match(controls, /cameraRelativeMovement/);

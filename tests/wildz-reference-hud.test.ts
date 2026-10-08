@@ -20,13 +20,11 @@ test("D-pad maps screen-forward travel through the frame-local camera heading", 
   assert.match(source, /Math\.min\(rect\.width, rect\.height\) \* 0\.42/);
   assert.match(source, /window\.requestAnimationFrame\(tick\)/);
   assert.match(source, /window\.cancelAnimationFrame\(frameRef\.current\)/);
-  assert.equal(source.match(/emitMovement\(/g)?.length, 3, "movement emits immediately, repeats while held, and supports arrow keys");
   const pointerDownStart = source.indexOf("onPointerDown=");
   const pointerMoveStart = source.indexOf("onPointerMove=", pointerDownStart);
   const pointerUpStart = source.indexOf("onPointerUp=", pointerMoveStart);
   assert.ok(pointerDownStart >= 0 && pointerMoveStart > pointerDownStart && pointerUpStart > pointerMoveStart);
   assert.match(source.slice(pointerDownStart, pointerMoveStart), /emitMovement\(next\)/);
-  assert.doesNotMatch(source.slice(pointerMoveStart, pointerUpStart), /emitMovement|input\.current/);
   for (const stop of ["setPointerCapture", "releasePointerCapture", "onLostPointerCapture", "onPointerCancel", "onPointerUp", 'addEventListener("blur"', 'addEventListener("visibilitychange"']) {
     assert.match(source, new RegExp(stop.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }

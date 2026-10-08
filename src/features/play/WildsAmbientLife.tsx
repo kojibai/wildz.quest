@@ -12,6 +12,8 @@ import {
 } from "./wilds-ambient-life";
 import { wildsSiteRuntimeGroundY, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import { createWildsAmbientBirdGeometry, createWildsAmbientBirdMaterial, writeWildsAmbientBirdPath, type WildsAmbientBirdFlightFrame } from './wilds-ambient-birds';
+import { createWildsAmbientFishGeometry, createWildsAmbientFishMaterial } from './wilds-ambient-fish';
+import { WILDS_WATERLINE_ELEVATION } from './wilds-terrain-rendering';
 
 type AmbientMember = Readonly<{ life: WildsAmbientLifeProjection; member: number }>;
 type AmbientRuntime = {
@@ -62,9 +64,13 @@ function writeAmbientInstances(
     const worldX = (flight?.x ?? point.x + directionX * amount) - directionZ * separation;
     const worldZ = (flight?.z ?? point.z + directionZ * amount) + directionX * separation;
     const rawWorldY = (flight?.y ?? point.y + (next.y - point.y) * amount) + (entry.life.medium === "aerial" ? separation * .24 : separation * .08);
+    let size = entry.life.medium === "aquatic" ? .16 + entry.life.variant * .025 : .19 + entry.life.variant * .025;
+    const pathFloorY = (point.floorY ?? rawWorldY - size) + ((next.floorY ?? rawWorldY - size) - (point.floorY ?? rawWorldY - size)) * amount;
+    const floorY = wildsSiteRuntimeGroundY(siteRuntime, "wildz.space.outer.v1", worldX, worldZ, entry.life.medium === "aerial" ? rawWorldY : pathFloorY);
+    if (entry.life.medium === "aquatic") size = Math.max(0, Math.min(size, (WILDS_WATERLINE_ELEVATION - floorY - .01) / 1.1));
     const worldY = entry.life.medium === "aerial"
-      ? Math.max(rawWorldY, wildsSiteRuntimeGroundY(siteRuntime, "wildz.space.outer.v1", worldX, worldZ, rawWorldY) + .65)
-      : rawWorldY;
+      ? Math.max(rawWorldY, floorY + .65, WILDS_WATERLINE_ELEVATION + .65)
+      : THREE.MathUtils.clamp(rawWorldY, floorY + size * .55 + .005, WILDS_WATERLINE_ELEVATION - size * .55 - .005);
     runtime.position.set(
       worldX - playerX,
       worldY - terrainElevation,
@@ -76,7 +82,6 @@ function writeAmbientInstances(
       entry.life.medium === "aerial" ? flight!.bank : 0
     );
     runtime.quaternion.setFromEuler(runtime.rotation);
-    const size = entry.life.medium === "aquatic" ? .16 + entry.life.variant * .025 : .19 + entry.life.variant * .025;
     runtime.scale.set(size, size, size);
     runtime.matrix.compose(runtime.position, runtime.quaternion, runtime.scale);
     mesh.setMatrixAt(index, runtime.matrix);
@@ -107,6 +112,16 @@ export function WildsAmbientLife({
   const birdTime=useMemo(()=>({value:0}),[]);
   const birdMaterial=useMemo(()=>createWildsAmbientBirdMaterial(birdTime),[birdTime]);
   const birdGeometry=useMemo(createWildsAmbientBirdGeometry,[]);
+  const fishMaterial=useMemo(()=>createWildsAmbientFishMaterial(birdTime),[birdTime]);
+  const fishGeometry=useMemo(createWildsAmbientFishGeometry,[]);
+  useLayoutEffect(()=>{
+    const swim=new Float32Array(aquatic.length*2);
+    aquatic.forEach(({life,member},index)=>{
+      swim[index*2]=life.phase*Math.PI*2+member*2.399;
+      swim[index*2+1]=(2+life.variant*.25+member*.08)*Math.PI*2;
+    });
+    fishGeometry.setAttribute('fishSwim',new THREE.InstancedBufferAttribute(swim,2));
+  },[aquatic,fishGeometry]);
   useLayoutEffect(()=>{
     const flight=new Float32Array(aerial.length*2);
     aerial.forEach(({life,member},index)=>{
@@ -117,6 +132,8 @@ export function WildsAmbientLife({
   },[aerial,birdGeometry]);
   useEffect(()=>()=>birdGeometry.dispose(),[birdGeometry]);
   useEffect(()=>()=>birdMaterial.dispose(),[birdMaterial]);
+  useEffect(()=>()=>fishGeometry.dispose(),[fishGeometry]);
+  useEffect(()=>()=>fishMaterial.dispose(),[fishMaterial]);
   const aquaticMesh = useRef<THREE.InstancedMesh>(null);
   const aerialMesh = useRef<THREE.InstancedMesh>(null);
   const playerRef = useRef(player);
@@ -149,10 +166,7 @@ export function WildsAmbientLife({
 
   if (!enabled) return null;
   return <group name="wilds-ambient-life">
-    <instancedMesh args={[undefined, undefined, aquatic.length]} frustumCulled={false} name="ambient-aquatic-school" ref={aquaticMesh}>
-      <coneGeometry args={[1, 2.4, 5]} />
-      <meshStandardMaterial color="#55bfc4" roughness={.68} />
-    </instancedMesh>
+    <instancedMesh args={[fishGeometry, fishMaterial, aquatic.length]} frustumCulled={false} name="ambient-aquatic-school" ref={aquaticMesh} />
     <instancedMesh args={[birdGeometry, birdMaterial, aerial.length]} frustumCulled={false} name="ambient-aerial-flock" ref={aerialMesh} />
   </group>;
 }

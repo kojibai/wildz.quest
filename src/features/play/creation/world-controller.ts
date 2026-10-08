@@ -9,7 +9,8 @@ import { createCreationCurrentSourcePort, type CreationCurrentSource } from './c
 import { compileCreation, verifyCreationPlan, type CreationCompileContext, type CreationPlan } from './compiler';
 import { combineCreationTechniques, projectCreationWorkers } from './capabilities';
 import { selectCreationResources } from './resources';
-import { creationWorldAvailability, creationWorldSourceHead, creationWorldWorkers, compileWorldCreationSource, projectWildsCreationPersistence, creationWorldSourceHistory, creationWorldReplacementSafe, type WildsCreationBuildCommand, type WildsCreationSourceRecord } from './world-source';
+import { assertWorldCreationPlacement, creationWorldAvailability, creationWorldSourceHead, creationWorldWorkers, compileWorldCreationSource, projectWildsCreationPersistence, creationWorldSourceHistory, creationWorldReplacementSafe, type WildsCreationBuildCommand, type WildsCreationSourceRecord } from './world-source';
+import { creationPlacementMessage } from './placement-message';
 import type { CreationCommitResult, CreationDefinition, CreationInstanceRef } from './types';
 import { creationBuildInReach, CREATION_PHYSICAL_BUILD_REACH_RULE } from './build-reach';
 
@@ -26,7 +27,7 @@ export type WorldCreationControllerInput = Readonly<{
 /** Concrete adapter to the same admitted local world/outbox used by manual materials.
  * The world callback must be the installed edge queue's currentSource; arbitrary
  * JSON, a transport response, and a digest alone do not install source authority. */
-export function createWorldCreationController(input: WorldCreationControllerInput): CreationController & Readonly<{ restore(): Promise<number>; resolve(instanceId: string): Promise<CreationCurrentSource | null> }> {
+export function createWorldCreationController(input: WorldCreationControllerInput): CreationController & Readonly<{ validatePlacement(plan: CreationPlan): string | null; restore(): Promise<number>; resolve(instanceId: string): Promise<CreationCurrentSource | null> }> {
   const physical = createCreationPhysicalStore({ project: input.project, async canReplace(before, after, current) {
     const source = sourceRecord(current.instance.instanceId);
     return !!source && source.instance.head === current.instance.head && creationWorldSourceHistory(source).some(prior => prior.instance.head === before.head) && creationWorldReplacementSafe(before.solids, after.solids, input.position());
@@ -81,6 +82,13 @@ export function createWorldCreationController(input: WorldCreationControllerInpu
   }
   return {
     scope: input.environment, snapshot: physical.snapshot, subscribe: physical.subscribe, hydrate, resolve,
+    validatePlacement(plan: CreationPlan): string | null {
+      const scope = input.environment(), world = input.world();
+      if (closed || !world || world.worldId !== plan.worldId || scope.worldId !== plan.worldId || scope.spaceId !== plan.spaceId
+        || plan.sourceHead !== creationWorldSourceHead(world) || !verifyCreationPlan(plan)) return 'The world changed. Prepare this placement again before building.';
+      try { assertWorldCreationPlacement(world, plan); return null; }
+      catch (error) { return creationPlacementMessage(error instanceof Error ? error.message : 'This placement could not be checked. Try moving it.'); }
+    },
     async restore() {
       const scope = input.environment(), ids = Object.keys(input.world()?.creations ?? {});
       let restored = 0;

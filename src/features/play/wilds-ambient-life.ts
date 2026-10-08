@@ -5,7 +5,7 @@ import { WILDS_WATERLINE_ELEVATION } from "./wilds-terrain-rendering";
 export const WILDS_AMBIENT_REGION_SIZE = 24;
 
 export type WildsAmbientMedium = "aquatic" | "aerial";
-export type WildsAmbientPathPoint = Readonly<{ x: number; y: number; z: number }>;
+export type WildsAmbientPathPoint = Readonly<{ x: number; y: number; z: number; floorY?: number }>;
 export type WildsAmbientLifeProjection = Readonly<{
   version: "wildz.ambient-life.v1";
   id: string;
@@ -76,8 +76,8 @@ function terrainAt(x: number, z: number) {
   return sampleWildsTerrain(x, z);
 }
 
-function frozenPoint(x: number, y: number, z: number): WildsAmbientPathPoint {
-  return Object.freeze({ x: quantize(x), y: quantize(y), z: quantize(z) });
+function frozenPoint(x: number, y: number, z: number, floorY?: number): WildsAmbientPathPoint {
+  return Object.freeze({ x: quantize(x), y: quantize(y), z: quantize(z), ...(floorY === undefined ? {} : { floorY: quantize(floorY) }) });
 }
 
 function aquaticPath(regionX: number, regionZ: number, slot: number) {
@@ -97,7 +97,7 @@ function aquaticPath(regionX: number, regionZ: number, slot: number) {
     const clearance = WILDS_WATERLINE_ELEVATION - terrain.elevation;
     if (clearance <= .025) return null;
     const depthFraction = .35 + hashUnit(regionX, regionZ, slot, 31 + index) * .3;
-    path.push(frozenPoint(x, terrain.elevation + clearance * depthFraction, z));
+    path.push(frozenPoint(x, terrain.elevation + clearance * depthFraction, z, terrain.elevation));
   }
   return Object.freeze(path);
 }
@@ -117,7 +117,7 @@ function aerialPath(regionX: number, regionZ: number, slot: number) {
     const x = centerX + Math.cos(angle) * radiusX;
     const z = centerZ + Math.sin(angle) * radiusZ;
     const terrain = terrainAt(x, z);
-    path.push(frozenPoint(x, terrain.elevation + altitude, z));
+    path.push(frozenPoint(x, Math.max(terrain.elevation, WILDS_WATERLINE_ELEVATION) + altitude, z));
   }
   return Object.freeze(path);
 }

@@ -42,7 +42,7 @@ function HearttreeWorld({ cards, definition, reducedMotion, runtime }: { cards: 
     <directionalLight castShadow intensity={2.8} color="#fff0bd" position={[5, 9, 6]} shadow-mapSize={[1024, 1024]} shadow-bias={-0.0003} />
     <spotLight castShadow angle={0.55} intensity={38} distance={22} penumbra={0.8} color="#57efac" position={[-4, 8, 2]} target-position={[0, 0, -2]} />
     <pointLight intensity={24} distance={16} color="#7affc7" position={[runtime.objective.position.x, 2, runtime.objective.position.z]} />
-    <CameraFollow position={actor.position} reducedMotion={reducedMotion} />
+    <CameraFollow position={actor.position} />
     <WorldFloor />
     <RootArchitecture phase={runtime.phase} />
     <Hazards runtime={runtime} />
@@ -69,13 +69,13 @@ function HearttreeWorld({ cards, definition, reducedMotion, runtime }: { cards: 
   </>;
 }
 
-function CameraFollow({ position, reducedMotion }: { position: { x: number; z: number }; reducedMotion: boolean }) {
+function CameraFollow({ position }: { position: { x: number; z: number } }) {
   const { camera, size } = useThree();
   const target = useRef(new THREE.Vector3());
   useFrame(() => {
     const portrait = size.width / size.height < 0.75;
     target.current.set(position.x, portrait ? 6.8 : 5.6, position.z + (portrait ? 11.2 : 7.8));
-    camera.position.lerp(target.current, reducedMotion ? 1 : 0.075);
+    camera.position.copy(target.current);
     camera.lookAt(position.x + (portrait ? 0.35 : 0.7), 0.4, position.z - 0.6);
   });
   return null;

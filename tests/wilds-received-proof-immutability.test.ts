@@ -56,3 +56,21 @@ test("malformed proof data never invokes accessors or partially freezes descenda
   }
   assert.equal(reads, 0);
 });
+
+test("unchanged prepared geometry does not schedule a second preparation, but a changed row does", async () => {
+  const project = createWildsConstructionProject({ ownerReceizId: "owner", name: "House", region: { x: 0, z: 0 }, kaiUPulse: 1 });
+  const evidence = { sourceBlueprint: createWildsBlueprintPreview("blueprint:reuse", "wildz.excavation.region.v1:0:0"), pointer: { x: 2, y: 0, z: 2 }, rotationQuarterTurns: 0, heightStep: 0, physical: { terrainY: 0, waterline: null, anchors: [], solids: [] } };
+  const component = createWildsConstructionComponent({ project, evidence, placement: previewWildsBlueprintPlacement({ blueprint: evidence.sourceBlueprint, kind: "foundation", ...evidence }), ownerReceizId: "owner", kaiUPulse: 2, commandId: "reuse:component" });
+  const world = { ...initialWildsWorldProjection(), constructionComponents: { [component.componentId]: component } };
+  await prepareReceivedWildsWorldProofs(world);
+  const schedule = globalThis.setTimeout;
+  let scheduled = 0;
+  globalThis.setTimeout = ((...args: Parameters<typeof setTimeout>) => { scheduled++; return schedule(...args); }) as typeof setTimeout;
+  try {
+    await prepareReceivedWildsWorldProofs({ ...world, constructionComponents: { ...world.constructionComponents }, revision: 1 });
+    assert.equal(scheduled, 0, "an unrelated accepted action has no preparation timer or geometry pass");
+    world.constructionComponents[component.componentId] = structuredClone(component);
+    await prepareReceivedWildsWorldProofs(world);
+    assert.ok(scheduled > 0, "a changed proof object must take its ordinary preparation path");
+  } finally { globalThis.setTimeout = schedule; }
+});

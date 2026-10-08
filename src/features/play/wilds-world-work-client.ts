@@ -5,6 +5,7 @@ import type { WildsWorldProjection } from "./wilds-world-state";
 import type { ReceizOfflineProofQueueStorage } from '@receiz/sdk';
 import { prepareReceivedWildsWorldProofs } from "./wilds-received-proof-immutability";
 import { emitWildsPlaytestDuration } from "./wilds-playtest-events";
+import { cloneWildsWorldWorkerInput, decodeWildsWorldWorkerResult } from "./wilds-world-worker-transfer";
 
 type Reply = { id: number; persistenceMs?: number } & ({ ok: true; value: unknown } | { ok: false; error: string });
 type FusedAdmissionWork = { kind: "prepare-persist"; base: WildsWorldProjection; entry: WildsWorldOutboxEntry; anchorId?: string | null };
@@ -94,7 +95,8 @@ export function createWildsWorldWorkerClient(createWorker?: () => WorkPort, opti
             if (typeof data.persistenceMs === 'number') emitWildsPlaytestDuration('world-persist', data.persistenceMs);
             if (data.ok) {
               request.preparing = true;
-              void prepareResult(request.work, data.value, () => pending.get(data.id) !== request).then(value => {
+              void Promise.resolve().then(() => decodeWildsWorldWorkerResult(request.work, data.value))
+                .then(value => prepareResult(request.work, value, () => pending.get(data.id) !== request)).then(value => {
                 if (pending.get(data.id) !== request) return;
                 pending.delete(data.id); request.resolve(value);
               }, error => {
@@ -113,12 +115,15 @@ export function createWildsWorldWorkerClient(createWorker?: () => WorkPort, opti
         }
       } catch { unavailable = true; }
     }
-    if (!worker) return onMain(structuredClone(work)).then(value => prepareResult(work, value));
+    if (!worker) {
+      const exact = cloneWildsWorldWorkerInput(work);
+      return onMain(exact).then(value => prepareResult(exact, value));
+    }
     const active = worker;
     const id = ++sequence;
     return new Promise((resolve, reject) => {
       const started = performance.now();
-      const exact = structuredClone(work);
+      const exact = cloneWildsWorldWorkerInput(work);
       const timer = setTimeout(() => interrupt(active, true), deadlineMs);
       pending.set(id, { work: exact, worker: active, started, timer, resolve, reject });
       try { active.postMessage({ id, work: exact }); }

@@ -163,7 +163,6 @@ export function WildsAtlasCanvas({
           recenterPosition={recenterPosition}
           recenterRequest={recenterRequest}
           northRequest={northRequest}
-          reducedMotion={reducedMotion}
           regionUnit={projection.regionUnit}
           onRenderCenterRegionChange={setRenderCenterRegion}
         />
@@ -190,7 +189,6 @@ function AtlasCameraRig({
   recenterRequest,
   recenterPosition,
   northRequest,
-  reducedMotion,
   regionUnit,
   onRenderCenterRegionChange
 }: {
@@ -201,7 +199,6 @@ function AtlasCameraRig({
   recenterRequest: number;
   recenterPosition?: { x: number; z: number };
   northRequest: number;
-  reducedMotion: boolean;
   regionUnit: number;
   onRenderCenterRegionChange: (center: { x: number; z: number }) => void;
 }) {
@@ -336,9 +333,6 @@ function AtlasCameraRig({
     orbit.update();
     invalidate();
   }, [camera, invalidate, northRequest]);
-  useFrame((_, delta) => {
-    if (controls.current) controls.current.dampingFactor = 1 - Math.exp(-14 * Math.min(.1, delta));
-  }, -2);
   useFrame(() => {
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
     const far = wildsAtlasCameraFar({
@@ -372,8 +366,7 @@ function AtlasCameraRig({
     invalidate();
   });
   return <MapControls
-    dampingFactor={0.08}
-    enableDamping={!reducedMotion}
+    enableDamping={false}
     enablePan
     enableRotate
     makeDefault
