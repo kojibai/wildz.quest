@@ -1,12 +1,13 @@
 import type {CreationCompileContext} from './compiler';
 import type {CreationConversationState} from './conversation';
 import type {CreationDefinition,CreationInstanceRef,CreationPose,CreationResourceBudget} from './types';
+import {creationContainsParts} from './parts-basis';
 import {validateCreationBudget} from './resources';
 import {verifyCreationInstance,type CreationInstance} from './instance';
 import {assertCreationData,parseCreationDefinition} from './definition';
 import {validConstructionHead,validConstructionId} from '../wilds-construction-project';
 export type CreationDraftObject=Readonly<{definition:CreationDefinition;instance:CreationInstance;custodyOwnerId?:string}>;
-export type CreationDraftResult=Readonly<{status:'ready';draft:string;definition:CreationDefinition|null;selected:CreationDraftObject|null;workerIds:readonly string[];budget:CreationResourceBudget;budgetMode:'automatic'|'manual';placement?:CreationPose}>|Readonly<{status:'recovery';draft:string;original:string;reason:string}>;
+export type CreationDraftResult=Readonly<{status:'ready';draft:string;definition:CreationDefinition|null;targetDefinition:CreationDefinition|null;selected:CreationDraftObject|null;workerIds:readonly string[];budget:CreationResourceBudget;budgetMode:'automatic'|'manual';placement?:CreationPose}>|Readonly<{status:'recovery';draft:string;original:string;reason:string}>;
 /** Draft bytes are recovery hints. An existing selection must reopen through the account's proof reader. */
 export async function restoreCreationDraft(original:string,scope:{ownerId:string;spaceId:string},read?:(ref:CreationInstanceRef)=>Promise<CreationDraftObject|null>):Promise<CreationDraftResult>{
  let draft='';const recovery=(reason:string):CreationDraftResult=>({status:'recovery',draft,original,reason});
@@ -15,12 +16,14 @@ export async function restoreCreationDraft(original:string,scope:{ownerId:string
   const raw=JSON.parse(original);assertCreationData(raw);if(!raw||raw.ownerId!==scope.ownerId||raw.spaceId!==scope.spaceId)return recovery('Saved draft belongs to another account or location.');
   draft=typeof raw.draft==='string'?raw.draft.slice(0,4000):'';
   const definition=raw.definition?parseCreationDefinition(raw.definition):null;
+  const targetDefinition=raw.targetDefinition?parseCreationDefinition(raw.targetDefinition):null;
+  if(targetDefinition&&(!definition||!creationContainsParts(targetDefinition,definition)))return recovery('The saved full design does not preserve this section. Its original has been retained.');
   const workerIds = Array.isArray(raw.workerIds) && raw.workerIds.length <= 32 && raw.workerIds.every(validConstructionId) ? [...new Set<string>(raw.workerIds)] : [];
   const budget = raw.budget ?? { hay: 0, timber: 0, stone: 0 };
   validateCreationBudget(budget);
   const placement = raw.placement;
   if (placement && ![placement.position?.x, placement.position?.y, placement.position?.z, placement.yaw].every(n => Number.isFinite(n) && Math.abs(n) <= 1e9)) return recovery('Saved placement could not be reopened. Its original has been retained.');
-  const setup = { workerIds, budget, budgetMode:raw.budgetMode==='automatic'?'automatic' as const:'manual' as const, ...(placement ? { placement } : {}) };
+  const setup = { targetDefinition, workerIds, budget, budgetMode:raw.budgetMode==='automatic'?'automatic' as const:'manual' as const, ...(placement ? { placement } : {}) };
   if(!raw.instance){if(definition&&definition.creatorId!==scope.ownerId)return recovery('Reopen the owned object before restoring this draft.');return {status:'ready',draft,definition,selected:null,...setup};}
   const ref=raw.instance as CreationInstanceRef;
   if(!definition||!validConstructionId(ref.instanceId)||!validConstructionHead(ref.head)||!validConstructionHead(ref.definitionDigest)||Object.keys(ref).sort().join(',')!=='definitionDigest,head,instanceId'||!read)return recovery('Reopen the owned object before restoring this draft.');
