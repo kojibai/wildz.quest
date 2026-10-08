@@ -97,7 +97,8 @@ describe("universal playable proof claims", () => {
   });
 
   it("carries an exact one-use card instrument without replacing its custody authority", () => {
-    const card = createOwnerBoundInitialPlayState("kai").inventory[0]!;
+    // Keep the sealed starter manifest deterministic across test runs.
+    const card = createOwnerBoundInitialPlayState("kai", "2026-09-01T12:00:00.000Z").inventory[0]!;
     const offer = {
       schema: "receiz.wilds.card-transfer-offer.v1" as const,
       card,
