@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import ts from 'typescript';
 import { initialCreationConversation, reduceCreationConversation } from '../src/features/play/creation/conversation';
 import { compileCreation } from '../src/features/play/creation/compiler';
+import * as previewBudget from '../src/features/play/creation/preview-budget';
 import * as draft from '../src/features/play/creation/draft';
 import * as compileEnvironment from '../src/features/play/creation/compile-environment';
 import { constructionProofDigest } from '../src/features/play/wilds-construction-project';
@@ -67,6 +68,7 @@ async function mountConversation(saved?: string, overrides: Partial<Parameters<t
       if (name === './conversation') return { initialCreationConversation, reduceCreationConversation };
       if (name === './planner') return { planCreation };
       if (name === './patch') return { applyCreationPatch };
+      if (name === './preview-budget') return previewBudget;
       if (name === './draft') return draft;
       if (name === './compile-environment') return compileEnvironment;
       if (name === './capabilities') return capabilities;
@@ -146,7 +148,8 @@ test('preparing a preset uses its crew and finite resource budget in one selecti
   const prepared = await session.change({ type: 'selection', definition: session.definition, workerIds: ['worker'], budget: { timber: 10000 } });
   assert.equal(prepared.canBuild, true);
   assert.deepEqual(prepared.state.workerIds, ['worker']);
-  assert.deepEqual(prepared.state.budget, { timber: 10000 });
+  assert.deepEqual(prepared.state.budget, prepared.state.plan?.requiredResources);
+  assert.ok(prepared.state.budget.timber <= 10000, 'automatic allocation stays inside the owned ceiling');
   assert.equal(session.plannerCalls(), 0);
   session.unmount();
 });
@@ -212,3 +215,25 @@ for (const workflow of ['ask', 'select', 'restore'] as const) {
     } finally { session.unmount(); controller.close(); }
   });
 }
+
+test('new prompt automatically quotes and allocates exact owned costs without resource input',async()=>{
+ const session=await mountConversation();
+ await session.change({type:'workers',ids:['worker']});await session.change({type:'draft',text:'Build a room'});
+ await session.current().ask();await session.settle();
+ const current=session.current();assert.equal(current.state.status,'preview');assert.equal(current.state.budgetMode,'automatic');
+ assert.deepEqual(current.state.budget,current.state.plan?.requiredResources);assert.deepEqual(current.state.quote?.requiredResources,current.state.plan?.requiredResources);
+ assert.equal(current.state.minimized,false,'the upfront quote remains visible');
+ await current.build();await session.settle();assert.equal(session.commits(),1);session.unmount();
+});
+
+test('manual ceilings stay fixed and inventory changes invalidate an otherwise ready preview',async()=>{
+ const session=await mountConversation();await session.change({type:'workers',ids:['worker']});
+ await session.change({type:'budget',budget:{timber:1}});await session.change({type:'draft',text:'Build a room'});
+ await session.current().ask();await session.settle();
+ assert.equal(session.current().state.status,'blocked');assert.equal(session.current().state.budget.timber,1);assert.ok(session.current().state.quote!.requiredResources.timber>1);
+ await session.change({type:'budget',budget:{timber:1},mode:'automatic'});
+ assert.equal(session.current().canBuild,true);
+ session.input.context={...session.input.context,budget:{timber:0}};await session.settle();
+ assert.equal(session.current().canBuild,false);assert.equal(session.current().state.status,'blocked');assert.equal(session.current().state.budget.timber,0);
+ assert.ok(session.current().state.quote!.requiredResources.timber>0);assert.equal(session.current().state.definition?.digest,session.definition.digest);session.unmount();
+});

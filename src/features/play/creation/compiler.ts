@@ -11,7 +11,8 @@ export type CreationCompileContext = Readonly<{ evolution?:Omit<CreationEvolutio
 export type CreationChunk = Readonly<{ id:string; region:{x:number;z:number}; bounds:CreationBounds; nodeIds:readonly string[]; solids:readonly CreationSolid[]; walkable:readonly CreationSurface[]; interiors:readonly CreationBounds[]; connections:readonly CreationConnection[]; positions:Float32Array; normals:Float32Array; materials:readonly {start:number;count:number;material:string}[] }>;
 export type CreationPlan = Readonly<{ evolution?:CreationInstanceRef; schema:'wildz.creation-plan.v1'; definitionDigest:string; contextDigest:string; sourceHead:string; worldId:string; spaceId:string; pose:CreationPose; requiredResources:CreationResourceBudget; requiredWork:number; nodeWork:readonly Readonly<{nodeId:string;techniques:readonly string[];work:number}>[]; requiredTechniques:readonly string[]; stages:readonly (readonly string[])[]; chunks:readonly CreationChunk[]; digest:string }>;
 export type CreationBlocker = Readonly<{code:string;nodeId:string|null;message:string}>;
-export type CreationCompileResult = {status:'ready';plan:CreationPlan}|{status:'blocked';blockers:readonly CreationBlocker[]};
+export type CreationResourceQuote=Readonly<{definitionDigest:string;requiredResources:CreationResourceBudget;requiredWork:number}>;
+export type CreationCompileResult = {status:'ready';plan:CreationPlan}|{status:'blocked';blockers:readonly CreationBlocker[];quote?:CreationResourceQuote};
 export function compileCreation(input:CreationDefinition, context:CreationCompileContext):CreationCompileResult {
  const blockers:CreationBlocker[]=[];
  const block=(code:string,message:string,nodeId:string|null=null)=>blockers.push({code,message,nodeId});
@@ -56,7 +57,7 @@ export function compileCreation(input:CreationDefinition, context:CreationCompil
   }
   for(const key of Object.keys(costs)){costs[key]=Math.ceil(costs[key]);if(costs[key]>(context.budget[key]||0))block('resources',`Needs ${costs[key]} ${key}; budget is ${context.budget[key]||0}.`);}
   for(const technique of techniques)if(!context.techniques.includes(technique))block('technique',`Select a ready creature with ${technique}.`);
-  if(blockers.length)return {status:'blocked',blockers};
+  if(blockers.some(blocker=>blocker.code!=='resources'))return {status:'blocked',blockers};
   const done=new Set<string>(),stages:string[][]=[];while(done.size<definition.nodes.length){const stage=definition.nodes.filter(n=>!done.has(n.id)&&[...(n.parentId?[n.parentId]:[]),...n.supports,...n.attachments].every(ref=>done.has(ref))).map(n=>n.id);if(!stage.length)throw new Error('creation_support_cycle');stages.push(stage);stage.forEach(id=>done.add(id));}
   const requiredWork=Math.ceil(work);
   if(!Number.isSafeInteger(requiredWork))throw Error('creation_work_invalid');
@@ -65,6 +66,7 @@ export function compileCreation(input:CreationDefinition, context:CreationCompil
   if(remainder<0||remainder>nodeWork.length)throw Error('creation_work_rounding_invalid');
   for(let i=0;i<remainder;i++)nodeWork[i].work++;
   const workByNode=nodeWork.sort((a,b)=>a.nodeId.localeCompare(b.nodeId)).map(({nodeId,techniques,work})=>({nodeId,techniques,work}));
+  if(blockers.length)return {status:'blocked',blockers,quote:{definitionDigest:definition.digest,requiredResources:costs,requiredWork}};
   const basis={...(context.evolution?{evolution:{instanceId:context.evolution.instanceId,head:context.evolution.head,definitionDigest:previous!.digest}}:{}),schema:'wildz.creation-plan.v1'  as const,definitionDigest:definition.digest,contextDigest:constructionProofDigest(context),sourceHead:context.sourceHead,worldId:context.worldId,spaceId:context.spaceId,pose:context.pose,requiredResources:costs,requiredWork,nodeWork:workByNode,requiredTechniques:[...techniques].sort(),stages};
   return {status:'ready',plan:{...basis,chunks,digest:constructionProofDigest({...basis,chunks:chunks.map(c=>({id:c.id,bounds:c.bounds,nodeIds:c.nodeIds,solids:c.solids,walkable:c.walkable,interiors:c.interiors,connections:c.connections,positions:Array.from(c.positions),normals:Array.from(c.normals),materials:c.materials,region:c.region}))})}};
  }catch(error){return {status:'blocked',blockers:[{code:'invalid',nodeId:null,message:error instanceof Error?error.message:'Invalid creation'}]};}
