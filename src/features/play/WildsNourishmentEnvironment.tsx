@@ -173,7 +173,7 @@ export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentPr
       if(audioRegistry&&!effect){
         let audio=audioPositions.current.get(animal.animalId);
         if(!audio){audio={id:`fauna:${animal.animalId}`,kind:animal.species==='ground-bird'?'bird':'animal',position:{...p},spaceId:current.spaceId??'wildz.space.outer.v1',active:true,locomotion:'ground'};audioPositions.current.set(animal.animalId,audio);}
-        Object.assign(audio.position,p);audio.updatedAt=time.current.lastDraw;
+        Object.assign(audio.position,p);audio.spaceId=current.spaceId??'wildz.space.outer.v1';audio.updatedAt=time.current.lastDraw;
       }
       const size=effect?.scale??1,lean=effect?.lean??0,cosLean=Math.cos(lean),sinLean=Math.sin(lean);
       if(selectionRing.current&&current.selectedAnimalId===animal.animalId&&!effect){selectionRing.current.visible=true;selectionRing.current.position.set(p.x-sceneOrigin.current.x,p.y-sceneOrigin.current.y+.025,p.z-sceneOrigin.current.z);selectionRing.current.scale.setScalar(animal.species==='meadow-goat'?.55:.32);}

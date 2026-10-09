@@ -127,6 +127,7 @@ export function useWildsPresentation({
     const runtime = runtimeRef.current;
     if (!runtime) return;
     let active = true, timer: ReturnType<typeof setInterval> | undefined;
+    let preloadIndex = 0, preloading = false;
     const planner = createWildsEmbodiedAudioPlanner();
     const pause = () => { clearInterval(timer); timer = undefined; planner.reset(); runtime.stopEmbodied(); };
     const start = () => {
@@ -135,6 +136,7 @@ export function useWildsPresentation({
       // Safari can interrupt an existing context while switching apps. Resume
       // in the background; playable world input never awaits audio.
       void runtime.unlock().catch(() => undefined);
+      void loadSamples();
       timer = setInterval(() => {
         const snapshot = embodiedSnapshotRef.current?.();
         if (snapshot) for (const sound of planner.sample(snapshot, performance.now())) runtime.playEmbodied(sound);
@@ -142,15 +144,21 @@ export function useWildsPresentation({
     };
     document.addEventListener("visibilitychange", start);
     start();
-    void (async () => {
+    async function loadSamples() {
+      if (preloading) return;
+      preloading = true;
       // One tiny decode per background opportunity, after playable startup.
-      for (const asset of WILDS_EMBODIED_AUDIO_ASSETS) {
-        await wildzGameplayBackground.run(async () => {
-          if (active && !document.hidden) await runtime.preload([asset]);
-        }, { timeoutMs: 2_500 }).catch(() => undefined);
-        if (!active) return;
-      }
-    })();
+      try {
+        while (active && !document.hidden && preloadIndex < WILDS_EMBODIED_AUDIO_ASSETS.length) {
+          await wildzGameplayBackground.run(async () => {
+            if (active && !document.hidden) {
+              const asset = WILDS_EMBODIED_AUDIO_ASSETS[preloadIndex++];
+              await runtime.preload([asset]);
+            }
+          }, { timeoutMs: 2_500 }).catch(() => undefined);
+        }
+      } finally { preloading = false; }
+    }
     return () => { active = false; document.removeEventListener("visibilitychange", start); pause(); };
   }, [audioReady, embodiedEnabled, audioSettings.muted]);
 

@@ -1263,6 +1263,10 @@ function IndependentCrewTravel({ suspended = false, world, runtime, state, obsta
 function IndependentCrewActor({card,runtime,player,terrainElevation,spaceId}:{card:PortableCardAsset;runtime:MutableRefObject<WildsCrewTravelRuntime>;player:PlayState["player"];terrainElevation:number;spaceId:string}) {
   const appearance=useMemo(()=>projectCardKaiAppearance(card),[card]);
   const group=useRef<THREE.Group>(null),gait=useRef({distance:0,speed:0}),prior=useRef({x:NaN,z:NaN}),visualPosition=useRef({x:0,y:0,z:0});
+  useWildsEmbodiedSource(`travel:${card.id}`,()=>({
+    id:`travel:${card.id}`, kind:'creature', position:visualPosition.current, spaceId, locomotion:'ground',
+    active:group.current?.visible===true
+  }));
   useFrame((_,delta)=>{
     const actor=group.current,entry=runtime.current.get(card.id);if(!actor)return;
     actor.visible=Boolean(entry?.position&&entry.spaceId===spaceId&&entry.proofDigest===card.proof.digest);

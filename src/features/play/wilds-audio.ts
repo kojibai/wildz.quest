@@ -286,7 +286,7 @@ export function createWildsAudioRuntime(
   const buffers = new Map<string, unknown>();
   const loading = new Map<string, Promise<void>>();
   const activeSources = new Set<AudioBufferSourceLike>();
-  const embodiedSources = new Map<AudioBufferSourceLike, () => void>();
+  const embodiedSources = new Map<AudioBufferSourceLike, { cleanup: () => void; gain: GainLike; sound: WildsEmbodiedSound }>();
   let programSources: Array<{ source: AudioBufferSourceLike; gain: GainLike; kind: "music" | "ambience" }> = [];
   let programMemory: WildsAudioMemory = { activeProgramId: null, enteredAt: 0, recent: [] };
   let sceneRequest = 0;
@@ -361,7 +361,7 @@ export function createWildsAudioRuntime(
   };
 
   const stopEmbodied = () => {
-    for (const [source, cleanup] of embodiedSources) {
+    for (const [source, { cleanup }] of embodiedSources) {
       try { source.stop(); } catch { /* Already ended. */ }
       cleanup();
     }
@@ -371,7 +371,7 @@ export function createWildsAudioRuntime(
     if (!context || destroyed || settings.muted || embodiedSources.size >= 4) return false;
     const buffer = buffers.get(sound.assetId);
     const volume = sound.gain * settings.master * (sound.group === "effects" ? settings.effects : settings.ambience);
-    if (!buffer || !context.createBufferSource || !Number.isFinite(volume) || volume <= 0) return false;
+    if (!buffer || !context.createBufferSource || !Number.isFinite(volume) || !Number.isFinite(sound.pan) || !Number.isFinite(sound.playbackRate) || volume <= 0) return false;
     const source = context.createBufferSource(), gain = context.createGain();
     const panner = context.createStereoPanner?.();
     source.buffer = buffer;
@@ -383,12 +383,13 @@ export function createWildsAudioRuntime(
       gain.connect(panner); panner.connect(context.destination);
     } else gain.connect(context.destination);
     const cleanup = () => {
+      if (!embodiedSources.has(source)) return;
       embodiedSources.delete(source); source.onended = null;
       source.disconnect(); gain.disconnect(); panner?.disconnect();
     };
     source.onended = cleanup;
-    embodiedSources.set(source, cleanup);
-    source.start(context.currentTime);
+    embodiedSources.set(source, { cleanup, gain, sound });
+    try { source.start(context.currentTime); } catch { cleanup(); return false; }
     return true;
   };
 
@@ -471,6 +472,10 @@ export function createWildsAudioRuntime(
         stopProgram();
         stopEmbodied();
       } else if (context) {
+        embodiedSources.forEach(({ gain, sound }) => gain.gain.setValueAtTime(
+          Math.min(.35, sound.gain * settings.master * (sound.group === "effects" ? settings.effects : settings.ambience)),
+          context!.currentTime
+        ));
         programSources.forEach(({ gain, kind }) => gain.gain.setValueAtTime(
           Math.max(0.0001, settings.master * (kind === "music" ? settings.music : settings.ambience)),
           context!.currentTime

@@ -1422,7 +1422,7 @@ export function PlayCampaign({
     spaceId: state.siteSpace.spaceId,
     grounded: aerialStateRef.current.mode === "ground" && verticalTraversalRef.current.layer === "ground" && state.playerBreaths?.mode !== "bed",
     running: movementMode === "run",
-    sources: { *[Symbol.iterator]() { for (const read of embodiedAudioSources.values()) { const source = read(); if (source) yield source; } } },
+    sources: { *[Symbol.iterator]() { let inspected = 0; for (const read of embodiedAudioSources.values()) { if (++inspected > 64) break; const source = read(); if (source) yield source; } } },
     surfaceAt: (point, spaceId) => wildsFootSurfaceAt(point, spaceId, {
       flooded: state.siteSpace.flooded,
       canopy: siteRuntime.sites.some(site => site.key === state.siteSpace.siteKey && site.family === "canopy-route"),
