@@ -159,6 +159,8 @@
 .resources small { display: block; margin-top: 2px; font-size: 10px; font-weight: 400; }
 .resources input { width: 64px; min-height: 44px; padding: 7px; color: #ecf1d7; background: #07120c; border: 1px solid #bacb974d; border-radius: 9px; font-size: 16px; text-align: center; font-variant-numeric: tabular-nums; caret-color: #cfecaf; }
 .resources > button { width: 100%; margin-top: 4px; font-size: 11px; background: #bdd29810; border-color: #bdd29833; }
+.resources > .gatherHay { display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-bottom: 10px; color: #e9ddb3; background: linear-gradient(135deg, #bda4581a, #17372a); border-color: #bda45866; text-align: left; font-size: 12px; }
+.gatherHay > span { flex: 1; }
 .resources > small { padding: 6px 2px 0; line-height: 1.5; }
 .objects { display: grid; gap: 7px; padding: 12px; }
 .objects small { font-size: 11px; }

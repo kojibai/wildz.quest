@@ -79,6 +79,8 @@ export const DEFAULT_WILDS_AUDIO_SETTINGS: WildsAudioSettings = {
 type AudioParamLike = {
   setValueAtTime(value: number, time: number): void;
   exponentialRampToValueAtTime(value: number, time: number): void;
+  cancelScheduledValues?(time: number): void;
+  setTargetAtTime?(value: number, time: number, timeConstant: number): void;
 };
 
 type OscillatorLike = {
@@ -287,6 +289,7 @@ export function createWildsAudioRuntime(
   const loading = new Map<string, Promise<void>>();
   const activeSources = new Set<AudioBufferSourceLike>();
   const embodiedSources = new Map<AudioBufferSourceLike, { cleanup: () => void; gain: GainLike; sound: WildsEmbodiedSound }>();
+  let airflowSource: AudioBufferSourceLike | null = null;
   let programSources: Array<{ source: AudioBufferSourceLike; gain: GainLike; kind: "music" | "ambience" }> = [];
   let programMemory: WildsAudioMemory = { activeProgramId: null, enteredAt: 0, recent: [] };
   let sceneRequest = 0;
@@ -366,17 +369,19 @@ export function createWildsAudioRuntime(
       cleanup();
     }
   };
-  const playEmbodied = (sound: WildsEmbodiedSound) => {
+  const startEmbodied = (sound: WildsEmbodiedSound, loop=false): AudioBufferSourceLike | null => {
     // Optional sounds never await samples and never synthesize a loading fallback.
-    if (!context || destroyed || settings.muted || embodiedSources.size >= 4) return false;
+    if (!context || destroyed || settings.muted || embodiedSources.size >= 4) return null;
     const buffer = buffers.get(sound.assetId);
     const volume = sound.gain * settings.master * (sound.group === "effects" ? settings.effects : settings.ambience);
-    if (!buffer || !context.createBufferSource || !Number.isFinite(volume) || !Number.isFinite(sound.pan) || !Number.isFinite(sound.playbackRate) || volume <= 0) return false;
+    if (!buffer || !context.createBufferSource || !Number.isFinite(volume) || !Number.isFinite(sound.pan) || !Number.isFinite(sound.playbackRate) || volume <= 0) return null;
     const source = context.createBufferSource(), gain = context.createGain();
     const panner = context.createStereoPanner?.();
     source.buffer = buffer;
+    source.loop = loop;
     source.playbackRate?.setValueAtTime(Math.min(1.2, Math.max(.8, sound.playbackRate)), context.currentTime);
-    gain.gain.setValueAtTime(Math.min(.35, volume), context.currentTime);
+    gain.gain.setValueAtTime(loop ? .0001 : Math.min(.35, volume), context.currentTime);
+    if(loop)gain.gain.exponentialRampToValueAtTime(Math.min(.35, volume),context.currentTime+.16);
     source.connect(gain);
     if (panner) {
       panner.pan.setValueAtTime(Math.max(-1, Math.min(1, sound.pan)), context.currentTime);
@@ -385,12 +390,41 @@ export function createWildsAudioRuntime(
     const cleanup = () => {
       if (!embodiedSources.has(source)) return;
       embodiedSources.delete(source); source.onended = null;
+      if(airflowSource===source)airflowSource=null;
       source.disconnect(); gain.disconnect(); panner?.disconnect();
     };
     source.onended = cleanup;
     embodiedSources.set(source, { cleanup, gain, sound });
-    try { source.start(context.currentTime); } catch { cleanup(); return false; }
-    return true;
+    try { source.start(context.currentTime); } catch { cleanup(); return null; }
+    return source;
+  };
+  const playEmbodied = (sound: WildsEmbodiedSound) => Boolean(startEmbodied(sound));
+  const setEmbodiedAirflow = (sound: WildsEmbodiedSound | null) => {
+    const volume=sound ? sound.gain*settings.master*settings.ambience : 0;
+    if(!context||destroyed||settings.muted)return false;
+    if(!sound||sound.assetId!=='flight-wind'||sound.group!=='ambience'||!Number.isFinite(volume)||!Number.isFinite(sound.playbackRate)||volume<=0){
+      if(airflowSource){
+        const source=airflowSource,voice=embodiedSources.get(source);airflowSource=null;
+        voice?.gain.gain.cancelScheduledValues?.(context.currentTime);
+        voice?.gain.gain.exponentialRampToValueAtTime(.0001,context.currentTime+.12);
+        try{source.stop(context.currentTime+.12);}catch{voice?.cleanup();}
+      }
+      return sound===null;
+    }
+    const voice=airflowSource?embodiedSources.get(airflowSource):null;
+    if(voice){
+      voice.sound=sound;
+      const smooth=(param:AudioParamLike,value:number)=>{
+        param.cancelScheduledValues?.(context!.currentTime);
+        if(param.setTargetAtTime)param.setTargetAtTime(value,context!.currentTime,.09);
+        else param.setValueAtTime(value,context!.currentTime);
+      };
+      smooth(voice.gain.gain,Math.min(.35,volume));
+      if(airflowSource?.playbackRate)smooth(airflowSource.playbackRate,Math.min(1.2,Math.max(.8,sound.playbackRate)));
+      return true;
+    }
+    airflowSource=startEmbodied(sound,true);
+    return Boolean(airflowSource);
   };
 
   const stopAmbience = () => {
@@ -472,10 +506,10 @@ export function createWildsAudioRuntime(
         stopProgram();
         stopEmbodied();
       } else if (context) {
-        embodiedSources.forEach(({ gain, sound }) => gain.gain.setValueAtTime(
-          Math.min(.35, sound.gain * settings.master * (sound.group === "effects" ? settings.effects : settings.ambience)),
-          context!.currentTime
-        ));
+        embodiedSources.forEach(({ gain, sound }) => {
+          gain.gain.cancelScheduledValues?.(context!.currentTime);
+          gain.gain.setValueAtTime(Math.min(.35, sound.gain * settings.master * (sound.group === "effects" ? settings.effects : settings.ambience)),context!.currentTime);
+        });
         programSources.forEach(({ gain, kind }) => gain.gain.setValueAtTime(
           Math.max(0.0001, settings.master * (kind === "music" ? settings.music : settings.ambience)),
           context!.currentTime
@@ -485,6 +519,7 @@ export function createWildsAudioRuntime(
     preload,
     play,
     playEmbodied,
+    setEmbodiedAirflow,
     stopEmbodied,
     setScene,
     activeProgramId() {

@@ -226,7 +226,7 @@ import { prepareWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSite
 import { mergeWildsMapDiscovery } from "@/features/play/wilds-map-image";
 import { discoverWildsExplorationSite } from "@/features/play/wilds-exploration-atlas";
 import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, selectWildsTrailBridgeRotation } from "@/features/play/wilds-steward-construction";
-import { projectWildsResourcePresentationAvailability as projectWildsResourceAvailability, projectWildsResourceRegion, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
+import { projectWildsResourcePresentationAvailability as projectWildsResourceAvailability, projectWildsResourceRegion, wildsResourceRegionForPosition, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
 import { projectWildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
 import type { WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
 import { selectCreationBedAtPlayer, restoredCreationBedFloor, creationBedWakeFloor } from './creation/bed';
@@ -553,7 +553,7 @@ export function PlayCampaign({
   const explorerStyle = character.gender;
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
-  const [trackedDestination, setTrackedDestination] = useState<{ label: string; x: number; z: number } | null>(null);
+  const [trackedDestination, setTrackedDestination] = useState<{ label: string; x: number; z: number; resourceKind?: "hay" } | null>(null);
   const [mapVisited, setMapVisited] = useState(false);
   const [roamingDialogOpen, setRoamingDialogOpen] = useState(false);
   const [roamingAuthorizationPending, setRoamingAuthorizationPending] = useState(false);
@@ -1430,7 +1430,8 @@ export function PlayCampaign({
       flooded: state.siteSpace.flooded,
       canopy: embodiedCanopy,
       navigation: creationNavigation,
-      creations: creationPhysical
+      creations: creationPhysical,
+      siteRuntime
     })
   };
   const embodiedSnapshotRef = useRef(embodiedSnapshot);
@@ -1438,10 +1439,11 @@ export function PlayCampaign({
   const readEmbodiedSnapshot = () => ({
     ...embodiedSnapshotRef.current,
     heading: cameraHeadingRef.current,
+    aerialMode: aerialStateRef.current.mode,
     grounded: aerialStateRef.current.mode === "ground" && verticalTraversalRef.current.layer === "ground" && embodiedSnapshotRef.current.grounded,
     swimming: aerialStateRef.current.mode === "ground" && (verticalTraversalRef.current.layer === "water" || embodiedSnapshotRef.current.swimming),
     underwater: aerialStateRef.current.mode === "ground" && (verticalTraversalRef.current.layer === "water" || embodiedSnapshotRef.current.underwater),
-    listener: verticalTraversalRef.current.layer === "water"
+    listener: verticalTraversalRef.current.layer !== "ground"
       ? { ...embodiedSnapshotRef.current.listener, y: verticalTraversalRef.current.worldY }
       : embodiedSnapshotRef.current.listener
   });
@@ -1902,17 +1904,32 @@ export function PlayCampaign({
     }
   };
 
-  const gatherNearestStewardResource = (family: WildsVisibleWorkFamily) => {
+  const gatherNearestStewardResource = (family: WildsVisibleWorkFamily | "gather") => {
     if (livingWorld.pendingCommand) {
       showWorldFeedback("Your current work is settling. The satchel count will update here before the next source can be gathered.");
       return;
     }
     if (state.siteSpace.spaceId !== "wildz.space.outer.v1") {
-      showWorldFeedback("Return to the open world to gather living timber and stone.");
+      showWorldFeedback("Return to the open world to gather living materials.");
+      return;
+    }
+    if (family === "gather" && aerialStateRef.current.mode !== "ground") {
+      showWorldFeedback("Land beside a hay patch to gather it.");
       return;
     }
     const candidates = [] as Array<{ source: WildsResourceSource; availableCapacity: number }>;
-    for (const source of constructionSourcesNear(state.player, projectWildsResourceRegion)) {
+    // Hay is sparse. Discover it on this explicit action using the nine already
+    // cached resource regions, rather than scanning farther on walking frames.
+    const sources = family === "gather" ? (() => {
+      const region = wildsResourceRegionForPosition(state.player);
+      const hay: WildsResourceSource[] = [];
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+        try { hay.push(...projectWildsResourceRegion(region.x + dx, region.z + dz).filter(source => source.kind === "hay")); }
+        catch { /* Neighbouring regions outside world bounds have no sources. */ }
+      }
+      return hay;
+    })() : constructionSourcesNear(state.player, projectWildsResourceRegion);
+    for (const source of sources) {
       const harvested = livingWorld.snapshot?.harvestedSources[source.sourceId];
       const availability = projectWildsResourceAvailability(source, {
         admittedHarvestedCapacity: harvested?.harvestedCapacity ?? 0,
@@ -1924,8 +1941,9 @@ export function PlayCampaign({
     const source = selectNearestWildsWorkSource(candidates, family, state.player, 5.5);
     if (!source) {
       const destination = selectNearestWildsWorkSource(candidates, family, state.player, 1000);
-      if (destination) setTrackedDestination({ label: family === "lumber" ? "Gather timber" : "Gather stone", x: destination.position.x, z: destination.position.z });
-      showWorldFeedback(destination ? "Follow the marked resource, then gather inside its ring." : `No available ${family === "lumber" ? "tree" : "stone"} nearby. Explore farther to find one.`);
+      const material = family === "lumber" ? "timber" : family === "gather" ? "hay" : "stone";
+      if (destination) setTrackedDestination({ label: `Gather ${material}`, x: destination.position.x, z: destination.position.z, ...(family === "gather" ? { resourceKind: "hay" as const } : {}) });
+      showWorldFeedback(destination ? "Follow the marked resource, then gather inside its ring." : `No available ${material} nearby. Explore farther to find some.`);
       return;
     }
     void gatherStewardResource(source, true);
@@ -3484,6 +3502,7 @@ export function PlayCampaign({
               onMovementInput={dispatchWorldInput} headingRef={cameraHeadingRef} onPlacementModeChange={setCreationPlacing}
               placementRef={creationPoint} onPreview={setCreationPreview} onClose={closeCreation}
               onManualBuild={openManualFromCreation}
+              onGatherHay={() => gatherNearestStewardResource("gather")}
             /> : null}
             <WildzWorldControls
               onOpenCreation={()=>{
@@ -3556,6 +3575,7 @@ export function PlayCampaign({
 
             {trackedDestination && exclusiveOwner === "none" ? <div className="wilds-tracked-destination" role="status">
               <Icons.map size={17} aria-hidden="true" /><span><strong>{trackedDestination.label}</strong><small>{wildsTrailDirection(state.player, trackedDestination)}</small></span>
+              {trackedDestination.resourceKind === "hay" && Math.hypot(trackedDestination.x - state.player.x, trackedDestination.z - state.player.z) <= 5.5 ? <button className="wilds-resource-gather" disabled={Boolean(livingWorld.pendingCommand) || aerialMode !== "ground"} onClick={() => gatherNearestStewardResource("gather")} type="button">Gather hay</button> : null}
               <button aria-label="Show tracked destination on map" onClick={openWorldMap} type="button"><Icons.map size={16} /></button>
               <button aria-label="Clear tracked destination" onClick={() => setTrackedDestination(null)} type="button"><Icons.close size={16} /></button>
             </div> : null}

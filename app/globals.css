@@ -17537,6 +17537,7 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wilds-tracked-destination strong, .wilds-atlas-destination strong { display: block; font-size: 12px; overflow-wrap: anywhere; }
 .wilds-tracked-destination small, .wilds-atlas-destination small { display: block; font-size: 11px; color: #bad2c7; }
 .wilds-tracked-destination button, .wilds-atlas-destination button { flex: 0 0 44px; min-height: 44px; display: grid; place-items: center; color: #edf5dc; background: transparent; border: 1px solid #b8d1bf30; border-radius: 12px; }
+.wilds-tracked-destination .wilds-resource-gather { flex-basis: auto; padding: 0 10px; color: #f2e3b4; background: #bda4581a; border-color: #bda45866; font-size: 11px; }
 .wilds-atlas-destination { position: absolute; z-index: 4; left: 10px; top: 220px; width: min(290px, calc(100% - 20px)); }
 .wilds-atlas-destination .wilds-atlas-destination-focus { flex: 1; display: block; text-align: left; border: 0; min-width: 0; }
 .wilds-journal-memory { margin: 5px 0 8px; color: #bad2c9; font-size: 11px; line-height: 1.65; }

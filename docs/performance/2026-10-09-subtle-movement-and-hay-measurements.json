@@ -1,0 +1,425 @@
+{
+  "environment": {
+    "browser": "Chromium",
+    "build": "local production",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "physicalInstalledIOSPwa": false,
+    "account": "isolated established synthetic account",
+    "durableStorageCleared": false
+  },
+  "motion": {
+    "before": "Open world map. Current position X 86, Z -267. 0 roaming creatures",
+    "after": "Open world map. Current position X 72, Z -281. 0 roaming creatures",
+    "cameraBefore": [
+      0.8436614871025085,
+      -0.18091776967048645,
+      0.5054740905761719,
+      0,
+      0,
+      0.9415108561515808,
+      0.33698272705078125,
+      0,
+      -0.5368754863739014,
+      -0.2842993438243866,
+      0.7943164110183716,
+      0,
+      4.301402896089712e-07,
+      0.9357933602189519,
+      -7.974099194138489,
+      1
+    ],
+    "cameraAfter": [
+      -0.7460943829789783,
+      -0.6183422801945544,
+      0.24697378183950977,
+      0,
+      2.8115082623125787e-09,
+      0.37092047761245484,
+      0.9286646431737898,
+      0,
+      -0.6658402350235125,
+      0.6928714314083614,
+      -0.2767416837533245,
+      0,
+      -9.492212793560384e-09,
+      2.1922253231529676,
+      -2.8204092329831303,
+      1
+    ],
+    "walking": {
+      "name": "walking",
+      "frames": 910,
+      "p95Ms": 9.020000000000437,
+      "maxMs": 24.970000000000027,
+      "over50Ms": 0,
+      "longTasks": []
+    },
+    "camera": {
+      "name": "camera rotation",
+      "frames": 380,
+      "p95Ms": 9.040000000000873,
+      "maxMs": 16.11499999999978,
+      "over50Ms": 0,
+      "longTasks": []
+    },
+    "errorOverlay": 0
+  },
+  "audio": {
+    "url": "http://127.0.0.1:3110/?verification=loader-audio",
+    "title": "Wildz: Living Creature Adventure Game",
+    "loader": {
+      "text": "",
+      "min": "0",
+      "max": "6",
+      "now": "0",
+      "logo": "/brand/wildz-mark.svg",
+      "logoWidth": 64
+    },
+    "reduced": {
+      "scan": "none",
+      "fill": "0s",
+      "logo": "none"
+    },
+    "startupAudioRequests": 0,
+    "pauseVerified": true,
+    "resumePlayable": true,
+    "frameworkErrorOverlay": 0,
+    "pageErrors": [],
+    "progress": [
+      {
+        "stage": 0,
+        "at": 35.6800000667572,
+        "text": ""
+      },
+      {
+        "stage": 1,
+        "at": 395.210000038147,
+        "text": ""
+      },
+      {
+        "stage": 3,
+        "at": 425.60000002384186,
+        "text": ""
+      },
+      {
+        "stage": 4,
+        "at": 461.06500005722046,
+        "text": ""
+      },
+      {
+        "stage": 5,
+        "at": 587.2649999856949,
+        "text": ""
+      }
+    ],
+    "ticks": 38,
+    "meanTickMs": 0.07723683746237504,
+    "p95TickMs": 0.2549999952316284,
+    "maxTickMs": 0.26499998569488525,
+    "maxVoices": 4,
+    "requests": 15,
+    "movementSounds": 7,
+    "movementMode": "swim"
+  },
+  "airflowIntegration": {
+    "decodedDurationSeconds": 5.559270833333334,
+    "voicesAcross80Updates": 1,
+    "assetFetches": 1,
+    "rate": 1.0080000162124634,
+    "p95TickMs": 0.10500001907348633,
+    "maxTickMs": 0.43500006198883057,
+    "landingEnded": true,
+    "muteVerified": true
+  },
+  "surfaceAndHayWarmCpu": [
+    {
+      "name": "mountain contact surface",
+      "samples": 10000,
+      "p95Ms": 0.0003750000000053433,
+      "maxMs": 0.17241699999999582
+    },
+    {
+      "name": "ordinary ground surface",
+      "samples": 10000,
+      "p95Ms": 0.0019580000000019027,
+      "maxMs": 0.06979199999999253
+    },
+    {
+      "name": "cached nine-region hay discovery",
+      "samples": 10000,
+      "p95Ms": 0.0037499999999965894,
+      "maxMs": 0.13066699999998832
+    }
+  ],
+  "creation": {
+    "dark": {
+      "html": "rgb(9, 17, 13)",
+      "body": "rgb(9, 17, 13)",
+      "scheme": "dark"
+    },
+    "fit": [
+      {
+        "width": 390,
+        "height": 844,
+        "box": {
+          "x": 12,
+          "y": 433.921875,
+          "width": 366,
+          "height": 284.078125
+        },
+        "summaries": [
+          {
+            "name": "Choose creatures",
+            "x": 25,
+            "width": 69,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Allocate resources",
+            "x": 99,
+            "width": 69,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Choose object",
+            "x": 173,
+            "width": 69,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Build a farm",
+            "x": 247,
+            "width": 69,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          }
+        ]
+      },
+      {
+        "width": 375,
+        "height": 667,
+        "box": {
+          "x": 12,
+          "y": 256.921875,
+          "width": 351,
+          "height": 284.078125
+        },
+        "summaries": [
+          {
+            "name": "Choose creatures",
+            "x": 25,
+            "width": 65.25,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Allocate resources",
+            "x": 95.25,
+            "width": 65.25,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Choose object",
+            "x": 165.5,
+            "width": 65.25,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Build a farm",
+            "x": 235.75,
+            "width": 65.25,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          }
+        ]
+      },
+      {
+        "width": 320,
+        "height": 568,
+        "box": {
+          "x": 12,
+          "y": 137.625,
+          "width": 296,
+          "height": 304.375
+        },
+        "summaries": [
+          {
+            "name": "Choose creatures",
+            "x": 25,
+            "width": 52.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Allocate resources",
+            "x": 81.5,
+            "width": 52.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Choose object",
+            "x": 138,
+            "width": 52.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Build a farm",
+            "x": 194.5,
+            "width": 52.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          }
+        ]
+      },
+      {
+        "width": 844,
+        "height": 390,
+        "box": {
+          "x": 448,
+          "y": 36.21875,
+          "width": 380,
+          "height": 265.78125
+        },
+        "summaries": [
+          {
+            "name": "Choose creatures",
+            "x": 459,
+            "width": 73.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Allocate resources",
+            "x": 537.5,
+            "width": 73.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Choose object",
+            "x": 616,
+            "width": 73.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Build a farm",
+            "x": 694.5,
+            "width": 73.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          }
+        ]
+      },
+      {
+        "width": 1280,
+        "height": 900,
+        "box": {
+          "x": 884,
+          "y": 477.921875,
+          "width": 380,
+          "height": 286.078125
+        },
+        "summaries": [
+          {
+            "name": "Choose creatures",
+            "x": 897,
+            "width": 72.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Allocate resources",
+            "x": 974.5,
+            "width": 72.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Choose object",
+            "x": 1052,
+            "width": 72.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Build a farm",
+            "x": 1129.5,
+            "width": 72.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          }
+        ]
+      }
+    ],
+    "preservedDraft": true,
+    "errors": []
+  },
+  "hayCollection": {
+    "start": {
+      "x": 72,
+      "z": -281,
+      "label": "Open world map. Current position X 72, Z -281. 0 roaming creatures"
+    },
+    "after": {
+      "x": 104,
+      "z": -237,
+      "label": "Open world map. Current position X 104, Z -237. 0 roaming creatures"
+    },
+    "inventory": "Create with creatures. Satchel has 1 hay, 11 timber, and 0 stone",
+    "reopened": "Create with creatures. Satchel has 1 hay, 11 timber, and 0 stone",
+    "hayDelta": 1,
+    "durableAfterReload": true,
+    "errors": []
+  },
+  "hayShortcut": {
+    "before": "Open world map. Current position X 72, Z -281. 0 roaming creatures",
+    "destination": "Gather hay\nX 105 \u00b7 Z -242",
+    "box": {
+      "x": 38,
+      "y": 327.0625,
+      "width": 314,
+      "height": 53.8984375
+    },
+    "preservedDraft": true
+  },
+  "hayShortcutFinal": {
+    "gatheringKeepsHud": true,
+    "walkingPreserved": true,
+    "draftPreserved": true,
+    "expectedDraft": "Keep this shelter draft while gathering.",
+    "normalMinimizeStillPlaces": true,
+    "before": "Open world map. Current position X 103, Z -237. 0 roaming creatures",
+    "after": "Open world map. Current position X 101, Z -238. 0 roaming creatures"
+  }
+}

@@ -14,6 +14,25 @@ test('walking uses actual travelled distance and the surface under the player',(
   assert.equal(sounds.length,1); assert.equal(sounds[0].assetId,'step-rock');
   assert.equal(sounds[0].group,'effects'); assert.equal(sounds[0].pan,0);
 });
+test('footsteps stay subtle and gently follow movement speed without changing the contact cadence',()=>{
+  const contacts=(metresPerTick:number,running=false)=>{
+    const planner=createWildsEmbodiedAudioPlanner();planner.sample({...frame(),running},0);
+    const sounds=[] as ReturnType<typeof planner.sample>;
+    for(let tick=1;tick<=40;tick++)sounds.push(...planner.sample({...frame(tick*metresPerTick),running},tick*125));
+    return sounds;
+  };
+  const slow=contacts(.1),walk=contacts(.4),run=contacts(.7,true);
+  assert.ok(slow.length>0&&walk.length>slow.length&&run.length>walk.length);
+  assert.ok(walk.every(sound=>sound.gain>0&&sound.gain<=.085),'walking should be at least 6 dB below the previous mix');
+  assert.ok(run.every(sound=>sound.gain<=.12),'running remains subtle too');
+  const mean=(sounds:typeof walk)=>sounds.reduce((sum,sound)=>sum+sound.gain,0)/sounds.length;
+  assert.ok(mean(slow)<mean(walk)&&mean(walk)<mean(run));
+  assert.ok(new Set(walk.slice(-6).map(sound=>sound.gain)).size>1,'steady movement has gentle contact variation');
+  const nearby=createWildsEmbodiedAudioPlanner(),player={...bird('player',3),kind:'player' as const};
+  nearby.sample(frame(0,[player]),0);player.position.x+=.9;
+  const neighbour=nearby.sample(frame(0,[player]),125);
+  assert.equal(neighbour.length,1);assert.ok(neighbour[0].gain>0&&neighbour[0].gain<.06);
+});
 test('teleports, realm changes, flight and resume never replay accumulated footsteps',()=>{
   const planner=createWildsEmbodiedAudioPlanner(); planner.sample(frame(),0);
   assert.deepEqual(planner.sample(frame(100),125),[]);
@@ -82,4 +101,19 @@ test('steep mountain contacts use climbing texture and underwater listeners do n
   assert.ok(sounds.every(sound=>sound.assetId.startsWith('swim-water-')));
   assert.ok(sounds.length<=2);
  }
+});
+
+test('flight and glide airflow follows real speed, stays silent on ground, and never probes terrain',()=>{
+ const planner=createWildsEmbodiedAudioPlanner();
+ let probes=0;
+ const air=(x:number,mode:'flight'|'glide')=>({...frame(x),grounded:false,aerialMode:mode,surfaceAt:()=>{probes++;return 'rock' as const;}});
+ planner.sample(frame(),0);assert.equal(planner.airflow(),null);
+ planner.sample(air(0,'flight'),125);const hovering=planner.airflow()?.gain;assert.ok(hovering&&hovering>0);
+ for(let tick=2;tick<=16;tick++)assert.deepEqual(planner.sample(air((tick-1)*.7,'flight'),tick*125),[]);
+ const fast=planner.airflow();assert.ok(fast&&fast.assetId==='flight-wind'&&fast.gain>hovering&&fast.gain<=.13);
+ const powered=fast.gain;planner.sample(air(11.2,'glide'),2125);assert.ok(planner.airflow()!.gain<powered);
+ assert.equal(probes,0);
+ planner.sample(frame(11.2),2250);assert.equal(planner.airflow(),null);
+ planner.sample(air(100,'flight'),4000);assert.ok(planner.airflow()!.gain< powered,'resume/teleport must not create a speed surge');
+ planner.reset();assert.equal(planner.airflow(),null);
 });

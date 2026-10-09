@@ -248,7 +248,7 @@ function ResourceManifestation({ activeWorkSource, geometry, materials, onIntera
   const actorElevation = useMemo(() => wildsSiteRuntimeGroundY(siteRuntime, siteSpaceId, source.position.x, source.position.z, source.position.y), [siteRuntime, siteSpaceId, source.position.x, source.position.y, source.position.z]);
   const position = projectWildsTerrainActorPosition(source.position, player, .05, { actorElevation, anchorElevation: terrainElevation });
   const distance = Math.hypot(source.position.x - player.x, source.position.z - player.z);
-  const affordance = projectWildsResourceAffordance({ kind: timber ? "timber" : "stone", distance, availableCapacity, pending, companionQualified, companionReady });
+  const affordance = projectWildsResourceAffordance({ kind: timber ? "timber" : hay ? "hay" : "stone", distance, availableCapacity, pending, companionQualified, companionReady });
   const material = affordance.state === "ready" ? materials.sourceReady
     : affordance.state === "approach" ? materials.sourceApproach
       : affordance.state === "companion" ? materials.sourceCompanion

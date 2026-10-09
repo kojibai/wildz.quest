@@ -27,6 +27,7 @@ test('choosing a new farm replaces a distant restored placement with the latest 
   const environment = { module: testModule, exports: testModule.exports, crypto, document: { body: {} }, require(name: string) {
     if (name === 'react/jsx-runtime') return jsxRuntime;
     if (name === 'react') return { memo: (fn: unknown) => fn, useMemo: (fn: () => unknown) => fn(),
+      useState: (value: unknown) => [value, () => {}],
       useCallback: (fn: unknown) => fn, useRef: (value: unknown) => ({ current: value }), useEffect() {}, useSyncExternalStore: () => true };
     if (name === 'react-dom') return { createPortal: (children: unknown) => children };
     if (name === './farm-layout') return { createFarmLayoutDefinition };

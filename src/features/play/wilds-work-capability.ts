@@ -72,7 +72,7 @@ export function selectWildsResourceWorkPartner(
 
 export function selectNearestWildsWorkSource(
   candidates: readonly WildsWorkSourceCandidate[],
-  family: WildsVisibleWorkFamily,
+  family: WildsVisibleWorkFamily | "gather",
   actorPosition: Readonly<{ x: number; z: number }>,
   maxDistance = 5.5
 ) {
@@ -81,6 +81,7 @@ export function selectNearestWildsWorkSource(
   }
   return candidates
     .filter(({ source, availableCapacity }) => source.requirements.creature === family
+      && (family !== "gather" || source.kind === "hay")
       && availableCapacity > 0
       && Math.hypot(source.position.x - actorPosition.x, source.position.z - actorPosition.z) <= maxDistance)
     .sort((left, right) => Math.hypot(left.source.position.x - actorPosition.x, left.source.position.z - actorPosition.z)

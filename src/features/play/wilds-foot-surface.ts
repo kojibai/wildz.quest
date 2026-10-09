@@ -3,9 +3,10 @@ import type { CreationPhysicalSnapshot } from './creation/physical-store';
 import type { CreationNavigation } from './creation/navigation';
 import type { CreationSurface } from './creation/geometry';
 import type { WildsAudioPoint, WildsFootSurface } from './wilds-embodied-audio';
+import { wildsSiteRuntimeGroundY, type WildsSiteRuntimeProjection } from './wilds-site-runtime';
 const materials=new WeakMap<CreationSurface,WildsFootSurface>();
 /** Read the existing spatial floor index only when an audible step is due. */
-export function wildsFootSurfaceAt(point:WildsAudioPoint,spaceId:string,input:{flooded:boolean;canopy:boolean;navigation:CreationNavigation|null;creations:Pick<CreationPhysicalSnapshot,'instances'|'definitions'>}):WildsFootSurface {
+export function wildsFootSurfaceAt(point:WildsAudioPoint,spaceId:string,input:{flooded:boolean;canopy:boolean;navigation:CreationNavigation|null;creations:Pick<CreationPhysicalSnapshot,'instances'|'definitions'>;siteRuntime?:WildsSiteRuntimeProjection}):WildsFootSurface {
   let selected:{instanceId:string;value:CreationSurface}|null=null;
   const candidates=input.navigation?.spaces.get(spaceId)?.surfaces.get(`${Math.floor(point.x/16)}:${Math.floor(point.z/16)}`)??[];
   for(let i=0;i<Math.min(candidates.length,64);i++) {
@@ -20,6 +21,9 @@ export function wildsFootSurfaceAt(point:WildsAudioPoint,spaceId:string,input:{f
     const material=definition?.nodes.find(node=>selected!.value.id.startsWith(`${node.id}:`))?.material;
     const surface=material==='timber'?'wood':material==='hay'?'grass':'rock';materials.set(selected.value,surface);return surface;
   }
+  // The admitted mountain skin sits above procedural terrain. Reuse its spatial
+  // index only for a due contact; creation floors still take precedence.
+  if(input.siteRuntime&&Number.isFinite(wildsSiteRuntimeGroundY(input.siteRuntime,spaceId,point.x,point.z,Number.NaN)))return 'mountain-rock';
   if(input.flooded)return 'shallow-water';
   if(input.canopy)return 'wood';
   if(spaceId!=='wildz.space.outer.v1')return 'rock';

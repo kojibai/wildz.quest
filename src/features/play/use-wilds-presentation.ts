@@ -140,7 +140,10 @@ export function useWildsPresentation({
       void loadSamples();
       timer = setInterval(() => {
         const snapshot = embodiedSnapshotRef.current?.();
-        if (snapshot) for (const sound of planner.sample(snapshot, performance.now())) runtime.playEmbodied(sound);
+        if (snapshot) {
+          for (const sound of planner.sample(snapshot, performance.now())) runtime.playEmbodied(sound);
+          runtime.setEmbodiedAirflow(planner.airflow());
+        } else runtime.setEmbodiedAirflow(null);
       }, 125);
     };
     document.addEventListener("visibilitychange", start);

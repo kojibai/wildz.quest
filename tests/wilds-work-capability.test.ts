@@ -11,6 +11,21 @@ function card(formId: string) {
 }
 
 describe("creature work capability meters", () => {
+  it("finds available hay rather than other gathering resources", () => {
+    const source = (kind: "hay" | "fiber", x: number): WildsResourceSource => ({
+      schema: "wildz.resource-source.v1", sourceId: `${kind}:${x}`, regionX: 0, regionZ: 0, slot: 0, kind,
+      position: { x, y: 0, z: 0 }, capacity: 10, quality: 1,
+      requirements: { creature: "gather", tool: "shears" },
+      replenishment: { intervalPulses: 1, capacityPerInterval: 1 }
+    });
+    const candidates = [
+      { source: source("fiber", 1), availableCapacity: 1 },
+      { source: source("hay", 2), availableCapacity: 0 },
+      { source: source("hay", 4), availableCapacity: 1 }
+    ];
+    assert.equal(selectNearestWildsWorkSource(candidates, "gather", { x: 0, z: 0 })?.sourceId, "hay:4");
+    assert.equal(selectNearestWildsWorkSource(candidates, "gather", { x: 0, z: 0 }, 3), null);
+  });
   it("projects timber and quarry capability from the same creature authority used by harvesting", () => {
     assert.deepEqual(projectWildsWorkCapabilityMeters(card("mintcub-1")).map((item) => item.family), ["lumber"]);
     assert.deepEqual(projectWildsWorkCapabilityMeters(card("titanseal-1")).map((item) => item.family), ["quarry"]);

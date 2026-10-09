@@ -357,30 +357,34 @@
   {
     "id": "step-grass-1",
     "kind": "effect",
-    "path": "/audio/wildz/effects/embodied/step-grass-1-fe4c136bbf2a.mp3",
+    "path": "/audio/wildz/effects/embodied/step-grass-1-33bcec664435.mp3",
     "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud",
     "license": "CC0-1.0",
     "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "sha256": "fe4c136bbf2a82e09211a47e459d5b81a876b8f31a4778f67ac582641d3cdd9b",
+    "sha256": "33bcec66443554439b12acce096eee3b1e515ee19d7beef26665513ac3ac8ad1",
     "loop": false,
     "roles": [
       "grass",
       "fauna-motion"
-    ]
+    ],
+    "processing": "Mono 22050 Hz MP3 at 40 kbit/s; high-pass 100 Hz, low-pass 2200 Hz, 16 ms onset and 35 ms release fades, peak about -12 dBFS.",
+    "sourceSha256": "93b3bbcd06380eec54335d1869924db6ff2cc6c1cb103502133d78484c5ca836"
   },
   {
     "id": "step-grass-2",
     "kind": "effect",
-    "path": "/audio/wildz/effects/embodied/step-grass-2-f1bdbea28a68.mp3",
+    "path": "/audio/wildz/effects/embodied/step-grass-2-f422f53c9b07.mp3",
     "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud",
     "license": "CC0-1.0",
     "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "sha256": "f1bdbea28a687845962c4d46d03cc8c690fbb4a44c547142c92ef48406f1f992",
+    "sha256": "f422f53c9b07f9c18625836a5e3e7b4f3f14c25ca4a0217cd30a68e3e38f4842",
     "loop": false,
     "roles": [
       "grass",
       "fauna-motion"
-    ]
+    ],
+    "processing": "Mono 22050 Hz MP3 at 40 kbit/s; high-pass 100 Hz, low-pass 2200 Hz, 16 ms onset and 35 ms release fades, peak about -12 dBFS.",
+    "sourceSha256": "477c35bfd3f740915b24f93cb66364523217692d2749057f9b8be162eb8209f4"
   },
   {
     "id": "step-soil",
@@ -543,5 +547,24 @@
       "mountain",
       "climb"
     ]
+  },
+  {
+    "id": "flight-wind",
+    "kind": "ambience",
+    "path": "/audio/wildz/effects/embodied/flight-wind-332250010e52.mp3",
+    "sourcePage": "https://opengameart.org/content/wind-whoosh-loop",
+    "sourceFile": "https://opengameart.org/sites/default/files/wind%20woosh%20loop.ogg",
+    "sourceAuthor": "SketchMan3",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "332250010e52aa4e02deb54c5f311e0c7d5f5cf1e0a799c4b6fa33b43e0feda9",
+    "loop": true,
+    "roles": [
+      "flight",
+      "glide",
+      "airflow"
+    ],
+    "processing": "Mono 22050 Hz MP3 at 40 kbit/s; high-pass 130 Hz, low-pass 4200 Hz, peak about -8 dBFS; 200 ms seam crossfade.",
+    "sourceSha256": "0cfdbd3f21ed449689a9024264edf267d0037a6495813a7010827672ec191dac"
   }
 ]

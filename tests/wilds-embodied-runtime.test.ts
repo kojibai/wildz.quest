@@ -5,7 +5,7 @@ import type { WildsEmbodiedSound } from '../src/features/play/wilds-embodied-aud
 const sound:WildsEmbodiedSound={assetId:'step-rock',gain:.2,pan:.7,playbackRate:1,group:'effects'};
 function engine(){
  let contexts=0,fetches=0,stops=0,disconnects=0,volume=0,failStart=false;
- const sources:Array<{onended?:(()=>void)|null;stop:()=>void}>=[];
+ const sources:Array<{onended?:(()=>void)|null;loop?:boolean;stop:()=>void}>=[];
  const param={setValueAtTime(value:number){volume=value;},exponentialRampToValueAtTime(){}};
  const context:WildsAudioContextLike={currentTime:0,destination:{},resume:async()=>{},close:async()=>{},
   createOscillator:()=>({type:'sine',frequency:param,connect(){},disconnect(){},start(){},stop(){}}),
@@ -36,4 +36,22 @@ test('volume controls affect an already sounding animal immediately',async()=>{
 test('an interrupted optional source never throws into gameplay and releases its voice',async()=>{
  const e=engine();await e.runtime.unlock();await e.runtime.preload(['step-rock']);e.fail();
  assert.equal(e.runtime.playEmbodied(sound),false);assert.equal(e.metrics().disconnects,2);await e.runtime.destroy();
+});
+test('airflow reuses one looping voice, shares the four-voice cap, fades on landing, and stops on mute',async()=>{
+ const e=engine(),runtime=e.runtime;
+ const wind:WildsEmbodiedSound={assetId:'flight-wind',gain:.08,pan:0,playbackRate:1,group:'ambience'};
+ assert.equal(runtime.setEmbodiedAirflow(wind),false);assert.equal(e.metrics().contexts,0);
+ await runtime.unlock();assert.equal(runtime.setEmbodiedAirflow(wind),false);
+ await runtime.preload(['flight-wind','step-rock']);
+ assert.equal(runtime.setEmbodiedAirflow(wind),true);
+ for(let tick=0;tick<80;tick++)assert.equal(runtime.setEmbodiedAirflow({...wind,gain:.06+tick*.0003}),true);
+ assert.equal(e.sources.length,1);assert.equal(e.sources[0].loop,true);
+ for(let i=0;i<3;i++)assert.equal(runtime.playEmbodied(sound),true);
+ assert.equal(runtime.playEmbodied(sound),false);
+ assert.equal(runtime.setEmbodiedAirflow(null),true);assert.equal(e.metrics().stops,1);
+ e.sources[0].onended?.();assert.equal(e.metrics().disconnects,2);
+ assert.equal(runtime.setEmbodiedAirflow(wind),true);
+ runtime.setSettings({...DEFAULT_WILDS_AUDIO_SETTINGS,muted:true});
+ assert.equal(e.metrics().stops,5);assert.equal(runtime.setEmbodiedAirflow(wind),false);
+ await runtime.destroy();assert.equal(e.metrics().stops,5);
 });
