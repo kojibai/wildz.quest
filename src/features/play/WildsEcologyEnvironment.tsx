@@ -10,12 +10,14 @@ import type { WildsWorldEcologyProjection, WildsWorldProjection } from "./wilds-
 import { useWildsReadability } from "./WildsReadabilityContext";
 import { projectWildsTerrainActorPosition } from "./wilds-terrain-rendering";
 import { createWildsMovingInstancesRuntime, writeWildsMovingInstances, type WildsMovingInstancesRuntime } from "./wilds-moving-instances";
+import { wildsSiteRuntimeGroundY, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 
-export function WildsEcologyEnvironment({ livingWorld, player, terrainElevation, worldMode }: {
+export function WildsEcologyEnvironment({ livingWorld, player, terrainElevation, worldMode, siteRuntime }: {
   livingWorld?: WildsWorldProjection | null;
   player: { x: number; z: number };
   terrainElevation: number;
   worldMode: WildsSettlementWorldMode;
+  siteRuntime?: WildsSiteRuntimeProjection;
 }) {
   const sites = useMemo(() => Object.values(livingWorld?.ecologySites ?? {})
     .filter((site) => site.phase !== "expired" && site.phase !== "historical")
@@ -32,16 +34,21 @@ export function WildsEcologyEnvironment({ livingWorld, player, terrainElevation,
   }, [geometry, materials]);
 
   return <group name="wilds-regional-ecology">
-    {sites.map(({ site }) => (
+    {sites.map(({ site }) => {
+      const mountainY=siteRuntime?wildsSiteRuntimeGroundY(siteRuntime,"wildz.space.outer.v1",site.position.x,site.position.z,Number.NaN):Number.NaN;
+      const relative=projectWildsTerrainActorPosition(site.position,player,0,{actorElevation:Number.isFinite(mountainY)?mountainY:undefined,anchorElevation:terrainElevation});
+      return (
       <EcologyManifestation
         geometry={geometry}
         key={site.id}
         materials={materials}
-        relative={projectWildsTerrainActorPosition(site.position, player, 0, { anchorElevation: terrainElevation })}
+        relative={relative}
+        groundY={relative[1]+terrainElevation}
+        siteRuntime={siteRuntime}
         site={site}
         worldMode={worldMode}
       />
-    ))}
+    );})}
   </group>;
 }
 
@@ -74,19 +81,25 @@ function createGeometry() {
 type Materials = ReturnType<typeof createMaterials>;
 type Geometry = ReturnType<typeof createGeometry>;
 
-function EcologyManifestation({ geometry, materials, relative, site, worldMode }: {
+function EcologyManifestation({ geometry, materials, relative, site, worldMode, siteRuntime, groundY }: {
   geometry: Geometry;
   materials: Materials;
   relative: [number, number, number];
   site: WildsWorldEcologyProjection;
   worldMode: WildsSettlementWorldMode;
+  siteRuntime?: WildsSiteRuntimeProjection;
+  groundY: number;
 }) {
+  const groundAt=useMemo(()=>siteRuntime?.physical.mountainFields.length?(x:number,z:number)=>{
+    const y=wildsSiteRuntimeGroundY(siteRuntime,"wildz.space.outer.v1",site.position.x+x,site.position.z+z,Number.NaN);
+    return Number.isFinite(y)?y-groundY:0;
+  }:undefined,[siteRuntime,site.position.x,site.position.z,groundY]);
   return <group name={`ecology-${site.familyId}`} position={relative}>
     <mesh position={[0, .04, 0]} rotation={[-Math.PI / 2, 0, 0]} scale={[site.radius * .66, site.radius * .66, 1]}>
       <circleGeometry args={[1, 32]} />
       <primitive attach="material" object={materials.earth} />
     </mesh>
-    <FamilyKit familyId={site.familyId} geometry={geometry} materials={materials} />
+    <FamilyKit familyId={site.familyId} geometry={geometry} materials={materials} groundAt={groundAt} />
     <SignalInstances geometry={geometry} materials={materials} radius={Math.min(4.2, site.radius * .46)} />
     <Html center distanceFactor={11} occlude={false} position={[0, 3.55, 0]} zIndexRange={[8, 1]}>
       <div className="wilds-ecology-world-label"><strong>{site.name}</strong><span>{worldMode === "receiz_live" ? site.phase : `Practice · ${site.phase}`}</span></div>
@@ -94,15 +107,15 @@ function EcologyManifestation({ geometry, materials, relative, site, worldMode }
   </group>;
 }
 
-function FamilyKit({ familyId, geometry, materials }: { familyId: WildsEcologyFamilyId; geometry: Geometry; materials: Materials }) {
+function FamilyKit({ familyId, geometry, materials, groundAt }: { familyId: WildsEcologyFamilyId; geometry: Geometry; materials: Materials; groundAt?: (x:number,z:number)=>number }) {
   if (!WILDS_ECOLOGY_FAMILIES.includes(familyId)) return null;
   switch (familyId) {
     case "wandering-market": return <MarketKit geometry={geometry} materials={materials} />;
     case "echo-ruin": return <RuinKit geometry={geometry} materials={materials} />;
     case "unstable-portal": return <PortalKit geometry={geometry} materials={materials} />;
     case "convergence-festival": return <FestivalKit geometry={geometry} materials={materials} />;
-    case "creature-migration": return <MigrationKit geometry={geometry} materials={materials} />;
-    case "resource-bloom": return <BloomKit geometry={geometry} materials={materials} />;
+    case "creature-migration": return <MigrationKit geometry={geometry} materials={materials} groundAt={groundAt} />;
+    case "resource-bloom": return <BloomKit geometry={geometry} materials={materials} groundAt={groundAt} />;
     case "stormfront": return <StormKit geometry={geometry} materials={materials} />;
     case "settlement-distress": return <DistressKit geometry={geometry} materials={materials} />;
   }
@@ -148,12 +161,12 @@ function FestivalKit({ geometry, materials }: { geometry: Geometry; materials: M
   </group>;
 }
 
-function MigrationKit({ geometry, materials }: { geometry: Geometry; materials: Materials }) {
-  return <group name="creature-migration"><MovingInstances count={9} geometry={geometry.creature} material={materials.teal} /></group>;
+function MigrationKit({ geometry, materials, groundAt }: { geometry: Geometry; materials: Materials; groundAt?: (x:number,z:number)=>number }) {
+  return <group name="creature-migration"><MovingInstances count={9} geometry={geometry.creature} material={materials.teal} groundAt={groundAt} /></group>;
 }
 
-function BloomKit({ geometry, materials }: { geometry: Geometry; materials: Materials }) {
-  return <group name="resource-bloom"><MovingInstances count={11} geometry={geometry.shard} material={materials.gold} vertical /></group>;
+function BloomKit({ geometry, materials, groundAt }: { geometry: Geometry; materials: Materials; groundAt?: (x:number,z:number)=>number }) {
+  return <group name="resource-bloom"><MovingInstances count={11} geometry={geometry.shard} material={materials.gold} vertical groundAt={groundAt} /></group>;
 }
 
 function StormKit({ geometry, materials }: { geometry: Geometry; materials: Materials }) {
@@ -192,12 +205,12 @@ function SignalInstances({ geometry, materials, radius }: { geometry: Geometry; 
   return <instancedMesh args={[geometry.shard, materials.prism, 6]} ref={mesh} />;
 }
 
-function MovingInstances({ count, geometry, material, vertical = false }: { count: number; geometry: THREE.BufferGeometry; material: THREE.Material; vertical?: boolean }) {
+function MovingInstances({ count, geometry, material, vertical = false, groundAt }: { count: number; geometry: THREE.BufferGeometry; material: THREE.Material; vertical?: boolean; groundAt?: (x:number,z:number)=>number }) {
   const mesh = useRef<THREE.InstancedMesh>(null);
   const runtime = useRef<WildsMovingInstancesRuntime | null>(null);
   if (!runtime.current) runtime.current = createWildsMovingInstancesRuntime();
   useFrame(({ clock }) => {
-    writeWildsMovingInstances(runtime.current!, mesh.current, count, clock.elapsedTime, vertical);
+    writeWildsMovingInstances(runtime.current!, mesh.current, count, clock.elapsedTime, vertical, groundAt);
   });
   return <instancedMesh args={[geometry, material, count]} ref={mesh} />;
 }

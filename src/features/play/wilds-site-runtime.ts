@@ -304,6 +304,80 @@ export function forceExitWildsSiteRuntime(runtime: WildsSiteRuntimeProjection, s
 }
 export function wildsSiteRuntimeDiagnostics() { const a = wildsDiscoverySiteDiagnostics(); return Object.freeze({ runtimeBuilds, indexBuilds, movementWrites, aerialWrites, cameraWrites, encounterWrites, discoveryWrites, landingWrites, authorityBuilds: a.regionsBuilt + a.neighborhoodsBuilt + a.physicalNeighborhoodsBuilt + a.surfaceIndexesBuilt }); }
 
+// A ray's height and barycentric coordinates are linear inside each admitted
+// terrain triangle. Clip its horizontal interval, then find first floor contact.
+// This catches an intervening ridge even when the desired endpoint is clear.
+function mountainCameraTriangleHit(ax: number, ay: number, az: number, dx: number, dy: number, dz: number,
+  a: WildsMountainFieldNode, b: WildsMountainFieldNode, c: WildsMountainFieldNode, hit: number) {
+  const bx=b.x-a.x, bz=b.z-a.z, cx=c.x-a.x, cz=c.z-a.z;
+  const area=bx*cz-bz*cx;
+  if (Math.abs(area)<.000000001) return hit;
+  const u=((ax-a.x)*cz-(az-a.z)*cx)/area, du=(dx*cz-dz*cx)/area;
+  const v=(bx*(az-a.z)-bz*(ax-a.x))/area, dv=(bx*dz-bz*dx)/area;
+  let entry=0, exit=hit;
+  for (let edge=0;edge<3;edge++) {
+    const value=edge===0?u:edge===1?v:1-u-v;
+    const slope=edge===0?du:edge===1?dv:-du-dv;
+    if (Math.abs(slope)<.000000001) { if(value<-.000000001)return hit; }
+    else if(slope>0)entry=Math.max(entry,-value/slope);
+    else exit=Math.min(exit,-value/slope);
+    if(entry>exit)return hit;
+  }
+  const gap=ay-a.topY-(b.topY-a.topY)*u-(c.topY-a.topY)*v-.18;
+  const change=dy-(b.topY-a.topY)*du-(c.topY-a.topY)*dv;
+  if(gap+change*entry<=0)return entry;
+  if(change>=0)return hit;
+  const contact=-gap/change;
+  return contact>=entry&&contact<=exit?contact:hit;
+}
+
+/** Adjust only the rendered outdoor camera, preserving OrbitControls' desired
+ * pose. Prepared local cells and exact mountain triangles require no mesh rays,
+ * allocations, terrain generation or new collision index on camera frames. */
+export function writeWildsMountainCameraPosition(output: { x: number; y: number; z: number }, runtime: WildsSiteRuntimeProjection,
+  spaceId: string, origin: Point3, target: Point3) {
+  if(spaceId!==OUTER||runtime.physical.mountainFields.length===0)return output;
+  const index=indexFor(runtime).mountains.get(spaceId);
+  if(!index)return output;
+  const ax=origin.x+target.x, ay=origin.y+target.y, az=origin.z+target.z;
+  const dx=output.x-target.x, dy=output.y-target.y, dz=output.z-target.z;
+  // Field extents and mesh vertices are independently quantized to micrometres.
+  // Include both neighbors at a grid boundary rather than missing its triangle.
+  const lowX=Math.min(ax,ax+dx)-.00001,highX=Math.max(ax,ax+dx)+.00001;
+  const lowZ=Math.min(az,az+dz)-.00001,highZ=Math.max(az,az+dz)+.00001;
+  const minX=Math.floor(lowX/CELL),maxX=Math.floor(highX/CELL);
+  const minZ=Math.floor(lowZ/CELL),maxZ=Math.floor(highZ/CELL);
+  let hit=1,triangles=0,candidates=0;
+  if((maxX-minX+1)*(maxZ-minZ+1)>64)hit=0;
+  else query: for(let cellX=minX;cellX<=maxX;cellX++)for(let cellZ=minZ;cellZ<=maxZ;cellZ++) {
+    for(const field of index.get(cellX)?.get(cellZ)??EMPTY) {
+      if(++candidates>4096){hit=0;break query;}
+      const left=field.center.x-field.halfExtents.x, near=field.center.z-field.halfExtents.z;
+      // Each field can span several buckets; visit only its first queried cell.
+      if(cellX!==Math.max(minX,Math.floor(left/CELL))||cellZ!==Math.max(minZ,Math.floor(near/CELL)))continue;
+      if(Math.min(ay,ay+dy)>field.center.y+field.halfExtents.y+.18)continue;
+      const width=field.halfExtents.x*2/(field.columns-1),depth=field.halfExtents.z*2/(field.rows-1);
+      const firstX=Math.max(0,Math.floor((lowX-left)/width));
+      const lastX=Math.min(field.columns-2,Math.floor((highX-left)/width));
+      const firstZ=Math.max(0,Math.floor((lowZ-near)/depth));
+      const lastZ=Math.min(field.rows-2,Math.floor((highZ-near)/depth));
+      for(let z=firstZ;z<=lastZ;z++)for(let x=firstX;x<=lastX;x++) {
+        if((triangles+=2)>512){hit=0;break query;}
+        const a=field.nodes[z*field.columns+x]!,b=field.nodes[z*field.columns+x+1]!;
+        const c=field.nodes[(z+1)*field.columns+x]!,d=field.nodes[(z+1)*field.columns+x+1]!;
+        hit=mountainCameraTriangleHit(ax,ay,az,dx,dy,dz,a,b,c,hit);
+        hit=mountainCameraTriangleHit(ax,ay,az,dx,dy,dz,d,c,b,hit);
+      }
+    }
+  }
+  if(hit<1) {
+    const distance=Math.hypot(dx,dy,dz);
+    const safe=Math.max(0,hit-(distance>0?.025/distance:0));
+    output.x=target.x+dx*safe;output.y=target.y+dy*safe;output.z=target.z+dz*safe;
+  }
+  return output;
+}
+
 /** Bounded, allocation-free sweep through the prepared interior index. The camera
  * follows the actor's room and retracts before walls, floor or roof. */
 export function writeWildsInteriorCameraPosition(output: { x: number; y: number; z: number }, runtime: WildsSiteRuntimeProjection, spaceId: string, player: Point3, targetY: number) {

@@ -131,13 +131,14 @@ function cameraRig() {
     terrainElevation: 10, actualCameraSubmergedRef: { current: false }, verticalTraversalRef: { current: vertical },
     aquaticPresentation: { mode: 'land', terrainElevation: 10, waterSurfaceY: 10, waterDepth: 0, actorLocalY: 0, actorWorldY: 10, cameraSubmersionAllowed: false },
     onCameraHeadingChange: (heading: number) => headings.push(heading), vistaHeading: null,
-    siteRuntime: {}, siteSpace: { spaceId: 'wildz.space.outer.v1' }, player: { x: 2, z: -1 }
+    siteRuntime: sites.prepareWildsSiteRuntime({ ...admitWildsDiscoveryPhysicalNeighborhood(0, 0), mountainFields: [] }), siteSpace: { spaceId: 'wildz.space.outer.v1' }, player: { x: 2, z: -1 }
   };
   const rig = mountFrameComponent('src/features/play/WildsWorldCanvas.tsx', ['CameraRig'], {
     useThree: () => ({ camera }), OrbitControls: 'orbit', createWildsFlightCameraControlState, writeWildsFlightCameraControlState,
     writeUnderwaterCameraTarget, isUnderwaterCameraSubmerged,
     writeWildsSiteRuntimeCamera: () => ({ floorY: 10, ceilingY: Infinity, flooded: false }),
-    wildsSiteRuntimeCameraIsFlooded: () => false, writeWildsInteriorCameraPosition: () => {}
+    wildsSiteRuntimeCameraIsFlooded: () => false, writeWildsInteriorCameraPosition: () => {},
+    writeWildsMountainCameraPosition: sites.writeWildsMountainCameraPosition
   });
   const tree = rig.render(props);
   tree.props.ref.current = controls;

@@ -81,6 +81,22 @@ test('real camera freely zooms outside and inside a moved, rotated prompt buildi
   assert.ok(mounted.camera.position.distanceTo(mounted.orbit.target)<.46,'zooming in must enter the interior freely');
 });
 
+test('mountain camera retracts before a ridge without changing the requested orbit',()=>{
+  const mounted=mountCamera(new THREE.Vector3(6,.9,0),undefined,[],true);
+  const physical=mounted.props.siteRuntime.physical;
+  const field={id:'mountain:camera-ridge',siteKey:'camera-ridge',spaceId:OUTER as 'wildz.space.outer.v1',
+    center:{x:origin.x+3,y:origin.y+2.5,z:origin.z},halfExtents:{x:3,y:2.5,z:4},columns:3,rows:3,
+    nodes:Array.from({length:9},(_,i)=>({x:origin.x+(i%3)*3,z:origin.z-4+Math.floor(i/3)*4,baseY:origin.y,topY:origin.y+(i%3===1?5:0)}))};
+  mounted.props.siteRuntime=siteRuntime.prepareWildsSiteRuntime({...physical,mountainFields:[field]});
+  mounted.render();mounted.frame();
+  assert.ok(mounted.camera.position.x<.6,'the clear endpoint must not let the view tunnel through the intervening ridge');
+  assert.ok(mounted.orbit.object.position.x>5.9,'collision must preserve the desired camera and controls');
+  for(let event=0;event<3;event++){mounted.input('wheel',{deltaY:-100});mounted.frame();}
+  assert.ok(mounted.orbit.object.position.x<5.9,'zoom still changes the desired orbit while clipped');
+  mounted.props.siteRuntime=emptySiteRuntime();mounted.render();mounted.frame();
+  assert.ok(mounted.camera.position.distanceTo(mounted.orbit.object.position)<1e-8,'a clear view regains its requested distance immediately');
+});
+
 test('real OrbitControls wheel zoom persists after a clipped frame restores its desired view',()=>{
   const desired=new THREE.Vector3(Math.sqrt(34.56),2.1,0),clipped=mountCamera(desired,house(0),[],true),clear=mountCamera(desired,undefined,[],true);
   clipped.frame();clear.frame();

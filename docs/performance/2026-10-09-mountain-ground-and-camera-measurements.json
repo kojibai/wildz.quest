@@ -1,0 +1,609 @@
+{
+  "date": "2026-10-09",
+  "baselineCommit": "b494837",
+  "environment": "Local production Next.js build; desktop Chromium at 390x844; synthetic accounts; no physical iPhone/iPad",
+  "mountainComparison": {
+    "scenario": "same admitted mountain scene; low-angle pitch and 12 horizontal camera drags; service workers blocked; measurement hook only exposes actual scene state",
+    "baseline": {
+      "snapshots": 13,
+      "faunaLimbCentersSampled": 1300,
+      "minimumFaunaLimbCenterClearanceM": -5.308341085393419,
+      "minimumCameraClearanceM": -0.1016055968410754,
+      "timing": {
+        "frames": 465,
+        "p95": 10.215000000000146,
+        "max": 25.0049999999992,
+        "over50": 0,
+        "longTasks": []
+      },
+      "render": {
+        "calls": 107,
+        "triangles": 142170,
+        "points": 202,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 86,
+        "textures": 16
+      },
+      "cameraSnapshots": [
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": 4.434154090936229,
+            "y": 1.8087687861988844,
+            "z": 6.96795642861407,
+            "ground": 8.617522009975053,
+            "clearance": 7.56826950895554
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -1.4117010881338654,
+            "y": 1.8087687861988884,
+            "z": 8.137643352408173,
+            "ground": 10.356800656402312,
+            "clearance": 5.8289908625282845
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -6.522005702396843,
+            "y": 1.8087687861988884,
+            "z": 5.067305093551632,
+            "ground": 13.098541182895907,
+            "clearance": 3.087250336034689
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -8.234094491513096,
+            "y": 1.8087687861988884,
+            "z": -0.6432940214745775,
+            "ground": 15.557326181155938,
+            "clearance": 0.6284653377746583
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -5.655903344730153,
+            "y": 1.8087687861988884,
+            "z": -6.018712208462995,
+            "ground": 16.262512063157345,
+            "clearance": -0.0767205442267489
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -0.13076901381306255,
+            "y": 1.8087687861988884,
+            "z": -8.258149838690118,
+            "ground": 14.986379348227594,
+            "clearance": 1.1994121707030025
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": 5.462501003034975,
+            "y": 1.8087687861988884,
+            "z": -6.194773771904276,
+            "ground": 11.441831622492854,
+            "clearance": 4.743959896437742
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": 8.209597894555698,
+            "y": 1.8087687861988884,
+            "z": -0.9036823019944068,
+            "ground": 8.520719411108034,
+            "clearance": 7.665072107822562
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": 6.679178519398224,
+            "y": 1.8087687861988884,
+            "z": 4.858262405350353,
+            "ground": 8.094928801625763,
+            "clearance": 8.090862717304834
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": 1.66865023613939,
+            "y": 1.8087687861988884,
+            "z": 8.088865537432502,
+            "ground": 9.39263351317819,
+            "clearance": 6.793158005752407
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -4.211309001005272,
+            "y": 1.8087687861988884,
+            "z": 7.104858604594691,
+            "ground": 11.856481406871342,
+            "clearance": 4.329310112059254
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -7.897014270150537,
+            "y": 1.8087687861988884,
+            "z": 2.4189470664464796,
+            "ground": 14.443744475996455,
+            "clearance": 1.742047042934141
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -7.468071363754817,
+            "y": 1.8087687861988884,
+            "z": -3.527328932648119,
+            "ground": 16.28739711577167,
+            "clearance": -0.1016055968410754
+          }
+        }
+      ],
+      "errors": []
+    },
+    "final": {
+      "snapshots": 13,
+      "faunaLimbCentersSampled": 1300,
+      "minimumFaunaLimbCenterClearanceM": -0.065481084280691,
+      "minimumCameraClearanceM": 0.18718105245147498,
+      "timing": {
+        "frames": 466,
+        "p95": 10.014999999999418,
+        "max": 25.019999999999982,
+        "over50": 0,
+        "longTasks": []
+      },
+      "render": {
+        "calls": 107,
+        "triangles": 142170,
+        "points": 202,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 86,
+        "textures": 16
+      },
+      "cameraSnapshots": [
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": 4.434154090936228,
+            "y": 1.808768786198884,
+            "z": 6.967956428614067,
+            "ground": 8.617522009975055,
+            "clearance": 7.568269508955538
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -1.4117010881338634,
+            "y": 1.8087687861988875,
+            "z": 8.137643352408164,
+            "ground": 10.356800656402319,
+            "clearance": 5.828990862528277
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -6.5220057023968385,
+            "y": 1.8087687861988875,
+            "z": 5.067305093551625,
+            "ground": 13.09854118289591,
+            "clearance": 3.0872503360346855
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -2.45912404696281,
+            "y": 1.1714050922750863,
+            "z": -0.19212067569859176,
+            "ground": 15.361246772555319,
+            "clearance": 0.18718105245147498
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -1.8161955368820872,
+            "y": 1.1918193103653398,
+            "z": -1.932698913777098,
+            "ground": 15.380466097384048,
+            "clearance": 0.1883759457130001
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -0.13076901381306255,
+            "y": 1.8087687861988884,
+            "z": -8.258149838690118,
+            "ground": 14.986379348227594,
+            "clearance": 1.1994121707030025
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": 5.462501003034975,
+            "y": 1.8087687861988884,
+            "z": -6.194773771904276,
+            "ground": 11.441831622492854,
+            "clearance": 4.743959896437742
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": 8.209597894555698,
+            "y": 1.8087687861988884,
+            "z": -0.9036823019944068,
+            "ground": 8.520719411108034,
+            "clearance": 7.665072107822562
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": 6.679178519398224,
+            "y": 1.8087687861988884,
+            "z": 4.858262405350353,
+            "ground": 8.094928801625763,
+            "clearance": 8.090862717304834
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": 1.66865023613939,
+            "y": 1.8087687861988884,
+            "z": 8.088865537432502,
+            "ground": 9.39263351317819,
+            "clearance": 6.793158005752407
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -4.211309001005272,
+            "y": 1.8087687861988884,
+            "z": 7.104858604594691,
+            "ground": 11.856481406871342,
+            "clearance": 4.329310112059254
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -7.897014270150537,
+            "y": 1.8087687861988884,
+            "z": 2.4189470664464796,
+            "ground": 14.443744475996455,
+            "clearance": 1.742047042934141
+          }
+        },
+        {
+          "player": {
+            "x": 17,
+            "z": 43
+          },
+          "originY": 14.377022732731708,
+          "camera": {
+            "x": -2.099990693349402,
+            "y": 1.155542013522563,
+            "z": -0.991870266116316,
+            "ground": 15.344942624130407,
+            "clearance": 0.1876221221238641
+          }
+        }
+      ],
+      "errors": []
+    }
+  },
+  "supportedMountainWalking": {
+    "inputs": 60,
+    "cameraDrags": 12,
+    "distinctPositions": 11,
+    "snapshots": 25,
+    "minimumCameraClearanceM": 0.18283886748333344,
+    "timing": {
+      "frames": 1070,
+      "p95": 8.900000000000546,
+      "max": 16.664999999999964,
+      "over50": 0,
+      "longTasks": []
+    },
+    "errors": []
+  },
+  "controlledUploadedSealStartup": {
+    "scenario": "same synthetic 7763369-byte encrypted uploaded Seal and one received 301-event creature; service workers blocked; five-second post-HUD windows",
+    "baseline": {
+      "runs": [
+        {
+          "run": 0,
+          "inputCount": 0,
+          "hudReadyAtMs": 668.4100000858307,
+          "frameCount": 640,
+          "p95Ms": 8.950000000000273,
+          "maxMs": 16.595000000000027,
+          "recordedGaps": [],
+          "postHudLongTasks": []
+        },
+        {
+          "run": 1,
+          "inputCount": 59,
+          "hudReadyAtMs": 412.88499999046326,
+          "frameCount": 650,
+          "p95Ms": 9.164999999999964,
+          "maxMs": 9.335000000000036,
+          "recordedGaps": [],
+          "postHudLongTasks": []
+        },
+        {
+          "run": 2,
+          "inputCount": 0,
+          "hudReadyAtMs": 389.13499999046326,
+          "frameCount": 651,
+          "p95Ms": 8.870000000000346,
+          "maxMs": 9.305000000000291,
+          "recordedGaps": [],
+          "postHudLongTasks": []
+        }
+      ],
+      "errorCount": 0
+    },
+    "final": {
+      "runs": [
+        {
+          "run": 0,
+          "inputCount": 0,
+          "hudReadyAtMs": 575.0600000619888,
+          "frameCount": 643,
+          "p95Ms": 8.625,
+          "maxMs": 16.66999999999996,
+          "recordedGaps": [],
+          "postHudLongTasks": []
+        },
+        {
+          "run": 1,
+          "inputCount": 60,
+          "hudReadyAtMs": 392.4500000476837,
+          "frameCount": 670,
+          "p95Ms": 8.585000000000036,
+          "maxMs": 9.295000000000073,
+          "recordedGaps": [],
+          "postHudLongTasks": []
+        },
+        {
+          "run": 2,
+          "inputCount": 0,
+          "hudReadyAtMs": 377.36499989032745,
+          "frameCount": 652,
+          "p95Ms": 8.364999999999782,
+          "maxMs": 9.335000000000036,
+          "recordedGaps": [],
+          "postHudLongTasks": []
+        }
+      ],
+      "errorCount": 0
+    },
+    "interpretation": "No additional Seal-specific optimization made; timing variation does not establish a startup saving."
+  },
+  "uploadedSealOfflineTwoMinutes": {
+    "scenario": "Synthetic valid encrypted 7.76 MB Seal; one received 301-event creature; no real user data",
+    "first": {
+      "label": "first upgrade; no retained head",
+      "before": "Open world map. Current position X 42, Z 43. 0 roaming creatures",
+      "after": "Open world map. Current position X 26, Z 81. 0 roaming creatures",
+      "readyAt": 677.5449999570847,
+      "sealReads": [],
+      "pendingValueScans": 0,
+      "custodyWorkers": [
+        {
+          "url": "production custody worker",
+          "ownerMessages": [
+            {
+              "keys": [
+                "keyId",
+                "actorId"
+              ],
+              "bytes": 112,
+              "at": 718.829999923706
+            }
+          ],
+          "replies": []
+        }
+      ],
+      "postHudLongTasks": [],
+      "motion": {
+        "frames": 865,
+        "p95Ms": 8.795000000000073,
+        "maxMs": 10.704999999999927,
+        "over50Ms": 0
+      }
+    },
+    "retained": {
+      "label": "reopen with durable heads",
+      "before": "Open world map. Current position X 26, Z 81. 0 roaming creatures",
+      "after": "Open world map. Current position X -12, Z 119. 0 roaming creatures",
+      "readyAt": 350.5149999856949,
+      "sealReads": [],
+      "pendingValueScans": 0,
+      "custodyWorkers": [],
+      "postHudLongTasks": [],
+      "motion": {
+        "frames": 820,
+        "p95Ms": 9.289999999999964,
+        "maxMs": 9.335000000000036,
+        "over50Ms": 0
+      }
+    },
+    "offline": {
+      "label": "service-worker-controlled offline reopen; immediate HUD motion",
+      "readyAt": 339.59500002861023
+    },
+    "twoMinutes": {
+      "frames": 14458,
+      "p95Ms": 8.979999999995925,
+      "maxMs": 25.99499999999898,
+      "over50Ms": 0,
+      "longTasks": [],
+      "sealReads": 0,
+      "elapsedMs": 120008,
+      "inputs": 1380,
+      "cameraDrags": 17,
+      "distinctPositions": 37
+    },
+    "storage": {
+      "version": 4,
+      "expiryIndex": true,
+      "custodyHead": true,
+      "custodyCoordinates": 1,
+      "expiredDeleted": true,
+      "currentRetained": true
+    },
+    "reconnected": {
+      "embodiedSamples": 15,
+      "audioFiles": 17
+    },
+    "errors": [],
+    "errorCount": 0
+  },
+  "verification": {
+    "testTotal": 3646,
+    "passed": 3645,
+    "skipped": 1,
+    "failed": 0,
+    "build": "passed; two existing Receiz web-worker dynamic require warnings",
+    "lint": "passed",
+    "architectureLock": "passed; 1009 runtime files",
+    "secretScan": "passed",
+    "diffCheck": "passed"
+  },
+  "limits": [
+    "Desktop Chromium measurements do not establish physical iOS PWA timings.",
+    "Animal limb centres can slightly intersect sloping ground because animal root height does not provide per-foot inverse kinematics.",
+    "Steep terrain can retract the rendered camera close to the player; desired rotation and zoom remain retained."
+  ]
+}

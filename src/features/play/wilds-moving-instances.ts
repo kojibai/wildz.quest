@@ -28,7 +28,8 @@ export function writeWildsMovingInstances(
   target: WildsMovingInstancesTarget | null,
   count: number,
   elapsedTime: number,
-  vertical: boolean
+  vertical: boolean,
+  groundAt?: (x: number, z: number) => number
 ): WildsMovingInstancesRuntime {
   if (!target) return runtime;
   for (let index = 0; index < count; index += 1) {
@@ -39,6 +40,7 @@ export function writeWildsMovingInstances(
       vertical ? .42 + Math.sin(elapsedTime * 1.5 + index) * .2 : .34,
       Math.sin(angle) * radius
     );
+    if (groundAt) runtime.position.y += groundAt(runtime.position.x, runtime.position.z);
     runtime.rotation.set(0, -angle, vertical ? .2 : 0);
     runtime.quaternion.setFromEuler(runtime.rotation);
     runtime.scale.set(vertical ? .7 : 1.2, vertical ? 1.6 : .78, vertical ? .7 : .9);

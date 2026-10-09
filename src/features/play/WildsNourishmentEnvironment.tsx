@@ -170,16 +170,17 @@ export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentPr
     const drawAnimal=(animal:WildsWildAnimal,p:{x:number;y:number;z:number},heading:number,gait:number,moving:boolean,grazing:boolean,pose:WildsFaunaLifePose,effect?:WildsHuntAnimationFrame,overridePick?:Pick)=>{
       const pick=overridePick??animalPicks.current.get(animal.animalId),cos=Math.cos(heading),sin=Math.sin(heading);
       if(!pick)return;
+      const groundY=current.siteRuntime?wildsSiteRuntimeGroundY(current.siteRuntime,current.spaceId??'wildz.space.outer.v1',p.x,p.z,p.y):p.y;
       if(audioRegistry&&!effect){
         let audio=audioPositions.current.get(animal.animalId);
         if(!audio){audio={id:`fauna:${animal.animalId}`,kind:animal.species==='ground-bird'?'bird':'animal',position:{...p},spaceId:current.spaceId??'wildz.space.outer.v1',active:true,locomotion:'ground'};audioPositions.current.set(animal.animalId,audio);}
-        Object.assign(audio.position,p);audio.spaceId=current.spaceId??'wildz.space.outer.v1';audio.updatedAt=time.current.lastDraw;
+        Object.assign(audio.position,p);audio.position.y=groundY;audio.spaceId=current.spaceId??'wildz.space.outer.v1';audio.updatedAt=time.current.lastDraw;
       }
       const size=effect?.scale??1,lean=effect?.lean??0,cosLean=Math.cos(lean),sinLean=Math.sin(lean);
-      if(selectionRing.current&&current.selectedAnimalId===animal.animalId&&!effect){selectionRing.current.visible=true;selectionRing.current.position.set(p.x-sceneOrigin.current.x,p.y-sceneOrigin.current.y+.025,p.z-sceneOrigin.current.z);selectionRing.current.scale.setScalar(animal.species==='meadow-goat'?.55:.32);}
+      if(selectionRing.current&&current.selectedAnimalId===animal.animalId&&!effect){selectionRing.current.visible=true;selectionRing.current.position.set(p.x-sceneOrigin.current.x,groundY-sceneOrigin.current.y+.025,p.z-sceneOrigin.current.z);selectionRing.current.scale.setScalar(animal.species==='meadow-goat'?.55:.32);}
       drawWildsFauna(animal.species,gait,moving,grazing,(shape,x,y,z,sx,sy,sz,tone,tilt=0,roll=0,yaw=0)=>{
         const localY=(y*cosLean-z*sinLean)*size,localZ=(y*sinLean+z*cosLean)*size,localX=x*size;
-        write(animals.current,shape,{x:p.x+localX*cos+localZ*sin,y:p.y+localY+(effect?.lift??0),z:p.z+localZ*cos-localX*sin},[sx*size,sy*size,sz*size],tone,pick,[tilt+lean,heading+yaw,roll]);
+        write(animals.current,shape,{x:p.x+localX*cos+localZ*sin,y:groundY+localY+(effect?.lift??0),z:p.z+localZ*cos-localX*sin},[sx*size,sy*size,sz*size],tone,pick,[tilt+lean,heading+yaw,roll]);
       },pose);
     };
     if(outer) for(const animal of (current.animals??[]).filter(a=>a.status==='wild').slice(0,DETAIL[current.qualityTier??'medium'].animals)) {
@@ -257,6 +258,6 @@ export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentPr
     {SHAPES.map(shape=><instancedMesh key={`plant-${shape}`} name={`nourishment-plants-${shape}`} ref={mesh=>{plants.current[shape].mesh=mesh;}} args={[resources.geometries[shape],shape==='apple'?resources.fruitMaterial:resources.plantMaterial,CAPACITY]} raycast={shape==='apple'?fruitRaycast:undefined} frustumCulled={false} userData={{nourishment:true}} castShadow receiveShadow onClick={event=>activate(event,plants.current,shape)} />)}
     {ANIMAL_SHAPES.map(shape=><instancedMesh key={`animal-${shape}`} name={`landscape-fauna-${shape}`} ref={mesh=>{animals.current[shape].mesh=mesh;mesh?.instanceMatrix.setUsage(THREE.DynamicDrawUsage);}} args={[resources.geometries[shape],resources.animalMaterial,CAPACITY]} frustumCulled={false} userData={{nourishment:true}} castShadow receiveShadow onClick={event=>activate(event,animals.current,shape)} />)}
     <mesh ref={selectionRing} name="selected-landscape-animal" visible={false} rotation={[-Math.PI/2,0,0]} raycast={()=>{}}><torusGeometry args={[1,.027,6,28]} /><meshBasicMaterial color="#dfebae" transparent opacity={.72} depthWrite={false} /></mesh>
-    {props.hunt?<WildsAnimalHuntEffect hunt={props.hunt} origin={sceneOrigin} reducedMotion={props.reducedMotion??false}/>:null}
+    {props.hunt?<WildsAnimalHuntEffect hunt={props.hunt} origin={sceneOrigin} reducedMotion={props.reducedMotion??false} siteRuntime={props.siteRuntime}/>:null}
   </group>;
 }

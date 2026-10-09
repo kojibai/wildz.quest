@@ -118,7 +118,7 @@ import type { WildsTerrainObstacle } from "@/features/play/wilds-terrain-obstacl
 import { WILDS_PLAYER_BODY_HEIGHT, WILDS_PLAYER_BODY_RADIUS } from "@/features/play/wilds-player-body";
 import { WILDS_TERRAIN_TILE_SIZE, wildsTerrainElevation } from "@/features/play/wilds-terrain-authority";
 import type { WildsSiteSpaceState } from "@/features/play/wilds-discovery-sites";
-import { wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeEncounter, type WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
+import { wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, wildsSiteRuntimeGroundY, writeWildsMountainCameraPosition, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeEncounter, type WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
 import { createWildsFlightCameraControlState, writeWildsFlightCameraControlState } from "@/features/play/wilds-flight-camera";
 import { projectWildsInteractionSurfacePoint, type WildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
 import { completeWildsWorkPresentation, projectWildsHarvestWorkPhase, writeWildsWorkApproachAnchor, type WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
@@ -554,8 +554,8 @@ function WildsScene({
         />
         {burrowPreview && <WildsBurrowGhost preview={burrowPreview} player={state.player} elevation={activeFloorY} />}
         <WildsAmbientLife enabled={siteSpace.spaceId === "wildz.space.outer.v1"} player={state.player} qualityProfile={qualityProfile} siteRuntime={siteRuntime} terrainElevation={activeFloorY} />
-        <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} worldMode={worldMode} />
-        <WildsRegenerativeGroveEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} />
+        <WildsEcologyEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} worldMode={worldMode} siteRuntime={siteRuntime} />
+        <WildsRegenerativeGroveEnvironment livingWorld={livingWorld} player={state.player} terrainElevation={activeFloorY} siteRuntime={siteRuntime} />
         {creationSource?.projections.length&&creationWorldId&&onCreationNavigation?<WildsCreations source={creationSource} worldId={creationWorldId} spaceId={siteSpace.spaceId} position={{x:state.player.x,y:activeFloorY,z:state.player.z}} profile={qualityProfile} onNavigation={onCreationNavigation}/>:null}
         {creationPreview ? <WildsCreationPreview preview={creationPreview} viewer={{x:state.player.x,y:activeFloorY,z:state.player.z}} /> : null}
         <WildsContinuousConstruction spaceId={siteSpace.spaceId} world={livingWorld} player={state.player} terrainElevation={activeFloorY} preview={constructionPreview} selectable={constructionSelectionEnabled} onSelect={onSelectConstruction} onDrag={onDragConstruction} activeComponentId={activeConstructionId} />
@@ -1517,6 +1517,7 @@ function CameraRig({ terrainElevation, actualCameraSubmergedRef, verticalTravers
       const origin = cameraOrigin.current;
       origin.x = player.x; origin.y = terrainElevation; origin.z = player.z;
       if (siteSpace.spaceId !== "wildz.space.outer.v1") writeWildsInteriorCameraPosition(camera.position, siteRuntime, siteSpace.spaceId, origin, orbit.target.y);
+      else writeWildsMountainCameraPosition(camera.position, siteRuntime, siteSpace.spaceId, origin, orbit.target);
       camera.lookAt(orbit.target);
     }
     const heading = Math.atan2(camera.position.x, camera.position.z);
