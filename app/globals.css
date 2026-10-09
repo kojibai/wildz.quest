@@ -298,6 +298,61 @@ body {
 
 .wildz-identity-loading img { animation: wildz-genesis-breathe 1.7s ease-in-out infinite; }
 
+.wildz-opening-progress {
+  position: relative;
+  width: min(256px, calc(100vw - 80px));
+  height: 10px;
+  margin-top: 8px;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid rgba(218, 203, 149, .46);
+  border-radius: 99px;
+  background: #07150e;
+  box-shadow: 0 0 0 3px rgba(115, 185, 135, .06), inset 0 1px 4px #0009, 0 8px 24px #0005;
+}
+
+.wildz-opening-progress-fill {
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  transform-origin: left;
+  background: linear-gradient(90deg, #237854, #5ee59b 65%, #c2ff84 92%, #efe3ab);
+  box-shadow: inset 0 1px 0 #faffcb80;
+  transition: transform 160ms ease-out;
+}
+
+.wildz-opening-progress-scan {
+  position: absolute;
+  inset: 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, #d8ffc538, #fff3c670, transparent);
+  animation: wildz-opening-scan 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.wildz-opening-progress-gates {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: space-evenly;
+  pointer-events: none;
+}
+
+.wildz-opening-progress-gates i { width: 1px; background: #08190edb; }
+.wildz-opening-progress-gates i[data-complete="true"] { background: #f5f2b459; }
+
+@keyframes wildz-opening-scan {
+  from { transform: translateX(-110%); opacity: 0; }
+  20%, 70% { opacity: 1; }
+  to { transform: translateX(440%); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wildz-identity-loading img, .wildz-opening-progress-scan { animation: none; }
+  .wildz-opening-progress-scan { display: none; }
+  .wildz-opening-progress-fill { transition: none; }
+}
+
 .wildz-vault-login-prompt {
   position: fixed;
   z-index: 180;

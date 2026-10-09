@@ -418,7 +418,8 @@ export async function inspectWildzRestore(file: File, codec: WildzArtifactCodec 
 }
 
 export async function bootstrapWildzContinuity(
-  legacyStorage?: Pick<Storage, "getItem" | "removeItem">
+  legacyStorage?: Pick<Storage, "getItem" | "removeItem">,
+  onProgress?: (stage: "identity" | "owner-state" | "snapshot") => void
 ): Promise<WildzContinuitySnapshot> {
   return enqueueContinuityOperation(async () => {
     await defaultPendingVaultRepository.purgeExpired().catch(() => 0);
@@ -436,6 +437,7 @@ export async function bootstrapWildzContinuity(
         defaultIdentityRepository.writeSession(tx, session, true)
       );
     }
+    onProgress?.("identity");
     let ownerState = await loadWildzRestoredOwnerState({ database: defaultContinuityDatabase, session });
     let playState = ownerState?.playState ?? null;
     const legacyRaw = playState === null ? legacyStorage?.getItem(LEGACY_PLAY_STATE_STORAGE_KEY) ?? null : null;
@@ -450,7 +452,8 @@ export async function bootstrapWildzContinuity(
       }
       ownerState = await loadWildzRestoredOwnerState({ database: defaultContinuityDatabase, session });
     }
-    return commitWildzBootstrapContinuity({
+    onProgress?.("owner-state");
+    const snapshot = commitWildzBootstrapContinuity({
       session,
       playState,
       character: ownerState?.character ?? null,
@@ -462,6 +465,8 @@ export async function bootstrapWildzContinuity(
       } : null,
       restoreEpoch: continuityRestoreEpoch
     });
+    onProgress?.("snapshot");
+    return snapshot;
   });
 }
 

@@ -232,6 +232,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const [character, setCharacter] = useState<WildzCharacterGenesis | null>(null);
   const genesisInFlightRef = useRef<string | null>(null);
   const [identityError, setIdentityError] = useState("");
+  const [openingStage, setOpeningStage] = useState(0);
+  const [initializedWorldKey, setInitializedWorldKey] = useState<string | null>(null);
   const [proofSessionConnected, setProofSessionConnected] = useState(false);
   const [proofSessionGeneration, setProofSessionGeneration] = useState("");
   const [worldBootstrap, setWorldBootstrap] = useState<{
@@ -249,6 +251,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const identity = continuity?.session ?? null;
   const worldKey = identity ? `${identity.keyId}:${identity.actorId}:${identityActivationRevision}` : null;
   const worldPainted = worldKey !== null && paintedWorldKey === worldKey;
+  const openingProgress = identity ? initializedWorldKey === worldKey ? 5 : 4 : Math.min(openingStage, 3);
   useEffect(() => {
     // Optional surfaces must not compete with identity recovery and the first
     // world draw. Directly opening a surface still loads it immediately.
@@ -664,6 +667,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             crewCustody: resumed.restore.crewCustody,
             restoreEpoch: resumed.restore.restoreEpoch
           });
+          setOpeningStage(4);
           return;
         } catch (cause) {
           const code = cause instanceof Error ? cause.message : "wildz_restore_invalid";
@@ -680,7 +684,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       } else if (searchParams.has("receiz") || searchParams.has("receiz_error")) {
         clearWildzAuthQuery();
       }
-      const snapshot = await bootstrapWildzContinuity(window.localStorage);
+      const snapshot = await bootstrapWildzContinuity(window.localStorage, (stage) => {
+        if (active) setOpeningStage(stage === "identity" ? 1 : stage === "owner-state" ? 2 : 3);
+      });
       if (!active) return;
       const checkpointBaseline = snapshot.playState ?? createOwnerBoundInitialPlayState(
         snapshot.session.actorId,
@@ -693,6 +699,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       });
       if (!active) return;
       acceptSnapshot(snapshot);
+      setOpeningStage(4);
       if (snapshot.playState.inventory !== checkpointBaseline.inventory && snapshot.playerContinuity) {
         void saveWildzContinuityPlayState(
           snapshot,
@@ -1377,6 +1384,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
         {continuity && identity && campaignCharacter ? <PlayCampaign
           key={`${identity.keyId}:${identity.actorId}:${identityActivationRevision}`}
           onWorldReady={() => setPaintedWorldKey(worldKey)}
+          onWorldInitialized={() => setInitializedWorldKey(worldKey)}
           worldVisible={worldPainted}
           campaignName="Wildz"
           creationLibrary={creationAccountLibrary}
@@ -1427,9 +1435,23 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             return { ...asset, status: "listed" as const, synchronizedAt: new Date().toISOString() };
           }}
         /> : null}
-        {!worldPainted && <div className="wildz-identity-loading" role="status">
+        {!worldPainted && <div className="wildz-identity-loading">
           <Image src="/brand/wildz-mark.svg" alt="" width={64} height={64} priority />
-          <span>{identityError || "Preparing your Receiz ID…"}</span>
+          {identityError ? <span role="alert">{identityError}</span> : <div
+            className="wildz-opening-progress"
+            role="progressbar"
+            aria-label="Opening Wildz"
+            aria-valuemin={0}
+            aria-valuemax={6}
+            aria-valuenow={openingProgress}
+            aria-valuetext={["Opening local continuity", "Local identity ready", "Owner state ready", "Local snapshot ready", "Gameplay checkpoint ready", "Renderer ready"][openingProgress]}
+          >
+            <div className="wildz-opening-progress-fill" style={{ transform: `scaleX(${openingProgress / 6})` }} />
+            <div className="wildz-opening-progress-scan" aria-hidden="true" />
+            <div className="wildz-opening-progress-gates" aria-hidden="true">
+              {[1, 2, 3, 4, 5].map((stage) => <i key={stage} data-complete={openingProgress >= stage} />)}
+            </div>
+          </div>}
         </div>}
       </div>
 

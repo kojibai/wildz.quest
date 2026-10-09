@@ -3,6 +3,7 @@ import type { WildsBossFamilyId } from "./wilds-boss-ecology";
 import { WILDS_AUDIO_BY_ID } from "./wilds-audio-catalog";
 import { selectWildsAudioProgram, type WildsAudioMemory } from "./wilds-audio-director";
 import type { WildsAudioScene } from "./wilds-audio-scene";
+import type { WildsEmbodiedSound } from "./wilds-embodied-audio";
 
 export type WildsAudioSettings = {
   master: number;
@@ -99,6 +100,7 @@ type AudioBufferSourceLike = {
   buffer: unknown;
   loop?: boolean;
   onended?: (() => void) | null;
+  playbackRate?: AudioParamLike;
   connect(target: unknown): void;
   disconnect(): void;
   start(time?: number): void;
@@ -119,6 +121,7 @@ export type WildsAudioContextLike = {
   createGain(): GainLike;
   createBufferSource?(): AudioBufferSourceLike;
   decodeAudioData?(data: ArrayBuffer): Promise<unknown>;
+  createStereoPanner?(): { pan: AudioParamLike; connect(target: unknown): void; disconnect(): void };
 };
 
 type CueVoice = {
@@ -283,6 +286,7 @@ export function createWildsAudioRuntime(
   const buffers = new Map<string, unknown>();
   const loading = new Map<string, Promise<void>>();
   const activeSources = new Set<AudioBufferSourceLike>();
+  const embodiedSources = new Map<AudioBufferSourceLike, () => void>();
   let programSources: Array<{ source: AudioBufferSourceLike; gain: GainLike; kind: "music" | "ambience" }> = [];
   let programMemory: WildsAudioMemory = { activeProgramId: null, enteredAt: 0, recent: [] };
   let sceneRequest = 0;
@@ -354,6 +358,38 @@ export function createWildsAudioRuntime(
     };
     synth();
     if (cue === "kai-ark") synth(1.5, 0.075, 0.62);
+  };
+
+  const stopEmbodied = () => {
+    for (const [source, cleanup] of embodiedSources) {
+      try { source.stop(); } catch { /* Already ended. */ }
+      cleanup();
+    }
+  };
+  const playEmbodied = (sound: WildsEmbodiedSound) => {
+    // Optional sounds never await samples and never synthesize a loading fallback.
+    if (!context || destroyed || settings.muted || embodiedSources.size >= 4) return false;
+    const buffer = buffers.get(sound.assetId);
+    const volume = sound.gain * settings.master * (sound.group === "effects" ? settings.effects : settings.ambience);
+    if (!buffer || !context.createBufferSource || !Number.isFinite(volume) || volume <= 0) return false;
+    const source = context.createBufferSource(), gain = context.createGain();
+    const panner = context.createStereoPanner?.();
+    source.buffer = buffer;
+    source.playbackRate?.setValueAtTime(Math.min(1.2, Math.max(.8, sound.playbackRate)), context.currentTime);
+    gain.gain.setValueAtTime(Math.min(.35, volume), context.currentTime);
+    source.connect(gain);
+    if (panner) {
+      panner.pan.setValueAtTime(Math.max(-1, Math.min(1, sound.pan)), context.currentTime);
+      gain.connect(panner); panner.connect(context.destination);
+    } else gain.connect(context.destination);
+    const cleanup = () => {
+      embodiedSources.delete(source); source.onended = null;
+      source.disconnect(); gain.disconnect(); panner?.disconnect();
+    };
+    source.onended = cleanup;
+    embodiedSources.set(source, cleanup);
+    source.start(context.currentTime);
+    return true;
   };
 
   const stopAmbience = () => {
@@ -433,6 +469,7 @@ export function createWildsAudioRuntime(
         sceneRequest += 1;
         stopAmbience();
         stopProgram();
+        stopEmbodied();
       } else if (context) {
         programSources.forEach(({ gain, kind }) => gain.gain.setValueAtTime(
           Math.max(0.0001, settings.master * (kind === "music" ? settings.music : settings.ambience)),
@@ -442,6 +479,8 @@ export function createWildsAudioRuntime(
     },
     preload,
     play,
+    playEmbodied,
+    stopEmbodied,
     setScene,
     activeProgramId() {
       return programMemory.activeProgramId;
@@ -467,6 +506,7 @@ export function createWildsAudioRuntime(
       destroyed = true;
       sceneRequest += 1;
       stopAmbience();
+      stopEmbodied();
       activeSources.forEach((source) => {
         try { source.stop(); } catch { /* The decoded source may already have ended. */ }
         source.disconnect();

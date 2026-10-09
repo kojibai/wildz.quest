@@ -1,5 +1,6 @@
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeFileSync } from "node:fs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 
@@ -68,6 +69,16 @@ const nextConfig = {
   },
   reactStrictMode: true,
   webpack(config, { isServer, webpack }) {
+    if (process.env.WILDZ_CHUNK_TRACE) config.plugins.push({ apply(compiler) {
+      compiler.hooks.done.tap("WildzChunkTrace", (stats) => {
+        const compilation = stats.compilation;
+        writeFileSync(`/tmp/wildz-chunks-${isServer ? config.name : "client"}.json`, JSON.stringify([...compilation.chunks].map(chunk => ({
+          id: chunk.id, name: chunk.name, runtime: [...(typeof chunk.runtime === "string" ? [chunk.runtime] : chunk.runtime ?? [])],
+          references: [...chunk.getAllReferencedChunks()].map(other => other.id),
+          modules: [...compilation.chunkGraph.getChunkModulesIterable(chunk)].map(module => module.resource ?? module.identifier())
+        })), null, 2));
+      });
+    }});
     if (!isServer) {
       // SDK v119 exposes its Node-only compilers through @receiz/sdk/compiler.
       // Keep those unused compiler built-ins outside client bundles until the

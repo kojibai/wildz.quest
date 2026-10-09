@@ -18,6 +18,8 @@ import {
   type WildsVisualEventKind
 } from "@/features/play/wilds-visual-events";
 import type { WildsAudioScene } from "@/features/play/wilds-audio-scene";
+import { createWildsEmbodiedAudioPlanner, WILDS_EMBODIED_AUDIO_ASSETS, type WildsEmbodiedSnapshot } from "./wilds-embodied-audio";
+import { wildzGameplayBackground } from "../../lib/performance/wildz-gameplay-background";
 
 function restoreAudioSettings(initial?: unknown) {
   return initial ? normalizeWildsAudioSettings(initial) : { ...DEFAULT_WILDS_AUDIO_SETTINGS };
@@ -44,11 +46,15 @@ export function useWildsPresentation({
   encounter,
   audioScene,
   enabled,
+  embodiedEnabled = false,
+  readEmbodiedSnapshot,
   initialAudioSettings
 }: {
   encounter: WildsEncounterAudioState;
   audioScene?: WildsAudioScene;
   enabled: boolean;
+  embodiedEnabled?: boolean;
+  readEmbodiedSnapshot?: () => WildsEmbodiedSnapshot;
   initialAudioSettings?: unknown;
 }) {
   const [audioSettings, setAudioSettingsState] = useState<WildsAudioSettings>(() => restoreAudioSettings(initialAudioSettings));
@@ -61,6 +67,8 @@ export function useWildsPresentation({
     proximity: encounter.proximity
   });
   const transitionSequence = useRef(0);
+  const embodiedSnapshotRef = useRef(readEmbodiedSnapshot);
+  embodiedSnapshotRef.current = readEmbodiedSnapshot;
 
   useEffect(() => {
     if (!enabled) return;
@@ -113,6 +121,38 @@ export function useWildsPresentation({
     if (!audioReady || !audioScene || audioSettings.muted) return;
     void runtimeRef.current?.setScene(audioScene);
   }, [audioReady, audioScene, audioSettings.muted]);
+
+  useEffect(() => {
+    if (!audioReady || !embodiedEnabled || audioSettings.muted) return;
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+    let active = true, timer: ReturnType<typeof setInterval> | undefined;
+    const planner = createWildsEmbodiedAudioPlanner();
+    const pause = () => { clearInterval(timer); timer = undefined; planner.reset(); runtime.stopEmbodied(); };
+    const start = () => {
+      pause();
+      if (document.hidden || !active) return;
+      // Safari can interrupt an existing context while switching apps. Resume
+      // in the background; playable world input never awaits audio.
+      void runtime.unlock().catch(() => undefined);
+      timer = setInterval(() => {
+        const snapshot = embodiedSnapshotRef.current?.();
+        if (snapshot) for (const sound of planner.sample(snapshot, performance.now())) runtime.playEmbodied(sound);
+      }, 125);
+    };
+    document.addEventListener("visibilitychange", start);
+    start();
+    void (async () => {
+      // One tiny decode per background opportunity, after playable startup.
+      for (const asset of WILDS_EMBODIED_AUDIO_ASSETS) {
+        await wildzGameplayBackground.run(async () => {
+          if (active && !document.hidden) await runtime.preload([asset]);
+        }, { timeoutMs: 2_500 }).catch(() => undefined);
+        if (!active) return;
+      }
+    })();
+    return () => { active = false; document.removeEventListener("visibilitychange", start); pause(); };
+  }, [audioReady, embodiedEnabled, audioSettings.muted]);
 
   useEffect(() => {
     const previous = previousEncounter.current;

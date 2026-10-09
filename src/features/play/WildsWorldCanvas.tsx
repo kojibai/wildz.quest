@@ -1,5 +1,7 @@
 "use client";
 import { WildsNourishmentEnvironment, type WildsNourishmentEnvironmentProps } from './WildsNourishmentEnvironment';
+import { WildsEmbodiedAudioContext, useWildsEmbodiedSource } from './WildsEmbodiedAudioContext';
+import type { WildsEmbodiedAudioRegistry } from './wilds-embodied-audio';
 import type { WildsAnimalHuntPresentation } from './wilds-animal-interaction';
 import { projectCreationBedSleepPose, type CreationBedSource } from './creation/bed';
 import { WildsFirstFrame } from "./WildsFirstFrame";
@@ -163,6 +165,8 @@ export function WildsWorldCanvas({
   qualityProfile,
   onFrameSample,
   onWorldReady,
+  onWorldInitialized,
+  embodiedAudioSources,
   onCameraHeadingChange,
   searchEnabled,
   onSelectPlayer,
@@ -264,6 +268,8 @@ export function WildsWorldCanvas({
   resourcePending?: boolean;
   resourceCompanionReady?: boolean;
   onWorldReady?: () => void;
+  onWorldInitialized?: () => void;
+  embodiedAudioSources?: WildsEmbodiedAudioRegistry;
 }) {
   const [startupPrepared, setStartupPrepared] = useState(false);
   return (
@@ -285,9 +291,11 @@ export function WildsWorldCanvas({
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = 1.08;
           if (WILDS_DIAGNOSTICS_ENABLED) publishWildsDiagnostics(gl, size, state, qualityProfile);
+          onWorldInitialized?.();
         }}
         shadows={{ type: THREE.PCFShadowMap }}
       >
+        <WildsEmbodiedAudioContext.Provider value={embodiedAudioSources ?? null}>
         {onFrameSample ? <WildsFrameReporter onFrameSample={onFrameSample} /> : null}
         <Suspense fallback={null}>
           <WildsFirstDrawPreparation onPrepared={setStartupPrepared} />
@@ -295,6 +303,7 @@ export function WildsWorldCanvas({
           {startupPrepared ? <WildsShaderPrewarm /> : null}
           <WildsScene monumentLightState={monumentLightState} nourishment={nourishment} sleepingCreationBed={sleepingCreationBed} suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} creationPreview={creationPreview} creationProjections={creationProjections} creationNavigation={creationNavigation} creationSource={creationSource} creationWorldId={creationWorldId} onCreationNavigation={onCreationNavigation} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
+        </WildsEmbodiedAudioContext.Provider>
       </Canvas>
     </div>
   );
@@ -878,6 +887,12 @@ function useCrewFollower(input: {
   const directWaypoints = useRef<Readonly<WildsCrewNavigationPoint>[]>([target.current]);
   const path = useRef<readonly Readonly<WildsCrewNavigationPoint>[]>([]);
   const latest = useRef(input); latest.current = input;
+  useWildsEmbodiedSource(`crew:${input.assetId}`, () => ({
+    id: `crew:${latest.current.assetId}`, kind: 'creature', position: position.current,
+    spaceId: latest.current.siteSpace.spaceId,
+    active: latest.current.enabled && !latest.current.suspended,
+    locomotion: latest.current.locomotion ?? 'ground'
+  }));
   const priorLocomotion = useRef(input.locomotion ?? "ground");
   const returningFromWork = useRef(false);
   const alongside = useRef({ playerX: input.player.x, playerZ: input.player.z,
@@ -1326,6 +1341,11 @@ function RemoteExplorer({
   const displayedWorld = useRef(new THREE.Vector3(player.x, actorPosition[1] + terrainElevation, player.z));
   const target = useRef(new THREE.Vector3());
   target.current.set(player.x, actorPosition[1] + terrainElevation, player.z);
+  useWildsEmbodiedSource(`player:${player.playerId}`, () => ({
+    id: `player:${player.playerId}`, kind: 'player', position: displayedWorld.current,
+    spaceId: 'wildz.space.outer.v1', locomotion: 'ground',
+    active: !player.practice && player.status !== 'private' && Date.now() - Date.parse(player.lastSeenAt) < 15_000
+  }));
   useFrame((_, delta) => {
     if (!group.current) return;
     displayedWorld.current.lerp(target.current, 1 - Math.exp(-12 * Math.min(.1, delta)));

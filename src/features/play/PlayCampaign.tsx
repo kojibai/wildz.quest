@@ -87,6 +87,7 @@ import { projectWildsOwnedWorldAdditions, sameWildsOwnedWorldAdditions } from "@
 import { wildsMaterialCustodian, type WildsWorldProjection } from "@/features/play/wilds-world-state";
 import { WildsBalancedStatusHud } from "@/features/play/WildsBalancedStatusHud";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
+import type { WildsEmbodiedAudioRegistry, WildsEmbodiedSource, WildsEmbodiedSnapshot } from "./wilds-embodied-audio";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
 import { useWorldOverlayDirector } from "@/features/play/use-world-overlay-director";
 import { usePlayModalLifecycle } from "@/features/play/use-play-modal-lifecycle";
@@ -321,6 +322,7 @@ export function PlayCampaign({
   initialWorld = null,
   onPlayStateChange,
   onWorldReady,
+  onWorldInitialized,
   worldVisible = true,
   onPrepareCard,
   onExportCard,
@@ -355,6 +357,7 @@ export function PlayCampaign({
   initialWorld?: { projection: WildsWorldProjection; mode: "receiz_live" | "kai_live" } | null;
   onPlayStateChange: (state: PlayState, playerContinuity: WildzPlayerContinuity) => void;
   onWorldReady?: () => void;
+  onWorldInitialized?: () => void;
   worldVisible?: boolean;
   onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
   onExportCard: (asset: PortableCardAsset, player: (asset?: PortableCardAsset) => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
@@ -1417,6 +1420,8 @@ export function PlayCampaign({
       proximity: state.encounter.phase === "idle" ? "cold" : state.encounter.proximity
     },
     enabled,
+    embodiedEnabled: enabled && worldVisible && worldInteractionEnabled,
+    readEmbodiedSnapshot: () => embodiedSnapshotRef.current,
     initialAudioSettings: initialPlayerContinuity?.settings.audio
   });
   const playHuntCue = presentation.playCue;
@@ -3149,6 +3154,7 @@ export function PlayCampaign({
             <WildsWorldCanvas
               monumentLightState={monumentLightState}
               onWorldReady={onWorldReady}
+              onWorldInitialized={onWorldInitialized}
               crewModes={crewPreferences?.byAssetId}
             crewTravelMembershipRevision={crewExpeditions.runtimeMembershipRevision}
             crewTravelRuntime={crewExpeditions.runtime}
