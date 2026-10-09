@@ -126,6 +126,7 @@ export function useWildsPresentation({
     if (!audioReady || !embodiedEnabled || audioSettings.muted) return;
     const runtime = runtimeRef.current;
     if (!runtime) return;
+    const preload = runtime.preload;
     let active = true, timer: ReturnType<typeof setInterval> | undefined;
     let preloadIndex = 0, preloading = false;
     const planner = createWildsEmbodiedAudioPlanner();
@@ -153,7 +154,7 @@ export function useWildsPresentation({
           await wildzGameplayBackground.run(async () => {
             if (active && !document.hidden) {
               const asset = WILDS_EMBODIED_AUDIO_ASSETS[preloadIndex++];
-              await runtime.preload([asset]);
+              await preload([asset]);
             }
           }, { timeoutMs: 2_500 }).catch(() => undefined);
         }

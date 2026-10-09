@@ -93,7 +93,7 @@ test("fresh genesis, Identity Seal restore, and identity-bearing Vault restore c
   assert.match(genesis, /acceptSnapshot\(snapshot\)/);
   assert.match(restore, /acceptSnapshot\(next\)/);
   assert.match(initialize, /const resumed = await resumePendingWildzVault[\s\S]*acceptSnapshot\(\{/);
-  assert.match(initialize, /const snapshot = await bootstrapWildzContinuity\(window\.localStorage\)/);
+  assert.match(initialize, /const snapshot = await bootstrapWildzContinuity\(window\.localStorage(?:\s*,|\))/);
   assert.match(initialize, /acceptSnapshot\(snapshot\)/);
 });
 

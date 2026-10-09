@@ -83,7 +83,7 @@ test("the app resumes a staged Vault before automatic identity bootstrap and rem
 
   assert.match(shell, /searchParams\.get\("wildzResume"\)/);
   assert.match(shell, /resumePendingWildzVault/);
-  assert.ok(shell.indexOf("resumePendingWildzVault") < shell.indexOf("bootstrapWildzContinuity(window.localStorage)"));
+  assert.ok(shell.indexOf("resumePendingWildzVault") < shell.indexOf("bootstrapWildzContinuity(window.localStorage"));
   assert.match(shell, /history\.replaceState/);
   assert.match(shell, /searchParams\.delete\("wildzResume"\)/);
   assert.doesNotMatch(shell, /window\.location\.assign|\/api\/auth\/receiz\/start/);
