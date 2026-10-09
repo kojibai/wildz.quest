@@ -1,0 +1,8 @@
+# Explicit decisions for the locked versions; new scripts still require review.
+allowBuilds:
+  sharp@0.34.5: true
+  unrs-resolver@1.12.2: true
+  # Optional Linux CUDA download; CPU binaries ship in the package.
+  onnxruntime-node@1.21.0: false
+  # Advisory dependency version check, with no runtime setup.
+  protobufjs@7.6.5: false

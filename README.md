@@ -50,7 +50,12 @@ This is not a reskinned storefront. It is an architectural fork: the inherited k
 
 ## Quick start
 
-Requirements: Node.js `20.19.0` or newer and pnpm `10.29.1`.
+Requirements: Node.js `24.x` and pnpm `10.29.1`. The Node major is fixed for local development, CI, and Vercel; minor and patch updates remain available.
+
+Dependency install scripts are reviewed by version in `pnpm-workspace.yaml`.
+Sharp's install check and the native resolver setup are allowed. ONNX's optional
+CUDA download and Protobuf's advisory version check stay disabled; browser voice
+uses the existing WebAssembly/WebGPU path, and packaged CPU binaries remain available.
 
 ```bash
 git clone https://github.com/kojibai/wildz.quest.git

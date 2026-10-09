@@ -31,7 +31,7 @@
   ],
   "packageManager": "pnpm@10.29.1",
   "engines": {
-    "node": ">=20.19.0"
+    "node": "24.x"
   },
   "scripts": {
     "dev": "node scripts/next-runtime-guard.mjs dev",

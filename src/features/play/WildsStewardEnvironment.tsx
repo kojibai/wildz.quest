@@ -12,7 +12,7 @@ import { wildsSiteRuntimeGroundY, type WildsSiteRuntimeProjection } from "./wild
 import { projectWildsResourceAffordance } from "./wilds-resource-affordance";
 import { projectWildsWorkPresentation, type WildsActiveWorkSource } from "./wilds-work-presentation";
 import { useWildsReadability } from "./WildsReadabilityContext";
-import { constructionSourceCellKey, constructionSourcesNear, type WildsStewardPlacement } from "./wilds-steward-craft";
+import { constructionSourcesNear, type WildsStewardPlacement } from "./wilds-steward-craft";
 import { createWildsProximityIndex } from "./wilds-proximity-index";
 import type { WildsConstructionSiteV1 } from "./wilds-construction-site";
 import { wildsConstructionOccludesCamera } from "./wilds-construction-camera";
@@ -101,11 +101,13 @@ export function WildsStewardEnvironment({ activeWorkSource, placementPreview, li
   siteRuntime: WildsSiteRuntimeProjection;
   siteSpaceId: string;
 }) {
-  const sourceCellKey = constructionSourceCellKey(player);
+  // The cell cache returns the same array throughout fractional movement.
+  // Depend on that projection without closing over the moving player object.
+  const nearbySources = siteSpaceId === "wildz.space.outer.v1" ? constructionSourcesNear(player) : null;
   const sources = useMemo(() => {
     const projected: Array<{ source: WildsResourceSource; availableCapacity: number }> = [];
-    if (siteSpaceId !== "wildz.space.outer.v1") return projected;
-    for (const source of constructionSourcesNear(player)) {
+    if (!nearbySources) return projected;
+    for (const source of nearbySources) {
       const state = livingWorld?.harvestedSources[source.sourceId];
       const availability = projectWildsResourceAvailability(source, {
         admittedHarvestedCapacity: state?.harvestedCapacity ?? 0,
@@ -115,7 +117,7 @@ export function WildsStewardEnvironment({ activeWorkSource, placementPreview, li
       projected.push({ source, availableCapacity: availability.availableCapacity });
     }
     return projected;
-  }, [kaiUPulse, livingWorld?.harvestedSources, siteSpaceId, sourceCellKey]);
+  }, [kaiUPulse, livingWorld?.harvestedSources, nearbySources]);
   const structureIndex = useMemo(() => createWildsProximityIndex(
     Object.values(livingWorld?.structures ?? {}), (structure) => structure.structureId
   ), [livingWorld?.structures]);

@@ -9,7 +9,7 @@ describe("Receiz Wilds rendering contract", () => {
     const panel = await readFile("src/features/play/WildsStewardCraftPanel.tsx", "utf8");
 
     assert.match(environment, /hay-source-manifestation/);
-    assert.match(environment, /constructionSourceCellKey/);
+    assert.match(environment, /constructionSourcesNear/);
     assert.doesNotMatch(environment, /\[kaiUPulse, livingWorld\?\.harvestedSources, player\.x, player\.z, siteSpaceId\]/);
     assert.match(campaign, /projectWildsResourceRegion/);
     assert.match(panel, /Living hay/);

@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { WildsContinuousBuilderPanel } from "./WildsContinuousBuilderPanel";
 import type { useWildsContinuousBuilder } from "./use-wilds-continuous-builder";
@@ -44,7 +45,7 @@ export function BuildGuidanceBrowserFixture() {
       <label>Seal name <input value={username} onChange={event => setUsername(event.target.value)} /></label>
       <p style={{ overflowWrap: "anywhere" }}>{wildzIdentitySealFilename(username || "explorer", exportedAt)}</p>
       <p>Kai {stamp.coordinate} · Total pulses {stamp.totalPulses}</p>
-      {art && <img src={art} width={900} height={900} style={{ width: "100%", height: "auto" }} alt={`Public sample identity seal for ${username}. Kai ${stamp.coordinate}, total pulses ${stamp.totalPulses}.`} />}
+      {art && <Image src={art} width={900} height={900} unoptimized loading="eager" style={{ width: "100%", height: "auto" }} alt={`Public sample identity seal for ${username}. Kai ${stamp.coordinate}, total pulses ${stamp.totalPulses}.`} />}
     </div>}
   </main>;
 }
