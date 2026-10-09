@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
 import type { WorldOverlayOwner } from "./world-overlay-state";
@@ -60,6 +60,7 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
   exclusiveOwner: WorldOverlayOwner;
   onRequestHandled?: () => void;
 }) {
+  const brandId = useId();
   const [dragY, setDragY] = useState(0);
   const toolsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const sheetRef = useRef<HTMLElement | null>(null);
@@ -262,9 +263,25 @@ export function WildsCommandDock({ items, toolsOpen, panelKey, onToolsOpenChange
           }
         }}
         ref={toolsTriggerRef}
+        title="World tools · tap or swipe up"
         type="button"
       >
-        <Icons.menu aria-hidden="true" size={20} />
+        <svg aria-hidden="true" className="wilds-world-tools-mark" focusable="false" viewBox="8 14 48 42">
+          <defs>
+            <linearGradient id={`${brandId}-trail`} x1="14" y1="18" x2="48" y2="47" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#B8FF6A" />
+              <stop offset="0.55" stopColor="#5EE59B" />
+              <stop offset="1" stopColor="#23B77C" />
+            </linearGradient>
+            <radialGradient id={`${brandId}-seed`}>
+              <stop stopColor="#FFF5A8" stopOpacity="0.45" />
+              <stop offset="1" stopColor="#5EE59B" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <path d="M11 18 22.5 47 32 33.5 41.5 47 53 18 42 30.5 32 18.5 22 30.5Z" fill={`url(#${brandId}-trail)`} stroke="#DFFFAE" strokeOpacity="0.28" strokeWidth="0.6" />
+          <circle cx="32" cy="45.5" r="10" fill={`url(#${brandId}-seed)`} />
+          <path d="M32 39.5c1.2 3.1 3.3 5.2 6.5 6.4-3.2 1.1-5.3 3.3-6.5 6.5-1.1-3.2-3.3-5.4-6.5-6.5 3.2-1.2 5.4-3.3 6.5-6.4Z" fill="#FFF3BC" />
+        </svg>
       </button>
 
       {toolsOpen ? (

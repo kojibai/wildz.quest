@@ -16191,29 +16191,68 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 }
 
 .wilds-world-tools-trigger {
+  position: relative;
   display: grid;
   width: clamp(64px, 18vw, 96px);
   min-width: 44px;
   min-height: 44px;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(198, 248, 219, .25);
+  border: 1px solid rgba(222, 200, 132, .68);
   border-radius: 999px;
   color: #e1f7ed;
-  background: linear-gradient(145deg, rgba(16, 44, 39, .9), rgba(7, 25, 22, .95));
-  box-shadow: 0 9px 26px rgba(0, 0, 0, .38), inset 0 1px rgba(255, 255, 255, .09);
-  backdrop-filter: blur(16px) saturate(1.08);
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(94, 229, 155, .16), transparent 72%),
+    linear-gradient(155deg, #173d30, #081e19 65%, #071510);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .42), 0 0 0 3px rgba(5, 20, 15, .38), inset 0 1px rgba(255, 241, 188, .26), inset 0 -3px rgba(0, 0, 0, .3);
+  cursor: pointer;
+  transition: transform 120ms ease-out, border-color 120ms ease-out, box-shadow 120ms ease-out;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
 
+.wilds-world-tools-trigger::before {
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(202, 237, 186, .13);
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+}
+
+.wilds-world-tools-mark {
+  display: block;
+  width: 36px;
+  height: 36px;
+  pointer-events: none;
+}
+
 .wilds-world-tools-trigger[aria-expanded="true"],
-.wilds-world-tools-trigger:hover,
 .wilds-world-tools-trigger:focus-visible {
-  color: #fff0a2;
-  border-color: rgba(244, 221, 121, .52);
+  border-color: #f3dc99;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .42), 0 0 0 3px rgba(5, 20, 15, .38), 0 0 16px rgba(94, 229, 155, .14), inset 0 1px rgba(255, 241, 188, .34), inset 0 -3px rgba(0, 0, 0, .3);
+}
+
+.wilds-world-tools-trigger:focus-visible {
+  outline: 2px solid #fff3bc;
+  outline-offset: 5px;
+}
+
+@media (hover: hover) {
+  .wilds-world-tools-trigger:hover {
+    border-color: #f3dc99;
+  }
+}
+
+.wilds-world-tools-trigger:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .38), 0 0 0 3px rgba(5, 20, 15, .38), inset 0 2px 5px rgba(0, 0, 0, .4);
+}
+
+.wilds-world-tools-trigger:disabled {
+  cursor: default;
 }
 
 .wildz-tools-home .wilds-world-tools-fan {
@@ -16988,7 +17027,8 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wildz-creature-drawer-dots i,
   .wilds-companion-command,
   .wilds-companion-ability,
-  .wilds-command-button {
+  .wilds-command-button,
+  .wilds-world-tools-trigger {
     animation: none !important;
     transition: none !important;
   }
