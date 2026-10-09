@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { WildsEmbodiedAudioContext } from './WildsEmbodiedAudioContext';
+import type { WildsEmbodiedSource } from './wilds-embodied-audio';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { createWildsKaiRuntimeClock } from './wilds-kai-runtime';
@@ -54,6 +56,8 @@ function batches(): Record<Shape, Batch> {
 /** Static crops and moving fauna use bounded, shared meshes. No state publication per frame. */
 export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentProps) {
   const quality=props.qualityTier??'medium';
+  const audioRegistry=useContext(WildsEmbodiedAudioContext);
+  const audioPositions=useRef(new Map<string,WildsEmbodiedSource>());
   const latest=useRef(props), plants=useRef(batches()), animals=useRef(batches());
   const sceneOrigin=useRef({ ...props.origin });
   const sceneGroup=useRef<THREE.Group>(null);
@@ -78,6 +82,16 @@ export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentPr
     .sort((a,b)=>a.distance-b.distance||a.animal.animalId.localeCompare(b.animal.animalId))
     .slice(0,DETAIL[quality].livestock).map(row=>row.animal),
     [props.livestock,props.origin.x,props.origin.z,props.spaceId,quality]);
+  useEffect(()=>{
+    if(!audioRegistry)return;
+    const positions=audioPositions.current;
+    const sources=[...(props.animals??[]).filter(a=>a.status==='wild').slice(0,DETAIL[quality].animals),...residentLivestock];
+    const readers=sources.map(animal=>{
+      const id=`fauna:${animal.animalId}`,read=()=>positions.get(animal.animalId)??null;
+      audioRegistry.set(id,read);return {id,read};
+    });
+    return ()=>{for(const {id,read} of readers)if(audioRegistry.get(id)===read)audioRegistry.delete(id);positions.clear();};
+  },[audioRegistry,props.animals,residentLivestock,quality]);
   const resources=useMemo(()=>{
     const coat=createWildsNourishmentTexture('coat'), fruit=createWildsNourishmentTexture('fruit'), leaf=createWildsNourishmentTexture('leaf');
     // Instance colors do not require a vertex-color attribute. Enabling vertexColors on
@@ -154,6 +168,11 @@ export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentPr
     const drawAnimal=(animal:WildsWildAnimal,p:{x:number;y:number;z:number},heading:number,gait:number,moving:boolean,grazing:boolean,pose:WildsFaunaLifePose,effect?:WildsHuntAnimationFrame,overridePick?:Pick)=>{
       const pick=overridePick??animalPicks.current.get(animal.animalId),cos=Math.cos(heading),sin=Math.sin(heading);
       if(!pick)return;
+      if(audioRegistry&&!effect){
+        let audio=audioPositions.current.get(animal.animalId);
+        if(!audio){audio={id:`fauna:${animal.animalId}`,kind:animal.species==='ground-bird'?'bird':'animal',position:{...p},spaceId:current.spaceId??'wildz.space.outer.v1',active:true,locomotion:'ground'};audioPositions.current.set(animal.animalId,audio);}
+        Object.assign(audio.position,p);audio.updatedAt=time.current.lastDraw;
+      }
       const size=effect?.scale??1,lean=effect?.lean??0,cosLean=Math.cos(lean),sinLean=Math.sin(lean);
       if(selectionRing.current&&current.selectedAnimalId===animal.animalId&&!effect){selectionRing.current.visible=true;selectionRing.current.position.set(p.x-sceneOrigin.current.x,p.y-sceneOrigin.current.y+.025,p.z-sceneOrigin.current.z);selectionRing.current.scale.setScalar(animal.species==='meadow-goat'?.55:.32);}
       drawWildsFauna(animal.species,gait,moving,grazing,(shape,x,y,z,sx,sy,sz,tone,tilt=0,roll=0,yaw=0)=>{
