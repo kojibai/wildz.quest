@@ -51,3 +51,11 @@ test('a crowded scene cannot create a chorus or an unbounded state history',()=>
   const planner=createWildsEmbodiedAudioPlanner();const sources=Array.from({length:400},(_,i)=>bird('bird'+i,2+i*.01));
   for(let t=0;t<60000;t+=125) assert.ok(planner.sample(frame(0,sources),t).length<=2);
 });
+
+test('every known floor has a fitting footfall and swimming never invents ground steps',()=>{
+ for(const [surface,expected] of [['wood','step-wood-'],['soil','step-soil'],['trail','step-trail'],['shallow-water','step-water-'],['deep-water','']] as const){
+  const planner=createWildsEmbodiedAudioPlanner();planner.sample(frame(0,[],surface),0);
+  const sounds=planner.sample(frame(.9,[],surface),125);
+  if(expected)assert.ok(sounds[0].assetId.startsWith(expected));else assert.deepEqual(sounds,[]);
+ }
+});
