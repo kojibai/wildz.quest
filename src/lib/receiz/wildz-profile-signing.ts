@@ -1,7 +1,7 @@
 import { createReceizClient, type JsonObject, type ReceizKeyFile } from "@receiz/sdk";
 import type { PortableCardAsset } from "../../features/play/portable-card";
 import { canonicalWildzProfilePath, type PublicWildzProfile } from "../../features/profile/public-profile";
-import { createPublicWildzProfileRecord, verifiedWildzProfileCards } from "./wildz-profile-adapter";
+import { createPublicWildzProfileRecord, verifiedWildzProfileCards } from "./wildz-profile-record";
 import { WILDZ_PRODUCT } from "../wildz/product";
 import { parseWildzPlayerCoordinate, sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import type { WildzIdentitySession } from "./wildz-identity-repository";

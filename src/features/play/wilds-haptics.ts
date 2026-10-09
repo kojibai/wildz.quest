@@ -4,7 +4,8 @@ export type WildsHapticEvent =
   | "confirm"
   | "cancel"
   | "cycle"
-  | "drawer-open";
+  | "drawer-open"
+  | "land";
 
 const WILDS_HAPTIC_PATTERNS: Record<WildsHapticEvent, readonly number[]> = {
   "wheel-open": [8],
@@ -12,7 +13,8 @@ const WILDS_HAPTIC_PATTERNS: Record<WildsHapticEvent, readonly number[]> = {
   confirm: [14, 18, 24],
   cancel: [7, 22, 7],
   cycle: [6],
-  "drawer-open": [9, 14, 9]
+  "drawer-open": [9, 14, 9],
+  land: [12]
 };
 
 export function wildsHapticPattern(event: WildsHapticEvent): readonly number[] {

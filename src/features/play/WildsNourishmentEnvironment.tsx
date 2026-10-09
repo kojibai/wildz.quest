@@ -86,11 +86,13 @@ export function WildsNourishmentEnvironment(props: WildsNourishmentEnvironmentPr
     if(!audioRegistry)return;
     const positions=audioPositions.current;
     const sources=[...(props.animals??[]).filter(a=>a.status==='wild').slice(0,DETAIL[quality].animals),...residentLivestock];
+    const retained=new Set(sources.map(animal=>animal.animalId));
+    for(const id of positions.keys())if(!retained.has(id))positions.delete(id);
     const readers=sources.map(animal=>{
       const id=`fauna:${animal.animalId}`,read=()=>positions.get(animal.animalId)??null;
       audioRegistry.set(id,read);return {id,read};
     });
-    return ()=>{for(const {id,read} of readers)if(audioRegistry.get(id)===read)audioRegistry.delete(id);positions.clear();};
+    return ()=>{for(const {id,read} of readers)if(audioRegistry.get(id)===read)audioRegistry.delete(id);};
   },[audioRegistry,props.animals,residentLivestock,quality]);
   const resources=useMemo(()=>{
     const coat=createWildsNourishmentTexture('coat'), fruit=createWildsNourishmentTexture('fruit'), leaf=createWildsNourishmentTexture('leaf');

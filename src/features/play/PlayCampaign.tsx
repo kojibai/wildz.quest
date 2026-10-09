@@ -87,7 +87,9 @@ import { projectWildsOwnedWorldAdditions, sameWildsOwnedWorldAdditions } from "@
 import { wildsMaterialCustodian, type WildsWorldProjection } from "@/features/play/wilds-world-state";
 import { WildsBalancedStatusHud } from "@/features/play/WildsBalancedStatusHud";
 import { useWildsPresentation } from "@/features/play/use-wilds-presentation";
-import type { WildsEmbodiedAudioRegistry, WildsEmbodiedSource, WildsEmbodiedSnapshot } from "./wilds-embodied-audio";
+import type { WildsEmbodiedAudioRegistry, WildsEmbodiedSnapshot } from "./wilds-embodied-audio";
+import { wildsFootSurfaceAt } from "./wilds-foot-surface";
+import { playWildsHaptic } from "./wilds-haptics";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
 import { useWorldOverlayDirector } from "@/features/play/use-world-overlay-director";
 import { usePlayModalLifecycle } from "@/features/play/use-play-modal-lifecycle";
@@ -1413,6 +1415,28 @@ export function PlayCampaign({
       reducedMotion
     });
   }, [activeDistrictId, activeLandmarkId, kaiExpression.dayPhase, reducedMotion, state.battle, state.encounter, state.missionProgress, state.player, state.worldMastery]);
+  const [embodiedAudioSources] = useState<WildsEmbodiedAudioRegistry>(() => new Map());
+  const embodiedSnapshot: WildsEmbodiedSnapshot = {
+    listener: state.siteSpace.position,
+    heading: cameraHeadingRef.current,
+    spaceId: state.siteSpace.spaceId,
+    grounded: aerialStateRef.current.mode === "ground" && verticalTraversalRef.current.layer === "ground" && state.playerBreaths?.mode !== "bed",
+    running: movementMode === "run",
+    sources: { *[Symbol.iterator]() { for (const read of embodiedAudioSources.values()) { const source = read(); if (source) yield source; } } },
+    surfaceAt: (point, spaceId) => wildsFootSurfaceAt(point, spaceId, {
+      flooded: state.siteSpace.flooded,
+      canopy: siteRuntime.sites.some(site => site.key === state.siteSpace.siteKey && site.family === "canopy-route"),
+      navigation: creationNavigation,
+      creations: creationPhysical
+    })
+  };
+  const embodiedSnapshotRef = useRef(embodiedSnapshot);
+  embodiedSnapshotRef.current = embodiedSnapshot;
+  const readEmbodiedSnapshot = () => ({
+    ...embodiedSnapshotRef.current,
+    heading: cameraHeadingRef.current,
+    grounded: aerialStateRef.current.mode === "ground" && verticalTraversalRef.current.layer === "ground" && embodiedSnapshotRef.current.grounded
+  });
   const presentation = useWildsPresentation({
     audioScene,
     encounter: {
@@ -1421,7 +1445,7 @@ export function PlayCampaign({
     },
     enabled,
     embodiedEnabled: enabled && worldVisible && worldInteractionEnabled,
-    readEmbodiedSnapshot: () => embodiedSnapshotRef.current,
+    readEmbodiedSnapshot,
     initialAudioSettings: initialPlayerContinuity?.settings.audio
   });
   const playHuntCue = presentation.playCue;
@@ -2242,6 +2266,7 @@ export function PlayCampaign({
     if (!siteLanding.found) return;
     const siteSurface = writeWildsSiteRuntimeMovement(siteMovementOutputRef.current, siteRuntime, state.siteSpace.spaceId, state.player.x, landingY, state.player.z, siteLanding.x, siteLanding.z, .38, siteLanding.floorY);
     completeWildsAerialLanding(runtime, siteLanding.x, siteLanding.z, siteLanding.floorY);
+    if (!reducedMotion) playWildsHaptic("land");
     resetWildsVerticalTraversalState(verticalTraversalRef.current);
     verticalIntentRef.current = 0;
     horizontalAllowedRef.current = true;
@@ -3155,6 +3180,7 @@ export function PlayCampaign({
               monumentLightState={monumentLightState}
               onWorldReady={onWorldReady}
               onWorldInitialized={onWorldInitialized}
+              embodiedAudioSources={embodiedAudioSources}
               crewModes={crewPreferences?.byAssetId}
             crewTravelMembershipRevision={crewExpeditions.runtimeMembershipRevision}
             crewTravelRuntime={crewExpeditions.runtime}

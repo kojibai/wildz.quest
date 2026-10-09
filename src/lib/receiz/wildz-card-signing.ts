@@ -1,5 +1,5 @@
 import { createReceizClient, type JsonObject, type ReceizKeyFile } from "@receiz/sdk";
-import { createPublicWildsCardTransportRecord, type PublicWildsCardRecord } from "../../features/play/public-card-registry";
+import { createPublicWildsCardTransportRecord, type PublicWildsCardRecord } from "../../features/play/public-card-record";
 import { WILDZ_PRODUCT } from "../wildz/product";
 
 export type WildzCardSigningInput = { record: PublicWildsCardRecord; merchantReceizId: string; keyFile: ReceizKeyFile };
