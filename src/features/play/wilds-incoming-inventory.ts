@@ -2,6 +2,8 @@ import { isAdmittedWildsCard, verifyAndAdmitWildsCard } from "./admitted-invento
 import { canonicalPortableCardJson, type PortableCardAsset } from "./portable-card";
 import { wildzGameplayBackground } from "../../lib/performance/wildz-gameplay-background";
 import { prepareWildsInventoryCardConvergence } from "./wilds-inventory-convergence";
+import { isLivingCardAsset } from "./living-card-types";
+import { verifyCreatureHistoryCooperatively } from "./creature-history";
 
 /** Keep source admission responsive. A claimed ID/digest never admits bytes:
  * reuse requires identical full content of an immutable already-verified card.
@@ -27,9 +29,15 @@ export async function prepareWildsIncomingInventory(
       try {
         if (!card) continue;
         const existing = knownById.get(card.id);
-        const admitted = isAdmittedWildsCard(card) ? card
-          : existing && canonicalPortableCardJson(card) === canonicalPortableCardJson(existing) ? existing
-          : verifyAndAdmitWildsCard(card) ? card : null;
+        let admitted = isAdmittedWildsCard(card) ? card
+          : existing && canonicalPortableCardJson(card) === canonicalPortableCardJson(existing) ? existing : null;
+        if (!admitted) {
+          if (isLivingCardAsset(card) && card.manifest.history && card.manifest.history.events.length > 64) {
+            const history = await verifyCreatureHistoryCooperatively(card.manifest.history, { now, yield: yieldToBrowser });
+            if (!history.ok) continue;
+          }
+          admitted = verifyAndAdmitWildsCard(card) ? card : null;
+        }
         if (!admitted) continue;
         try { prepareWildsInventoryCardConvergence(admitted, existing); } catch {
           // Proof verification and migration are separate boundaries. Retain a

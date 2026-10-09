@@ -1,4 +1,4 @@
-import { mergeWildzCrewCustody, readWildzArtifactCrewCustody, wildzCrewCustodySources, type WildzArtifactCodec, type WildzCrewCustody, type WildzCrewCustodySource } from "./wildz-artifact-codec";
+import { canOperateWildzCrewCard, mergeWildzCrewCustody, readWildzArtifactCrewCustody, wildzCrewCustodySources, type WildzArtifactCodec, type WildzCrewCustody, type WildzCrewCustodySource } from "./wildz-artifact-codec";
 import type { PortableCardAsset } from "../../features/play/portable-card";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import type { WildzArtifactHistoryEntry } from "./wildz-artifact-history";
@@ -17,6 +17,7 @@ export async function reopenWildzCrewCustody(input: {
   owner: string; cards: readonly PortableCardAsset[]; sources: unknown;
   history: { read(sha: string): Promise<Pick<WildzArtifactHistoryEntry, "artifactBytes" | "mimeType" | "filename"> | null> };
   codec: WildzArtifactCodec;
+  readIdentitySeal?: () => Promise<WildzCrewCustody | null>;
 }): Promise<WildzCrewCustody | null> {
   const foreign = new Set(input.cards.filter(card => !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, input.owner)).map(card => card.id));
   if (!foreign.size) return null;
@@ -34,5 +35,12 @@ export async function reopenWildzCrewCustody(input: {
         && wildzCrewCustodySources(token).every(row => row.artifactSha256 === ref.artifactSha256)) tokens.push(token);
     } catch { /* Foreign custody stays unavailable; original creatures work offline. */ }
   }
-  return mergeWildzCrewCustody(input.owner, tokens, input.cards);
+  const sourceCustody = mergeWildzCrewCustody(input.owner, tokens, input.cards);
+  // Inspect the potentially large embedded Vault only when an exact admitted
+  // source has not already established custody of every foreign crew card.
+  if (!input.readIdentitySeal || input.cards.every(card => canOperateWildzCrewCard(card, input.owner, sourceCustody))) {
+    return sourceCustody;
+  }
+  const sealCustody = await input.readIdentitySeal().catch(() => null);
+  return mergeWildzCrewCustody(input.owner, [sourceCustody, sealCustody], input.cards);
 }

@@ -67,22 +67,61 @@ test("installation precaches the exact public shell and waits for explicit updat
   assert.equal(worker.skippedWaiting, false, "install must not replace a running game before the player applies the update");
 });
 
-test("root navigation prefers the deployed document over a stale cached Next shell", async () => {
+test("root navigation opens the saved shell while a slow network refresh remains pending", async () => {
+  let finishRefresh!: (response: Response) => void;
+  const worker = createWorkerHarness({ release: RELEASE, fetch: () => new Promise(resolve => { finishRefresh = resolve; }) });
+  await worker.putCached(SHELL_CACHE, "/", new Response("saved release", { headers: { "content-type": "text/html" } }));
+  const launch = worker.dispatchFetch({ method: "GET", mode: "navigate", url: "https://wildz.quest/" }, { waitForBackground: false });
+  const immediate = await Promise.race([launch, new Promise<null>(resolve => setTimeout(() => resolve(null), 50))]);
+  finishRefresh(new Response("fresh release", { headers: { "content-type": "text/html" } }));
+  assert.ok(immediate, "a cached launch must not wait for the network");
+  assert.equal(await immediate.response?.text(), "saved release");
+  assert.equal(immediate.waitCount, 1);
+  await immediate.background;
+  assert.equal(await (await worker.readCached(SHELL_CACHE, "/"))?.text(), "fresh release");
+});
+
+test("root refresh saves matching Next assets before replacing the shell", async () => {
+  let finishAsset!: (response: Response) => void;
+  const fresh = '<html><script src="/_next/static/chunks/fresh.js"></script></html>';
   const worker = createWorkerHarness({
     release: RELEASE,
-    fetch: async () => new Response("fresh release", { headers: { "content-type": "text/html" } })
+    fetch: async request => new URL(request.url).pathname === "/"
+      ? new Response(fresh, { headers: { "content-type": "text/html" } })
+      : new Promise(resolve => { finishAsset = resolve; })
   });
-  await worker.putCached(SHELL_CACHE, "/", new Response("stale release", { headers: { "content-type": "text/html" } }));
-
+  await worker.putCached(SHELL_CACHE, "/", new Response("saved release", { headers: { "content-type": "text/html" } }));
   const result = await worker.dispatchFetch({
-    method: "GET",
-    mode: "navigate",
-    url: "https://wildz.quest/"
-  });
+    method: "GET", mode: "navigate", url: "https://wildz.quest/"
+  }, { waitForBackground: false });
+  assert.equal(await result.response?.text(), "saved release");
+  // Let the public document parse and start warming its still-pending asset.
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(await (await worker.readCached(SHELL_CACHE, "/"))?.text(), "saved release");
+  assert.ok(finishAsset);
+  finishAsset(new Response("new chunk", { headers: { "content-type": "text/javascript" } }));
+  await result.background;
+  assert.equal(await (await worker.readCached(SHELL_CACHE, "/_next/static/chunks/fresh.js"))?.text(), "new chunk");
+  assert.equal(await (await worker.readCached(SHELL_CACHE, "/"))?.text(), fresh);
+  const assetRequest = worker.fetchCalls.at(-1);
+  assert.ok(assetRequest instanceof Request);
+  assert.equal(assetRequest.credentials, "omit");
+});
 
-  assert.equal(await result.response?.text(), "fresh release");
-  assert.equal(worker.fetchCalls.length, 1);
-  assert.equal(await (await worker.readCached(SHELL_CACHE, "/"))?.text(), "fresh release");
+test("an incomplete or personalized refresh preserves the last usable public shell", async (t) => {
+  for (const failure of ["missing asset", "private document", "offline"]) await t.test(failure, async () => {
+    const worker = createWorkerHarness({ release: RELEASE, fetch: async request => {
+      if (failure === "offline") throw new Error("offline");
+      if (new URL(request.url).pathname !== "/") return new Response("missing", { status: 404 });
+      return new Response('<html><script src="/_next/static/missing.js"></script></html>', {
+        headers: { "content-type": "text/html", ...(failure === "private document" ? { "set-cookie": "private=1" } : {}) }
+      });
+    } });
+    await worker.putCached(SHELL_CACHE, "/", new Response("saved release", { headers: { "content-type": "text/html" } }));
+    const result = await worker.dispatchFetch({ method: "GET", mode: "navigate", url: "https://wildz.quest/" });
+    assert.equal(await result.response?.text(), "saved release");
+    assert.equal(await (await worker.readCached(SHELL_CACHE, "/"))?.text(), "saved release");
+  });
 });
 
 test("installation rejects a personalized root document", async () => {
@@ -97,6 +136,17 @@ test("installation rejects a personalized root document", async () => {
   });
 
   await assert.rejects(worker.dispatchExtendable("install"), /wildz_shell_unavailable/);
+});
+
+test("an incomplete worker install cannot replace the usable saved shell", async () => {
+  const worker = createWorkerHarness({ release: RELEASE, fetch: async request =>
+    new URL(request.url).pathname.startsWith("/_next/static/")
+      ? new Response("missing chunk", { status: 404 })
+      : new Response('<html><script src="/_next/static/new.js"></script></html>', { headers: { "content-type": "text/html" } })
+  });
+  await worker.putCached(SHELL_CACHE, "/", new Response("saved release", { headers: { "content-type": "text/html" } }));
+  await assert.rejects(worker.dispatchExtendable("install"), /wildz_shell_asset_unavailable/);
+  assert.equal(await (await worker.readCached(SHELL_CACHE, "/"))?.text(), "saved release");
 });
 
 test("only the shared update message activates a waiting worker", async () => {

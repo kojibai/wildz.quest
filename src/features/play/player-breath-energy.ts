@@ -36,19 +36,25 @@ export type PlayerBodyState = CommonState & Readonly<{
 export type PlayerBreaths = LegacyPlayerBreaths | PlayerBodyState;
 const COMMON_KEYS = ['schema', 'clockRooted', 'reserveMicroBreaths', 'spentMicroBreaths', 'restoredMicroBreaths', 'spentTodayMicroBreaths', 'lastKaiUPulse', 'day', 'mode', 'timeRemainder'];
 const BODY_KEYS = ['strainMicroPercent', 'fatigueMicroPercent', 'strainRemainder', 'fatigueRemainder', 'effortMicro', 'effortTodayMicro', 'effortRemainder', 'pulseEffortNumerator'];
+const LEGACY_KEY_SET = new Set(COMMON_KEYS);
+const BODY_KEY_SET = new Set([...COMMON_KEYS, ...BODY_KEYS]);
+const PULSE_EFFORT_CAP = BigInt(Number.MAX_SAFE_INTEGER) * MICRO;
 const add = (a: number, b: number) => Math.min(Number.MAX_SAFE_INTEGER, a + b);
 function validKai(value: number) { return Number.isSafeInteger(value) && value >= 0; }
 function integer(value: unknown, max = Number.MAX_SAFE_INTEGER): value is number { return Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= max; }
 function remainder(value: unknown, denominator: bigint, signed = true): boolean {
-    return typeof value === 'string' && /^-?(0|[1-9][0-9]{0,21})$/.test(value) && BigInt(value) < denominator && BigInt(value) > (signed ? -denominator : -1n);
+    if (typeof value !== 'string' || !/^-?(0|[1-9][0-9]{0,21})$/.test(value)) return false;
+    const parsed = BigInt(value);
+    return parsed < denominator && parsed > (signed ? -denominator : -1n);
 }
 export function isPlayerBreaths(value: unknown): value is PlayerBreaths {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
     const s = value as PlayerBreaths;
     try {
-        if (!['wildz.player-breaths.v1', 'wildz.player-breaths.v2'].includes(s.schema)) return false;
-        const keys = s.schema === 'wildz.player-breaths.v2' ? [...COMMON_KEYS, ...BODY_KEYS] : COMMON_KEYS;
-        if (Object.keys(s).sort().join(',') !== [...keys].sort().join(',') || typeof s.clockRooted !== 'boolean'
+        if (s.schema !== 'wildz.player-breaths.v1' && s.schema !== 'wildz.player-breaths.v2') return false;
+        const allowed = s.schema === 'wildz.player-breaths.v2' ? BODY_KEY_SET : LEGACY_KEY_SET;
+        const keys = Object.keys(s);
+        if (keys.length !== allowed.size || keys.some(key => !allowed.has(key)) || typeof s.clockRooted !== 'boolean'
             || !integer(s.reserveMicroBreaths, PLAYER_BREATH_CAPACITY_MICRO) || !integer(s.spentMicroBreaths)
             || !integer(s.restoredMicroBreaths) || !integer(s.spentTodayMicroBreaths) || !validKai(s.lastKaiUPulse)
             || s.day !== Number(BigInt(s.lastKaiUPulse) / KAI_N_DAY_MICRO) || !MODES.includes(s.mode)
@@ -56,7 +62,7 @@ export function isPlayerBreaths(value: unknown): value is PlayerBreaths {
         return s.schema === 'wildz.player-breaths.v1' || (integer(s.strainMicroPercent, PERCENT_CAPACITY)
             && integer(s.fatigueMicroPercent, PERCENT_CAPACITY) && remainder(s.strainRemainder, MICRO)
             && remainder(s.fatigueRemainder, KAI_N_DAY_MICRO) && integer(s.effortMicro) && integer(s.effortTodayMicro)
-            && remainder(s.effortRemainder, MICRO, false) && remainder(s.pulseEffortNumerator, BigInt(Number.MAX_SAFE_INTEGER) * MICRO + 1n, false));
+            && remainder(s.effortRemainder, MICRO, false) && remainder(s.pulseEffortNumerator, PULSE_EFFORT_CAP + 1n, false));
     } catch { return false; }
 }
 function upgrade(state: PlayerBreaths): PlayerBodyState {
@@ -83,7 +89,13 @@ function integrate(value: number, carry: string, elapsed: bigint, rate: bigint, 
 }
 function effortRate(mode: BodyMode): bigint { return mode === 'swim' ? 2_000_000n : mode === 'flight' ? 3_000_000n : mode === 'glide' ? 500_000n : 0n; }
 export function advancePlayerBreaths(source: PlayerBreaths, kaiUPulse: number, mode: BodyMode = source.mode, clockRooted = true): PlayerBreaths {
-    if (!isPlayerBreaths(source) || !validKai(kaiUPulse) || !MODES.includes(mode)) throw Error('player_breath_state_invalid');
+    if (!isPlayerBreaths(source)) throw Error('player_breath_state_invalid');
+    return advanceValidatedPlayerBreaths(source, kaiUPulse, mode, clockRooted);
+}
+// Internal callers already validate or create their source in this operation.
+// Mutable checkpoints are still checked afresh at every public boundary.
+function advanceValidatedPlayerBreaths(source: PlayerBreaths, kaiUPulse: number, mode: BodyMode = source.mode, clockRooted = true): PlayerBreaths {
+    if (!validKai(kaiUPulse) || !MODES.includes(mode)) throw Error('player_breath_state_invalid');
     if (kaiUPulse < source.lastKaiUPulse) return source;
     const state = upgrade(source), day = Number(BigInt(kaiUPulse) / KAI_N_DAY_MICRO);
     if (!state.clockRooted && clockRooted) return { ...state, clockRooted: true, lastKaiUPulse: kaiUPulse, day,
@@ -120,7 +132,7 @@ export function advancePlayerBreaths(source: PlayerBreaths, kaiUPulse: number, m
     const pulseWork = samePulse ? BigInt(state.pulseEffortNumerator) + elapsed * load : BigInt(kaiUPulse % 1_000_000) * load;
     return { ...state, reserveMicroBreaths: reserve, spentMicroBreaths: spent, restoredMicroBreaths: restored, spentTodayMicroBreaths: today,
         strainMicroPercent: strain, fatigueMicroPercent: fatigue, strainRemainder: strainCarry, fatigueRemainder: fatigueCarry,
-        effortMicro: effort, effortTodayMicro: effortToday, effortRemainder: effortCarry, pulseEffortNumerator: String(pulseWork > BigInt(Number.MAX_SAFE_INTEGER) * MICRO ? BigInt(Number.MAX_SAFE_INTEGER) * MICRO : pulseWork),
+        effortMicro: effort, effortTodayMicro: effortToday, effortRemainder: effortCarry, pulseEffortNumerator: String(pulseWork > PULSE_EFFORT_CAP ? PULSE_EFFORT_CAP : pulseWork),
         lastKaiUPulse: kaiUPulse, day, mode, timeRemainder: timeCarry };
 }
 /** Legacy reserve debit, retained for checkpoint compatibility. It never advances clock breaths. */
@@ -140,7 +152,7 @@ export function recordPlayerExertion(source: PlayerBreaths, effort: number, wake
     const cost = Math.max(0, -fuel.difference);
     const immediate = integrate(state.strainMicroPercent, state.strainRemainder, BigInt(micro), 750_000n, MICRO, PERCENT_CAPACITY);
     const deep = integrate(state.fatigueMicroPercent, state.fatigueRemainder, BigInt(micro), KAI_N_DAY_MICRO / 500n, KAI_N_DAY_MICRO, PERCENT_CAPACITY);
-    const pulse = BigInt(state.pulseEffortNumerator) + BigInt(micro) * MICRO, cap = BigInt(Number.MAX_SAFE_INTEGER) * MICRO;
+    const pulse = BigInt(state.pulseEffortNumerator) + BigInt(micro) * MICRO, cap = PULSE_EFFORT_CAP;
     return { ...state, reserveMicroBreaths: fuel.value, timeRemainder: fuel.carry, spentMicroBreaths: add(state.spentMicroBreaths, cost),
         spentTodayMicroBreaths: add(state.spentTodayMicroBreaths, cost), effortMicro: add(state.effortMicro, micro), effortTodayMicro: add(state.effortTodayMicro, micro),
         strainMicroPercent: immediate.value, fatigueMicroPercent: deep.value, strainRemainder: immediate.carry,
@@ -152,7 +164,9 @@ export function playerBreathEnergy(source: PlayerBreaths) {
     return Math.max(0, Math.min(state.reserveMicroBreaths / PLAYER_BREATH_CAPACITY_MICRO * 100, 100 - state.strainMicroPercent / 1_000_000, 100 - .9 * state.fatigueMicroPercent / 1_000_000));
 }
 export function playerBodyCondition(state: PlayerBreaths): 'ready' | 'tired' | 'low' | 'exhausted' {
-    const energy = playerBreathEnergy(state);
+    return conditionForEnergy(playerBreathEnergy(state));
+}
+function conditionForEnergy(energy: number): 'ready' | 'tired' | 'low' | 'exhausted' {
     return energy <= 10 ? 'exhausted' : energy < 20 ? 'low' : energy < 60 ? 'tired' : 'ready';
 }
 export function playerBreathReadout(source: PlayerBreaths, kaiUPulse = source.lastKaiUPulse) {
@@ -161,11 +175,12 @@ export function playerBreathReadout(source: PlayerBreaths, kaiUPulse = source.la
     // Count actual global pulse boundaries. The precise Kai day has a fractional pulse,
     // so its integer boundary count can be 17,491 or 17,492; never alter the klok to hide it.
     const elapsed = Number(kai / MICRO - start / MICRO), cycle = Number(((start + KAI_N_DAY_MICRO - 1n) / MICRO) - start / MICRO);
+    const energyPercent = playerBreathEnergy(state);
     return { breathsPerDay: PLAYER_BREATHS_PER_DAY, cycleBreaths: cycle, elapsedBreaths: elapsed, remainingDayBreaths: cycle - elapsed,
         pulseNumber: Number(kai / MICRO), pulseFractionMicro: Number(kai % MICRO), pulseEffort: Number(BigInt(state.pulseEffortNumerator) / MICRO) / 1_000_000,
         effortToday: state.effortTodayMicro / 1_000_000, strainPercent: state.strainMicroPercent / 1_000_000, fatiguePercent: state.fatigueMicroPercent / 1_000_000,
         fuelPercent: state.reserveMicroBreaths / PLAYER_BREATH_CAPACITY_MICRO * 100,
-        energyPercent: playerBreathEnergy(state), condition: playerBodyCondition(state), day: Number(day), mode: state.mode };
+        energyPercent, condition: conditionForEnergy(energyPercent), day: Number(day), mode: state.mode };
 }
 /** An admitted nourishment consequence restores fuel; it cannot erase strain or missed sleep. */
 export function recoverPlayerBreaths(state: PlayerBreaths, reserveUnits: number): PlayerBreaths {
@@ -177,7 +192,7 @@ export function recoverPlayerBreaths(state: PlayerBreaths, reserveUnits: number)
 /** Read-only projection; clock display changes never publish the durable checkpoint. */
 export function projectPlayerBreathState(state: { energy: number; playerBreaths?: PlayerBreaths }, kaiUPulse: number): { energy: number; playerBreaths: PlayerBreaths } {
     const source = isPlayerBreaths(state.playerBreaths) ? state.playerBreaths : createPlayerBreaths(kaiUPulse, state.energy);
-    const playerBreaths = advancePlayerBreaths(source, kaiUPulse);
+    const playerBreaths = advanceValidatedPlayerBreaths(source, kaiUPulse);
     return { energy: playerBreathEnergy(playerBreaths), playerBreaths };
 }
 

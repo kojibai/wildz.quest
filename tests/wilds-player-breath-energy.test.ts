@@ -1,9 +1,34 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { KAI_N_DAY_MICRO } from '../src/features/play/kai-klok-moment';
-import { createPlayerBreaths, advancePlayerBreaths, spendPlayerBreaths, playerBreathEnergy, playerBreathReadout, restorePlayerBreaths } from '../src/features/play/player-breath-energy';
+import { createPlayerBreaths, advancePlayerBreaths, spendPlayerBreaths, playerBreathEnergy, playerBreathReadout, restorePlayerBreaths, isPlayerBreaths, projectPlayerBreathState } from '../src/features/play/player-breath-energy';
 import { applyWildsInput, initialPlayState, serializePlayState, restorePlayState } from '../src/features/play/game-state';
 const DAY = Number(KAI_N_DAY_MICRO), BASE = DAY * 100;
+test('a previously valid mutable body checkpoint is checked again after a change', () => {
+    const source = { ...createPlayerBreaths(BASE, 42) };
+    assert.equal(isPlayerBreaths(source), true);
+    assert.equal(projectPlayerBreathState({ energy: 42, playerBreaths: source }, BASE).playerBreaths, source);
+    source.fatigueRemainder = String(KAI_N_DAY_MICRO);
+    assert.equal(isPlayerBreaths(source), false);
+    assert.throws(() => advancePlayerBreaths(source, BASE), /player_breath_state_invalid/);
+    assert.throws(() => playerBreathReadout(source), /player_breath_state_invalid/);
+    const restored = projectPlayerBreathState({ energy: 42, playerBreaths: source }, BASE);
+    assert.notEqual(restored.playerBreaths, source);
+    assert.equal(restored.energy, 42);
+    assert.equal(source.fatigueRemainder, String(KAI_N_DAY_MICRO));
+});
+test('body schema keys stay exact, enumerable, and independent of insertion order', () => {
+    const source = createPlayerBreaths(BASE, 84);
+    assert.equal(isPlayerBreaths(Object.fromEntries(Object.entries(source).reverse())), true);
+    assert.equal(isPlayerBreaths({ ...source, extra: 0 }), false);
+    const incomplete = { ...source };
+    Reflect.deleteProperty(incomplete, 'timeRemainder');
+    assert.equal(isPlayerBreaths(incomplete), false);
+    const hidden = { ...source, extra: 0 };
+    Object.defineProperty(hidden, 'timeRemainder', { enumerable: false });
+    assert.equal(Object.keys(hidden).length, Object.keys(source).length);
+    assert.equal(isPlayerBreaths(hidden), false);
+});
 test('sleeping on the ground restores fuel and fatigue without an instant award; beds recover faster', () => {
     const body = { ...createPlayerBreaths(BASE, 20), strainMicroPercent: 60_000_000, fatigueMicroPercent: 60_000_000 };
     const ground = advancePlayerBreaths(body, BASE, 'sleep');

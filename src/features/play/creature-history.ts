@@ -780,65 +780,106 @@ export function createCreatureHistory(input: CreateCreatureHistoryInput): Creatu
   };
 }
 
+const cooperativelyVerifiedHistories = new WeakSet<CreatureHistoryChain>();
+
+/** Both restore and synchronous admission consume these same exact checks. */
+function* creatureHistoryVerificationSteps(chain: CreatureHistoryChain) {
+  if (chain.schema !== "receiz.wildz.creature_history.v1"
+    || chain.namespace !== CREATURE_HISTORY_NAMESPACE
+    || !IDENTITY.test(chain.assetId)
+    || !DIGEST.test(chain.rootProofDigest)
+    || chain.rootDigest !== rootDigest(chain)
+    || (chain.completeness !== "complete" && chain.completeness !== "legacy-checkpoint")
+    || !chain.events.length
+    || chain.events.length > MAX_EVENTS) throw new Error("creature_history_root_invalid");
+  let projection: CreatureHistoryProjection | null = null;
+  let parentDigest = chain.rootDigest;
+  let priorUPulse: number | null = null;
+  const eventIds = new Set<string>();
+  for (const [index, event] of chain.events.entries()) {
+    validateDraft({
+      eventId: event.eventId,
+      rulesetVersion: event.rulesetVersion,
+      occurredAt: event.occurredAt,
+      kai: event.kai,
+      source: event.source,
+      evidence: event.evidence,
+      effects: event.effects
+    });
+    if (event.schema !== "receiz.wildz.creature_history_event.v1"
+      || event.namespace !== CREATURE_HISTORY_NAMESPACE
+      || event.sequence !== index + 1
+      || event.assetId !== chain.assetId
+      || event.rootProofDigest !== chain.rootProofDigest
+      || event.parentDigest !== parentDigest
+      || eventIds.has(event.eventId)
+      || (priorUPulse !== null && event.kai.uPulse < priorUPulse)) throw new Error("creature_history_chain_invalid");
+    projection = applyEffects(projection, event.effects);
+    const expectedProjectionDigest = projectionDigest(projection);
+    if (isAdmittedAuthority(event.source.authority) && !admissionMatches({
+      chain,
+      parentDigest,
+      draft: event,
+      resultingProjectionDigest: expectedProjectionDigest
+    })) throw new Error("creature_history_authority_admission_invalid");
+    const { digest: storedDigest, ...unsigned } = event;
+    if (event.resultingProjectionDigest !== expectedProjectionDigest || storedDigest !== digest(unsigned)) {
+      throw new Error("creature_history_digest_invalid");
+    }
+    eventIds.add(event.eventId);
+    parentDigest = event.digest;
+    priorUPulse = event.kai.uPulse;
+    yield;
+  }
+  if (!projection
+    || chain.headDigest !== parentDigest
+    || chain.projectionDigest !== projectionDigest(projection)
+    || canonicalPortableCardJson(chain.projection) !== canonicalPortableCardJson(projection)) {
+    throw new Error("creature_history_projection_invalid");
+  }
+}
+
 export function verifyCreatureHistory(chain: CreatureHistoryChain): { ok: boolean; errors: string[] } {
   const errors: string[] = [];
   try {
-    if (chain.schema !== "receiz.wildz.creature_history.v1"
-      || chain.namespace !== CREATURE_HISTORY_NAMESPACE
-      || !IDENTITY.test(chain.assetId)
-      || !DIGEST.test(chain.rootProofDigest)
-      || chain.rootDigest !== rootDigest(chain)
-      || (chain.completeness !== "complete" && chain.completeness !== "legacy-checkpoint")
-      || !chain.events.length
-      || chain.events.length > MAX_EVENTS) throw new Error("creature_history_root_invalid");
-    let projection: CreatureHistoryProjection | null = null;
-    let parentDigest = chain.rootDigest;
-    let priorUPulse: number | null = null;
-    const eventIds = new Set<string>();
-    chain.events.forEach((event, index) => {
-      validateDraft({
-        eventId: event.eventId,
-        rulesetVersion: event.rulesetVersion,
-        occurredAt: event.occurredAt,
-        kai: event.kai,
-        source: event.source,
-        evidence: event.evidence,
-        effects: event.effects
-      });
-      if (event.schema !== "receiz.wildz.creature_history_event.v1"
-        || event.namespace !== CREATURE_HISTORY_NAMESPACE
-        || event.sequence !== index + 1
-        || event.assetId !== chain.assetId
-        || event.rootProofDigest !== chain.rootProofDigest
-        || event.parentDigest !== parentDigest
-        || eventIds.has(event.eventId)
-        || (priorUPulse !== null && event.kai.uPulse < priorUPulse)) throw new Error("creature_history_chain_invalid");
-      projection = applyEffects(projection, event.effects);
-      const expectedProjectionDigest = projectionDigest(projection);
-      if (isAdmittedAuthority(event.source.authority) && !admissionMatches({
-        chain,
-        parentDigest,
-        draft: event,
-        resultingProjectionDigest: expectedProjectionDigest
-      })) throw new Error("creature_history_authority_admission_invalid");
-      const { digest: storedDigest, ...unsigned } = event;
-      if (event.resultingProjectionDigest !== expectedProjectionDigest || storedDigest !== digest(unsigned)) {
-        throw new Error("creature_history_digest_invalid");
-      }
-      eventIds.add(event.eventId);
-      parentDigest = event.digest;
-      priorUPulse = event.kai.uPulse;
-    });
-    if (!projection
-      || chain.headDigest !== parentDigest
-      || chain.projectionDigest !== projectionDigest(projection)
-      || canonicalPortableCardJson(chain.projection) !== canonicalPortableCardJson(projection)) {
-      throw new Error("creature_history_projection_invalid");
+    if (!cooperativelyVerifiedHistories.has(chain)) {
+      for (const step of creatureHistoryVerificationSteps(chain)) void step;
     }
   } catch (error) {
     errors.push(error instanceof Error ? error.message : "creature_history_invalid");
   }
   return { ok: errors.length === 0, errors };
+}
+
+function freezeHistoryProof(value: unknown, seen = new WeakSet<object>()) {
+  if (!value || typeof value !== "object" || seen.has(value)) return;
+  seen.add(value);
+  for (const child of Object.values(value)) freezeHistoryProof(child, seen);
+  Object.freeze(value);
+}
+
+/** Replay every history event in short slices. Only this exact deeply frozen
+ * history may reuse the result; persisted digests and verified flags cannot. */
+export async function verifyCreatureHistoryCooperatively(chain: CreatureHistoryChain, environment: {
+  now: () => number; yield: () => Promise<void>;
+}): Promise<{ ok: boolean; errors: string[] }> {
+  if (cooperativelyVerifiedHistories.has(chain)) return { ok: true, errors: [] };
+  try {
+    // Prevent another task from changing source bytes between verification slices.
+    freezeHistoryProof(chain);
+    let started = environment.now();
+    for (const step of creatureHistoryVerificationSteps(chain)) {
+      void step;
+      if (environment.now() - started >= 4) {
+        await environment.yield();
+        started = environment.now();
+      }
+    }
+    cooperativelyVerifiedHistories.add(chain);
+    return { ok: true, errors: [] };
+  } catch (error) {
+    return { ok: false, errors: [error instanceof Error ? error.message : "creature_history_invalid"] };
+  }
 }
 
 export function isCreatureHistoryDescendant(ancestor: CreatureHistoryChain, descendant: CreatureHistoryChain) {

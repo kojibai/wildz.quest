@@ -7,6 +7,37 @@ import { canonicalPortableCardJson, sealCollectedCard, sha256PortableBasis, veri
 import { deriveCardVariant, variantSeedFor } from "../src/features/play/card-variant";
 import { wildsInventoryConvergenceDiagnostics } from "../src/features/play/wilds-inventory-convergence";
 import { mergeWildsRemotePlayerPlayState } from "../src/features/play/wilds-player-vault";
+import { appendLivingCardHistory } from "../src/features/play/living-card-proof";
+import { isLivingCardAsset } from "../src/features/play/living-card-types";
+
+test("one long restored card yields within its history without skipping proof admission", async () => {
+  const owner = "incoming_long_history", at = "2026-08-11T12:00:00.000Z";
+  let card = createOwnerBoundInitialPlayState(owner, at).inventory[0]!;
+  assert.ok(isLivingCardAsset(card));
+  for (let i = 1; i <= 80; i++) card = appendLivingCardHistory({ asset: card, event: {
+    eventId: `incoming:${i}`, rulesetVersion: "wildz.adventure.v1", occurredAt: new Date(Date.parse(at) + i * 60_000).toISOString(),
+    source: { mode: "arena", activityId: `arena:incoming:${i}`, actorId: owner, authority: "local" }, evidence: {},
+    effects: [{ kind: "condition", delta: { assetId: card.id, lifeBefore: "alive", lifeAfter: "alive", fatigueDelta: 0,
+      injuriesAdded: [], xp: { arena: 1 }, mastery: {}, upgradeIdsAdded: [], receiptDigestsAdded: [] } }]
+  } });
+  let turns = 0, now = 0;
+  const prepared = await prepareWildsIncomingInventory([structuredClone(card)], [], {
+    now: () => now += 5, yield: async () => { turns++; }
+  });
+  assert.ok(turns > 2, "a single history must release the browser before its entire replay finishes");
+  assert.equal(prepared[0]!.proof.digest, card.proof.digest);
+  assert.ok(isAdmittedWildsCard(prepared[0]!));
+  const admitted = prepared[0]!;
+  assert.ok(isLivingCardAsset(admitted));
+  assert.ok(Object.isFrozen(admitted.manifest.history!.events.at(-1)!.evidence));
+  const forged = structuredClone(card);
+  assert.ok(isLivingCardAsset(forged));
+  (forged.manifest.history!.events.at(-1)!.source as { authority: string }).authority = "canonical";
+  assert.deepEqual(await prepareWildsIncomingInventory([forged], prepared), [], "the final event still requires its authority and digest checks");
+  const changedManifest = structuredClone(card);
+  changedManifest.manifest.name = "same valid history, forged card";
+  assert.deepEqual(await prepareWildsIncomingInventory([changedManifest], prepared), [], "a verified history does not bypass the complete card proof");
+});
 
 test("downloaded identical cards reuse full verified objects while yielding between batches", async () => {
   const local = createOwnerBoundInitialPlayState("incoming_same", "2026-10-07T00:00:00.000Z");

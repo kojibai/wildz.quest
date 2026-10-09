@@ -5,22 +5,28 @@ type Role="bark"|"leaf"|"skin";
 const textures=new Map<Role,THREE.DataTexture>();
 export function createWildsNaturalTextureData(role: Role) {
   const size=128,data=new Uint8Array(size*size*4);
-  for(let y=0;y<size;y++)for(let x=0;x<size;x++) {
-    const noise=((Math.imul(x+19,374761393)^Math.imul(y+7,668265263))>>>0)%256/255;
-    let shade: number;
-    if(role==="bark") {
-      const grain=Math.sin(x*.65+Math.sin(y*.049)*2.2);
-      const fissure=Math.pow(Math.max(0,grain),12);
-      shade=.79+.1*grain+.07*noise-.24*fissure;
-    } else if(role==="leaf") {
-      const fleck=Math.sin(x*.19+y*.11)*Math.cos(y*.23-x*.07);
-      const vein=Math.abs(Math.sin((x+y*.4)*Math.PI/16));
-      shade=.85+.045*vein+.055*noise+.05*fleck;
-    } else {
-      shade=.94+.06*noise;
+  const columnNoise=Int32Array.from({length:size},(_,x)=>Math.imul(x+19,374761393));
+  for(let y=0;y<size;y++) {
+    const rowNoise=Math.imul(y+7,668265263);
+    const barkBend=role==="bark"?Math.sin(y*.049)*2.2:0;
+    for(let x=0;x<size;x++) {
+      const noise=((columnNoise[x]^rowNoise)>>>0)%256/255;
+      let shade: number;
+      if(role==="bark") {
+        const grain=Math.sin(x*.65+barkBend);
+        const positive=Math.max(0,grain), squared=positive*positive, fourth=squared*squared;
+        const fissure=fourth*fourth*fourth;
+        shade=.79+.1*grain+.07*noise-.24*fissure;
+      } else if(role==="leaf") {
+        const fleck=Math.sin(x*.19+y*.11)*Math.cos(y*.23-x*.07);
+        const vein=Math.abs(Math.sin((x+y*.4)*Math.PI/16));
+        shade=.85+.045*vein+.055*noise+.05*fleck;
+      } else {
+        shade=.94+.06*noise;
+      }
+      const offset=(y*size+x)*4;
+      data[offset]=data[offset+1]=data[offset+2]=Math.round(Math.max(.25,shade)*255);data[offset+3]=255;
     }
-    const offset=(y*size+x)*4;
-    data[offset]=data[offset+1]=data[offset+2]=Math.round(Math.max(.25,shade)*255);data[offset+3]=255;
   }
   return data;
 }

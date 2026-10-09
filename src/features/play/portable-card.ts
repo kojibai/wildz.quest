@@ -465,19 +465,24 @@ export function verifyPortableCard(asset: PortableCardAsset): PortableCardVerifi
   return { ok: errors.length === 0, errors };
 }
 
-export function verifyAnyWildsCard(asset: PortableCardAsset): PortableCardVerification {
+export function verifyAnyWildsCard(
+  asset: PortableCardAsset,
+  options: { useContentCache?: boolean } = {}
+): PortableCardVerification {
   if (admittedCardVerificationCache.has(asset)) {
     admittedCardVerificationCacheHits += 1;
     return admittedVerification;
   }
-  const content = canonicalPortableCardJson(asset);
-  if (verifiedCardContent.has(content)) {
+  // Direct admission retains the exact frozen object. Its required manifest
+  // digest is still checked below; a second full-card encoding adds no reuse.
+  const content = options.useContentCache === false ? null : canonicalPortableCardJson(asset);
+  if (content !== null && verifiedCardContent.has(content)) {
     verifiedCardContentHits += 1;
     return admittedVerification;
   }
   cardVerificationExecutions += 1;
   const result = isLivingCardAsset(asset) ? verifyLivingCard(asset) : verifyPortableCard(asset);
-  if (result.ok && content.length <= MAX_VERIFIED_CARD_CONTENT_CHARS) {
+  if (result.ok && content !== null && content.length <= MAX_VERIFIED_CARD_CONTENT_CHARS) {
     while (verifiedCardContentChars + content.length > MAX_VERIFIED_CARD_CONTENT_CHARS) {
       const oldest = verifiedCardContent.keys().next().value!;
       verifiedCardContent.delete(oldest);

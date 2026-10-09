@@ -90,7 +90,7 @@ export function usePublicCardPublisher(
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     const publish = async () => {
-      if (cancelled || publishing) return;
+      if (cancelled || publishing || navigator.onLine === false) return;
       publishing = true;
       try {
       const now = Date.now();
@@ -127,19 +127,23 @@ export function usePublicCardPublisher(
         .map((asset) => retryAt.current.get(`${asset.id}:${asset.proof.digest}`))
         .filter((value): value is number => typeof value === "number")
         .sort((left, right) => left - right)[0];
-      if (nextRetryAt) retryTimer = setTimeout(() => void publish(), Math.max(0, nextRetryAt - Date.now()));
+      if (nextRetryAt) retryTimer = setTimeout(schedulePublication, Math.max(0, nextRetryAt - Date.now()));
       } finally { publishing = false; }
     };
 
-    // Deferring one microtask lets React Strict Mode retire its probe effect
-    // before any network publication begins.
+    const schedulePublication = () => {
+      if (cancelled) return;
+      void wildzGameplayBackground.run(publish).catch(() => undefined);
+    };
+    // The microtask retires Strict Mode's probe; background scheduling keeps
+    // queue preparation and network initiation off the current interaction.
     const reconnect = () => {
       if (retryTimer) clearTimeout(retryTimer);
       retryAt.current.clear();
-      void publish();
+      schedulePublication();
     };
     window.addEventListener("online", reconnect);
-    queueMicrotask(() => void publish());
+    queueMicrotask(schedulePublication);
     return () => {
       window.removeEventListener("online", reconnect);
       cancelled = true;

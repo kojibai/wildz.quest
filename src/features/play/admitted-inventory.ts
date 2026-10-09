@@ -36,7 +36,7 @@ function rememberAdmittedCard(asset: PortableCardAsset) {
 /** The one explicit proof boundary for externally supplied cards. */
 export function verifyAndAdmitWildsCard(asset: PortableCardAsset) {
   verifierCalls += 1;
-  const verified = verifyAnyWildsCard(asset).ok;
+  const verified = verifyAnyWildsCard(asset, { useContentCache: false }).ok;
   if (verified) rememberAdmittedCard(asset);
   return verified;
 }

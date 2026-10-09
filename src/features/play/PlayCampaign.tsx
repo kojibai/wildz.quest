@@ -1210,6 +1210,7 @@ export function PlayCampaign({
     cursor: livingWorld.snapshot?.cursor ?? null
   }), [kaiUPulse, livingWorld.mode, livingWorld.snapshot?.cursor]);
   const livePlayerEnergy=useMemo(()=>projectPlayerBreathState({energy:state.energy,playerBreaths:state.playerBreaths},kaiMoment.uPulse),[state.energy,state.playerBreaths,kaiMoment.uPulse]);
+  const livePlayerBody=useMemo(()=>playerBreathReadout(livePlayerEnergy.playerBreaths),[livePlayerEnergy.playerBreaths]);
   const presentationState=useMemo(()=>({...state,...livePlayerEnergy}),[state,livePlayerEnergy]);
   // An action settles at the live clock between display ticks. Its source must
   // not appear invalid/depleted while the displayed pulse catches up.
@@ -2505,7 +2506,7 @@ export function PlayCampaign({
     connected: livingWorld.mode === "receiz_live",
     worldRevision: livingWorld.snapshot?.revision ?? 0,
     energy: livePlayerEnergy.energy,
-    body: playerBreathReadout(livePlayerEnergy.playerBreaths),
+    body: livePlayerBody,
     creature: activeAsset ? {
       assetId: activeAsset.id,
       name: activeAsset.manifest.name,
@@ -2928,8 +2929,8 @@ export function PlayCampaign({
       status: `${state.beans} beans · ${state.fusionSparks} sparks`,
       content: (
         <div className="wilds-command-content wilds-satchel">
-          <WildsBodyReadout body={playerBreathReadout(livePlayerEnergy.playerBreaths)} onSleep={sleepHere} onWake={() => dispatch({ type: 'wake' })} />
-          <WildsNourishmentPanel nourishment={resourceExchange.nourishment} pending={foodSavePending} kaiUPulse={nourishmentKaiUPulse} fuelPercent={playerBreathReadout(livePlayerEnergy.playerBreaths).fuelPercent}
+          <WildsBodyReadout body={livePlayerBody} onSleep={sleepHere} onWake={() => dispatch({ type: 'wake' })} />
+          <WildsNourishmentPanel nourishment={resourceExchange.nourishment} pending={foodSavePending} kaiUPulse={nourishmentKaiUPulse} fuelPercent={livePlayerBody.fuelPercent}
             plants={nourishmentPlants} animals={wildAnimals} livestock={ownedLivestock} player={nourishmentPlayer} inspectedId={inspectedNourishmentId} focusStoredFoodSignal={storedFoodFocusSignal}
             huntBlocker={foodPackFull ? 'Your food pack is full. Eat a portion before hunting.' : huntingSupport.blocker}
             captureBlocker={captureBlocker}
@@ -3464,7 +3465,7 @@ export function PlayCampaign({
               cardOrder={cardOrder}
               commandItems={commandItems}
               materialCounts={stewardMaterials}
-              nourishment={{ state: resourceExchange.nourishment, kaiUPulse: nourishmentKaiUPulse, fuelPercent: playerBreathReadout(livePlayerEnergy.playerBreaths).fuelPercent, onEat: eatFood, onOpen: openNourishmentSatchel }}
+              nourishment={{ state: resourceExchange.nourishment, kaiUPulse: nourishmentKaiUPulse, fuelPercent: livePlayerBody.fuelPercent, onEat: eatFood, onOpen: openNourishmentSatchel }}
               companionProgress={state.companionProgress}
               dismissSignal={commandDismissSignal}
               exclusiveOwner={exclusiveOwner}

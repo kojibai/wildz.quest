@@ -7,3 +7,15 @@ export const WILDZ_CARE_NOTIFICATIONS_READY = "wildz:care-notifications-ready" a
 export function pwaControllerChangeAction(updateRequested: boolean): "ignore" | "reload" {
   return updateRequested ? "reload" : "ignore";
 }
+
+/** Ordinary icon launches retain gameplay; explicit in-app links keep routing. */
+export function pwaLaunchNavigationTarget(targetUrl: string, currentUrl: string): string | null {
+  try {
+    const target = new URL(targetUrl), current = new URL(currentUrl);
+    if (target.origin !== current.origin || target.href === current.href) return null;
+    if (target.pathname === "/" && !target.search && !target.hash && current.pathname === "/") return null;
+    return target.href;
+  } catch {
+    return null;
+  }
+}

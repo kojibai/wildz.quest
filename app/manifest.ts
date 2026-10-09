@@ -14,7 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     orientation: "portrait-primary",
     launch_handler: {
-      client_mode: "navigate-existing"
+      client_mode: "focus-existing"
     },
     prefer_related_applications: false,
     background_color: WILDZ_PRODUCT.backgroundColor,

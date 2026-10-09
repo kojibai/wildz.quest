@@ -120,6 +120,8 @@ export function WildsAtlasCanvas({
         frameloop={active && !reducedMotion ? "always" : "demand"}
         gl={{ antialias: true, powerPreference: "high-performance", logarithmicDepthBuffer: true }}
         onCreated={({ gl }) => {
+          // Shader log reads synchronize the GPU on first use, as in the world.
+          gl.debug.checkShaderErrors = process.env.NODE_ENV !== "production";
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = THREE.ACESFilmicToneMapping;
           gl.toneMappingExposure = .96;

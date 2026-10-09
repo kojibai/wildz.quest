@@ -5,7 +5,8 @@ import {
   WILDZ_CARE_NOTIFICATIONS_READY,
   WILDZ_ENABLE_CARE_NOTIFICATIONS,
   WILDZ_APPLY_UPDATE_MESSAGE,
-  WILDZ_PREPARE_LOCAL_VOICE_MESSAGE
+  WILDZ_PREPARE_LOCAL_VOICE_MESSAGE,
+  pwaLaunchNavigationTarget
 } from "@/features/pwa/pwa-events";
 import { activateWaitingUpdate } from "@/features/pwa/pwa-update";
 
@@ -28,6 +29,14 @@ export function PwaController() {
     let cancelled = false;
     let registration: ServiceWorkerRegistration | null = null;
     const stateListeners = new Map<ServiceWorker, () => void>();
+    const launchQueue = (window as Window & { launchQueue?: {
+      setConsumer(consumer: (launch: { targetURL?: string }) => void): void;
+    } }).launchQueue;
+    launchQueue?.setConsumer(({ targetURL }) => {
+      if (cancelled || !targetURL) return;
+      const target = pwaLaunchNavigationTarget(targetURL, window.location.href);
+      if (target) window.location.assign(target);
+    });
     const updateOnlineStatus = () => setOnline(navigator.onLine);
     const captureInstallPrompt = (event: Event) => {
       const promptEvent = event as BeforeInstallPromptEvent;
@@ -147,8 +156,8 @@ export function PwaController() {
         message: { type: WILDZ_APPLY_UPDATE_MESSAGE }
       });
     } catch {
-      // A navigation still fetches the deployed document network-first and
-      // lets the browser finish any activation that advanced during the tap.
+      // Keep the coherent saved shell available while the browser finishes
+      // any activation that advanced during the tap and checks the next update.
       void registrationRef.current?.update().catch(() => undefined);
     }
     setWaiting(null);

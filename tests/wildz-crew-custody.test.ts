@@ -58,6 +58,48 @@ test("bootstrap reopens only the recorded foreign source once and never scans or
   assert.equal(await reopenWildzCrewCustody({ owner: "keeper", cards: [card], sources: refs, history: offline, codec: f.codec }), null);
 });
 
+test("account reopening uses the Identity Seal only for crew missing verified source custody", async () => {
+  const f = fixture();
+  const inspected = await f.codec.inspect({ bytes: sourceBytes, mimeType: "application/json" });
+  const sealCustody = readWildzArtifactCrewCustody(inspected);
+  let sealReads = 0;
+  const input = { owner: "keeper", cards: [card], sources: [], history: f.history, codec: f.codec,
+    readIdentitySeal: async () => { sealReads++; return sealCustody; } };
+  const restored = await reopenWildzCrewCustody(input);
+  assert.equal(canOperateWildzCrewCard(card, "keeper", restored), true);
+  assert.equal(sealReads, 1);
+
+  sealReads = 0;
+  const fromSources = await reopenWildzCrewCustody({ ...input, sources: wildzCrewCustodySources(sealCustody) });
+  assert.equal(canOperateWildzCrewCard(card, "keeper", fromSources), true);
+  assert.equal(sealReads, 0, "verified retained source already authorizes this exact crew card");
+
+  const originalOwner = await reopenWildzCrewCustody({ ...input, owner: "original" });
+  assert.equal(canOperateWildzCrewCard(card, "original", originalOwner), true);
+  assert.equal(sealReads, 0, "original-owner crew never needs the embedded Vault reopened");
+});
+
+test("a claimed custody token cannot suppress needed Identity Seal verification", async () => {
+  const f = fixture();
+  let sealReads = 0;
+  const input = { owner: "keeper", cards: [card], sources: [], history: f.history, codec: f.codec,
+    readIdentitySeal: async () => { sealReads++; return { owner: "keeper" }; } };
+  const restored = await reopenWildzCrewCustody(input);
+  assert.equal(canOperateWildzCrewCard(card, "keeper", restored), false);
+  assert.equal(sealReads, 1);
+});
+
+test("unavailable Identity Seal custody leaves foreign crew unavailable without losing original cards", async () => {
+  const f = fixture();
+  let sealReads = 0;
+  const input = { owner: "keeper", cards: [card], sources: [], history: f.history, codec: f.codec,
+    readIdentitySeal: async () => { sealReads++; throw new Error("offline"); } };
+  const restored = await reopenWildzCrewCustody(input);
+  assert.equal(canOperateWildzCrewCard(card, "keeper", restored), false);
+  assert.equal(canOperateWildzCrewCard(card, "original", restored), true);
+  assert.equal(sealReads, 1);
+});
+
 test("successful restore persists its exact admitted source atomically and saved removal clears that reference", async () => {
   const { createReceizIdentityKeyFile } = await import("@receiz/sdk");
   const { restoreWildzArtifactForSurface, saveWildzRestoredPlayState } = await import("../src/features/identity/wildz-restore");
@@ -96,7 +138,7 @@ test("bootstrap paints before optional custody reopening and inventory updates c
   const effect = shell.slice(start, shell.indexOf("\n\n", start));
   assert.match(effect, /current\.session\.keyId !== snapshot\.session\.keyId/);
   assert.match(effect, /current\.restoreEpoch !== snapshot\.restoreEpoch/);
-  assert.match(effect, /\[identity\?\.keyId, identity\?\.actorId, continuity\?\.restoreEpoch, acceptSnapshot\]/);
+  assert.match(effect, /\[worldPainted, identity\?\.keyId, identity\?\.actorId, continuity\?\.restoreEpoch, acceptSnapshot\]/);
   assert.doesNotMatch(effect, /inventory\]/);
 });
 

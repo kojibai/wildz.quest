@@ -297,14 +297,17 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }) : null, [ownerActorId, ownerPlayState.inventory]);
   const vaultAdmission = admittedVault?.admission ?? null;
   const admittedProofObjects = admittedVault?.proofObjects;
-  // Card proofs can publish independently of explorer/profile/session readiness.
-  usePublicCardPublisher(publishableOwnerAssets, Boolean(identity), admittedProofObjects, continuity?.crewCustody, identity?.username ?? identity?.actorId);
+  // Distribution stays independent of profile/session readiness, after the
+  // local world has drawn so its queue does not compete with startup.
+  usePublicCardPublisher(publishableOwnerAssets, Boolean(identity) && worldPainted, admittedProofObjects, continuity?.crewCustody, identity?.username ?? identity?.actorId);
   const viewingOwnProfile = !overlay
     || overlay.kind !== "profile"
     || (overlay.mode !== "public" && overlay.username.toLowerCase() === `@${ownerUsername}`.toLowerCase());
   const ownerProfileOpen = overlay?.kind === 'profile' && viewingOwnProfile;
   useEffect(() => { setRetainedOwnerProfile(false); }, [identity?.keyId]);
   useEffect(() => { if (ownerProfileOpen) setRetainedOwnerProfile(true); }, [ownerProfileOpen]);
+  // Local surfaces always have their complete display data ready. Only the
+  // distribution encoding waits for the world draw and background scheduling.
   const ownerSourceProfile = useMemo(() => createOwnerPublicWildzProfile({
     username: ownerUsername,
     displayName: identity?.displayName ?? undefined,
@@ -312,23 +315,35 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     explorer: character ?? campaignCharacter,
     assets: ownerPlayState.inventory
   }), [avatarImageUrl, character, campaignCharacter, identity?.displayName, ownerPlayState.inventory, ownerUsername]);
-  // Publish the same complete local collection shown in the owner’s profile.
-  const publishablePublicProfile = ownerSourceProfile;
-  // Equal public content must not cancel a request when gameplay saves replace object references.
-  const profilePublicationKey = useMemo(() => `${identity?.keyId ?? ""}:${JSON.stringify(publishablePublicProfile)}`,
-    [identity?.keyId, publishablePublicProfile]);
-  const profilePublicationRequestRef = useRef({
-    key: profilePublicationKey,
-    profile: publishablePublicProfile,
-    assets: ownerPlayState.inventory,
-    proofObjects: admittedProofObjects
-  });
-  profilePublicationRequestRef.current = {
-    key: profilePublicationKey,
-    profile: publishablePublicProfile,
-    assets: ownerPlayState.inventory,
-    proofObjects: admittedProofObjects
-  };
+  const profileOwnerKeyId = identity?.keyId ?? "";
+  const [preparedProfilePublication, setPreparedProfilePublication] = useState<{
+    keyId: string;
+    key: string;
+    profile: typeof ownerSourceProfile;
+    assets: typeof ownerPlayState.inventory;
+    proofObjects: typeof admittedProofObjects;
+  } | null>(null);
+  useEffect(() => {
+    if (!worldPainted || !profileOwnerKeyId) return;
+    let active = true;
+    void wildzGameplayBackground.run(() => {
+      if (!active) return;
+      setPreparedProfilePublication({
+        keyId: profileOwnerKeyId,
+        key: `${profileOwnerKeyId}:${JSON.stringify(ownerSourceProfile)}`,
+        profile: ownerSourceProfile,
+        assets: ownerPlayState.inventory,
+        proofObjects: admittedProofObjects
+      });
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [worldPainted, profileOwnerKeyId, ownerSourceProfile, ownerPlayState.inventory, admittedProofObjects]);
+  // Keep the preceding complete snapshot until the next encoding is ready.
+  // Equivalent content keeps its key, preserving in-flight sync across saves.
+  const profilePublicationRequest = preparedProfilePublication?.keyId === profileOwnerKeyId ? preparedProfilePublication : null;
+  const profilePublicationKey = profilePublicationRequest?.key ?? "";
+  const profilePublicationRequestRef = useRef<typeof profilePublicationRequest>(null);
+  profilePublicationRequestRef.current = profilePublicationRequest;
   const shellOverlayOwner = overlay?.kind === "profile" ? "profile" : overlay?.kind === "market" ? "market" : "none";
 
   const openShellOverlay = useCallback((next: Exclude<WildzOverlay, null>, fallbackOrigin?: HTMLElement | null) => {
@@ -444,7 +459,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
 
   useEffect(() => {
     const snapshot = continuityRef.current;
-    if (!snapshot || snapshot.crewCustody) return;
+    if (!worldPainted || !snapshot || snapshot.crewCustody) return;
     let disposed = false;
     void reopenWildzContinuityCrewCustody(snapshot).then(custody => {
       const current = continuityRef.current;
@@ -453,7 +468,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       acceptSnapshot({ ...current, crewCustody: pruneWildzCrewCustody(custody, current.session.actorId, current.playState?.inventory ?? []) });
     }).catch(() => undefined);
     return () => { disposed = true; };
-  }, [identity?.keyId, identity?.actorId, continuity?.restoreEpoch, acceptSnapshot]);
+  }, [worldPainted, identity?.keyId, identity?.actorId, continuity?.restoreEpoch, acceptSnapshot]);
 
   useEffect(() => {
     if (!identity) return;
@@ -505,9 +520,13 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }, [runtimeCheckpointStore]);
 
   useEffect(() => {
-    if (!identity || !vaultAdmission) return;
+    // Local proofs already authorize play. Connected services start only
+    // after the world is drawn and stay dormant while the device is offline.
+    if (!worldPainted || !identity || !vaultAdmission) return;
     let active = true;
-    const reconnect = startWildzSessionReconnect({ connect: () =>
+    const reconnect = startWildzSessionReconnect({
+      isOnline: () => navigator.onLine !== false,
+      connect: () =>
       connectWildzProofSession(identity, { vaultAdmission }).then(async (session) => {
         if (!active || !wildzRemoteSessionMatchesIdentity(identity, session)) {
           if (active) { setProofSessionConnected(false); setProofSessionGeneration(""); }
@@ -545,18 +564,20 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       })
     });
     window.addEventListener("online", reconnect.wake);
+    window.addEventListener("offline", reconnect.wake);
     return () => {
       active = false;
       reconnect.stop();
       window.removeEventListener("online", reconnect.wake);
+      window.removeEventListener("offline", reconnect.wake);
     };
-  }, [acceptSnapshot, identity, vaultAdmission, identityActivationRevision]);
+  }, [worldPainted, acceptSnapshot, identity, vaultAdmission, identityActivationRevision]);
 
   useEffect(() => {
     setOwnerPublicationFailure(null);
     retryProfilePublicationRef.current = null;
     const publicationKey = profilePublicationKey;
-    const disposition = wildzProfilePublicationDisposition(publicationKey, publishedProfileRef.current, profilePublicationReadiness === "ready");
+    const disposition = wildzProfilePublicationDisposition(publicationKey, publishedProfileRef.current, worldPainted && Boolean(publicationKey) && profilePublicationReadiness === "ready");
     if (disposition !== "publish") {
       setOwnerPublicationStatus(disposition === "confirmed" ? "ready" : "unpublished");
       return;
@@ -573,6 +594,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       publish: (signal, progress) => {
         // Each retry sees current proof data without interrupting an equivalent in-flight request.
         const profilePublicationRequest = profilePublicationRequestRef.current;
+        if (!profilePublicationRequest || profilePublicationRequest.key !== publicationKey) {
+          throw new Error("wildz_profile_publication_superseded");
+        }
         return publishCurrentWildzProfile(profilePublicationRequest.profile, profilePublicationRequest.assets, globalThis.fetch, {
           signal,
           onProgress: progress,
@@ -597,7 +621,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       publication.stop();
       if (retryProfilePublicationRef.current === publication.wake) retryProfilePublicationRef.current = null;
     };
-  }, [profilePublicationReadiness, profilePublicationKey, proofSessionConnected, proofSessionGeneration, identityActivationRevision, profileRetryRevision, identity?.localAuthority, identity?.remoteStatus]);
+  }, [worldPainted, profilePublicationReadiness, profilePublicationKey, proofSessionConnected, proofSessionGeneration, identityActivationRevision, profileRetryRevision, identity?.localAuthority, identity?.remoteStatus]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {

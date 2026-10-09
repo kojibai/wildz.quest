@@ -1,0 +1,3443 @@
+{
+  "qualification": "Desktop Mac measurements with synthetic or isolated local accounts. Not measured on iPhone/iPad. Paired baseline for the incremental redundant-encoding change already includes cooperative history verification.",
+  "coldRestore": {
+    "summary": {
+      "before": {
+        "medianElapsedMs": 89.81437499999998,
+        "medianStallMs": 39.73245800000001,
+        "allAdmittedOnce": true
+      },
+      "after": {
+        "medianElapsedMs": 87.343459,
+        "medianStallMs": 38.431375,
+        "allAdmittedOnce": true
+      }
+    },
+    "samples": [
+      {
+        "pair": 0,
+        "version": "before",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 91.47829199999998,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 41.16899999999998,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 0,
+        "version": "after",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 88.34270800000002,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 38.79566699999998,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 1,
+        "version": "after",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 86.87641700000003,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 36.88866699999997,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 1,
+        "version": "before",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 92.217667,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 42.149958,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 2,
+        "version": "before",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 87.66995800000001,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 38.430792,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 2,
+        "version": "after",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 87.343459,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 37.86750000000001,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 3,
+        "version": "after",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 84.341625,
+        "ticks": 10,
+        "maxHeartbeatGapMs": 39.70879200000002,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 3,
+        "version": "before",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 90.180916,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 39.65537500000002,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 4,
+        "version": "before",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 86.92012499999998,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 37.918542,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 4,
+        "version": "after",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 89.68441600000003,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 39.172458000000006,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 5,
+        "version": "after",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 87.25454099999999,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 38.137708,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 5,
+        "version": "before",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 89.81437499999998,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 39.73245800000001,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 6,
+        "version": "before",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 89.98487499999999,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 40.849917000000005,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 6,
+        "version": "after",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 86.39862499999998,
+        "ticks": 10,
+        "maxHeartbeatGapMs": 40.55575000000002,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 7,
+        "version": "after",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 87.970291,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 37.649208999999985,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 7,
+        "version": "before",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 88.424667,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 38.47066699999999,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 8,
+        "version": "before",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 89.74374999999998,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 40.313333,
+        "proofAdmissions": 1
+      },
+      {
+        "pair": 8,
+        "version": "after",
+        "fixture": "synthetic cold owner-state reopen, fresh Node process; not iPhone timing",
+        "cards": 1,
+        "historyEvents": 301,
+        "jsonBytes": 377653,
+        "elapsedMs": 88.396458,
+        "ticks": 11,
+        "maxHeartbeatGapMs": 38.431375,
+        "proofAdmissions": 1
+      }
+    ]
+  },
+  "localSurfaces": {
+    "scenario": "Local Profile and Vault opening with optional background tasks held, server stopped",
+    "summary": {
+      "before": {
+        "medianFirstProfileOpenMs": 303.52500009536743,
+        "medianRetainedProfileOpenMs": 3.325000047683716,
+        "medianVaultOpenMs": 286.085000038147
+      },
+      "after": {
+        "medianFirstProfileOpenMs": 304.3400000333786,
+        "medianRetainedProfileOpenMs": 3.584999918937683,
+        "medianVaultOpenMs": 286.6999999284744
+      }
+    },
+    "samples": [
+      {
+        "pair": 0,
+        "version": "before",
+        "before": {
+          "held": 3,
+          "encodings": 2
+        },
+        "cards": 1,
+        "vaultCards": 1,
+        "retained": true,
+        "firstProfileOpenMs": 304.90499997138977,
+        "timing": {
+          "profile": 3.615000009536743,
+          "vault": 286.085000038147
+        },
+        "encodingsWhileHeld": 2,
+        "errors": []
+      },
+      {
+        "pair": 0,
+        "version": "after",
+        "before": {
+          "held": 3,
+          "encodings": 0
+        },
+        "cards": 1,
+        "vaultCards": 1,
+        "retained": true,
+        "firstProfileOpenMs": 304.83000004291534,
+        "timing": {
+          "profile": 3.584999918937683,
+          "vault": 286.6999999284744
+        },
+        "encodingsWhileHeld": 0,
+        "errors": []
+      },
+      {
+        "pair": 1,
+        "version": "after",
+        "before": {
+          "held": 4,
+          "encodings": 0
+        },
+        "cards": 1,
+        "vaultCards": 1,
+        "retained": true,
+        "firstProfileOpenMs": 304.3400000333786,
+        "timing": {
+          "profile": 4.449999928474426,
+          "vault": 237.5199999809265
+        },
+        "encodingsWhileHeld": 0,
+        "errors": []
+      },
+      {
+        "pair": 1,
+        "version": "before",
+        "before": {
+          "held": 3,
+          "encodings": 2
+        },
+        "cards": 1,
+        "vaultCards": 1,
+        "retained": true,
+        "firstProfileOpenMs": 303.1049998998642,
+        "timing": {
+          "profile": 2.6450001001358032,
+          "vault": 154.29999995231628
+        },
+        "encodingsWhileHeld": 2,
+        "errors": []
+      },
+      {
+        "pair": 2,
+        "version": "before",
+        "before": {
+          "held": 3,
+          "encodings": 3
+        },
+        "cards": 1,
+        "vaultCards": 1,
+        "retained": true,
+        "firstProfileOpenMs": 303.52500009536743,
+        "timing": {
+          "profile": 3.325000047683716,
+          "vault": 304.77499997615814
+        },
+        "encodingsWhileHeld": 3,
+        "errors": []
+      },
+      {
+        "pair": 2,
+        "version": "after",
+        "before": {
+          "held": 3,
+          "encodings": 0
+        },
+        "cards": 1,
+        "vaultCards": 1,
+        "retained": true,
+        "firstProfileOpenMs": 303.15000009536743,
+        "timing": {
+          "profile": 3.4800000190734863,
+          "vault": 305.47000002861023
+        },
+        "encodingsWhileHeld": 0,
+        "errors": []
+      }
+    ]
+  },
+  "cachedReopen": {
+    "scenario": "Five alternating pairs of cached established-account production builds; server stopped; Chromium at 390x844, not iPhone",
+    "summary": {
+      "before": {
+        "medianWorldReadyMs": 431.8700000047684,
+        "medianCanvasMs": 124.37999999523163,
+        "preWorldProfileEncodings": [
+          2,
+          2,
+          3,
+          2,
+          2
+        ],
+        "preWorldCardRequests": [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "worstMainThreadTaskMs": 89
+      },
+      "after": {
+        "medianWorldReadyMs": 410.3050000667572,
+        "medianCanvasMs": 116.10500001907349,
+        "preWorldProfileEncodings": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "preWorldCardRequests": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "worstMainThreadTaskMs": 88
+      }
+    },
+    "checks": {
+      "noProfilePreparationBeforeWorld": true,
+      "noCardPublicationBeforeWorld": true,
+      "publicationStillRuns": true,
+      "samePosition": true,
+      "noJavaScriptErrors": true
+    },
+    "samples": [
+      {
+        "pair": 0,
+        "version": "before",
+        "ready": 555.3200000524521,
+        "canvas": 209.91500008106232,
+        "profiles": [
+          {
+            "at": 143.57500004768372,
+            "beforeReady": true,
+            "cards": 1
+          },
+          {
+            "at": 181.34500002861023,
+            "beforeReady": true,
+            "cards": 1
+          },
+          {
+            "at": 605.2800000905991,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 217.49500000476837,
+            "beforeReady": true
+          }
+        ],
+        "tasks": [
+          {
+            "start": 290.335000038147,
+            "duration": 70
+          },
+          {
+            "start": 2233.600000023842,
+            "duration": 89
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 2.53000009059906,
+            "response": 4.65500009059906,
+            "dom": 51.25999999046326
+          }
+        ],
+        "position": "Open world map. Current position X -59, Z -91. 0 roaming creatures"
+      },
+      {
+        "pair": 0,
+        "version": "after",
+        "ready": 528.9099999666214,
+        "canvas": 170.81499993801117,
+        "profiles": [
+          {
+            "at": 554,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 863.0649999380112,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 572.3499999046326,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [
+          {
+            "start": 248.18499994277954,
+            "duration": 88
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 1.0499999523162842,
+            "response": 3.5199999809265137,
+            "dom": 40.43999993801117
+          }
+        ],
+        "position": "Open world map. Current position X -59, Z -91. 0 roaming creatures"
+      },
+      {
+        "pair": 1,
+        "version": "after",
+        "ready": 431.039999961853,
+        "canvas": 116.10500001907349,
+        "profiles": [
+          {
+            "at": 455.55999994277954,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 765.8099999427795,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 465.4099999666214,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [
+          {
+            "start": 186.28999996185303,
+            "duration": 58
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.6699999570846558,
+            "response": 2.649999976158142,
+            "dom": 27.34499990940094
+          }
+        ],
+        "position": "Open world map. Current position X -59, Z -91. 0 roaming creatures"
+      },
+      {
+        "pair": 1,
+        "version": "before",
+        "ready": 431.8700000047684,
+        "canvas": 124.37999999523163,
+        "profiles": [
+          {
+            "at": 67.86500000953674,
+            "beforeReady": true,
+            "cards": 1
+          },
+          {
+            "at": 97.13999998569489,
+            "beforeReady": true,
+            "cards": 1
+          },
+          {
+            "at": 456.21999990940094,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 127.20499992370605,
+            "beforeReady": true
+          }
+        ],
+        "tasks": [
+          {
+            "start": 204.0199999809265,
+            "duration": 67
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.6899999380111694,
+            "response": 1.7349998950958252,
+            "dom": 26.56499993801117
+          }
+        ],
+        "position": "Open world map. Current position X -59, Z -91. 0 roaming creatures"
+      },
+      {
+        "pair": 2,
+        "version": "before",
+        "ready": 523.7200000286102,
+        "canvas": 179.68500006198883,
+        "profiles": [
+          {
+            "at": 104.90500009059906,
+            "beforeReady": true,
+            "cards": 1
+          },
+          {
+            "at": 153.99000000953674,
+            "beforeReady": true,
+            "cards": 1
+          },
+          {
+            "at": 486.40500009059906,
+            "beforeReady": true,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 182.08500003814697,
+            "beforeReady": true
+          }
+        ],
+        "tasks": [
+          {
+            "start": 253.40000009536743,
+            "duration": 80
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 1.2950000762939453,
+            "response": 4.335000038146973,
+            "dom": 45.644999980926514
+          }
+        ],
+        "position": "Open world map. Current position X -59, Z -91. 0 roaming creatures"
+      },
+      {
+        "pair": 2,
+        "version": "after",
+        "ready": 398.9450000524521,
+        "canvas": 113.92500007152557,
+        "profiles": [
+          {
+            "at": 422.1950000524521,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 738.2549999952316,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 438.4500000476837,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [
+          {
+            "start": 182.70500004291534,
+            "duration": 57
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.815000057220459,
+            "response": 2.4250000715255737,
+            "dom": 26.0900000333786
+          }
+        ],
+        "position": "Open world map. Current position X -59, Z -91. 0 roaming creatures"
+      },
+      {
+        "pair": 3,
+        "version": "after",
+        "ready": 386.77499997615814,
+        "canvas": 112.0699999332428,
+        "profiles": [
+          {
+            "at": 403.88499999046326,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 717.5649999380112,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 423.9800000190735,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [
+          {
+            "start": 180.81499993801117,
+            "duration": 62
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.934999942779541,
+            "response": 2.3799999952316284,
+            "dom": 24.485000014305115
+          }
+        ],
+        "position": "Open world map. Current position X -59, Z -91. 0 roaming creatures"
+      },
+      {
+        "pair": 3,
+        "version": "before",
+        "ready": 400.97000002861023,
+        "canvas": 112.62999999523163,
+        "profiles": [
+          {
+            "at": 64.60500001907349,
+            "beforeReady": true,
+            "cards": 1
+          },
+          {
+            "at": 89.06500005722046,
+            "beforeReady": true,
+            "cards": 1
+          },
+          {
+            "at": 448.7300000190735,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 115.11000001430511,
+            "beforeReady": true
+          }
+        ],
+        "tasks": [
+          {
+            "start": 189.25499999523163,
+            "duration": 60
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.7599999904632568,
+            "response": 2.4450000524520874,
+            "dom": 25.390000104904175
+          }
+        ],
+        "position": "Open world map. Current position X -59, Z -91. 0 roaming creatures"
+      },
+      {
+        "pair": 4,
+        "version": "before",
+        "ready": 396.1999999284744,
+        "canvas": 119.17499995231628,
+        "profiles": [
+          {
+            "at": 69.04499995708466,
+            "beforeReady": true,
+            "cards": 1
+          },
+          {
+            "at": 94.72500002384186,
+            "beforeReady": true,
+            "cards": 1
+          },
+          {
+            "at": 449.2350000143051,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 121.875,
+            "beforeReady": true
+          }
+        ],
+        "tasks": [
+          {
+            "start": 195.45999991893768,
+            "duration": 58
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.7699999809265137,
+            "response": 3.444999933242798,
+            "dom": 26.2849999666214
+          }
+        ],
+        "position": "Open world map. Current position X -59, Z -91. 0 roaming creatures"
+      },
+      {
+        "pair": 4,
+        "version": "after",
+        "ready": 410.3050000667572,
+        "canvas": 122.54500007629395,
+        "profiles": [
+          {
+            "at": 425.375,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 738.670000076294,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 442.1449999809265,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [
+          {
+            "start": 197.52500009536743,
+            "duration": 56
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.6500000953674316,
+            "response": 1.90500009059906,
+            "dom": 24.100000023841858
+          }
+        ],
+        "position": "Open world map. Current position X -59, Z -91. 0 roaming creatures"
+      }
+    ]
+  },
+  "retainedRendering": {
+    "scenario": "Ten seconds of retained local world rendering, server stopped",
+    "frames": 1201,
+    "p95FrameIntervalMs": 9.244999999995343,
+    "worstFrameIntervalMs": 9.424999999995634,
+    "errors": [],
+    "canvas": true
+  },
+  "breathAndTexture": {
+    "scenario": "Nine alternating fresh Node before/after pairs, test browser paused; identical final outputs and 42 body transitions; all 196608 texture bytes identical",
+    "summary": {
+      "readout": {
+        "beforeMedianMs": 37.439207999999994,
+        "afterMedianMs": 13.225124999999991,
+        "reductionPercent": 64.67573512773028,
+        "iterations": 10000
+      },
+      "projectionAndReadout": {
+        "beforeMedianMs": 106.99654100000001,
+        "afterMedianMs": 31.302999999999997,
+        "reductionPercent": 70.74391404858594,
+        "iterations": 10000
+      },
+      "movementBody": {
+        "beforeMedianMs": 77.665708,
+        "afterMedianMs": 29.027124999999998,
+        "reductionPercent": 62.62555798757413,
+        "iterations": 10000
+      },
+      "bark": {
+        "beforeMedianMs": 4.440958000000002,
+        "afterMedianMs": 3.285874999999997
+      },
+      "leaf": {
+        "beforeMedianMs": 3.738584000000003,
+        "afterMedianMs": 3.497499999999995
+      },
+      "skin": {
+        "beforeMedianMs": 2.08491699999999,
+        "afterMedianMs": 1.7884580000000057
+      }
+    },
+    "pairs": [
+      {
+        "before": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 44.42391599999999,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 106.99654100000001,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 79.74437499999999,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 5.205667000000005,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 4.866083000000003,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 3.0175839999999994,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        },
+        "after": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 12.274208000000002,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 29.524708000000004,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 32.282375,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 2.7749590000000026,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.497499999999995,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 2.3235420000000033,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        }
+      },
+      {
+        "after": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 12.885292000000007,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 31.730208000000005,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 27.639374999999987,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 3.0647090000000006,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.5844159999999974,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 1.6614170000000001,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        },
+        "before": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 37.337417,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 102.474959,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 77.35962500000002,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 4.152415999999995,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.2135000000000034,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 2.9856669999999923,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        }
+      },
+      {
+        "before": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 37.439207999999994,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 101.68283299999999,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 72.278208,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 5.271625,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.738584000000003,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 2.08491699999999,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        },
+        "after": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 12.174625000000006,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 30.321541999999994,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 28.619250000000008,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 3.338708000000004,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.2204169999999976,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 1.340875000000004,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        }
+      },
+      {
+        "after": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 13.369834000000012,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 31.302999999999997,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 34.61608399999999,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 4.162458000000001,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.391874999999999,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 1.7966669999999993,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        },
+        "before": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 37.974917000000005,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 103.903417,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 73.34812500000001,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 4.440958000000002,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.7895419999999973,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 1.8626660000000044,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        }
+      },
+      {
+        "before": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 34.951834000000005,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 111.55454099999999,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 77.665708,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 4.994375000000005,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.812750000000001,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 2.7033340000000052,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        },
+        "after": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 14.357416,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 27.743167,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 28.465791999999993,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 3.017250000000004,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.100457999999996,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 2.4403330000000025,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        }
+      },
+      {
+        "after": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 14.604500000000002,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 37.293875,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 30.308459,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 2.474125000000001,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 5.208749999999995,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 3.410458999999989,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        },
+        "before": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 39.15599999999999,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 103.27129099999999,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 80.29225,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 3.3797500000000014,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.330417000000004,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 2.0485829999999936,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        }
+      },
+      {
+        "before": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 46.63087499999999,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 119.039875,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 90.14945900000004,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 3.9378750000000053,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.9721250000000055,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 3.184459000000004,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        },
+        "after": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 16.956041999999997,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 34.300708,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 29.083457999999993,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 5.822082999999999,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.5577499999999986,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 1.5605410000000006,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        }
+      },
+      {
+        "after": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 13.225124999999991,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 30.218083000000007,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 28.65058400000001,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 3.449125000000002,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 5.154666999999989,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 1.7884580000000057,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        },
+        "before": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 35.161333,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 109.469041,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 79.13216699999998,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 4.7776250000000005,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.389499999999998,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 1.7269580000000104,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        }
+      },
+      {
+        "before": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 37.122,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 109.185708,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 76.869833,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 3.8343749999999943,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 3.2979580000000084,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 1.846625000000003,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        },
+        "after": {
+          "scenario": "Synthetic body operations and cold texture generation in fresh Node; not iPhone frame timing",
+          "readout": {
+            "totalMs": 11.900374999999997,
+            "iterations": 10000,
+            "outputDigest": "545eac42e0bff113237c928d5fef543a55e092b4227cae6ef72af1c8b2675974"
+          },
+          "projectionAndReadout": {
+            "totalMs": 37.987750000000005,
+            "iterations": 10000,
+            "outputDigest": "a2a77ad613304d80d5a948fd4780d4c14e9b3b81e862f5bcd9f2879e5371295d"
+          },
+          "movementBody": {
+            "totalMs": 29.027124999999998,
+            "iterations": 10000,
+            "outputDigest": "f925919f8fcc1de71962672cea6b3ec80e2a7a83302602208c21c8c88d20876d"
+          },
+          "transitionsDigest": "fe7e039d1e91fb6b0c441dce66140385921b1de0902f03af728caf7e894d59a6",
+          "textures": {
+            "bark": {
+              "firstCallMs": 3.285874999999997,
+              "rgbaDigest": "cf97a936f0330de0630222a0b1a98c631d1dc7ff5bb22a5b34de01b4cd15f574"
+            },
+            "leaf": {
+              "firstCallMs": 2.6734170000000006,
+              "rgbaDigest": "b62a95c8fcfc28d82083883fe73e36d75a7e1c4c0fbc5168acf126c0abd5fa80"
+            },
+            "skin": {
+              "firstCallMs": 1.5992499999999978,
+              "rgbaDigest": "469689a17a602485c5e5fd37479063eb02c5060f5152c57c0bd8e6093b797120"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "breathReopening": {
+    "scenario": "Five alternating pairs before/after body and texture optimization in the cached established-account production builds; server stopped; Chromium at 390x844, not iPhone",
+    "summary": {
+      "before": {
+        "medianWorldReadyMs": 521.6150000095367,
+        "medianCanvasMs": 253.37999999523163,
+        "preWorldProfileEncodings": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "preWorldCardRequests": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "worstMainThreadTaskMs": 113
+      },
+      "after": {
+        "medianWorldReadyMs": 504.89999997615814,
+        "medianCanvasMs": 248.59999990463257,
+        "preWorldProfileEncodings": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "preWorldCardRequests": [
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "worstMainThreadTaskMs": 117
+      }
+    },
+    "checks": {
+      "noProfilePreparationBeforeWorld": true,
+      "noCardPublicationBeforeWorld": true,
+      "publicationStillRuns": true,
+      "samePosition": true,
+      "noJavaScriptErrors": true
+    },
+    "samples": [
+      {
+        "pair": 0,
+        "version": "before",
+        "ready": 521.6150000095367,
+        "canvas": 253.37999999523163,
+        "profiles": [
+          {
+            "at": 537.2050000429153,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 846.7000000476837,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 550.3849999904633,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [
+          {
+            "start": 55.330000042915344,
+            "duration": 109
+          },
+          {
+            "start": 199.6449999809265,
+            "duration": 53
+          },
+          {
+            "start": 328.3550000190735,
+            "duration": 67
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.5950000286102295,
+            "response": 1.4550000429153442,
+            "dom": 16.235000014305115
+          }
+        ],
+        "position": "Open world map. Current position X -3, Z -128. 0 roaming creatures"
+      },
+      {
+        "pair": 0,
+        "version": "after",
+        "ready": 532.7000000476837,
+        "canvas": 273.10000002384186,
+        "profiles": [
+          {
+            "at": 548.8000000715256,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 857,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 566.7000000476837,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [
+          {
+            "start": 66.80000007152557,
+            "duration": 115
+          },
+          {
+            "start": 219.20000004768372,
+            "duration": 54
+          },
+          {
+            "start": 348.10000002384186,
+            "duration": 68
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.6000000238418579,
+            "response": 1.899999976158142,
+            "dom": 19.899999976158142
+          }
+        ],
+        "position": "Open world map. Current position X -3, Z -128. 0 roaming creatures"
+      },
+      {
+        "pair": 1,
+        "version": "after",
+        "ready": 324.7999999523163,
+        "canvas": 95.5,
+        "profiles": [
+          {
+            "at": 338.39999997615814,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 647.2999999523163,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 348.09999990463257,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.6999999284744263,
+            "response": 1.7999999523162842,
+            "dom": 24.399999976158142
+          }
+        ],
+        "position": "Open world map. Current position X -3, Z -128. 0 roaming creatures"
+      },
+      {
+        "pair": 1,
+        "version": "before",
+        "ready": 564.0350000858307,
+        "canvas": 294.0750000476837,
+        "profiles": [
+          {
+            "at": 577.5200001001358,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 887.3250000476837,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 591.3200000524521,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [
+          {
+            "start": 86.6450001001358,
+            "duration": 113
+          },
+          {
+            "start": 241.61500000953674,
+            "duration": 52
+          },
+          {
+            "start": 368.85000002384186,
+            "duration": 68
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.7150000333786011,
+            "response": 1.65500009059906,
+            "dom": 66.9650000333786
+          }
+        ],
+        "position": "Open world map. Current position X -3, Z -128. 0 roaming creatures"
+      },
+      {
+        "pair": 2,
+        "version": "before",
+        "ready": 313.0550000667572,
+        "canvas": 86.73500001430511,
+        "profiles": [
+          {
+            "at": 326.90000009536743,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 634.4100000858307,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 337.3250000476837,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.6500000953674316,
+            "response": 1.6850000619888306,
+            "dom": 18.950000047683716
+          }
+        ],
+        "position": "Open world map. Current position X -3, Z -128. 0 roaming creatures"
+      },
+      {
+        "pair": 2,
+        "version": "after",
+        "ready": 541.3999999761581,
+        "canvas": 276.1999999284744,
+        "profiles": [
+          {
+            "at": 557.6999999284744,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 866.2999999523163,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 574.6999999284744,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [
+          {
+            "start": 67,
+            "duration": 117
+          },
+          {
+            "start": 221.5,
+            "duration": 54
+          },
+          {
+            "start": 350.10000002384186,
+            "duration": 71
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.7999999523162842,
+            "response": 1.7999999523162842,
+            "dom": 19.5
+          }
+        ],
+        "position": "Open world map. Current position X -3, Z -128. 0 roaming creatures"
+      },
+      {
+        "pair": 3,
+        "version": "after",
+        "ready": 334,
+        "canvas": 103.39999997615814,
+        "profiles": [
+          {
+            "at": 347.7000000476837,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 656.1000000238419,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 359,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [
+          {
+            "start": 176.39999997615814,
+            "duration": 53
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 1,
+            "response": 2.3000000715255737,
+            "dom": 24.300000071525574
+          }
+        ],
+        "position": "Open world map. Current position X -3, Z -128. 0 roaming creatures"
+      },
+      {
+        "pair": 3,
+        "version": "before",
+        "ready": 539.170000076294,
+        "canvas": 274.2350000143051,
+        "profiles": [
+          {
+            "at": 555.0950000286102,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 864.1050000190735,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 572.1550000905991,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [
+          {
+            "start": 71.99000000953674,
+            "duration": 112
+          },
+          {
+            "start": 221.11500000953674,
+            "duration": 53
+          },
+          {
+            "start": 347.47000002861023,
+            "duration": 67
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.9550000429153442,
+            "response": 2.6299999952316284,
+            "dom": 26.015000104904175
+          }
+        ],
+        "position": "Open world map. Current position X -3, Z -128. 0 roaming creatures"
+      },
+      {
+        "pair": 4,
+        "version": "before",
+        "ready": 325.875,
+        "canvas": 100.4650000333786,
+        "profiles": [
+          {
+            "at": 339.3899999856949,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 645.3050000667572,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 349.24000000953674,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [
+          {
+            "start": 169.94000005722046,
+            "duration": 51
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.6050000190734863,
+            "response": 1.774999976158142,
+            "dom": 22.44000005722046
+          }
+        ],
+        "position": "Open world map. Current position X -3, Z -128. 0 roaming creatures"
+      },
+      {
+        "pair": 4,
+        "version": "after",
+        "ready": 504.89999997615814,
+        "canvas": 248.59999990463257,
+        "profiles": [
+          {
+            "at": 520.5999999046326,
+            "beforeReady": false,
+            "cards": 1
+          },
+          {
+            "at": 830.3999999761581,
+            "beforeReady": false,
+            "cards": 1
+          }
+        ],
+        "cardRequests": [
+          {
+            "at": 537.1999999284744,
+            "beforeReady": false
+          }
+        ],
+        "tasks": [
+          {
+            "start": 56.299999952316284,
+            "duration": 106
+          },
+          {
+            "start": 196.69999992847443,
+            "duration": 51
+          },
+          {
+            "start": 322.59999990463257,
+            "duration": 68
+          }
+        ],
+        "errors": [],
+        "controlled": true,
+        "navigation": [
+          {
+            "request": 0.5999999046325684,
+            "response": 1.5,
+            "dom": 15.699999928474426
+          }
+        ],
+        "position": "Open world map. Current position X -3, Z -128. 0 roaming creatures"
+      }
+    ],
+    "qualification": "Samples were bimodal and only two of five pairs favored the updated build. This does not establish a reliable end-to-end gain."
+  },
+  "breathMovementBaseline": {
+    "cache": {
+      "status": 200,
+      "bytes": 27625
+    },
+    "initial": {
+      "at": 578596.3099999428,
+      "position": "Open world map. Current position X -59, Z -91. 0 roaming creatures"
+    },
+    "evidence": {
+      "elapsed": 598899.6499999762,
+      "validations": 7758,
+      "frames": 2418,
+      "p95": 9.23499999998603,
+      "max": 100,
+      "tasks": [],
+      "errors": [],
+      "position": "Open world map. Current position X -3, Z -128. 0 roaming creatures"
+    },
+    "cpu": [
+      {
+        "count": 7691,
+        "functionName": "(idle)",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 1588,
+        "functionName": "(program)",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 193,
+        "functionName": "renderBufferDirect",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 350,
+        "columnNumber": 28288
+      },
+      {
+        "count": 130,
+        "functionName": "",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 350,
+        "columnNumber": 28381
+      },
+      {
+        "count": 126,
+        "functionName": "sc",
+        "scriptId": "17",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js",
+        "lineNumber": 0,
+        "columnNumber": 142352
+      },
+      {
+        "count": 120,
+        "functionName": "(garbage collector)",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 88,
+        "functionName": "sd",
+        "scriptId": "56",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/3516-56d51139c0cde229.js",
+        "lineNumber": 0,
+        "columnNumber": 371260
+      },
+      {
+        "count": 63,
+        "functionName": "el",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 304,
+        "columnNumber": 3114
+      },
+      {
+        "count": 60,
+        "functionName": "",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 0,
+        "columnNumber": 168688
+      },
+      {
+        "count": 56,
+        "functionName": "o",
+        "scriptId": "48",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/2595-c6b42f70d6019b86.js",
+        "lineNumber": 0,
+        "columnNumber": 298
+      },
+      {
+        "count": 55,
+        "functionName": "setValue",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 304,
+        "columnNumber": 8281
+      },
+      {
+        "count": 54,
+        "functionName": "upload",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 304,
+        "columnNumber": 9241
+      },
+      {
+        "count": 54,
+        "functionName": "bindVertexArray",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 49,
+        "functionName": "refreshMaterialUniforms",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 350,
+        "columnNumber": 10821
+      },
+      {
+        "count": 43,
+        "functionName": "e2",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 350,
+        "columnNumber": 39242
+      },
+      {
+        "count": 42,
+        "functionName": "ctor.<computed>",
+        "scriptId": "89",
+        "url": "",
+        "lineNumber": 17,
+        "columnNumber": 39
+      },
+      {
+        "count": 42,
+        "functionName": "updateMatrixWorld",
+        "scriptId": "32",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+        "lineNumber": 0,
+        "columnNumber": 79048
+      },
+      {
+        "count": 41,
+        "functionName": "updateMatrixWorld",
+        "scriptId": "32",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+        "lineNumber": 0,
+        "columnNumber": 79048
+      },
+      {
+        "count": 40,
+        "functionName": "r",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 350,
+        "columnNumber": 8958
+      },
+      {
+        "count": 39,
+        "functionName": "updateMatrixWorld",
+        "scriptId": "32",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+        "lineNumber": 0,
+        "columnNumber": 79048
+      },
+      {
+        "count": 37,
+        "functionName": "rX",
+        "scriptId": "37",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/631834aa-657619fe9ada75d3.js",
+        "lineNumber": 0,
+        "columnNumber": 101879
+      },
+      {
+        "count": 35,
+        "functionName": "eJ",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 350,
+        "columnNumber": 36174
+      },
+      {
+        "count": 30,
+        "functionName": "rK",
+        "scriptId": "56",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/3516-56d51139c0cde229.js",
+        "lineNumber": 0,
+        "columnNumber": 150957
+      },
+      {
+        "count": 30,
+        "functionName": "l9",
+        "scriptId": "17",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js",
+        "lineNumber": 0,
+        "columnNumber": 50997
+      },
+      {
+        "count": 29,
+        "functionName": "e1",
+        "scriptId": "37",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/631834aa-657619fe9ada75d3.js",
+        "lineNumber": 0,
+        "columnNumber": 33319
+      },
+      {
+        "count": 29,
+        "functionName": "eJ",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 350,
+        "columnNumber": 36174
+      },
+      {
+        "count": 28,
+        "functionName": "eL",
+        "scriptId": "37",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/631834aa-657619fe9ada75d3.js",
+        "lineNumber": 0,
+        "columnNumber": 139933
+      },
+      {
+        "count": 28,
+        "functionName": "eJ",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 350,
+        "columnNumber": 36174
+      },
+      {
+        "count": 28,
+        "functionName": "updateMatrixWorld",
+        "scriptId": "32",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+        "lineNumber": 0,
+        "columnNumber": 79048
+      },
+      {
+        "count": 27,
+        "functionName": "Y",
+        "scriptId": "56",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/3516-56d51139c0cde229.js",
+        "lineNumber": 0,
+        "columnNumber": 167971
+      }
+    ]
+  },
+  "deepStartupBaseline": {
+    "scenario": "Cached established account, production Chromium, stopped local server",
+    "probe": {
+      "canvas": 211.93999993801117,
+      "ready": 537.7949999570847,
+      "firstDraw": 510.15499997138977,
+      "gpu": {
+        "texImage2D": {
+          "count": 8,
+          "first": 278.4299999475479,
+          "last": 506.5549999475479,
+          "total": 0.02499997615814209,
+          "max": 0.009999990463256836,
+          "pending": 0
+        },
+        "linkProgram": {
+          "count": 37,
+          "first": 371.4450000524521,
+          "last": 523.7250000238419,
+          "total": 0.2549997568130493,
+          "max": 0.059999942779541016,
+          "pending": 0
+        },
+        "getProgramParameter:37297": {
+          "count": 242,
+          "first": 397.1100000143051,
+          "last": 489.81499993801117,
+          "total": 0.2250000238418579,
+          "max": 0.014999985694885254,
+          "pending": 211
+        },
+        "getProgramParameter:35718": {
+          "count": 33,
+          "first": 507.54499995708466,
+          "last": 534.5099999904633,
+          "total": 14.234999895095825,
+          "max": 3.625,
+          "pending": 0
+        },
+        "getActiveUniform": {
+          "count": 1147,
+          "first": 509.4800000190735,
+          "last": 534.5800000429153,
+          "total": 0.4600001573562622,
+          "max": 0.019999980926513672,
+          "pending": 0
+        },
+        "getUniformLocation": {
+          "count": 1147,
+          "first": 509.5149999856949,
+          "last": 534.585000038147,
+          "total": 0.5849999189376831,
+          "max": 0.009999990463256836,
+          "pending": 0
+        },
+        "getProgramParameter:35721": {
+          "count": 33,
+          "first": 509.66999995708466,
+          "last": 534.585000038147,
+          "total": 0.02499997615814209,
+          "max": 0.004999995231628418,
+          "pending": 0
+        },
+        "drawArrays": {
+          "count": 18,
+          "first": 510.15499997138977,
+          "last": 534.3500000238419,
+          "total": 0.03000009059906006,
+          "max": 0.014999985694885254,
+          "pending": 0
+        },
+        "drawElementsInstanced": {
+          "count": 17,
+          "first": 514.5549999475479,
+          "last": 534.039999961853,
+          "total": 0.009999990463256836,
+          "max": 0.004999995231628418,
+          "pending": 0
+        },
+        "drawElements": {
+          "count": 110,
+          "first": 525.4349999427795,
+          "last": 534.6100000143051,
+          "total": 0.04999995231628418,
+          "max": 0.004999995231628418,
+          "pending": 0
+        },
+        "drawArraysInstanced": {
+          "count": 10,
+          "first": 526.875,
+          "last": 534.3200000524521,
+          "total": 0,
+          "max": 0,
+          "pending": 0
+        }
+      },
+      "timers": [],
+      "tasks": [
+        {
+          "at": 288.5549999475479,
+          "duration": 75
+        }
+      ],
+      "errors": [],
+      "heap": 56171623,
+      "canvasSize": [
+        {
+          "width": 487,
+          "height": 1055,
+          "cssWidth": 390,
+          "cssHeight": 844
+        }
+      ]
+    },
+    "cpu": [
+      {
+        "count": 394,
+        "functionName": "(idle)",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 133,
+        "functionName": "(program)",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 72,
+        "functionName": "",
+        "scriptId": "63",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/6009-ca79ed17523936c5.js",
+        "lineNumber": 0,
+        "columnNumber": 16827
+      },
+      {
+        "count": 19,
+        "functionName": "(garbage collector)",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 10,
+        "functionName": "getProgramParameter",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 6,
+        "functionName": "e",
+        "scriptId": "48",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/2595-c6b42f70d6019b86.js",
+        "lineNumber": 0,
+        "columnNumber": 4837
+      },
+      {
+        "count": 6,
+        "functionName": "getProgramParameter",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 5,
+        "functionName": "setSize",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 350,
+        "columnNumber": 25460
+      },
+      {
+        "count": 4,
+        "functionName": "setSize",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 350,
+        "columnNumber": 25460
+      },
+      {
+        "count": 3,
+        "functionName": "process",
+        "scriptId": "41",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/8667-1f2c52fa4128f4f7.js",
+        "lineNumber": 0,
+        "columnNumber": 37950
+      },
+      {
+        "count": 3,
+        "functionName": "query",
+        "scriptId": "90",
+        "url": "",
+        "lineNumber": 5809,
+        "columnNumber": 20
+      },
+      {
+        "count": 3,
+        "functionName": "m",
+        "scriptId": "31",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/4217-6d8e1a92dc06c42f.js",
+        "lineNumber": 0,
+        "columnNumber": 2292
+      },
+      {
+        "count": 3,
+        "functionName": "g",
+        "scriptId": "58",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/6763-73ff5bfff12eaec6.js",
+        "lineNumber": 0,
+        "columnNumber": 14148
+      },
+      {
+        "count": 3,
+        "functionName": "l9",
+        "scriptId": "17",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js",
+        "lineNumber": 0,
+        "columnNumber": 50997
+      },
+      {
+        "count": 3,
+        "functionName": "sd",
+        "scriptId": "56",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/3516-56d51139c0cde229.js",
+        "lineNumber": 0,
+        "columnNumber": 371260
+      },
+      {
+        "count": 3,
+        "functionName": "I",
+        "scriptId": "29",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/3683-509ab63e65ab3972.js",
+        "lineNumber": 0,
+        "columnNumber": 56095
+      },
+      {
+        "count": 3,
+        "functionName": "getContext",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 3,
+        "functionName": "e$",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 304,
+        "columnNumber": 10189
+      },
+      {
+        "count": 3,
+        "functionName": "",
+        "scriptId": "56",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/3516-56d51139c0cde229.js",
+        "lineNumber": 34,
+        "columnNumber": 6721
+      },
+      {
+        "count": 3,
+        "functionName": "getProgramParameter",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 3,
+        "functionName": "renderBufferDirect",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 350,
+        "columnNumber": 28288
+      },
+      {
+        "count": 3,
+        "functionName": "eL",
+        "scriptId": "37",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/631834aa-657619fe9ada75d3.js",
+        "lineNumber": 0,
+        "columnNumber": 139933
+      },
+      {
+        "count": 3,
+        "functionName": "setup",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 0,
+        "columnNumber": 168434
+      },
+      {
+        "count": 3,
+        "functionName": "bindVertexArray",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 2,
+        "functionName": "",
+        "scriptId": "89",
+        "url": "",
+        "lineNumber": 1,
+        "columnNumber": 7
+      },
+      {
+        "count": 2,
+        "functionName": "a.d",
+        "scriptId": "16",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/webpack-76030c851c9c7475.js",
+        "lineNumber": 0,
+        "columnNumber": 1064
+      },
+      {
+        "count": 2,
+        "functionName": "z",
+        "scriptId": "31",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/4217-6d8e1a92dc06c42f.js",
+        "lineNumber": 0,
+        "columnNumber": 3678
+      },
+      {
+        "count": 2,
+        "functionName": "",
+        "scriptId": "31",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/4217-6d8e1a92dc06c42f.js",
+        "lineNumber": 0,
+        "columnNumber": 3016
+      },
+      {
+        "count": 2,
+        "functionName": "I",
+        "scriptId": "29",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/3683-509ab63e65ab3972.js",
+        "lineNumber": 0,
+        "columnNumber": 56095
+      },
+      {
+        "count": 2,
+        "functionName": "o",
+        "scriptId": "48",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/2595-c6b42f70d6019b86.js",
+        "lineNumber": 0,
+        "columnNumber": 298
+      },
+      {
+        "count": 2,
+        "functionName": "oq",
+        "scriptId": "17",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js",
+        "lineNumber": 0,
+        "columnNumber": 79868
+      },
+      {
+        "count": 2,
+        "functionName": "getExtension",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 2,
+        "functionName": "configure",
+        "scriptId": "37",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/631834aa-657619fe9ada75d3.js",
+        "lineNumber": 0,
+        "columnNumber": 135189
+      },
+      {
+        "count": 2,
+        "functionName": "",
+        "scriptId": "56",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/3516-56d51139c0cde229.js",
+        "lineNumber": 0,
+        "columnNumber": 213673
+      },
+      {
+        "count": 2,
+        "functionName": "getZ",
+        "scriptId": "32",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+        "lineNumber": 0,
+        "columnNumber": 113349
+      },
+      {
+        "count": 2,
+        "functionName": "applyNormalMatrix",
+        "scriptId": "32",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+        "lineNumber": 0,
+        "columnNumber": 112391
+      },
+      {
+        "count": 2,
+        "functionName": "nm",
+        "scriptId": "56",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/3516-56d51139c0cde229.js",
+        "lineNumber": 0,
+        "columnNumber": 159613
+      },
+      {
+        "count": 2,
+        "functionName": "hh",
+        "scriptId": "32",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+        "lineNumber": 0,
+        "columnNumber": 238308
+      },
+      {
+        "count": 2,
+        "functionName": "toArray",
+        "scriptId": "32",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+        "lineNumber": 0,
+        "columnNumber": 96857
+      },
+      {
+        "count": 2,
+        "functionName": "hh",
+        "scriptId": "32",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+        "lineNumber": 0,
+        "columnNumber": 238308
+      },
+      {
+        "count": 2,
+        "functionName": "toArray",
+        "scriptId": "32",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+        "lineNumber": 0,
+        "columnNumber": 70832
+      },
+      {
+        "count": 2,
+        "functionName": "shaderSource",
+        "scriptId": "0",
+        "url": "",
+        "lineNumber": -1,
+        "columnNumber": -1
+      },
+      {
+        "count": 2,
+        "functionName": "e$",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 304,
+        "columnNumber": 10189
+      },
+      {
+        "count": 2,
+        "functionName": "eJ",
+        "scriptId": "38",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+        "lineNumber": 304,
+        "columnNumber": 10854
+      },
+      {
+        "count": 2,
+        "functionName": "getMatrixAt",
+        "scriptId": "32",
+        "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+        "lineNumber": 0,
+        "columnNumber": 163731
+      }
+    ]
+  },
+  "prewarmedProfileBaseline": {
+    "click": 113958.34500002861,
+    "content": 114004.67499995232,
+    "timers": [],
+    "resources": [],
+    "delayMs": 46.329999923706055
+  },
+  "breathMovement": {
+    "scenario": "Twenty seconds of opposite-direction continuous walking per build, isolated local account, production Chromium 390x844, server stopped; paths and native audio startup vary",
+    "samples": [
+      {
+        "version": "before",
+        "evidence": {
+          "elapsed": 20312.539999961853,
+          "initialPosition": "Open world map. Current position X -3, Z -128. 0 roaming creatures",
+          "validations": 7726,
+          "frames": 2385,
+          "p95": 9.1349999999984,
+          "max": 200.36499999999978,
+          "tasks": [],
+          "errors": [],
+          "position": "Open world map. Current position X 65, Z -173. 0 roaming creatures"
+        },
+        "cpu": [
+          {
+            "count": 9912,
+            "functionName": "(idle)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "count": 1183,
+            "functionName": "(program)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "count": 172,
+            "functionName": "",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 28381
+          },
+          {
+            "count": 172,
+            "functionName": "renderBufferDirect",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 28288
+          },
+          {
+            "count": 111,
+            "functionName": "setValue",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 8281
+          },
+          {
+            "count": 100,
+            "functionName": "(garbage collector)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "count": 92,
+            "functionName": "sc",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js",
+            "lineNumber": 0,
+            "columnNumber": 142352
+          },
+          {
+            "count": 68,
+            "functionName": "upload",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 9241
+          },
+          {
+            "count": 63,
+            "functionName": "bindVertexArray",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "count": 61,
+            "functionName": "sd",
+            "scriptId": "69",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/3516-56d51139c0cde229.js",
+            "lineNumber": 0,
+            "columnNumber": 371260
+          },
+          {
+            "count": 57,
+            "functionName": "$",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 1600
+          },
+          {
+            "count": 51,
+            "functionName": "refreshMaterialUniforms",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 10821
+          },
+          {
+            "count": 45,
+            "functionName": "setValue",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 8281
+          },
+          {
+            "count": 43,
+            "functionName": "equ",
+            "scriptId": "28",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/631834aa-657619fe9ada75d3.js",
+            "lineNumber": 0,
+            "columnNumber": 1798
+          },
+          {
+            "count": 42,
+            "functionName": "updateMatrixWorld",
+            "scriptId": "27",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+            "lineNumber": 0,
+            "columnNumber": 79048
+          },
+          {
+            "count": 39,
+            "functionName": "updateMatrixWorld",
+            "scriptId": "27",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+            "lineNumber": 0,
+            "columnNumber": 79048
+          },
+          {
+            "count": 38,
+            "functionName": "ctor.<computed>",
+            "scriptId": "5",
+            "url": "",
+            "lineNumber": 17,
+            "columnNumber": 39
+          },
+          {
+            "count": 35,
+            "functionName": "eJ",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 36174
+          },
+          {
+            "count": 34,
+            "functionName": "eJ",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 36174
+          },
+          {
+            "count": 34,
+            "functionName": "Q",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 1406
+          },
+          {
+            "count": 33,
+            "functionName": "J",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 1712
+          },
+          {
+            "count": 31,
+            "functionName": "rK",
+            "scriptId": "69",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/3516-56d51139c0cde229.js",
+            "lineNumber": 0,
+            "columnNumber": 150957
+          },
+          {
+            "count": 30,
+            "functionName": "updateMatrixWorld",
+            "scriptId": "27",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+            "lineNumber": 0,
+            "columnNumber": 79048
+          },
+          {
+            "count": 30,
+            "functionName": "",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 0,
+            "columnNumber": 168688
+          },
+          {
+            "count": 28,
+            "functionName": "r",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 8958
+          },
+          {
+            "count": 28,
+            "functionName": "_",
+            "scriptId": "61",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/5440-424c054dad6dd952.js",
+            "lineNumber": 0,
+            "columnNumber": 6618
+          },
+          {
+            "count": 27,
+            "functionName": "e2",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 39242
+          },
+          {
+            "count": 26,
+            "functionName": "es",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 3309
+          },
+          {
+            "count": 26,
+            "functionName": "",
+            "scriptId": "28",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/631834aa-657619fe9ada75d3.js",
+            "lineNumber": 0,
+            "columnNumber": 126930
+          },
+          {
+            "count": 25,
+            "functionName": "",
+            "scriptId": "69",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/3516-56d51139c0cde229.js",
+            "lineNumber": 0,
+            "columnNumber": 166387
+          },
+          {
+            "count": 24,
+            "functionName": "updateMatrixWorld",
+            "scriptId": "27",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+            "lineNumber": 0,
+            "columnNumber": 79048
+          },
+          {
+            "count": 24,
+            "functionName": "",
+            "scriptId": "46",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/4956-92fe3449486383dd.js",
+            "lineNumber": 0,
+            "columnNumber": 7008
+          },
+          {
+            "count": 23,
+            "functionName": "",
+            "scriptId": "28",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/631834aa-657619fe9ada75d3.js",
+            "lineNumber": 0,
+            "columnNumber": 97770
+          },
+          {
+            "count": 23,
+            "functionName": "multiplyMatrices",
+            "scriptId": "27",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+            "lineNumber": 0,
+            "columnNumber": 65142
+          },
+          {
+            "count": 23,
+            "functionName": "e4",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 39719
+          },
+          {
+            "count": 23,
+            "functionName": "setValue",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 9107
+          },
+          {
+            "count": 21,
+            "functionName": "bindVertexArray",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "count": 21,
+            "functionName": "eJ",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 36174
+          },
+          {
+            "count": 21,
+            "functionName": "Y",
+            "scriptId": "69",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/3516-56d51139c0cde229.js",
+            "lineNumber": 0,
+            "columnNumber": 167971
+          },
+          {
+            "count": 21,
+            "functionName": "uniform1iv",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          }
+        ]
+      },
+      {
+        "version": "after",
+        "evidence": {
+          "elapsed": 20324,
+          "initialPosition": "Open world map. Current position X 65, Z -173. 0 roaming creatures",
+          "validations": 3669,
+          "frames": 2414,
+          "p95": 9.199999999998909,
+          "max": 208.29999999999973,
+          "tasks": [],
+          "errors": [],
+          "position": "Open world map. Current position X -6, Z -126. 0 roaming creatures"
+        },
+        "cpu": [
+          {
+            "count": 9926,
+            "functionName": "(idle)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "count": 1187,
+            "functionName": "(program)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "count": 164,
+            "functionName": "renderBufferDirect",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 28288
+          },
+          {
+            "count": 153,
+            "functionName": "",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 28381
+          },
+          {
+            "count": 142,
+            "functionName": "(garbage collector)",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "count": 91,
+            "functionName": "sc",
+            "scriptId": "7",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js",
+            "lineNumber": 0,
+            "columnNumber": 142352
+          },
+          {
+            "count": 89,
+            "functionName": "setValue",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 8281
+          },
+          {
+            "count": 71,
+            "functionName": "upload",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 9241
+          },
+          {
+            "count": 60,
+            "functionName": "su",
+            "scriptId": "70",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/8475-34969a288109bfe1.js",
+            "lineNumber": 34,
+            "columnNumber": 339219
+          },
+          {
+            "count": 51,
+            "functionName": "bindVertexArray",
+            "scriptId": "0",
+            "url": "",
+            "lineNumber": -1,
+            "columnNumber": -1
+          },
+          {
+            "count": 47,
+            "functionName": "$",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 1600
+          },
+          {
+            "count": 47,
+            "functionName": "setValue",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 8281
+          },
+          {
+            "count": 45,
+            "functionName": "refreshMaterialUniforms",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 10821
+          },
+          {
+            "count": 45,
+            "functionName": "equ",
+            "scriptId": "29",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/631834aa-657619fe9ada75d3.js",
+            "lineNumber": 0,
+            "columnNumber": 1798
+          },
+          {
+            "count": 42,
+            "functionName": "updateMatrixWorld",
+            "scriptId": "28",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+            "lineNumber": 0,
+            "columnNumber": 79048
+          },
+          {
+            "count": 36,
+            "functionName": "r",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 8958
+          },
+          {
+            "count": 36,
+            "functionName": "updateMatrixWorld",
+            "scriptId": "28",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+            "lineNumber": 0,
+            "columnNumber": 79048
+          },
+          {
+            "count": 34,
+            "functionName": "J",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 1712
+          },
+          {
+            "count": 34,
+            "functionName": "ctor.<computed>",
+            "scriptId": "5",
+            "url": "",
+            "lineNumber": 17,
+            "columnNumber": 39
+          },
+          {
+            "count": 31,
+            "functionName": "eJ",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 36174
+          },
+          {
+            "count": 30,
+            "functionName": "eL",
+            "scriptId": "29",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/631834aa-657619fe9ada75d3.js",
+            "lineNumber": 0,
+            "columnNumber": 139933
+          },
+          {
+            "count": 28,
+            "functionName": "e1",
+            "scriptId": "29",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/631834aa-657619fe9ada75d3.js",
+            "lineNumber": 0,
+            "columnNumber": 33319
+          },
+          {
+            "count": 27,
+            "functionName": "",
+            "scriptId": "29",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/631834aa-657619fe9ada75d3.js",
+            "lineNumber": 0,
+            "columnNumber": 126930
+          },
+          {
+            "count": 26,
+            "functionName": "rV",
+            "scriptId": "70",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/8475-34969a288109bfe1.js",
+            "lineNumber": 34,
+            "columnNumber": 118916
+          },
+          {
+            "count": 25,
+            "functionName": "updateMatrixWorld",
+            "scriptId": "28",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+            "lineNumber": 0,
+            "columnNumber": 79048
+          },
+          {
+            "count": 24,
+            "functionName": "es",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 3309
+          },
+          {
+            "count": 24,
+            "functionName": "e2",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 39242
+          },
+          {
+            "count": 24,
+            "functionName": "",
+            "scriptId": "70",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/8475-34969a288109bfe1.js",
+            "lineNumber": 34,
+            "columnNumber": 134346
+          },
+          {
+            "count": 24,
+            "functionName": "renderBufferDirect",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 28288
+          },
+          {
+            "count": 24,
+            "functionName": "e4",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 39719
+          },
+          {
+            "count": 24,
+            "functionName": "Q",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 304,
+            "columnNumber": 1406
+          },
+          {
+            "count": 23,
+            "functionName": "updateMatrixWorld",
+            "scriptId": "28",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+            "lineNumber": 0,
+            "columnNumber": 79048
+          },
+          {
+            "count": 23,
+            "functionName": "multiplyMatrices",
+            "scriptId": "28",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+            "lineNumber": 0,
+            "columnNumber": 65142
+          },
+          {
+            "count": 23,
+            "functionName": "Y",
+            "scriptId": "70",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/8475-34969a288109bfe1.js",
+            "lineNumber": 34,
+            "columnNumber": 135930
+          },
+          {
+            "count": 22,
+            "functionName": "",
+            "scriptId": "57",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/5440-4a3d70112f659e7f.js",
+            "lineNumber": 0,
+            "columnNumber": 20011
+          },
+          {
+            "count": 22,
+            "functionName": "eJ",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 36174
+          },
+          {
+            "count": 22,
+            "functionName": "multiplyMatrices",
+            "scriptId": "28",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/e8867c6f-0d42e74114955f54.js",
+            "lineNumber": 0,
+            "columnNumber": 65142
+          },
+          {
+            "count": 21,
+            "functionName": "_",
+            "scriptId": "57",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/5440-4a3d70112f659e7f.js",
+            "lineNumber": 0,
+            "columnNumber": 6618
+          },
+          {
+            "count": 20,
+            "functionName": "",
+            "scriptId": "48",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/4956-92fe3449486383dd.js",
+            "lineNumber": 0,
+            "columnNumber": 7008
+          },
+          {
+            "count": 20,
+            "functionName": "refreshFogUniforms",
+            "scriptId": "30",
+            "url": "http://127.0.0.1:3110/_next/static/chunks/7566a6ad-0ebcd7c24cd030f2.js",
+            "lineNumber": 350,
+            "columnNumber": 10638
+          }
+        ]
+      }
+    ],
+    "summary": {
+      "validationReductionPercent": 52.511001812063164,
+      "qualification": "Opposite paths through nearby terrain; no end-to-end FPS gain claimed. Maximum intervals include profiling operations and require separate attribution."
+    }
+  },
+  "breathCleanMovement": {
+    "scenario": "Clean test tab, server stopped, production Chromium 390x844; no CPU profiler or GPU/proof wrappers; native AudioContext duration recorded",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "initial": "Open world map. Current position X 46, Z -160. 0 roaming creatures",
+    "evidence": {
+      "elapsed": 16255.699999928474,
+      "frames": 1950,
+      "p95": 9,
+      "max": 9.400000000000546,
+      "slowFrames": [],
+      "audio": [
+        {
+          "at": 3105.5,
+          "duration": 1
+        }
+      ],
+      "tasks": [],
+      "errors": [],
+      "position": "Open world map. Current position X 99, Z -195. 0 roaming creatures",
+      "energy": "Open profile for Wildz Explorer, explorer level 1, 83% energy",
+      "canvas": true,
+      "heap": 122342718
+    }
+  }
+}

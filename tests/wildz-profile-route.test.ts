@@ -50,10 +50,11 @@ test("shared profiles recover and publish through Receiz instead of a local plac
 
 test("the owner Profile and Vault project the complete source inventory without waiting for publication", () => {
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
-  assert.match(shell, /const ownerSourceProfile = useMemo\([\s\S]*assets:\s*ownerPlayState\.inventory/);
+  const preparation = shell.slice(shell.indexOf("const ownerSourceProfile"), shell.indexOf("const profileOwnerKeyId"));
+  assert.match(preparation, /assets:\s*ownerPlayState\.inventory/);
+  assert.doesNotMatch(preparation, /assets:\s*publishableOwnerAssets/);
   assert.match(shell, /profile=\{\(viewingOwnProfile \? ownerSourceProfile : remoteProfile\)!\}/);
   assert.match(shell, /cards=\{ownerSourceProfile\.vault\}/);
-  assert.doesNotMatch(shell, /assets:\s*publishableOwnerAssets[\s\S]{0,300}const ownerSourceProfile/);
 });
 
 test("own-profile share controls always respond while reporting durable publication state", () => {

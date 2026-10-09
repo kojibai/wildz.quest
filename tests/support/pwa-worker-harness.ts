@@ -143,7 +143,7 @@ export function createWorkerHarness(options: {
       await Promise.all(waits);
       return waits.length;
     },
-    async dispatchFetch(request: RequestLike) {
+    async dispatchFetch(request: RequestLike, { waitForBackground = true } = {}) {
       const waits: Promise<unknown>[] = [];
       let responsePromise: Promise<Response> | undefined;
       listeners.get("fetch")?.({
@@ -156,8 +156,9 @@ export function createWorkerHarness(options: {
         }
       });
       const response = responsePromise ? await responsePromise : undefined;
-      await Promise.all(waits);
-      return { response, waitCount: waits.length };
+      const background = Promise.all(waits);
+      if (waitForBackground) await background;
+      return { response, waitCount: waits.length, background };
     },
     async dispatchMessage(data: unknown) {
       const waits: Promise<unknown>[] = [];

@@ -138,17 +138,10 @@ async function installPublicShell() {
       throw new Error("wildz_shell_unavailable");
     }
     const html = await response.clone().text();
-    await cache.put(pathname, response);
-    return html;
+    return { pathname, response, html };
   }));
-
-  const buildAssets = shellDocuments.flatMap((html) => [...html.matchAll(/(?:src|href)=["'](\/_next\/static\/[^"']+)["']/g)])
-    .map((match) => new URL(match[1], self.location.origin).href);
-  await Promise.all([...new Set(buildAssets)].map(async (assetUrl) => {
-    const request = new Request(assetUrl, { cache: "reload", credentials: "omit" });
-    const response = await fetch(request);
-    if (isBaseCacheable(response)) await cache.put(request, response);
-  }));
+  await cacheShellBuildAssets(cache, shellDocuments.map(document => document.html).join("\n"));
+  await Promise.all(shellDocuments.map(({ pathname, response }) => cache.put(pathname, response)));
 }
 
 async function activateCurrentCaches() {
@@ -167,10 +160,37 @@ async function offlineResponse() {
   return await cache.match("/offline") || Response.error();
 }
 
-async function shellCacheFirst(request, url) {
+async function cacheShellBuildAssets(cache, html) {
+  const assets = [...html.matchAll(/(?:src|href)=["'](\/_next\/static\/[^"']+)["']/g)]
+    .map((match) => new URL(match[1], self.location.origin).href);
+  await Promise.all([...new Set(assets)].map(async (assetUrl) => {
+    if (await cache.match(assetUrl)) return;
+    const assetRequest = new Request(assetUrl, { cache: "reload", credentials: "omit" });
+    const asset = await fetch(assetRequest);
+    if (!isBaseCacheable(asset)) throw new Error("wildz_shell_asset_unavailable");
+    await cache.put(assetRequest, asset);
+  }));
+}
+
+async function refreshShellDocument(cache, cacheKey, request) {
+  const response = await fetch(request);
+  if (!isCacheableDocument(response)) return;
+  await cacheShellBuildAssets(cache, await response.clone().text());
+  // Keep the last usable document until every referenced build asset is saved.
+  await cache.put(cacheKey, response);
+}
+
+async function shellCacheFirst(request, url, event) {
   const cache = await caches.open(SHELL_CACHE);
   const cacheKey = url.pathname === "/" ? "/" : request;
+  const cached = await cache.match(cacheKey);
   if (request.mode === "navigate") {
+    if (cached) {
+      // Established PWAs must open without waiting for slow or missing network.
+      // Updates are prepared for the next launch without reloading this game.
+      event.waitUntil(refreshShellDocument(cache, cacheKey, request).catch(() => undefined));
+      return cached;
+    }
     try {
       const response = await fetch(request);
       if (isCacheableDocument(response)) await cache.put(cacheKey, response.clone());
@@ -179,7 +199,6 @@ async function shellCacheFirst(request, url) {
       return await cache.match(cacheKey) || await offlineResponse();
     }
   }
-  const cached = await cache.match(cacheKey);
   if (cached) return cached;
 
   try {
@@ -408,7 +427,7 @@ self.addEventListener("fetch", (event) => {
 
   switch (classifyWildzRequest(request, url)) {
     case "shell":
-      event.respondWith(shellCacheFirst(request, url));
+      event.respondWith(shellCacheFirst(request, url, event));
       return;
     case "public-document":
       event.respondWith(publicDocumentNetworkFirst(request));
