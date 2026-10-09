@@ -213,6 +213,11 @@
 .wilds-grove-phi { flex: 0 0 auto; color: #8cf1c5; font-weight: 900; font-variant-numeric: tabular-nums; }
 .wilds-grove-reconnecting { color: #9fe6ff; }
 .wilds-grove-error { color: #ffaaa4; }
+.wilds-grove-honey-guide { display: grid; gap: 6px; padding: 12px 14px; background: rgba(236, 186, 71, .07); border: 1px solid rgba(236, 186, 71, .2); border-radius: 16px; }
+.wilds-grove-honey-guide strong { color: #f4d78f; }
+.wilds-grove-honey-guide p, .wilds-grove-honey-collected p { margin: 0; font-size: .82rem; line-height: 1.4; }
+.wilds-grove-honey-guide small { color: rgba(220, 244, 234, .72); line-height: 1.45; }
+.wilds-grove-honey-collected { display: grid; gap: 8px; color: #a5f2cb; }
 
 @media (max-width: 410px), (max-height: 640px) {
   .wilds-grove-experience { max-height: calc(100dvh - 16px); padding: 14px; border-radius: 20px; }

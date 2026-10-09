@@ -4,6 +4,7 @@ import { initialPlayState } from "../src/features/play/game-state";
 import { projectWildsWalletPlayStateSeed, seedWildsWalletFromPlayState } from "../src/features/play/wallet/wilds-wallet-play-state";
 import { projectWildsWalletFromIdentityAccount } from "../src/features/play/wallet/wilds-wallet-source-authority";
 import { RECEIZ_IDENTITY_LOCAL_CONTINUITY_AUTHORITY, type ReceizIdentityAccountProjection } from "@receiz/sdk";
+import { walletFoodFixture } from "./fixtures/wilds-wallet-food";
 
 test("a recorded wallet balance is preserved when seeded from the user's actual Wildz inventory", () => {
   const account: ReceizIdentityAccountProjection = {
@@ -24,4 +25,14 @@ test("a recorded wallet balance is preserved when seeded from the user's actual 
   assert.equal(seeded.summary.transferableCardCount, 1);
   assert.equal(seeded.summary.transferableResourceCount, initialPlayState.beans + initialPlayState.fusionSparks + initialPlayState.ascensionCatalysts.length);
   assert.equal(seeded.summary.reservedCardCount, 0);
+});
+
+test("wallet inventory counts stored food while excluding consumed and unavailable portions", () => {
+  const { nourishment: gathered } = walletFoodFixture();
+  const [first, second] = Object.values(gathered.items);
+  const playerNourishment = { ...gathered, items: { ...gathered.items, [first!.itemId]: { ...first!, consumedKaiUPulse: 101 } }, unavailableItemIds: [second!.itemId] };
+  const state = { ...initialPlayState, beans: 2, fusionSparks: 3, ascensionCatalysts: [], playerNourishment };
+  assert.equal(projectWildsWalletPlayStateSeed(state).resourceUnits, 9);
+  const withoutFood = { ...state, playerNourishment: undefined };
+  assert.equal(projectWildsWalletPlayStateSeed(withoutFood).resourceUnits, 5);
 });

@@ -36,6 +36,21 @@ function setup() {
 }
 
 describe("complete regenerative Grove causal loop", () => {
+  it("allows observation and basic care alone while keeping honey work cooperative", () => {
+    const { mandate: _mandate, ...context } = setup();
+    const observation = previewWildsGroveAction({ ...context, action: "observe" });
+    assert.equal(observation.valid, true);
+    const grove = admitWildsGroveAction({ grove: context.grove, preview: observation });
+    for (const action of ["water", "compost", "cultivate", "repair"] as const) {
+      assert.equal(previewWildsGroveAction({ ...context, grove, action }).valid, true, action);
+    }
+    for (const action of ["gather", "pollinate", "transform-nectar", "build-hive", "harvest-honey"] as const) {
+      const preview = previewWildsGroveAction({ ...context, grove, action });
+      assert.equal(preview.valid, false, action);
+      assert.ok(preview.reasons.includes("creature-mandate-required"), action);
+    }
+  });
+
   it("conserves materials through observation, cooperative growth, hive construction, and honey harvest", () => {
     const context = setup();
     let grove = context.grove;

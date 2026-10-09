@@ -60,6 +60,46 @@ describe("Regenerative Grove mobile experience", () => {
     assert.match(markup, /disabled=""/);
   });
 
+  it("exposes honey collection and its production requirements before any honey is ready", () => {
+    const markup = renderToStaticMarkup(createElement(WildsRegenerativeGroveExperience, {
+      open: true,
+      grove,
+      companion: null,
+      actions: [{ action: "harvest-honey", valid: false, reason: "A willing creature partner is needed here.", consequence: "Collect 1 Living Honey into Wallet Resources.", amountPhiMicro: "0" }],
+      busyAction: null,
+      reconnecting: false,
+      error: null,
+      onAction() {},
+      onExit() {}
+    }));
+
+    assert.match(markup, /<strong>Collect Living Honey<\/strong>/);
+    assert.match(markup, /Needs a living hive, 1 honey in the grove, and a willing companion/);
+    assert.match(markup, /Gather what has fallen[\s\S]*Carry the bloom[\s\S]*Turn nectar to honey[\s\S]*Raise a living hive/);
+    assert.match(markup, /Wallet[\s\S]*Resources/);
+    assert.match(markup, /disabled=""/);
+    assert.doesNotMatch(markup, /Living Honey collected/);
+  });
+
+  it("shows an admitted honey harvest with a direct route to Wallet Resources", () => {
+    const props = {
+      open: true,
+      grove,
+      companion: { name: "Mellifera", willing: true, energy: 82, fatigue: 9 },
+      actions: [],
+      busyAction: null,
+      reconnecting: false,
+      error: null,
+      collectedHoney: true,
+      onAction() {},
+      onExit() {},
+      onOpenWallet() {}
+    };
+    const markup = renderToStaticMarkup(createElement(WildsRegenerativeGroveExperience, props));
+    assert.match(markup, /role="status"[^>]*>1 Living Honey collected/);
+    assert.match(markup, /<button[^>]*>View Wallet Resources<\/button>/);
+  });
+
   it("uses fluid mobile geometry and keeps authority work out of the frame loop", () => {
     const css = readFileSync("app/globals.css", "utf8");
     const environment = readFileSync("src/features/play/WildsRegenerativeGroveEnvironment.tsx", "utf8");

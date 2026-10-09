@@ -28,6 +28,6 @@ function Resident({ card,index,shelterPosition,player,terrainElevation,reducedMo
     root.current.rotation.y = index === 0 ? .65 : -.65 + (reducedMotion ? 0 : Math.sin(clock.elapsedTime*.18)*.22);
   });
   return <group ref={root} name={`home-resident-${index+1}`} position={position} scale={index === 0 ? .58 : .65}>
-    <WildsCreatureActor accent={appearance.palette.accent} anatomy={appearance.anatomy} cadenceMs={appearance.cadenceMs} familyId={card.manifest.familyId} formId={card.manifest.formId} glow={appearance.palette.glow} identityToken={appearance.fingerprint} morphology={appearance.morphology} pose={index === 0 ? "idle" : "curious"} primary={appearance.palette.primary} secondary={appearance.palette.secondary} />
+    <WildsCreatureActor accent={appearance.palette.accent} anatomy={appearance.anatomy} cadenceMs={appearance.cadenceMs} face={appearance.face} familyId={card.manifest.familyId} formId={card.manifest.formId} glow={appearance.palette.glow} identityToken={appearance.fingerprint} morphology={appearance.morphology} pose={index === 0 ? "idle" : "curious"} primary={appearance.palette.primary} secondary={appearance.palette.secondary} />
   </group>;
 }

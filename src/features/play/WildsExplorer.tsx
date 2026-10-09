@@ -4,6 +4,9 @@ import { playerBodyBreathExpansion } from "./player-breath-energy";
 
 import { projectWildsExplorerAnatomy } from "./wilds-explorer-anatomy";
 import { createWildsExplorerFace, createWildsExplorerTorso } from "./wilds-explorer-face";
+import { createWildsExplorerHand } from "./wilds-explorer-hands";
+import { createWildsFaceMaterial } from "./wilds-face-geometry";
+import { projectWildsBlinkProfile, sampleWildsBlink } from "./wilds-face-motion";
 import { useWildsCharacterTexture } from "./wilds-character-material";
 import { useWildsNaturalTexture } from "./wilds-natural-material";
 import { useEffect, useLayoutEffect, useMemo, useRef, type MutableRefObject } from "react";
@@ -270,9 +273,19 @@ export function WildsExplorer({
   const anatomy=useMemo(()=>projectWildsExplorerAnatomy(identityKey??character?.identityRef??`wildz:explorer:${style}`),[identityKey,character?.identityRef,style]);
   const clothTexture=useWildsCharacterTexture("cloth");
   const skinTexture=useWildsNaturalTexture("skin"),hairTexture=useWildsNaturalTexture("bark");
-  const faceGeometry=useMemo(()=>createWildsExplorerFace(anatomy,appearance.skin,appearance.hair,remote,sleeping),[anatomy,appearance.skin,appearance.hair,remote,sleeping]);
+  const faceGeometry=useMemo(()=>createWildsExplorerFace(anatomy,appearance.skin,appearance.hair,remote),[anatomy,appearance.skin,appearance.hair,remote]);
+  const faceSurface=useMemo(()=>createWildsFaceMaterial(skinTexture),[skinTexture]);
+  const blinkProfile=useMemo(()=>projectWildsBlinkProfile(anatomy.fingerprint,anatomy.detail.blinkMs),[anatomy]);
   const torsoGeometry=useMemo(()=>createWildsExplorerTorso(anatomy),[anatomy]);
+  const handGeometry=useMemo(()=>({
+    left:createWildsExplorerHand(anatomy,appearance.skin,-1,remote),
+    right:createWildsExplorerHand(anatomy,appearance.skin,1,remote)
+  }),[anatomy,appearance.skin,remote]);
+  const handMaterial=useMemo(()=>new THREE.MeshStandardMaterial({vertexColors:true,roughness:.64}),[]);
   useEffect(()=>()=>{faceGeometry.dispose();torsoGeometry.dispose();},[faceGeometry,torsoGeometry]);
+  useEffect(()=>()=>{handGeometry.left.dispose();handGeometry.right.dispose();},[handGeometry]);
+  useEffect(()=>()=>handMaterial.dispose(),[handMaterial]);
+  useEffect(()=>()=>faceSurface.material.dispose(),[faceSurface]);
   const root = useRef<THREE.Group>(null);
   const hips = useRef<THREE.Group>(null);
   const spine = useRef<THREE.Group>(null);
@@ -305,6 +318,7 @@ export function WildsExplorer({
   useFrame((_, delta) => {
     if (!root.current) return;
     const elapsed = performance.now() / 1_000;
+    faceSurface.blink.value = sampleWildsBlink(blinkProfile, elapsed * 1000, sleeping, readability.motionScale);
     const moving = performance.now() < movingUntil.current;
     const aerialMode = aerialStateRef?.current.mode ?? "ground";
     const grounded = !sleeping && locomotion === "ground" && aerialMode === "ground";
@@ -392,13 +406,13 @@ export function WildsExplorer({
             </mesh>
           </>
         ) : null}
-        <Arm elbow={leftElbow} shoulder={leftShoulder} side={-1} skin={appearance.skin} sleeve={appearance.outfitSecondary} />
-        <Arm elbow={rightElbow} shoulder={rightShoulder} side={1} skin={appearance.skin} sleeve={appearance.outfitSecondary} />
+        <Arm elbow={leftElbow} shoulder={leftShoulder} side={-1} skin={appearance.skin} sleeve={appearance.outfitSecondary} handGeometry={handGeometry.left} handMaterial={handMaterial} />
+        <Arm elbow={rightElbow} shoulder={rightShoulder} side={1} skin={appearance.skin} sleeve={appearance.outfitSecondary} handGeometry={handGeometry.right} handMaterial={handMaterial} />
       </group>
 
       <group name="head" position={[0, 1.57, -0.01]} ref={head} scale={.85}>
         <mesh castShadow geometry={faceGeometry} name="identity-bound-face">
-          <meshStandardMaterial vertexColors map={skinTexture} roughness={.68}/>
+          <primitive attach="material" object={faceSurface.material}/>
         </mesh>
         <mesh castShadow position={[0, 0.075, 0.025]} scale={renderStyle === "female" ? [1.1, 0.9, 1.08] : [1.09, 0.76, 1.07]}>
           <sphereGeometry args={[0.225, 16, 12, 0, Math.PI*2, 0, Math.PI*.53]} />
@@ -431,23 +445,24 @@ function Arm({
   shoulder,
   side,
   skin,
-  sleeve
+  sleeve,
+  handGeometry,
+  handMaterial
 }: {
   elbow: React.RefObject<THREE.Group | null>;
   shoulder: React.RefObject<THREE.Group | null>;
   side: -1 | 1;
   skin: string;
   sleeve: string;
+  handGeometry: THREE.BufferGeometry;
+  handMaterial: THREE.Material;
 }) {
   return (
     <group name={side < 0 ? "leftShoulder" : "rightShoulder"} position={[side * 0.25, 0.43, 0]} ref={shoulder}>
       <LimbSegment color={sleeve} length={0.35} radius={0.09} />
       <group name={side < 0 ? "leftElbow" : "rightElbow"} position={[0, -0.29, 0]} ref={elbow}>
         <LimbSegment skin color={skin} length={0.32} radius={0.068} />
-        <mesh castShadow position={[0, -0.3, 0]} scale={[0.8, 1, 0.72]}>
-          <sphereGeometry args={[0.075, 9, 7]} />
-          <meshStandardMaterial color={skin} roughness={0.7} />
-        </mesh>
+        <mesh castShadow name={side < 0 ? "leftHand" : "rightHand"} position={[0, -0.3, 0]} geometry={handGeometry} material={handMaterial} />
       </group>
     </group>
   );

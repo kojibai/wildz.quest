@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createWildsWalletControllerState, gateWildsWalletClientCapabilities, hydrateWildsWalletControllerState, renewWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPage, type WildsWalletReadResponse } from "./wilds-wallet-controller";
-import { normalizeWildsWalletPublicUsername } from "@/lib/receiz/wilds-wallet-projections";
 import { createWildsWalletControllerDriver, type WildsWalletControllerDriver, wildsWalletSharedSessionCache } from "./wilds-wallet-controller-driver";
 
 import { WildsWalletAuthorizationError } from "./wilds-wallet-authorization-error";
@@ -181,19 +180,14 @@ export function useWildsWalletController(
     ? gateWildsWalletClientCapabilities(visible.capabilities, { proofAuthorization: Boolean(options.authorization) })
     : null;
   const lookupRecipient = useCallback((username: string) => {
-    // The recipient username is carried by the source-issued proof object.
-    // Public lookup may enrich/resolve it, but a missing projection is not a
-    // transfer-authority gate.
-    if (visible.sourceAuthorityVerified && !visible.capabilities?.recipientLookup.available) {
-      try { driver.selectTransferRecipient(normalizeWildsWalletPublicUsername(username)); } catch { /* form remains editable */ }
-      return;
-    }
     return driver.lookupRecipient(username);
-  }, [driver, visible.capabilities?.recipientLookup.available, visible.sourceAuthorityVerified]);
+  }, [driver]);
   const stageTransfer = useCallback(async () => {
     setOperationError(null);
     const before = driver.state;
-    await refreshWithIdentityAuthority();
+    // Preview already verifies live balance, heads and scopes. A second full
+    // wallet read would add three requests without strengthening that boundary.
+    if (wildsWalletStatusNeedsIdentityReadAuthority(before.status, before.transportAuthorityRequired)) await refreshWithIdentityAuthority();
     if (driver.state.identityKey !== before.identityKey || driver.state.authorityGeneration !== before.authorityGeneration
       || driver.state.transfer.operationNonce !== before.transfer.operationNonce) return;
     if (driver.state.transportAuthorityRequired) { setOperationError(readAuthorityErrorRef.current?.message ?? "Wallet connection could not be renewed. Please retry."); return; }
@@ -209,14 +203,25 @@ export function useWildsWalletController(
     }
     setOperationError(null);
     try {
-      await secureTransferAuthority();
-      const consent = await authorization.authorize({ attempt: transfer.attempt, recipientUsername: transfer.recipientUsername, amountPhiMicro: transfer.amountPhiMicro, rail: transfer.rail });
-      await driver.authorizeTransfer(pointerId, consent);
+      await driver.signAndAuthorizeTransfer(pointerId, async (reviewed) => {
+        if (wildsWalletStatusNeedsIdentityReadAuthority(driver.state.status, driver.state.transportAuthorityRequired)) await secureTransferAuthority();
+        if (driver.state.transfer.phase !== "signing" || driver.state.transfer.attempt !== reviewed.attempt) throw new Error("wilds_wallet_transfer_review_changed");
+        return authorization.authorize({ attempt: reviewed.attempt!, recipientUsername: reviewed.recipientUsername!, amountPhiMicro: reviewed.amountPhiMicro!, rail: reviewed.rail! });
+      });
     } catch (cause) {
       setOperationError(cause instanceof WildsWalletAuthorizationError ? cause.message : "Transfer authorization could not be completed. Nothing was sent. Please retry.");
       driver.authorizationPointerCancel(pointerId);
     }
   }, [driver, options.authorization, secureTransferAuthority]);
+  const recoverTransfer = useCallback(async () => {
+    setOperationError(null);
+    try {
+      await secureTransferAuthority();
+      await driver.recoverTransfer();
+    } catch (cause) {
+      setOperationError(cause instanceof WildsWalletAuthorizationError ? cause.message : "Payment status could not be checked. Reconnect and try again; this will not send another payment.");
+    }
+  }, [driver, secureTransferAuthority]);
   return {
     ...visible,
     operationError,
@@ -235,7 +240,7 @@ export function useWildsWalletController(
     authorizationPointerStart: driver.authorizationPointerStart,
     authorizationPointerCancel: driver.authorizationPointerCancel,
     authorizeTransfer: options.authorization ? authorizeTransfer : null,
-    recoverTransfer: driver.recoverTransfer,
+    recoverTransfer,
     editTransfer(field: "recipient" | "amount") { setOperationError(null); driver.editTransfer(field); },
     resetTransfer() { setOperationError(null); driver.resetTransfer(); },
     expireTransferReview: driver.expireTransferReview,

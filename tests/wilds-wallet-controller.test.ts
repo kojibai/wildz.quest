@@ -400,7 +400,7 @@ test("adopts unknown, zero-write, and committed only from exact sanitized execut
 
   const committed = reduceWildsWalletController({ ...unknown, transfer: { ...unknown.transfer, requestId: 22 } }, {
     type: "transfer-result", requestId: 22, identityKey: "explorer", authorityGeneration: "",
-    projection: { status: "committed", rail: "settlement", amountPhiMicro: "25" }
+    projection: { status: "committed", rail: "settlement", amountPhiMicro: "25", recipientUsername: "friend" }
   });
   assert.equal(committed.transfer.phase, "committed");
   assert.equal(committed.stagedTransactionId, null);

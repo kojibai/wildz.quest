@@ -134,9 +134,10 @@ function claimCarrier(value: unknown): WildsPortableClaimCarrier {
         || instrument.plan.subjectId !== offer.subjectId
         || instrument.plan.transferId !== instrument.plan.transferDigest
         || instrument.plan.currentOwnerReceizId.length < 3
-        || !instrument.plan.policy.openBearer
         || !instrument.plan.policy.requiresRecipientAcceptance
-        || instrument.plan.policy.recipientReceizId !== null
+        || (instrument.plan.policy.openBearer
+          ? instrument.plan.policy.recipientReceizId !== null
+          : typeof instrument.plan.policy.recipientReceizId !== "string" || !instrument.plan.policy.recipientReceizId)
         || instrument.status !== "pending-acceptance") throw new Error("invalid");
       return Object.freeze({ kind: "bearer-card" as const, offer });
     } catch {

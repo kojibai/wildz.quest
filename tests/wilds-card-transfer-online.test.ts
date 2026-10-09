@@ -4,6 +4,7 @@ import { RECEIZ_V123_REGISTRY_DIGEST, digestReceizCanonicalV122 } from "@receiz/
 import { applyWildsInput, createOwnerBoundInitialPlayState } from "../src/features/play/game-state.js";
 import { issueWildsCardTransfer, claimWildsCardTransfer } from "../src/lib/receiz/wilds-card-transfer.js";
 import { projectWildsCreatureSubjectAdmissionV122 } from "../src/lib/receiz/wilds-v122-subjects.js";
+import { createWildsCardPortableClaim, encodeWildsPortableClaim, decodeWildsPortableClaim } from "../src/features/play/wilds-portable-claim";
 
 const sender = { accessToken: "sender-token", ownerReceizId: "receiz:sender", actorId: "sender", profileHandle: "sender.receiz.id" };
 const receiver = { accessToken: "receiver-token", ownerReceizId: "receiz:receiver", actorId: "receiver", profileHandle: "receiver.receiz.id" };
@@ -35,6 +36,7 @@ async function fixture() {
   let instrument: any;
   let committedReceipt: any;
   const rail = {
+    wildzWorld: { resolveRecipientIdentity: async ({ profileHandle }: { profileHandle: string }) => ({ verified: true, profileHandle, receizActorId: receiver.ownerReceizId }) },
     subjectStateV122: async () => state(),
     admitSubjectV122: async () => { throw new Error("existing source must not be re-admitted"); },
     previewBearerTransfer: async ({ subjectId, policy }: any) => ({
@@ -72,6 +74,10 @@ describe("online proof-native card transfer", () => {
     const f = await fixture();
     const offer = await issueWildsCardTransfer({ authority: sender, card: f.card, targetHandle: receiver.profileHandle, rail: f.rail as never, currentKai: 100 });
     assert.equal(f.metrics().issued, true);
+    assert.equal(offer.instrument.plan.policy.openBearer, false);
+    assert.equal(offer.instrument.plan.policy.recipientReceizId, receiver.ownerReceizId);
+    const claim = createWildsCardPortableClaim(offer);
+    assert.deepEqual(decodeWildsPortableClaim(encodeWildsPortableClaim(claim)), claim);
     assert.equal(f.metrics().ownerReceizId, sender.ownerReceizId);
     assert.equal(f.senderVault.inventory.some((card) => card.id === f.card.id), true);
     const admission = await claimWildsCardTransfer({ authority: receiver, offer, rail: f.rail as never });
@@ -92,5 +98,70 @@ describe("online proof-native card transfer", () => {
     await assert.rejects(claimWildsCardTransfer({ authority: { ...receiver, profileHandle: "intruder.receiz.id" }, offer, rail: f.rail as never }), /recipient_invalid/);
     assert.equal(f.metrics().ownerReceizId, sender.ownerReceizId);
     assert.equal(f.metrics().claims, 0);
+  });
+
+  it("preserves the existing private one-use path when no account resolver capability is installed", async () => {
+    const f = await fixture();
+    const { wildzWorld: _unused, ...withoutResolver } = f.rail;
+    const offer = await issueWildsCardTransfer({ authority: sender, card: f.card, targetHandle: "@Receiver", rail: withoutResolver as never });
+    assert.equal(offer.targetHandle, receiver.profileHandle);
+    assert.equal(offer.instrument.plan.policy.openBearer, true);
+    assert.equal(offer.instrument.plan.policy.recipientReceizId, null);
+    await assert.rejects(claimWildsCardTransfer({ authority: { ...receiver, profileHandle: "other.receiz.id" }, offer, rail: withoutResolver as never }), /recipient_invalid/);
+    assert.equal(f.metrics().claims, 0);
+    assert.equal((await claimWildsCardTransfer({ authority: receiver, offer, rail: withoutResolver as never })).receipt.nextOwnerReceizId, receiver.ownerReceizId);
+  });
+
+  it("rejects unverified or mismatched account bindings without deriving an ID from the username", async () => {
+    for (const binding of [
+      { verified: false, profileHandle: receiver.profileHandle, receizActorId: receiver.ownerReceizId },
+      { verified: true, profileHandle: "other.receiz.id", receizActorId: receiver.ownerReceizId }
+    ]) {
+      const f = await fixture();
+      f.rail.wildzWorld.resolveRecipientIdentity = async () => binding;
+      await assert.rejects(issueWildsCardTransfer({ authority: sender, card: f.card, targetHandle: receiver.profileHandle, rail: f.rail as never }), (cause: unknown) => {
+        assert.match((cause as Error).message, /recipient_binding_invalid/);
+        assert.equal((cause as { writesOnFailure?: number }).writesOnFailure, 0);
+        return true;
+      });
+      assert.equal(f.metrics().issued, false);
+    }
+  });
+
+  it("checks native recipient identity even when a claim presents the expected profile handle", async () => {
+    const f = await fixture();
+    const offer = await issueWildsCardTransfer({ authority: sender, card: f.card, targetHandle: receiver.profileHandle, rail: f.rail as never });
+    await assert.rejects(claimWildsCardTransfer({ authority: { ...receiver, ownerReceizId: "receiz:intruder" }, offer, rail: f.rail as never }), /recipient_invalid/);
+    assert.equal(f.metrics().claims, 0);
+    assert.equal(f.metrics().ownerReceizId, sender.ownerReceizId);
+  });
+
+  it("rejects a native preview that drops the verified recipient before issuing its bearer", async () => {
+    const f = await fixture(), preview = f.rail.previewBearerTransfer;
+    f.rail.previewBearerTransfer = async input => {
+      const plan = await preview(input);
+      return { ...plan, policy: { ...plan.policy, recipientReceizId: null, openBearer: true } };
+    };
+    await assert.rejects(issueWildsCardTransfer({ authority: sender, card: f.card, targetHandle: receiver.profileHandle, rail: f.rail as never }), /plan_binding_invalid/);
+    assert.equal(f.metrics().issued, false);
+  });
+
+  it("reports a known source-owner preflight rejection without locking a nonexistent offer", async () => {
+    const f = await fixture(), read = f.rail.subjectStateV122;
+    f.rail.subjectStateV122 = async () => ({ ...await read(), ownerReceizId: "receiz:other-owner" });
+    await assert.rejects(issueWildsCardTransfer({ authority: sender, card: f.card, targetHandle: receiver.profileHandle, rail: f.rail as never }), (cause: unknown) => {
+      assert.match((cause as Error).message, /owner_invalid/);
+      assert.equal((cause as { writesOnFailure?: number }).writesOnFailure, 0);
+      return true;
+    });
+    assert.equal(f.metrics().issued, false);
+  });
+
+  it("preserves historical private open-bearer offers for their original target", async () => {
+    const f = await fixture();
+    const bound = await issueWildsCardTransfer({ authority: sender, card: f.card, targetHandle: receiver.profileHandle, rail: f.rail as never });
+    const legacy = { ...bound, instrument: { ...bound.instrument, plan: { ...bound.instrument.plan, policy: { ...bound.instrument.plan.policy, openBearer: true, recipientReceizId: null } } } };
+    f.rail.inspectBearerTransferInstrument = async () => ({ valid: true, offlineVerified: true, instrument: legacy.instrument, sourcePrimitive: "receiz.bearer.instrument.v1", registryDigest: RECEIZ_V123_REGISTRY_DIGEST, reducerDigest: "3".repeat(64) });
+    assert.equal((await claimWildsCardTransfer({ authority: receiver, offer: legacy, rail: f.rail as never })).receipt.nextOwnerReceizId, receiver.ownerReceizId);
   });
 });

@@ -52,7 +52,7 @@ function HearttreeWorld({ cards, definition, reducedMotion, runtime }: { cards: 
       <WildsCreatureActor
         accent={appearance.palette.accent}
         anatomy={appearance.anatomy}
-        cadenceMs={appearance.cadenceMs}
+        cadenceMs={appearance.cadenceMs} face={appearance.face}
         familyId={activeCard.manifest.familyId}
         formId={activeCard.manifest.formId}
         glow={appearance.palette.glow}

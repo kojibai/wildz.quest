@@ -91,6 +91,7 @@ describe("proof-derived creature capability identity", () => {
         wings: { presence: "vestigial", kind: "wing", function: "glide", variant: "flightless-fan" }
       },
       morphology: { head: 1, torso: 1, limb: 1, symmetry: 0 },
+      face: projectCardKaiAppearance(card("mintcub-1", "capability:no-wings")).face,
       cadenceMs: 1200,
       fingerprint: "vestigial-test"
     };

@@ -1,6 +1,6 @@
 import { findWildsWorldRecord, type WildsWorldRecord } from "@/features/play/wilds-world-record";
 import type { WildsResourcePackageMember } from "@/features/play/wilds-resource-package";
-import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import { resolveWildsVerifiedRecipientIdentity } from "./wilds-recipient-identity";
 import {resolveResourcePackageMarketConditionalRail} from "./resource-package-market-capability";
 
 export const WILDS_RESOURCE_CUSTODY_UNAVAILABLE="receiz_conditional_resource_custody_unavailable";
@@ -46,12 +46,7 @@ export async function assertWildsFoodGatherAdmission(adapter:unknown,member:Extr
 /** Named recipients need an authenticated account binding, never a guessed ID. */
 export async function resolveWildsResourceRecipientIdentity(adapter:unknown,profileHandle:string):Promise<string> {
   requireWildsResourceCustodyRail(adapter);
-  const port=sourcePort(adapter);
-  if(!port || typeof port.resolveRecipientIdentity!=="function")throw Error("receiz_resource_recipient_binding_unavailable");
-  const result=await port.resolveRecipientIdentity.call(port,{profileHandle});
-  if(!record(result) || result.verified!==true || typeof result.receizActorId!=="string" || !result.receizActorId
-    || typeof result.profileHandle!=="string" || !sameWildzPlayerCoordinate(result.profileHandle,profileHandle))throw Error("wilds_resource_package_recipient_binding_invalid");
-  return result.receizActorId;
+  return resolveWildsVerifiedRecipientIdentity(adapter,profileHandle,{unavailable:"receiz_resource_recipient_binding_unavailable",invalid:"wilds_resource_package_recipient_binding_invalid"});
 }
 
 export function requireWildsResourceCustodyRail(adapter:unknown) {

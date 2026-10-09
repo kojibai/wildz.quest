@@ -15,6 +15,9 @@ import type { AdventureCardCondition } from "@/features/play/adventure/card-cond
 import type { WildzPreparedIdentityOwnedCard } from "@/lib/receiz/wildz-identity-adapter";
 import type { WildsResourceLotV1 } from "@/features/play/wilds-resource-lot";
 import type { WildsMaterialLotV1, WildsStewardPhiAwardV1 } from "@/features/play/wilds-steward-construction";
+import type { WildsNourishmentState } from "@/features/play/wilds-nourishment";
+import type { ExchangeCard } from "@/features/play/WildsResourceExchange";
+import type { WildsWalletAssetSend } from "./wilds-wallet-asset-send";
 
 const pages: readonly Readonly<{ page: WildsWalletPage; label: string; mark: string }>[] = [
   { page: "overview", label: "Overview", mark: "◫" }, { page: "send", label: "Send", mark: "↗" },
@@ -44,12 +47,15 @@ export type WildsWalletTerminalActions = WildsWalletSendActions & Readonly<{
   onReturnToMessages?(): void;
 }>;
 
-export function WildsWalletTerminal({ actionHistory, livingOperations, cards = [], cardConditions = {}, materialLots = [], ledgerMaterialLots, inventoryCounts, resourceLots = [], stewardPhiAwards = [], onPrepareCard, onListCard, onSendCard, onSendMaterial, onSendResource, publicUsername, state, ...actions }: {
+export function WildsWalletTerminal({ actionHistory, livingOperations, cards = [], cardConditions = {}, materialLots = [], ledgerMaterialLots, inventoryCounts, nourishment, resourceLots = [], resourceCards = [], stewardPhiAwards = [], onPrepareCard, onListCard, onSendCard, onSendMaterial, onSendResource, onSendAsset, publicUsername, state, ...actions }: {
   actionHistory?: readonly WildsActivityEntry[];
   livingOperations?: Readonly<Record<string, WildsLivingOperationPlanV1>>;
   cards?: readonly PortableCardAsset[];
   cardConditions?: Readonly<Record<string, AdventureCardCondition>>;
   resourceLots?: readonly WildsResourceLotV1[];
+  nourishment?: WildsNourishmentState;
+  resourceCards?: readonly ExchangeCard[];
+  onSendAsset?: WildsWalletAssetSend;
   materialLots?: readonly WildsMaterialLotV1[];
   ledgerMaterialLots?: readonly WildsMaterialLotV1[];
   stewardPhiAwards?: readonly WildsStewardPhiAwardV1[];
@@ -89,7 +95,7 @@ export function WildsWalletTerminal({ actionHistory, livingOperations, cards = [
         {state.page === "overview" ? <WildsWalletOverview inventoryCounts={inventoryCounts} ledgerProps={{ actionHistory, livingOperations, cards, materialLots: ledgerMaterialLots ?? materialLots, resourceLots }} state={state} stewardPhiAwards={stewardPhiAwards} onNavigate={actions.onNavigate} onRefresh={actions.onRefresh} /> : null}
         {state.page === "send" ? <WildsWalletSend state={state} {...actions} /> : null}
         {state.page === "receive" ? <WildsWalletReceive publicUsername={publicUsername} state={state} onRequestReceive={actions.onRequestReceive} /> : null}
-        {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} inventoryCounts={inventoryCounts} materialLots={materialLots} resourceLots={resourceLots} stewardPhiAwards={stewardPhiAwards} onOpenVaultCard={closeAllowed ? actions.onOpenVaultCard : undefined} onPrepareCard={onPrepareCard} onListCard={onListCard} onSendCard={onSendCard} onSendMaterial={onSendMaterial} onSendResource={onSendResource} state={state} /> : null}
+        {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} inventoryCounts={inventoryCounts} materialLots={materialLots} nourishment={nourishment} resourceLots={resourceLots} resourceCards={resourceCards} stewardPhiAwards={stewardPhiAwards} publicUsername={publicUsername} onSendAsset={onSendAsset} onOpenVaultCard={closeAllowed ? actions.onOpenVaultCard : undefined} onPrepareCard={onPrepareCard} onListCard={onListCard} onSendCard={onSendCard} onSendMaterial={onSendMaterial} onSendResource={onSendResource} state={state} /> : null}
         {state.page === "ledger" ? <WildsWalletLedger actionHistory={actionHistory} livingOperations={livingOperations} cards={cards} materialLots={ledgerMaterialLots ?? materialLots} resourceLots={resourceLots} state={state} stewardPhiAwards={stewardPhiAwards} /> : null}
       </main>
       <footer><span>RECEIZ V127 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>

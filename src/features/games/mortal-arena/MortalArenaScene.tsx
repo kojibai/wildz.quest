@@ -148,7 +148,7 @@ function ArenaFighter({ card, fighter, opponent, side }: {
       <WildsCreatureActor
         accent={appearance?.palette.accent ?? accent}
         anatomy={appearance?.anatomy}
-        cadenceMs={appearance?.cadenceMs}
+        cadenceMs={appearance?.cadenceMs} face={appearance?.face}
         familyId={familyId}
         formId={formId}
         glow={appearance?.palette.glow ?? accent}

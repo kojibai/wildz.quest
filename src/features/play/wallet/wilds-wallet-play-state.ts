@@ -1,5 +1,6 @@
 import type { PlayState } from "@/features/play/game-state";
 import type { WildsWalletReadResponse } from "./wilds-wallet-controller";
+import { availableWildsFood } from "../wilds-nourishment";
 
 export type WildsWalletPlayStateSeed = Readonly<{
   resourceUnits: number;
@@ -7,9 +8,9 @@ export type WildsWalletPlayStateSeed = Readonly<{
   unavailableCreatureCards: number;
 }>;
 
-export function projectWildsWalletPlayStateSeed(state: Pick<PlayState, "beans" | "fusionSparks" | "ascensionCatalysts" | "inventory">): WildsWalletPlayStateSeed {
+export function projectWildsWalletPlayStateSeed(state: Pick<PlayState, "beans" | "fusionSparks" | "ascensionCatalysts" | "inventory" | "playerNourishment">): WildsWalletPlayStateSeed {
   return Object.freeze({
-    resourceUnits: state.beans + state.fusionSparks + state.ascensionCatalysts.length,
+    resourceUnits: state.beans + state.fusionSparks + state.ascensionCatalysts.length + availableWildsFood(state.playerNourishment).length,
     creatureCards: state.inventory.length,
     unavailableCreatureCards: state.inventory.filter((asset) => asset.status === "listed" || asset.status === "suspended" || asset.status === "revoked").length
   });

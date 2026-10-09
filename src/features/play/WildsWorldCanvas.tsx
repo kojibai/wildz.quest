@@ -1180,7 +1180,7 @@ function ActiveCompanion({ hunt, suspended = false, world, partyCanClimb, crewTr
     : null, [activeCapabilityFamily, activeWorkSource?.sourceId]);
   return (
     <group name="active-companion" ref={group} scale={0.82}>
-      <group ref={huntMotion}><WildsCreatureActor grounded gait={gait} poseRef={presentationPose} accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} locomotion={locomotion} morphology={appearance?.morphology} pose={hunting ? "attack" : capabilityPresentation?.actorPose ?? "curious"} primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} /></group>
+      <group ref={huntMotion}><WildsCreatureActor grounded gait={gait} poseRef={presentationPose} accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} face={appearance?.face} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} locomotion={locomotion} morphology={appearance?.morphology} pose={hunting ? "attack" : capabilityPresentation?.actorPose ?? "curious"} primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} /></group>
       {capabilityPresentation ? <>
         <mesh position={[0, .035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <torusGeometry args={[.58, .025, 8, 40]} />
@@ -1220,7 +1220,7 @@ function SupportCompanion({ suspended = false, world, partyCanClimb, crewTravelR
   }, [card, currentCondition]);
   const { group, gait } = useCrewFollower({ suspended, world, travelerCanClimb, partyCanClimb, assetId: card.id, proofDigest: card.proof.digest, crewTravelRuntime, crewRelocationKey, kaiUPulse, enabled, player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance.cadenceMs, seed, offsetX: index === 0 ? 1.05 : 1.62, offsetZ: index === 0 ? .72 : 1.34 });
   return <group ref={group} name={`trail-support-${index + 1}`} scale={index === 0 ? .62 : .54}>
-    <WildsCreatureActor grounded gait={gait} locomotion="ground" accent={appearance.palette.accent} anatomy={appearance.anatomy} cadenceMs={appearance.cadenceMs} familyId={card.manifest.familyId} formId={card.manifest.formId} glow={appearance.palette.glow} identityToken={appearance.fingerprint} morphology={appearance.morphology} pose={index === 0 ? "curious" : "idle"} primary={appearance.palette.primary} secondary={appearance.palette.secondary} />
+    <WildsCreatureActor grounded gait={gait} locomotion="ground" accent={appearance.palette.accent} anatomy={appearance.anatomy} cadenceMs={appearance.cadenceMs} face={appearance.face} familyId={card.manifest.familyId} formId={card.manifest.formId} glow={appearance.palette.glow} identityToken={appearance.fingerprint} morphology={appearance.morphology} pose={index === 0 ? "curious" : "idle"} primary={appearance.palette.primary} secondary={appearance.palette.secondary} />
     <mesh position={[0, .025, 0]} rotation={[-Math.PI / 2, 0, 0]}>
       <torusGeometry args={[.4, .025, 8, 28]} />
       <meshStandardMaterial color="#dffcf0" emissive="#58c99d" emissiveIntensity={.36} transparent opacity={.72} />
@@ -1313,7 +1313,7 @@ function IndependentCrewActor({card,runtime,player,terrainElevation,spaceId}:{ca
     actor.position.set(p.x-player.x,p.y-terrainElevation,p.z-player.z);
   },-.5);
   return <group name={`independent-crew-${card.id}`} ref={group} scale={.62}>
-    <WildsCreatureActor grounded gait={gait} locomotion="ground" accent={appearance.palette.accent} anatomy={appearance.anatomy} cadenceMs={appearance.cadenceMs} familyId={card.manifest.familyId} formId={card.manifest.formId} glow={appearance.palette.glow} identityToken={appearance.fingerprint} morphology={appearance.morphology} pose="curious" primary={appearance.palette.primary} secondary={appearance.palette.secondary}/>
+    <WildsCreatureActor grounded gait={gait} locomotion="ground" accent={appearance.palette.accent} anatomy={appearance.anatomy} cadenceMs={appearance.cadenceMs} face={appearance.face} familyId={card.manifest.familyId} formId={card.manifest.formId} glow={appearance.palette.glow} identityToken={appearance.fingerprint} morphology={appearance.morphology} pose="curious" primary={appearance.palette.primary} secondary={appearance.palette.secondary}/>
     <Html center className="wilds-world-label" occlude={false} position={[0,.96,0]} zIndexRange={[10,0]}><span>{card.manifest.name}</span></Html>
   </group>;
 }
@@ -1675,7 +1675,7 @@ function Creature({
         <WildsCreatureActor
           accent={appearance?.palette.accent ?? card.accent}
           anatomy={appearance ? { ...appearance.anatomy, appendages: appearance.appendages } : undefined}
-          cadenceMs={appearance?.cadenceMs}
+          cadenceMs={appearance?.cadenceMs} face={appearance?.face}
           familyId={identity?.family.id ?? card.id}
           formId={appearance?.formId ?? formId}
           glow={appearance?.palette.glow ?? card.accent}

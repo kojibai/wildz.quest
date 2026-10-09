@@ -9,9 +9,9 @@ export type WildsWalletReadResponse = Readonly<{ summary: WalletSummaryProjectio
 export type WildsWalletRecipientState = Readonly<{ status: "idle" | "loading" | "verified" | "unavailable" | "failed"; requestId: number | null; username: string | null; projection: WalletRecipientProjection | null }>;
 export type WildsWalletTransferProjection = Readonly<
   | { status: "staged"; rail: "settlement" | "reserve"; amountPhiMicro: string; quotedUsdCents: string }
-  | { status: "unknown"; rail: "settlement" | "reserve"; amountPhiMicro: string }
+  | { status: "unknown"; rail: "settlement" | "reserve"; amountPhiMicro: string; recipientUsername?: string }
   | { status: "zero-write"; rail: "settlement" | "reserve"; code: string }
-  | { status: "committed"; rail: "settlement" | "reserve"; amountPhiMicro: string }
+  | { status: "committed"; rail: "settlement" | "reserve"; amountPhiMicro: string; recipientUsername?: string }
 >;
 export type WildsWalletStagedTransferResponse = Readonly<{
   status: "staged";
@@ -22,8 +22,10 @@ export type WildsWalletStagedTransferResponse = Readonly<{
   expiresAtKai: number;
 }>;
 export type WildsWalletTransferState = Readonly<{
-  phase: "recipient" | "amount" | "review" | "stage" | "authorize" | "authorize-pending" | "unknown" | "zero-write" | "committed";
+  phase: "recipient" | "amount" | "review" | "stage" | "authorize" | "signing" | "authorize-pending" | "unknown" | "zero-write" | "committed";
   recipientUsername: string | null;
+  /** Restored browser metadata is display-only until the sealed status confirms it. */
+  recipientVerified?: boolean;
   preparationError?: string | null;
   recipientLocator?: string | null;
   amountPhiMicro: string | null;
@@ -72,10 +74,13 @@ export type WildsWalletControllerEvent =
   | { type: "transfer-amount-reviewed"; rail: "settlement" | "reserve"; amountPhiMicro: string; operationNonce: string }
   | { type: "transfer-stage-start"; requestId: number; identityKey: string; authorityGeneration: string }
   | { type: "transfer-stage-resolved"; requestId: number; identityKey: string; authorityGeneration: string; projection: WildsWalletStagedTransferResponse }
-  | { type: "transfer-stage-failed"; requestId: number }
+  | { type: "transfer-stage-failed"; requestId: number; message?: string }
   | { type: "authorization-pointer-start"; pointerId: number }
   | { type: "authorization-pointer-cancel"; pointerId: number }
+  | { type: "transfer-signing-start"; pointerId: number }
+  | { type: "transfer-signing-failed"; pointerId: number }
   | { type: "transfer-authorize-start"; requestId: number; pointerId: number }
+  | { type: "transfer-checkpoint-failed"; requestId: number }
   | { type: "transfer-recovery-start"; requestId: number }
   | { type: "transfer-result"; requestId: number; identityKey: string; authorityGeneration: string; projection: WildsWalletTransferProjection }
   | { type: "transfer-review-expired"; currentKai: number };
@@ -119,13 +124,18 @@ function hasRetainedProjection(state: WildsWalletControllerState) { return state
 function afterCancellation(state: WildsWalletControllerState, open: boolean): WildsWalletControllerState {
   const transfer = state.transfer.phase === "authorize-pending"
     ? { ...state.transfer, phase: "unknown" as const, requestId: null, authorizationPointerId: null }
+    : state.transfer.phase === "signing"
+      ? { ...state.transfer, phase: "authorize" as const, requestId: null, authorizationPointerId: null }
     : state.transfer.phase === "stage"
       ? { ...state.transfer, phase: "review" as const, requestId: null, authorizationPointerId: null }
       : { ...state.transfer, requestId: null, authorizationPointerId: null };
   return { ...state, open, status: state.status === "loading" ? (hasRetainedProjection(state) ? "offline-verified" : "idle") : state.status, requestId: null, receiveRequestId: null, recipient: emptyRecipient, receiveLocator: null, transfer };
 }
 function clearPrivate(state: WildsWalletControllerState, status: Extract<WildsWalletControllerStatus, "authority-required" | "failed" | "revoked">): WildsWalletControllerState {
-  return { ...state, status, requestId: null, receiveRequestId: null, summary: null, capabilities: null, ledger: null, recipient: emptyRecipient, receiveLocator: null, stagedTransactionId: null, transfer: emptyTransfer };
+  const recovery = state.transfer.attempt && ["authorize-pending", "unknown"].includes(state.transfer.phase)
+    ? { ...state.transfer, phase: "unknown" as const, requestId: null, authorizationPointerId: null } : null;
+  return { ...state, status, requestId: null, receiveRequestId: null, summary: null, capabilities: null, ledger: null, recipient: emptyRecipient, receiveLocator: null,
+    stagedTransactionId: recovery?.attempt ?? null, transfer: recovery ?? emptyTransfer };
 }
 export function reduceWildsWalletController(state: WildsWalletControllerState, event: WildsWalletControllerEvent): WildsWalletControllerState {
   switch (event.type) {
@@ -164,7 +174,7 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
     case "receive-request-resolved": return state.open && state.identityKey === event.identityKey && state.receiveRequestId === event.requestId ? { ...state, receiveRequestId: null, receiveLocator: event.locator } : state;
     case "receive-request-cleared": return state.receiveLocator === null && state.receiveRequestId === null ? state : { ...state, receiveRequestId: null, receiveLocator: null };
     case "transfer-reset":
-      return ["stage", "authorize-pending", "unknown"].includes(state.transfer.phase) || state.transfer.authorizationPointerId !== null
+      return ["stage", "signing", "authorize-pending", "unknown"].includes(state.transfer.phase) || state.transfer.authorizationPointerId !== null
         ? state : { ...state, recipient: emptyRecipient, stagedTransactionId: null, transfer: emptyTransfer };
     case "transfer-edit":
       if (!["amount", "review", "authorize"].includes(state.transfer.phase) || state.transfer.authorizationPointerId !== null) return state;
@@ -173,11 +183,13 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
         recipientLocator: state.transfer.recipientLocator, amountPhiMicro: state.transfer.amountPhiMicro
       } };
     case "transfer-recipient-selected":
+      if (state.transfer.phase !== "recipient") return state;
       return { ...state, transfer: { ...emptyTransfer, phase: "amount", recipientUsername: event.username, amountPhiMicro: state.transfer.phase === "recipient" ? state.transfer.amountPhiMicro : null } };
     case "transfer-coordinate-selected":
+      if (state.transfer.phase !== "recipient") return state;
       return { ...state, transfer: { ...emptyTransfer, phase: "amount", recipientUsername: event.username, recipientLocator: event.locator, amountPhiMicro: event.amountPhiMicro } };
     case "transfer-amount-reviewed":
-      return state.transfer.recipientUsername
+      return state.transfer.phase === "amount" && state.transfer.recipientUsername
         ? { ...state, transfer: { ...state.transfer, phase: "review", amountPhiMicro: event.amountPhiMicro, rail: event.rail, operationNonce: event.operationNonce, attempt: null, expiresAtKai: null, requestId: null, result: null } }
         : state;
     case "transfer-stage-start":
@@ -196,25 +208,38 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
       };
     case "transfer-stage-failed":
       return state.transfer.phase === "stage" && state.transfer.requestId === event.requestId
-        ? { ...state, transfer: { ...state.transfer, phase: "review", requestId: null, preparationError: "Could not prepare your transfer. Nothing has been sent. Retry or edit the details." } } : state;
+        ? { ...state, transfer: { ...state.transfer, phase: "review", requestId: null, preparationError: event.message ?? "Could not prepare your transfer. Nothing has been sent. Retry or edit the details." } } : state;
     case "authorization-pointer-start":
       return state.transfer.phase === "authorize"
         ? { ...state, transfer: { ...state.transfer, authorizationPointerId: event.pointerId } } : state;
     case "authorization-pointer-cancel":
-      return state.transfer.authorizationPointerId === event.pointerId
-        ? { ...state, transfer: { ...state.transfer, authorizationPointerId: null } } : state;
-    case "transfer-authorize-start":
       return state.transfer.phase === "authorize" && state.transfer.authorizationPointerId === event.pointerId
-        ? { ...state, transfer: { ...state.transfer, phase: "authorize-pending", requestId: event.requestId, authorizationPointerId: null } }
+        ? { ...state, transfer: { ...state.transfer, authorizationPointerId: null } } : state;
+    case "transfer-signing-start":
+      return state.open && state.transfer.phase === "authorize" && state.transfer.authorizationPointerId === event.pointerId
+        ? { ...state, transfer: { ...state.transfer, phase: "signing" } } : state;
+    case "transfer-signing-failed":
+      return state.transfer.phase === "signing" && state.transfer.authorizationPointerId === event.pointerId
+        ? { ...state, transfer: { ...state.transfer, phase: "authorize", authorizationPointerId: null } } : state;
+    case "transfer-authorize-start":
+      return state.open && ["authorize", "signing"].includes(state.transfer.phase) && state.transfer.authorizationPointerId === event.pointerId
+        ? { ...state, transfer: { ...state.transfer, phase: "authorize-pending", requestId: event.requestId, authorizationPointerId: null, preparationError: null } }
         : state;
+    case "transfer-checkpoint-failed":
+      return state.transfer.phase === "authorize-pending" && state.transfer.requestId === event.requestId
+        ? { ...state, transfer: { ...state.transfer, phase: "authorize", requestId: null, authorizationPointerId: null,
+          preparationError: "Could not save this payment for safe recovery. Nothing has been sent. Allow browser storage and confirm again, or check earlier pending payments." } } : state;
     case "transfer-recovery-start":
       return state.transfer.phase === "unknown" && state.transfer.attempt
         ? { ...state, transfer: { ...state.transfer, requestId: event.requestId } } : state;
     case "transfer-result": {
       if (!state.open || state.identityKey !== event.identityKey || state.authorityGeneration !== event.authorityGeneration
         || state.transfer.requestId !== event.requestId || !state.transfer.attempt) return state;
+      const recipient = (event.projection.status === "committed" || event.projection.status === "unknown") && canonicalUsername(event.projection.recipientUsername)
+        ? event.projection.recipientUsername : null;
       const exact = event.projection.rail === state.transfer.rail
-        && (event.projection.status === "zero-write" || event.projection.amountPhiMicro === state.transfer.amountPhiMicro);
+        && (event.projection.status === "zero-write" || event.projection.amountPhiMicro === state.transfer.amountPhiMicro)
+        && (state.transfer.phase !== "unknown" || event.projection.status !== "committed" || recipient !== null);
       const projection = exact ? event.projection : { status: "unknown" as const, rail: state.transfer.rail!, amountPhiMicro: state.transfer.amountPhiMicro! };
       const phase = projection.status === "committed" ? "committed" as const
         : projection.status === "zero-write" ? "zero-write" as const
@@ -222,7 +247,8 @@ export function reduceWildsWalletController(state: WildsWalletControllerState, e
       return {
         ...state,
         stagedTransactionId: phase === "unknown" ? state.stagedTransactionId : null,
-        transfer: { ...state.transfer, phase, requestId: null, authorizationPointerId: null, result: projection }
+        transfer: { ...state.transfer, phase, requestId: null, authorizationPointerId: null, result: projection,
+          ...(exact && recipient ? { recipientUsername: recipient, recipientVerified: true } : {}) }
       };
     }
     case "transfer-review-expired":
@@ -297,9 +323,13 @@ export function admitWildsWalletTransferResponse(value: unknown): WildsWalletTra
   if (!item || !transferRail(item.rail)) throw new Error("wilds_wallet_transfer_projection_invalid");
   if (item.status === "staged" && exact(item, ["status", "rail", "amountPhiMicro", "quotedUsdCents"])
     && positiveMicro(item.amountPhiMicro) && typeof item.quotedUsdCents === "string" && /^[0-9]{1,30}$/.test(item.quotedUsdCents)) return Object.freeze(item) as WildsWalletTransferProjection;
-  if ((item.status === "unknown" || item.status === "committed") && exact(item, ["status", "rail", "amountPhiMicro"]) && positiveMicro(item.amountPhiMicro)) return Object.freeze(item) as WildsWalletTransferProjection;
+  if ((item.status === "unknown" || item.status === "committed") && exact(item, ["status", "rail", "amountPhiMicro"], ["recipientUsername"])
+    && positiveMicro(item.amountPhiMicro) && (item.recipientUsername === undefined || canonicalUsername(item.recipientUsername))) return Object.freeze(item) as WildsWalletTransferProjection;
   if (item.status === "zero-write" && exact(item, ["status", "rail", "code"]) && typeof item.code === "string" && /^[A-Z_]{3,64}$/.test(item.code)) return Object.freeze(item) as WildsWalletTransferProjection;
   throw new Error("wilds_wallet_transfer_projection_invalid");
+}
+function canonicalUsername(value: unknown): value is string {
+  try { return typeof value === "string" && normalizeWildsWalletPublicUsername(value) === value; } catch { return false; }
 }
 function isSummary(value: unknown): value is WalletSummaryProjection {
   const item = record(value);
@@ -351,6 +381,13 @@ export function hydrateWildsWalletControllerState(identityKey: string, authority
 /** A same-account session renewal changes authorization, not the last observed
  * balance. Retain its display while resetting all interactive authority. */
 export function renewWildsWalletControllerState(previous: WildsWalletControllerState, next: WildsWalletControllerState): WildsWalletControllerState {
+  // Credential renewal is not proof that a submitted payment failed. Retain
+  // the same sealed attempt until its exact status is known for this account.
+  if (previous.identityKey === next.identityKey && previous.transfer.attempt
+    && ["authorize-pending", "unknown"].includes(previous.transfer.phase)) {
+    next = { ...next, open: previous.open, page: "send", stagedTransactionId: previous.transfer.attempt,
+      transfer: { ...previous.transfer, phase: "unknown", requestId: null, authorizationPointerId: null } };
+  }
   if (previous.identityKey !== next.identityKey || !next.authorityGeneration
     || next.summary || previous.balanceBasis !== "current" || !previous.summary || !previous.capabilities
     || previous.status === "revoked" || previous.status === "authority-required") return next;

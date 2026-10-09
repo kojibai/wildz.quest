@@ -3,12 +3,11 @@
 import {
   createReceizProofAuthorityChallenge,
   receizOidcScopesForRails,
-  serializeReceizIdentityArtifact,
-  sha256ReceizBytes,
   signReceizIdentityLoginProof,
   type ReceizIdentityLoginProof
 } from "@receiz/sdk";
 import { defaultIdentityRepository } from "@/lib/receiz/wildz-identity-adapter";
+import { createWildzIdentityAuthorizationArtifact } from "@/lib/receiz/wildz-identity-authorization-artifact";
 import { WILDS_WALLET_AUTHORITY_WINDOW_PULSES } from "@/lib/receiz/wilds-wallet-authority-scopes";
 import { WILDZ_RECEIZ_APPLICATION_ID } from "@/lib/receiz/wildz-application";
 import { wildsLivingWorldConsentStatementDigest, type WildsLivingWorldAuthorizationRequest } from "./wilds-living-world-consent";
@@ -27,10 +26,9 @@ export type WildsLivingWorldAuthorizationDependencies = Readonly<{
 
 const DEFAULT_DEPENDENCIES: WildsLivingWorldAuthorizationDependencies = {
   loadIdentity: (keyId) => defaultIdentityRepository.withKeyFile(keyId, async (keyFile) => {
-    const artifact = serializeReceizIdentityArtifact(keyFile);
+    const transport = await createWildzIdentityAuthorizationArtifact(keyFile);
     return {
-      artifact,
-      artifactDigest: await sha256ReceizBytes(new TextEncoder().encode(artifact)),
+      ...transport,
       keyId: keyFile.keyId,
       sign: async (challengeB64Url) => signReceizIdentityLoginProof({ keyFile, challengeB64Url })
     };

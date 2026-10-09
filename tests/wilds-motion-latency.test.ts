@@ -6,6 +6,10 @@ import { createWildsFlightCameraControlState, writeWildsFlightCameraControlState
 import { writeUnderwaterCameraTarget, isUnderwaterCameraSubmerged } from '../src/features/play/wilds-underwater-camera';
 import { projectWildsExplorerAnatomy } from '../src/features/play/wilds-explorer-anatomy';
 import { createWildsExplorerFace, createWildsExplorerTorso } from '../src/features/play/wilds-explorer-face';
+import { createWildsExplorerHand } from '../src/features/play/wilds-explorer-hands';
+import { createWildsCreatureFace, fallbackWildsCreatureFace } from '../src/features/play/wilds-creature-face';
+import { createWildsFaceMaterial } from '../src/features/play/wilds-face-geometry';
+import { projectWildsBlinkProfile, sampleWildsBlink } from '../src/features/play/wilds-face-motion';
 import { writeWildsExplorerOrientation, writeWildsExplorerWingFlightPose } from '../src/features/play/wilds-explorer-flight-pose';
 import { playerBodyBreathExpansion } from '../src/features/play/player-breath-energy';
 import * as aerial from '../src/features/play/wilds-aerial-traversal';
@@ -25,6 +29,7 @@ import { readFileSync } from 'node:fs';
 test('battle pose changes reach the accepted pose on the first frame while ongoing animation keeps its cadence', () => {
   const actor = mountFrameComponent('src/features/play/WildsCreatureActor.tsx', ['WildsCreatureActor'], {
     ...creatureMotion, creatureForm, companionFootRows, companionFootStep, writeWildsCompanionAnimation, threeCreatureColor,
+    createWildsCreatureFace, fallbackWildsCreatureFace, createWildsFaceMaterial, projectWildsBlinkProfile, sampleWildsBlink,
     useWildsReadability: () => ({ motionScale: 1, actorEmissive: .1 }),
     useWildsCharacterTexture: () => null, useWildsNaturalTexture: () => null,
     CreatureIdentityDetail: 'identity-detail',
@@ -213,7 +218,8 @@ test('local explorer faces the accepted movement on the first frame and keeps th
   const explorer = mountFrameComponent('src/features/play/WildsExplorer.tsx', ['WildsExplorer'], {
     useWildsReadability: () => ({ motionScale: 1 }),
     palette: { skin: '#b97856', hair: '#241a17' },
-    projectWildsExplorerAnatomy, createWildsExplorerFace, createWildsExplorerTorso,
+    projectWildsExplorerAnatomy, createWildsExplorerFace, createWildsExplorerTorso, createWildsExplorerHand,
+    createWildsFaceMaterial, projectWildsBlinkProfile, sampleWildsBlink,
     useWildsCharacterTexture: () => null, useWildsNaturalTexture: () => null,
     writeWildsExplorerOrientation, writeWildsExplorerWingFlightPose, playerBodyBreathExpansion,
     Leg: 'leg', Arm: 'arm', ExplorerBackpack: 'backpack', ExplorerScubaKit: 'scuba', performance: { now: () => 1000 }

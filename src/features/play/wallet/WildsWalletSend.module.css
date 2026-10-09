@@ -1,0 +1,43 @@
+.send { gap: 20px; width: min(100%, 520px); margin: 0 auto; }
+.steps { display: flex; gap: 12px; justify-content: space-between; margin: 0; padding: 0; list-style: none; }
+.steps li { display: flex; align-items: center; gap: 7px; color: #819b92; font-size: 11px; }
+.steps li > span { display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid #39594d; border-radius: 50%; font-size: 10px; }
+.steps li[aria-current] { color: #e1fff4; font-weight: 800; }
+.steps li[aria-current] > span, .steps li[data-complete="true"] > span { border-color: #75f0be; background: #75f0be; color: #06261a; }
+.send .primary { display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; min-height: 54px; padding: 12px 18px; border-radius: 15px; background: #8bf2c0; border-color: #b0f8d6; color: #07321f; font-size: 14px; box-shadow: 0 8px 30px #40d78e17; }
+.send .primary:disabled { opacity: .55; transform: none; filter: none; cursor: default; }
+.send .secondary { min-height: 44px; color: #b5ddcc; border: 0; background: transparent; box-shadow: none; }
+.send .hint { display: flex; align-items: center; justify-content: center; gap: 6px; color: #98b2a6; font-size: 12px; line-height: 1.5; text-align: center; }
+.send .error { color: #ffd0a8; font-size: 13px; line-height: 1.5; }
+.send .recipientField input { min-height: 58px; border-radius: 14px; font-weight: 600; font-size: 18px; line-height: 1.2; }
+.send .recipientField button { border-radius: 14px; }
+.recipient { display: flex; align-items: center; justify-content: center; gap: 11px; min-width: 0; }
+.recipient > span:last-child { display: grid; gap: 3px; min-width: 0; }
+.recipient small { color: #99b5a7; font-size: 11px; }
+.recipient strong { overflow-wrap: anywhere; color: #f0fff7; font-size: 16px; }
+.avatar { display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; border-radius: 50%; color: #baffd7; border: 1px solid #7edeac55; background: #6ad49b20; font-size: 17px; font-weight: 800; }
+.amountEntry { display: grid; gap: 9px; margin: 18px 0 4px; text-align: center; }
+.amountField { display: flex; align-items: baseline; justify-content: center; gap: 7px; min-width: 0; }
+.amountField > span { color: #8bf2c0; font-size: clamp(30px, 6vw, 45px); }
+.send .amountField input { width: min(100%, 360px); height: 90px; padding: 0 4px; border: none; border-bottom: 1px solid #689c8455; border-radius: 0; background: transparent; color: #f1fff8; font: 600 clamp(29px, 5.5vw, 52px)/1.2 ui-sans-serif, system-ui, sans-serif; text-align: center; letter-spacing: -.04em; }
+.amountField input::placeholder { color: #659280; }
+.send .balance { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 7px; font-size: 12px; }
+.send .balanceButton { min-height: 32px; padding: 4px 9px; border: 0; background: #79dca91c; color: #9aedbf; box-shadow: none; font-size: 11px; }
+.review { display: grid; gap: 18px; }
+.send .heroAmount { display: flex; align-items: center; justify-content: center; gap: 12px; min-width: 0; color: #f2fff8; font: 650 clamp(25px, 5vw, 48px)/1.2 ui-sans-serif, system-ui, sans-serif; letter-spacing: -.04em; overflow-wrap: anywhere; }
+.heroAmount > span:last-child { min-width: 0; }
+.heroAmount[data-compact="true"] { font-size: clamp(18px, 3.2vw, 30px); }
+.details { display: grid; gap: 0; width: 100%; min-width: 0; margin: 0; padding: 2px 16px; border: 1px solid #71998133; border-radius: 16px; background: #06140e38; }
+.details > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; font-size: 12px; }
+.details > div + div { border-top: 1px solid #8dbaa521; }
+.details dt { color: #95ae9f; }
+.details dd { min-width: 0; margin: 0; color: #edfdf3; text-align: right; overflow-wrap: anywhere; }
+.outcome { display: grid; place-items: center; gap: 18px; padding: 18px 0; text-align: center; }
+.successMark, .pendingMark, .errorMark { display: grid; place-items: center; width: 82px; height: 82px; border-radius: 50%; }
+.successMark { background: #a3f7c8; color: #0a3921; box-shadow: 0 0 45px #81e8b228; }
+.pendingMark { color: #a5e8c7; background: #74c6a224; }
+.errorMark { color: #ffc895; background: #f2b2721a; }
+.spinner { animation: rotate 1s linear infinite; }
+@keyframes rotate { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+@media (max-width: 440px) { .send { gap: 16px; } .steps { gap: 6px; } .steps li { font-size: 10px; } .details { padding-inline: 12px; } }

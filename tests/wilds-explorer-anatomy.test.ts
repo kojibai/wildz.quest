@@ -16,3 +16,30 @@ test("detailed faces stay batched and remote geometry uses fewer vertices",()=>{
   assert.ok(local.getAttribute("color").count===local.getAttribute("position").count);
   for(const geometry of [local,remote,body]){assert.ok([...geometry.getAttribute("position").array].every(Number.isFinite));geometry.dispose();}
 });
+
+test("explorer eyelids can fully close in the existing face draw without changing skull vertices", () => {
+  const geometry = createWildsExplorerFace(projectWildsExplorerAnatomy("alder"), "#b97856", "#241a17");
+  const positions = geometry.getAttribute("position");
+  const closed = geometry.getAttribute("faceClosed");
+  assert.ok(closed, "face geometry needs its closed eyelid pose");
+  assert.equal(closed.count, positions.count);
+  let changed = 0;
+  for (let i = 0; i < positions.count; i++) {
+    assert.ok(Number.isFinite(closed.getY(i)));
+    if (Math.abs(closed.getY(i) - positions.getY(i)) > .0001) changed++;
+    if (positions.getY(i) > .12) assert.equal(closed.getY(i), positions.getY(i));
+  }
+  assert.ok(changed > 40, "both eyelids must have an animated closing surface");
+  assert.equal(geometry.groups.length, 0);
+  assert.ok(geometry.index!.count / 3 <= 2348, "facial detail must fit the previous local triangle budget");
+  geometry.dispose();
+});
+
+test("new facial detail remains stable across canonical identity aliases and differs across explorers", () => {
+  const anatomy = projectWildsExplorerAnatomy("Explorer.receiz.id");
+  assert.ok("detail" in anatomy, "explorer should have individual facial detail");
+  assert.deepEqual(anatomy, projectWildsExplorerAnatomy("@explorer"));
+  const profiles = Array.from({ length: 256 }, (_, i) => projectWildsExplorerAnatomy(`face_${i}`));
+  assert.ok(profiles.every(p => "detail" in p));
+  assert.equal(new Set(profiles.map(p => JSON.stringify((p as typeof anatomy).detail))).size, 256);
+});

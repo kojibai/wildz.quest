@@ -35,7 +35,11 @@ import {projectPlayerBreathState, playerBreathReadout} from "./player-breath-ene
 import type { CreationCompileContext } from "./creation/compiler";
 import creationPanelClasses from "./creation/creation.module.css";
 import { useWildsResourceExchange } from './use-wilds-resource-exchange';
-import { foodUnavailableForExchange } from './wilds-resource-exchange-inventory';
+import { foodUnavailableForExchange, projectResourceExchangeInventory } from './wilds-resource-exchange-inventory';
+import { verifyWildsResourcePackage } from './wilds-resource-package';
+import { createWildsWalletAssetSendDriver } from './wallet/wilds-wallet-asset-send-driver';
+import { wildsWalletBrowserAssetSendRecoveryStore } from './wallet/wilds-wallet-asset-send-recovery';
+import type { WildsWalletAssetSendRequest } from './wallet/wilds-wallet-asset-send';
 import { reconcileWildsNourishmentCustody, recoverWildsUnpackedPackageFood } from './wilds-nourishment';
 import { hasRecoverableWildsNativeFood, recoverWildsNativeFoodFuel } from './wilds-food-fuel-recovery';
 const WildsResourceExchange=dynamic(()=>import('./WildsResourceExchange').then(module=>module.WildsResourceExchange),{ssr:false});
@@ -279,7 +283,7 @@ function groveConsequence(action: WildsGroveActionKind) {
     compost: "The soil deepens for everything growing here.",
     cultivate: "The grove matures under patient care.",
     "transform-nectar": "Nectar becomes nourishment that can be shared.",
-    "harvest-honey": "Living honey nourishes beings beyond the hive.",
+    "harvest-honey": "Collect 1 Living Honey into Wallet Resources.",
     "build-hive": "A hive shelters future pollinators.",
     "build-nursery": "A nursery protects the next generation.",
     repair: "The grove's worn structures become sound again."
@@ -565,12 +569,14 @@ export function PlayCampaign({
     ascensionCatalysts: state.ascensionCatalysts,
     beans: state.beans,
     fusionSparks: state.fusionSparks,
-    inventory: state.inventory
+    inventory: state.inventory,
+    playerNourishment: state.playerNourishment
   }), [
     state.ascensionCatalysts,
     state.beans,
     state.fusionSparks,
-    state.inventory
+    state.inventory,
+    state.playerNourishment
   ]);
   const walletPlayStateSeedRef = useRef(walletPlayStateSeed);
   walletPlayStateSeedRef.current = walletPlayStateSeed;
@@ -618,6 +624,7 @@ export function PlayCampaign({
   const [activeEcologySiteId, setActiveEcologySiteId] = useState<string | null>(null);
   const [activeGroveId, setActiveGroveId] = useState<string | null>(null);
   const [groveBusyAction, setGroveBusyAction] = useState<WildsGroveActionKind | null>(null);
+  const [groveCollectedHoney, setGroveCollectedHoney] = useState(false);
   const [activeRaid, setActiveRaid] = useState<{ bossId: string; roundId: string; placement: "fighter" | "support"; connected: boolean } | null>(null);
   const [raidReturnPosition, setRaidReturnPosition] = useState<{ x: number; z: number } | null>(null);
   const [raidError, setRaidError] = useState<string | null>(null);
@@ -1010,6 +1017,85 @@ export function PlayCampaign({
     authorize: walletController.secureTransferAuthority, readKai: readActionKaiUPulse, feedback: showWorldFeedback,
     credit: update => setState(current => ({ ...current, playerNourishment: update(current.playerNourishment) }))
   });
+  const [walletAssetSendDriver] = useState(() => createWildsWalletAssetSendDriver({ recoveryStore: wildsWalletBrowserAssetSendRecoveryStore }));
+  const walletAssetSendLive = useRef({ ownerReceizId, state, livingWorld, resourceExchange, messenger, walletController });
+  walletAssetSendLive.current = { ownerReceizId, state, livingWorld, resourceExchange, messenger, walletController };
+  const sendWalletAsset = useCallback((request: WildsWalletAssetSendRequest) => {
+    const owner = walletAssetSendLive.current.ownerReceizId;
+    const current = () => {
+      const live = walletAssetSendLive.current;
+      if (!sameWildzPlayerCoordinate(live.ownerReceizId, owner)) throw Error("The signed-in Explorer changed. Reopen the wallet.");
+      return live;
+    };
+    return walletAssetSendDriver.send(request, {
+      owner,
+      currentOwner: () => walletAssetSendLive.current.ownerReceizId,
+      authorize: () => current().walletController.secureTransferAuthority(),
+      packageMemberIds: id => current().livingWorld.currentSource()?.resourcePackages?.[id]?.package.members.map(member => member.id) ?? [],
+      validateRecoveryPackage: async (exact, packageId) => {
+        await current().livingWorld.refresh();
+        const record = current().livingWorld.currentSource()?.resourcePackages?.[packageId];
+        if (!record || !verifyWildsResourcePackage(record.package) || !sameWildzPlayerCoordinate(record.ownerReceizId, owner)
+          || !["packed", "issuing", "offered"].includes(record.status)) throw Error("The saved resource card cannot be recovered from its canonical custody source yet.");
+        const boundRecipient = record.status === "offered" ? record.offer?.targetHandle : record.status === "issuing" ? record.transferTargetHandle : undefined;
+        if (boundRecipient !== undefined && !sameWildzPlayerCoordinate(boundRecipient ?? "", exact.recipientHandle)) throw Error("The saved resource card belongs to a different recipient offer.");
+        if (exact.asset.kind === "inventory") {
+          const expected = [...exact.asset.foodItemIds.map(id => `food:${id}`), ...exact.asset.materialLotIds.map(id => `material:${id}`), ...exact.asset.resourceLotIds.map(id => `resource:${id}`)].sort();
+          if (record.package.commandId !== exact.attemptId || !sameWildzPlayerCoordinate(record.package.ownerReceizId, owner)
+            || JSON.stringify(record.package.members.map(member => `${member.kind}:${member.id}`).sort()) !== JSON.stringify(expected)) throw Error("The saved resource card does not match the original exact selection.");
+        } else if (exact.asset.kind !== "package" || exact.asset.packageId !== packageId) throw Error("The saved resource card does not match the original package.");
+      },
+      validate: async exact => {
+        if (exact.asset.kind === "creature") {
+          const assetId = exact.asset.assetId;
+          await current().messenger.refreshInbox(true);
+          const card = current().state.inventory.find(asset => asset.id === assetId);
+          if (!card || ["listed", "suspended", "revoked"].includes(card.status)) throw Error("This creature is unavailable to send. Refresh its wallet card.");
+          return;
+        }
+        await current().livingWorld.refresh();
+        const live = current(), world = live.livingWorld.currentSource();
+        if (exact.asset.kind === "package") {
+          const record = world?.resourcePackages?.[exact.asset.packageId];
+          if (!record || !sameWildzPlayerCoordinate(record.ownerReceizId, owner) || !["packed", "issuing", "offered"].includes(record.status)) throw Error("This resource card is unavailable to send. Refresh your wallet.");
+          const boundRecipient = record.status === "offered" ? record.offer?.targetHandle : record.status === "issuing" ? record.transferTargetHandle : undefined;
+          if (boundRecipient !== undefined && !sameWildzPlayerCoordinate(boundRecipient ?? "", exact.recipientHandle)) throw Error("This resource card already has a different pending recipient. Open its original offer.");
+          return;
+        }
+        const available = projectResourceExchangeInventory(world, live.state.playerNourishment, owner).items;
+        const availableIds = new Set(available.map(item => item.id));
+        const foodIds = new Set(available.filter(item => item.food).map(item => item.id));
+        if (exact.asset.foodItemIds.some(id => !foodIds.has(id))
+          || exact.asset.materialLotIds.some(id => !availableIds.has(id) || !world?.materialLots[id])
+          || exact.asset.resourceLotIds.some(id => !availableIds.has(id) || !world?.resourceLots[id])) throw Error("Some selected resources are no longer available. Refresh your wallet and review the quantity again.");
+      },
+      findCreatureDelivery: (assetId, recipient) => current().messenger.hasPublishedCardOffer(assetId, recipient),
+      issueCreatureOffer: async (assetId, recipient) => {
+        const card = current().state.inventory.find(asset => asset.id === assetId);
+        if (!card) throw Error("This creature is no longer in your wallet.");
+        const offer = await current().messenger.sendCardOffer(card, recipient);
+        if (offer.card.id !== card.id || offer.card.proof.digest !== card.proof.digest || !sameWildzPlayerCoordinate(offer.targetHandle, recipient)) throw Error("The creature offer is still syncing. Check Messages for its saved claim.");
+      },
+      createInventoryPackage: async exact => {
+        if (exact.asset.kind !== "inventory") throw Error("Review the exact resource selection again.");
+        const response = await fetch("/api/wilds/resources/packages", {
+          method: "POST", credentials: "same-origin", cache: "no-store", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ commandId: exact.attemptId, foodItemIds: exact.asset.foodItemIds, materialLotIds: exact.asset.materialLotIds, resourceLotIds: exact.asset.resourceLotIds, nourishment: current().state.playerNourishment })
+        });
+        const payload = await response.json().catch(() => null) as { package?: unknown; world?: { projection?: WildsWorldProjection }; error?: string } | null;
+        if (!response.ok || !verifyWildsResourcePackage(payload?.package) || !payload?.world?.projection) throw Error(payload?.error ?? "The resource card is still syncing.");
+        const proof = payload.package;
+        const expected = [...exact.asset.foodItemIds.map(id => `food:${id}`), ...exact.asset.materialLotIds.map(id => `material:${id}`), ...exact.asset.resourceLotIds.map(id => `resource:${id}`)].sort();
+        if (proof.commandId !== exact.attemptId || !sameWildzPlayerCoordinate(proof.ownerReceizId, owner)
+          || JSON.stringify(proof.members.map(member => `${member.kind}:${member.id}`).sort()) !== JSON.stringify(expected)
+          || payload.world.projection.resourcePackages?.[proof.packageId]?.package.head !== proof.head) throw Error("The exact resource card is still syncing.");
+        current().livingWorld.adoptServerWorld(payload.world.projection);
+        return proof.packageId;
+      },
+      transferPackage: (id, recipient) => current().resourceExchange.actions.transfer(id, recipient),
+      deliverResourceClaim: (recipient, claim) => current().resourceExchange.actions.message({ id: recipient, handle: recipient }, claim)
+    });
+  }, [walletAssetSendDriver]);
   const [foodSavePending,setFoodSavePending]=useState(false);
   const foodSaveInFlight=useRef(false);
   useEffect(() => {
@@ -1690,15 +1776,21 @@ export function PlayCampaign({
   }, [activeGrove, activeGroveMandate, kaiMoment, livingWorld.snapshot, ownerReceizId]);
   const activeGroveActions = useMemo<WildsGroveExperienceAction[]>(() => activeGrovePreviews.map((preview) => ({
     action: preview.action,
-    valid: preview.valid && Boolean(activeGroveMandate),
-    reason: preview.valid && activeGroveMandate ? null : groveReason(preview.reasons[0]),
+    valid: preview.valid,
+    reason: preview.valid ? null : groveReason(preview.reasons[0]),
     consequence: groveConsequence(preview.action),
     amountPhiMicro: preview.emission.amountPhiMicro
-  })), [activeGroveMandate, activeGrovePreviews]);
+  })), [activeGrovePreviews]);
   const availableMaterialLots = useMemo(() => Object.values(livingWorld.snapshot?.materialLots ?? {})
     .filter((lot) => sameWildzPlayerCoordinate(livingWorld.snapshot ? wildsMaterialCustodian(livingWorld.snapshot, lot) : lot.ownerReceizId, ownerReceizId) && !livingWorld.snapshot?.consumedMaterialLots?.[lot.lotId]
       && !livingWorld.snapshot?.storedMaterialLots?.[lot.lotId] && !livingWorld.snapshot?.reservedMaterialLots?.[lot.lotId])
     .sort((left, right) => left.lotId.localeCompare(right.lotId)), [livingWorld.snapshot, ownerReceizId]);
+  const availableWalletResourceLots = useMemo(() => Object.values(livingWorld.snapshot?.resourceLots ?? {})
+    .filter((lot) => sameWildzPlayerCoordinate(livingWorld.snapshot?.resourceCustody?.[lot.lotId]?.ownerReceizId ?? lot.ownerReceizId, ownerReceizId)
+      && !livingWorld.snapshot?.reservedResourceLots?.[lot.lotId]), [livingWorld.snapshot, ownerReceizId]);
+  const walletPackagedResourceUnits = useMemo(() => Object.values(livingWorld.snapshot?.resourcePackages ?? {})
+    .filter(record => record.status !== "unpacked" && sameWildzPlayerCoordinate(record.ownerReceizId, ownerReceizId))
+    .reduce((total, record) => total + record.package.members.reduce((units, member) => units + (member.kind === "resource" ? member.resourceLot.quantity : 1), 0), 0), [livingWorld.snapshot?.resourcePackages, ownerReceizId]);
   const stewardMaterials = useMemo(() => ({
     hay: availableMaterialLots.filter((lot) => lot.kind === "hay").length,
     timber: availableMaterialLots.filter((lot) => lot.kind === "timber").length,
@@ -2640,6 +2732,7 @@ export function PlayCampaign({
     if (pulse.kind === "tend") {
       if (!nearbyGrove || nearbyGrove.grove.groveId !== pulse.groveId) return;
       claimPlayModalOwner("ecology");
+      setGroveCollectedHoney(false);
       setActiveGroveId(pulse.groveId);
       return;
     }
@@ -3421,15 +3514,18 @@ export function PlayCampaign({
             />
 
             {exclusiveOwner === "wallet" ? <WildsWalletTerminal
-              inventoryCounts={{ resourceUnits: walletPlayStateSeed.resourceUnits + availableMaterialLots.length + Object.values(livingWorld.snapshot?.resourceLots ?? {}).filter((lot) => sameWildzPlayerCoordinate(livingWorld.snapshot?.resourceCustody?.[lot.lotId]?.ownerReceizId ?? lot.ownerReceizId, ownerReceizId)).reduce((total, lot) => total + lot.quantity, 0), creatureCards: state.inventory.length }}
+              inventoryCounts={{ resourceUnits: projectWildsWalletPlayStateSeed({ ...state, playerNourishment: resourceExchange.nourishment }).resourceUnits + availableMaterialLots.length + availableWalletResourceLots.reduce((total, lot) => total + lot.quantity, 0) + walletPackagedResourceUnits, creatureCards: state.inventory.length }}
               actionHistory={state.actionHistory}
               livingOperations={livingWorld.snapshot?.livingOperations}
               cards={state.inventory}
               cardConditions={state.adventureConditions}
               materialLots={availableMaterialLots}
+              nourishment={resourceExchange.nourishment}
               ledgerMaterialLots={Object.values(livingWorld.snapshot?.materialLots ?? {}).filter((lot) => sameWildzPlayerCoordinate(livingWorld.snapshot ? wildsMaterialCustodian(livingWorld.snapshot, lot) : lot.ownerReceizId, ownerReceizId))}
               stewardPhiAwards={stewardPhiAwards}
-              resourceLots={Object.values(livingWorld.snapshot?.resourceLots ?? {}).filter((lot) => sameWildzPlayerCoordinate(livingWorld.snapshot?.resourceCustody?.[lot.lotId]?.ownerReceizId ?? lot.ownerReceizId, ownerReceizId))}
+              resourceLots={availableWalletResourceLots}
+              resourceCards={resourceExchange.cards}
+              onSendAsset={sendWalletAsset}
               publicUsername={walletPublicUsername}
               state={walletController}
               onPrepareCard={(asset) => onPrepareCard(asset, createWildsPlayerVault({
@@ -3775,9 +3871,10 @@ export function PlayCampaign({
         busyAction={groveBusyAction}
         reconnecting={groveBusyAction !== null && livingWorld.mode === "receiz_recovery_pending"}
         error={riftError || null}
+        collectedHoney={groveCollectedHoney}
         onAction={(action) => {
           const preview = activeGrovePreviews.find((candidate) => candidate.action === action);
-          if (!preview?.valid || !activeGroveMandate || groveBusyAction) return;
+          if (!preview?.valid || groveBusyAction) return;
           const emission = wildsWorldSourceEmission(livingWorld.snapshot);
           const nextGrove = admitWildsGroveAction({ grove: activeGrove, preview });
           const nextEmission = admitWildsEmissionOutcome({
@@ -3793,14 +3890,28 @@ export function PlayCampaign({
             admittedGrove: { groveId: nextGrove.groveId, head: nextGrove.head, parentHead: nextGrove.parentHead, honey: nextGrove.materials.honey }
           });
           setGroveBusyAction(action);
+          setGroveCollectedHoney(false);
           beginWorldActionFeedback();
           void livingWorld.actInGrove(preview.operation, nextGrove, nextEmission, preview.emission.amountPhiMicro, resourceLot)
             .then((projection) => {
               const admitted = projection.groves[activeGrove.groveId];
               if (!admitted || admitted.head !== nextGrove.head) throw new Error("wilds_grove_admission_missing");
+              if (resourceLot) {
+                const collected = projection.resourceLots[resourceLot.lotId];
+                const custodian = projection.resourceCustody[resourceLot.lotId]?.ownerReceizId ?? collected?.ownerReceizId;
+                if (collected?.head !== resourceLot.head || !sameWildzPlayerCoordinate(custodian, ownerReceizId)) {
+                  throw new Error("wilds_grove_resource_admission_missing");
+                }
+                setGroveCollectedHoney(true);
+              }
             })
             .catch((cause) => showWorldFeedback(friendlyWildsGameplayError(cause, "The grove is holding this work safely. Try again.")))
             .finally(() => setGroveBusyAction(null));
+        }}
+        onOpenWallet={() => {
+          walletController.navigate("assets");
+          claimPlayModalOwner("wallet");
+          walletController.openTerminal();
         }}
         onExit={() => {
           releasePlayModalOwner("ecology");

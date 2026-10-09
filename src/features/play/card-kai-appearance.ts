@@ -2,7 +2,7 @@ import { creatureForm } from "./creature-catalog";
 import type { CardVariantTraits } from "./card-variant";
 import { deriveKaiCreatureBirth, type KaiCreatureBirthProfile } from "./kai-creature-birth";
 import { deriveKaiKlokMoment } from "./kai-klok-moment";
-import { projectCardCreatureVisualIdentity, type CreatureVisualAppendages } from "./creature-visual-identity";
+import { projectCardCreatureVisualIdentity, type CreatureVisualAppendages, type CreatureVisualFace } from "./creature-visual-identity";
 import type { PortableCardAsset } from "./portable-card";
 import type { LivingCreatureIdentityV3 } from "./living-taxonomy";
 
@@ -26,6 +26,7 @@ export type CardKaiAppearance = {
     appendages: CreatureVisualAppendages;
   };
   cadenceMs: number;
+  face: CreatureVisualFace;
   fingerprint: string;
   discoveryIdentity?: LivingCreatureIdentityV3;
 };
@@ -64,6 +65,7 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
       anatomy,
       morphology: visual.morphology,
       cadenceMs: visual.cadenceMs,
+      face: visual.face,
       fingerprint: visual.fingerprint,
       discoveryIdentity: identity
     };
@@ -78,6 +80,7 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
       anatomy,
       morphology: visual.morphology,
       cadenceMs: visual.cadenceMs,
+      face: visual.face,
       fingerprint: visual.fingerprint
     };
   }
@@ -92,6 +95,7 @@ export function projectCardKaiAppearance(asset: PortableCardAsset): CardKaiAppea
     anatomy,
     morphology: visual.morphology,
     cadenceMs: visual.cadenceMs,
+    face: visual.face,
     fingerprint: visual.fingerprint
   };
 }

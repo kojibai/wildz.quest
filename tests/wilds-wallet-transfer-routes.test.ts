@@ -300,6 +300,14 @@ describe("Wilds wallet V123 transfer routes", () => {
     const duplicate = await first.preview(ACTOR, command) as { status: string };
     assert.equal(duplicate.status, "staged");
     assert.equal(stages, 1);
+    assert.deepEqual(await first.status(ACTOR, staged.attempt), {
+      status: "unknown", rail: "settlement", amountPhiMicro: "25", recipientUsername: "kai_01"
+    });
+    const attemptParts = staged.attempt.split(".");
+    const attemptCiphertext = Buffer.from(attemptParts[2], "base64url");
+    attemptCiphertext[0] ^= 1;
+    attemptParts[2] = attemptCiphertext.toString("base64url");
+    await assert.rejects(second.status(ACTOR, attemptParts.join(".")), /wilds_wallet_transfer_attempt_invalid/);
     await assert.rejects(second.execute(ACTOR, {
       attempt: staged.attempt,
       consent: { artifact: "identity-artifact", challenge: { consent: { statementDigest: "0".repeat(64) } } }

@@ -15,6 +15,8 @@ import {
   type ReceizDurableExecutionHandleV124,
   type ReceizExecutionOutcomeV124,
   type ReceizProofAuthorityChallengeV123,
+  type ReceizOperationPlanV124,
+  type ReceizPortableExecutionTransitionSetV124,
   type ReceizSubjectStateV122,
   type ReceizValueRailV122
 } from "@receiz/sdk";
@@ -38,7 +40,7 @@ type Rail = Pick<ReceizCommerceAdapter,
   | "qualifyRuntimeV124"
   | "openAuthoritySessionV124"
   | "closeAuthoritySessionV124"
-  | "stageExecutionV124"
+  | "stagePreparedExecutionV124"
   | "executeV124"
   | "resolveExecutionByIdempotencyV124"
   | "resolvePublicRecipientV124"
@@ -70,6 +72,21 @@ type Attempt = Readonly<{
   issuedAtKai: number;
   reviewExpiresAtKai: number;
   handleExpiresAtKai: number;
+}>;
+
+/** Supplied only by the deployment's real held-artifact/identity source bridge. */
+export type WildsWalletV124ExecutionSource = Readonly<{
+  serverDerived: true;
+  rails: readonly ReceizValueRailV122[];
+  prepare(input: Readonly<{
+    authority: WildsWalletReadAuthority;
+    rail: Rail;
+    attempt: Attempt;
+    state: ReceizSubjectStateV122;
+    plan: ReceizOperationPlanV124;
+    session: Awaited<ReturnType<Rail["openAuthoritySessionV124"]>>;
+    subjectSourceArtifact: Awaited<ReturnType<typeof transportReceizSealedArtifactV124>>;
+  }>): Promise<ReceizPortableExecutionTransitionSetV124 | null>;
 }>;
 
 const VERSION = "v2";
@@ -195,7 +212,7 @@ function semanticKey(authority: WildsWalletReadAuthority, operationNonce: string
 }
 
 function transferProjection(outcome: ReceizExecutionOutcomeV124, attempt: Attempt) {
-  if (outcome.status === "committed") return Object.freeze({ status: "committed" as const, rail: attempt.rail, amountPhiMicro: attempt.amountPhiMicro });
+  if (outcome.status === "committed") return Object.freeze({ status: "committed" as const, rail: attempt.rail, amountPhiMicro: attempt.amountPhiMicro, recipientUsername: attempt.recipientUsername });
   if (outcome.status === "unknown") return Object.freeze({ status: "unknown" as const, rail: attempt.rail, amountPhiMicro: attempt.amountPhiMicro });
   return Object.freeze({ status: "zero-write" as const, rail: attempt.rail, code: outcome.reasonCode });
 }
@@ -246,10 +263,13 @@ export function createWildsWalletV124TransferRuntime(input: Readonly<{
   secret?: string;
   now?: () => number;
   subjectSource?: (rail: Rail, state: ReceizSubjectStateV122, attempt: Attempt) => Promise<Awaited<ReturnType<typeof transportReceizSealedArtifactV124>>>;
+  executionSource?: WildsWalletV124ExecutionSource;
 }> = { createAdapter: (accessToken) => createReceizCommerceAdapter({ accessToken }) }): WildsWalletTransferRouteRuntime {
   const secret = input.secret ?? receizOAuthSecret();
   const currentKai = input.now ?? (() => receizKaiNow().pulse);
   const prepareSubjectSource = input.subjectSource ?? sealSubjectSource;
+  const hasExecutionSource = (rail: ReceizValueRailV122) => input.executionSource?.serverDerived === true
+    && input.executionSource.rails.includes(rail) && typeof input.executionSource.prepare === "function";
   if (Buffer.byteLength(secret, "utf8") < 32) throw new Error("receiz_wallet_transfer_dependencies_unavailable");
 
   const openAttempt = (authority: WildsWalletReadAuthority, value: string) => {
@@ -275,8 +295,8 @@ export function createWildsWalletV124TransferRuntime(input: Readonly<{
         sdkVersion: RECEIZ_SDK_VERSION,
         rails: {
           proofAuthorityExchange: qualification.available,
-          settlementExecution: qualification.available,
-          reserveExecution: qualification.available,
+          settlementExecution: qualification.available && hasExecutionSource("settlement"),
+          reserveExecution: qualification.available && hasExecutionSource("reserve"),
           valueExecutionRecovery: qualification.available,
           worldPlanning: qualification.available,
           worldExecution: qualification.available,
@@ -286,6 +306,7 @@ export function createWildsWalletV124TransferRuntime(input: Readonly<{
       });
     },
     async preview(authority, command: WildsWalletTransferPreviewCommand) {
+      if (!hasExecutionSource(command.rail)) throw new Error("receiz_wallet_transfer_source_unavailable");
       let recipientUsername = command.recipientUsername;
       if (!recipientUsername && command.recipientLocator?.startsWith("wildz:receive:")) {
         const item = record(unseal(command.recipientLocator.slice("wildz:receive:".length), secret, RECEIVE_PURPOSE));
@@ -350,6 +371,7 @@ export function createWildsWalletV124TransferRuntime(input: Readonly<{
     },
     async execute(authority, request) {
       const { attempt, now } = openAttempt(authority, request.attempt);
+      if (!hasExecutionSource(attempt.rail)) return Object.freeze({ status: "zero-write" as const, rail: attempt.rail, code: "SOURCE_UNAVAILABLE" });
       if (now >= attempt.reviewExpiresAtKai) throw new Error("wilds_wallet_transfer_review_expired");
       const consent = request.consent as { artifact?: unknown; challenge?: ReceizProofAuthorityChallengeV123 };
       const expectedStatementDigest = await wildsWalletTransferConsentStatementDigest({
@@ -396,7 +418,10 @@ export function createWildsWalletV124TransferRuntime(input: Readonly<{
           purpose: `wildz.phi.${attempt.rail}`,
           operationNonce: attempt.recipientOperationNonce
         });
-        if (recipient.status !== "resolved") throw new Error("receiz_wallet_recipient_unavailable");
+        // The SDK conclusively refused the destination before a value plan was
+        // staged. Surface that known no-write result; transport errors remain
+        // ambiguous and still use exact idempotency recovery.
+        if (recipient.status !== "resolved") return Object.freeze({ status: "zero-write" as const, rail: attempt.rail, code: "RECIPIENT_UNAVAILABLE" });
         const intent = await planReceizLocatorBoundValueIntentV124({
           rail: attempt.rail,
           amountPhiMicro: attempt.amountPhiMicro,
@@ -430,7 +455,11 @@ export function createWildsWalletV124TransferRuntime(input: Readonly<{
           semanticIdempotencyKey: attempt.semanticIdempotencyKey,
           attemptId: `wildz:${attempt.operationNonce}`
         });
-        handle = await rail.stageExecutionV124(plan);
+        const transitionSet = await input.executionSource!.prepare({ authority, rail, attempt, state, plan, session, subjectSourceArtifact });
+        if (!transitionSet) return Object.freeze({ status: "zero-write" as const, rail: attempt.rail, code: "SOURCE_UNAVAILABLE" });
+        // SDK128 validates every exact predecessor, candidate, capability and
+        // participant head here. A source seal or plan alone cannot execute.
+        handle = await rail.stagePreparedExecutionV124(plan, transitionSet);
         return transferProjection(await rail.executeV124(handle, session), attempt);
       } catch (cause) {
         if (cause instanceof ReceizExecutionZeroWriteErrorV124) {

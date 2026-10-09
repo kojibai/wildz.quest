@@ -205,8 +205,10 @@ test("ambiguous HTTP 401 clears the shared cache and live diagnostics stay uncha
 
 test("driver deduplicates staging, requires an armed pointer, and recovers an ambiguous exact attempt", async () => {
   const calls: string[] = [];
+  let checkpoint: unknown;
   const driver = createWildsWalletControllerDriver({
     identityKey: "kai", authorityGeneration: "issued-1", publish: () => {},
+    recoveryStore: { load: () => checkpoint, write: (_identity, value) => { checkpoint = value; }, delete: () => { checkpoint = undefined; } },
     fetcher: async (path) => {
       calls.push(path);
       if (path.endsWith("/preview")) return {
@@ -219,7 +221,7 @@ test("driver deduplicates staging, requires an armed pointer, and recovers an am
       };
       if (path.includes("/status?")) return {
         ok: true, status: 200,
-        json: async () => ({ status: "committed", rail: "settlement", amountPhiMicro: "25" })
+        json: async () => ({ status: "committed", rail: "settlement", amountPhiMicro: "25", recipientUsername: "friend" })
       };
       const part = path.endsWith("summary") ? response().summary : path.endsWith("capabilities") ? response().capabilities : response().ledger;
       return { ok: true, status: 200, json: async () => part };
@@ -227,7 +229,7 @@ test("driver deduplicates staging, requires an armed pointer, and recovers an am
   });
   driver.open();
   driver.selectTransferRecipient("friend");
-  driver.reviewTransferAmount("settlement", "25", "nonce-1");
+  driver.reviewTransferAmount("settlement", "25", "nonce-one");
   const stage = driver.stageTransfer();
   assert.equal(driver.stageTransfer(), stage);
   await stage;
@@ -264,8 +266,10 @@ test("a scanned receiving QR stages against its sealed locator and keeps its pro
 
 test("driver converts malformed execution success to unknown and cancellation cannot publish a late commit", async () => {
   let resolveExecute!: (value: { ok: boolean; status: number; json(): Promise<unknown> }) => void;
+  let checkpoint: unknown;
   const driver = createWildsWalletControllerDriver({
     identityKey: "kai", authorityGeneration: "issued-1", publish: () => {},
+    recoveryStore: { load: () => checkpoint, write: (_identity, value) => { checkpoint = value; }, delete: () => { checkpoint = undefined; } },
     fetcher: async (path) => {
       if (path.endsWith("/preview")) return { ok: true, status: 200, json: async () => ({ status: "staged", rail: "settlement", amountPhiMicro: "25", quotedUsdCents: "1", attempt: "v1.opaque", expiresAtKai: 100 }) };
       if (path.endsWith("/execute")) return new Promise((resolve) => { resolveExecute = resolve; });
@@ -274,7 +278,7 @@ test("driver converts malformed execution success to unknown and cancellation ca
   });
   driver.open();
   driver.selectTransferRecipient("friend");
-  driver.reviewTransferAmount("settlement", "25", "nonce-1");
+  driver.reviewTransferAmount("settlement", "25", "nonce-one");
   await driver.stageTransfer();
   driver.authorizationPointerStart(9);
   const execution = driver.authorizeTransfer(9, { artifact: "signed", challenge: {} });

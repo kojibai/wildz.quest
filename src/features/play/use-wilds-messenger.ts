@@ -21,6 +21,7 @@ import type {
 } from "@/lib/receiz/wilds-card-transfer";
 import { resourceOfferMessage } from './wilds-resource-messaging';
 import { formatWildsPhiExact } from "./wallet/wilds-wallet-format";
+import { assertWildsPrivateMessagePublished, wildsMessageRequestFailure } from "./wilds-messenger-delivery";
 
 type MessengerCache = {
   peers: WildsMessengerParticipant[];
@@ -63,7 +64,7 @@ function writeCache(actorId: string, peers: WildsMessengerParticipant[], convers
 async function messengerRequest<T>(url: string, init?: RequestInit) {
   const response = await fetch(url, init);
   const result = await response.json().catch(() => null) as (T & { error?: string }) | null;
-  if (!response.ok || !result) throw new Error(result?.error ?? "wilds_message_request_failed");
+  if (!response.ok || !result) throw wildsMessageRequestFailure(result);
   return result;
 }
 
@@ -112,6 +113,7 @@ export function useWildsMessenger(input: {
   const conversationsRef = useRef<WildsConversation[]>([]);
   const roomsRef = useRef<WildsGroupRoom[]>([]);
   const sendingClientIdsRef = useRef(new Set<string>());
+  const publishedCardOffersRef = useRef(new Set<string>());
 
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
   useEffect(() => { roomsRef.current = rooms; }, [rooms]);
@@ -121,6 +123,7 @@ export function useWildsMessenger(input: {
     hydratedActorRef.current = input.selfId;
     inboxReadyRef.current = false;
     notifiedIdsRef.current.clear();
+    publishedCardOffersRef.current.clear();
     setMessageAlert(null);
     const cache = readCache(input.selfId);
     setPeers(cache.peers);
@@ -389,12 +392,13 @@ export function useWildsMessenger(input: {
   const sendResourceClaim = useCallback(async (peer: WildsMessengerParticipant, claimProof: string) => {
     if (!input.selfId) throw Error('Sign in to send resource cards.');
     const context = resourceOfferMessage(claimProof);
-    const result = await messengerRequest<{ conversation: WildsConversation }>('/api/wilds/messages/thread', {
+    const result = await messengerRequest<{ conversation: WildsConversation; publication?: unknown }>('/api/wilds/messages/thread', {
       method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'resource-offer', guestId: input.guestId, peer, message: context.title, clientMessageId: context.claimId, context })
     });
     rememberPeer(peer);
     setConversations(current => admitConversationState(current, result.conversation));
+    assertWildsPrivateMessagePublished(result.publication);
   }, [input.guestId, input.selfId, rememberPeer]);
 
   const recordPhiTransfer = useCallback(async (
@@ -422,7 +426,7 @@ export function useWildsMessenger(input: {
   }, [input.guestId, input.selfId, rememberPeer]);
 
   const sendCardOffer = useCallback(async (card: PortableCardAsset, targetHandle: string) => {
-    const result = await messengerRequest<{ offer: WildsCardTransferOffer; conversation: WildsConversation }>("/api/wilds/cards/transfers", {
+    const result = await messengerRequest<{ offer: WildsCardTransferOffer; conversation: WildsConversation; publication?: unknown }>("/api/wilds/cards/transfers", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "issue", card, targetHandle })
@@ -430,8 +434,12 @@ export function useWildsMessenger(input: {
     const peer = { id: result.offer.targetHandle, handle: result.offer.targetHandle };
     rememberPeer(peer);
     setConversations((current) => admitConversationState(current, result.conversation));
+    assertWildsPrivateMessagePublished(result.publication);
+    publishedCardOffersRef.current.add(JSON.stringify([card.id, result.offer.targetHandle]));
     return result.offer;
   }, [rememberPeer]);
+
+  const hasPublishedCardOffer = useCallback((assetId: string, targetHandle: string) => publishedCardOffersRef.current.has(JSON.stringify([assetId, targetHandle])), []);
 
   const claimCardOffer = useCallback(async (offer: WildsCardTransferOffer) => {
     const result = await messengerRequest<{ admission: WildsCardTransferAdmission; conversation: WildsConversation }>("/api/wilds/cards/transfers", {
@@ -509,6 +517,7 @@ export function useWildsMessenger(input: {
     send,
     recordPhiTransfer,
     sendCardOffer,
+    hasPublishedCardOffer,
     sendResourceClaim,
     claimCardOffer,
     markRead,

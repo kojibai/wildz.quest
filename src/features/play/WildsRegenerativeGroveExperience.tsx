@@ -20,7 +20,7 @@ function actionLabel(action: WildsGroveActionKind) {
     compost: "Feed the soil",
     cultivate: "Tend the growth",
     "transform-nectar": "Turn nectar to honey",
-    "harvest-honey": "Share the honey",
+    "harvest-honey": "Collect Living Honey",
     "build-hive": "Raise a living hive",
     "build-nursery": "Build a nursery",
     repair: "Mend what is worn"
@@ -51,7 +51,9 @@ export function WildsRegenerativeGroveExperience({
   busyAction,
   reconnecting,
   error,
+  collectedHoney = false,
   onAction,
+  onOpenWallet,
   onExit
 }: {
   open: boolean;
@@ -61,7 +63,9 @@ export function WildsRegenerativeGroveExperience({
   busyAction: WildsGroveActionKind | null;
   reconnecting: boolean;
   error: string | null;
+  collectedHoney?: boolean;
   onAction(action: WildsGroveActionKind): void;
+  onOpenWallet?(): void;
   onExit(): void;
 }) {
   if (!open) return null;
@@ -89,6 +93,18 @@ export function WildsRegenerativeGroveExperience({
       <span><b>{grove.ecology.pollinators}</b> pollinators</span>
     </div>
 
+    <div className="wilds-grove-honey-guide">
+      <strong>Living Honey · Wallet Resources</strong>
+      <p>Needs a living hive, 1 honey in the grove, and a willing companion.</p>
+      <small>Listen to the grove → Gather what has fallen → Carry the bloom → Turn nectar to honey → Raise a living hive → Collect Living Honey.</small>
+      <small>Gathering gives pollen and fallen fiber. Carry the bloom uses 1 pollen to make 2 nectar; turn 2 nectar into 2 honey; raise a hive with 2 fallen fiber.</small>
+    </div>
+
+    {collectedHoney ? <div className="wilds-grove-honey-collected">
+      <p role="status">1 Living Honey collected. Find it in Wallet → Resources.</p>
+      {onOpenWallet ? <button className="wilds-grove-action" onClick={onOpenWallet} type="button">View Wallet Resources</button> : null}
+    </div> : null}
+
     {reconnecting ? <p className="wilds-grove-reconnecting" role="status">Holding this work safely while its exact result reconnects.</p> : null}
     {error ? <p className="wilds-grove-error" role="alert">{error}</p> : null}
 
@@ -113,10 +129,12 @@ export function WildsRegenerativeGroveExperience({
     </div>
 
     <footer className="wilds-grove-materials">
+      <span>{grove.materials.pollen} pollen</span>
       <span>{grove.materials.seeds} seeds</span>
       <span>{grove.materials.fallenFiber} fallen fiber</span>
       <span>{grove.materials.nectar} nectar</span>
-      <span>{grove.materials.honey} honey</span>
+      <span>{grove.materials.honey} honey in grove</span>
+      <span>{grove.structures.hive} living {grove.structures.hive === 1 ? "hive" : "hives"}</span>
     </footer>
   </section>;
 }

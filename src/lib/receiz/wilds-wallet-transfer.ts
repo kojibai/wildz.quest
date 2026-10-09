@@ -74,9 +74,9 @@ export type WildsWalletPhiTransferInput = Readonly<{
 
 export type WildsWalletPhiTransferProjection = Readonly<
   | { status: "preview" | "staged"; rail: ReceizValueRailV122; amountPhiMicro: string; quotedUsdCents: string }
-  | { status: "unknown"; rail: ReceizValueRailV122; amountPhiMicro: string }
+  | { status: "unknown"; rail: ReceizValueRailV122; amountPhiMicro: string; recipientUsername?: string }
   | { status: "zero-write"; rail: ReceizValueRailV122; code: string }
-  | { status: "committed"; rail: ReceizValueRailV122; amountPhiMicro: string }
+  | { status: "committed"; rail: ReceizValueRailV122; amountPhiMicro: string; recipientUsername?: string }
 >;
 
 type TransferDependencies = Readonly<{

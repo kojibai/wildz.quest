@@ -17,6 +17,11 @@ import {
   projectWildsCreatureSubjectAdmissionV122
 } from "./wilds-v122-subjects";
 import type { WildsWalletReadAuthority } from "./wilds-wallet-route-authority";
+import { hasWildsVerifiedRecipientIdentityResolver, resolveWildsVerifiedRecipientIdentity } from "./wilds-recipient-identity";
+
+export class WildsCardTransferZeroWriteError extends Error {
+  readonly writesOnFailure = 0;
+}
 
 type BearerRail = Pick<ReceizCommerceAdapter,
   | "admitSubjectV122"
@@ -86,9 +91,10 @@ export function validateWildsCardTransferOffer(value: WildsCardTransferOffer) {
     || instrument.schema !== "receiz.bearer.instrument.v1"
     || instrument.plan.subjectId !== value.subjectId
     || instrument.plan.transferId !== instrument.plan.transferDigest
-    || !instrument.plan.policy.openBearer
     || !instrument.plan.policy.requiresRecipientAcceptance
-    || instrument.plan.policy.recipientReceizId !== null
+    || (instrument.plan.policy.openBearer
+      ? instrument.plan.policy.recipientReceizId !== null
+      : typeof instrument.plan.policy.recipientReceizId !== "string" || !instrument.plan.policy.recipientReceizId)
     || instrument.status !== "pending-acceptance") {
     throw new Error("wilds_card_transfer_offer_invalid");
   }
@@ -102,9 +108,21 @@ export async function issueWildsCardTransfer(input: Readonly<{
   rail: BearerRail;
   currentKai?: number;
 }>): Promise<WildsCardTransferOffer> {
-  const card = exactCard(input.card);
-  const targetHandle = exactTarget(input.targetHandle);
-  const projected = await projectWildsCreatureSubjectAdmissionV122(card, input.authority.ownerReceizId);
+  // An available account-binding source must authenticate the exact target
+  // before any write. Otherwise retain the existing private one-use path;
+  // its application claim still requires the exact target profile handle.
+  const prepared = await (async () => {
+    try {
+      const card = exactCard(input.card), targetHandle = exactTarget(input.targetHandle);
+      const recipientReceizId = hasWildsVerifiedRecipientIdentityResolver(input.rail)
+        ? await resolveWildsVerifiedRecipientIdentity(input.rail, targetHandle) : null;
+      const projected = await projectWildsCreatureSubjectAdmissionV122(card, input.authority.ownerReceizId);
+      return { card, targetHandle, recipientReceizId, projected };
+    } catch (cause) {
+      throw new WildsCardTransferZeroWriteError(cause instanceof Error ? cause.message : "wilds_card_transfer_preflight_failed");
+    }
+  })();
+  const { card, targetHandle, recipientReceizId, projected } = prepared;
   try {
     const existing = await input.rail.subjectStateV122(projected.subjectId);
     if (existing.ownerReceizId !== input.authority.ownerReceizId
@@ -112,12 +130,12 @@ export async function issueWildsCardTransfer(input: Readonly<{
       throw new Error("wilds_card_transfer_owner_invalid");
     }
   } catch (cause) {
-    if (!missingSubject(cause)) throw cause;
+    if (!missingSubject(cause)) throw new WildsCardTransferZeroWriteError(cause instanceof Error ? cause.message : "wilds_card_transfer_source_unavailable");
     // A previously unseen card can only enter the bearer rail from the owner
     // written in its verified source. Imported transfers must already have an
     // admitted ownership head and are handled by the existing-state branch.
     if (!sameWildzPlayerCoordinate(card.manifest.ownerReceizId, input.authority.profileHandle)) {
-      throw new Error("wilds_card_transfer_owner_invalid");
+      throw new WildsCardTransferZeroWriteError("wilds_card_transfer_owner_invalid");
     }
   }
   const state = await admitWildsCreatureSubjectV122({
@@ -132,14 +150,17 @@ export async function issueWildsCardTransfer(input: Readonly<{
   const plan = await input.rail.previewBearerTransfer({
     subjectId: state.subjectId,
     policy: {
-      recipientReceizId: null,
-      openBearer: true,
+      recipientReceizId,
+      openBearer: recipientReceizId === null,
       expiresAtKai: String(currentKai + 86_400),
       requiresRecipientAcceptance: true,
       priorOwnerConversationPolicy: "encrypted-evidence",
       inventoryDisposition: {}
     }
   });
+  if (plan.subjectId !== state.subjectId || plan.currentOwnerReceizId !== input.authority.ownerReceizId
+    || plan.policy.recipientReceizId !== recipientReceizId || plan.policy.openBearer !== (recipientReceizId === null)
+    || !plan.policy.requiresRecipientAcceptance) throw Error("wilds_card_transfer_plan_binding_invalid");
   const instrument = await input.rail.issueBearerTransferInstrument({
     plan,
     ownerCapability: {
@@ -149,6 +170,9 @@ export async function issueWildsCardTransfer(input: Readonly<{
   });
   if (instrument.plan.subjectId !== state.subjectId
     || instrument.plan.currentOwnerReceizId !== input.authority.ownerReceizId
+    || instrument.plan.policy.openBearer !== (recipientReceizId === null)
+    || instrument.plan.policy.recipientReceizId !== recipientReceizId
+    || !instrument.plan.policy.requiresRecipientAcceptance
     || instrument.status !== "pending-acceptance") {
     throw new Error("wilds_card_transfer_instrument_binding_invalid");
   }
@@ -171,6 +195,8 @@ export async function claimWildsCardTransfer(input: Readonly<{
   if (!sameWildzPlayerCoordinate(targetHandle, input.authority.profileHandle)) {
     throw new Error("wilds_card_transfer_recipient_invalid");
   }
+  if (instrument.plan.policy.recipientReceizId !== null
+    && instrument.plan.policy.recipientReceizId !== input.authority.ownerReceizId) throw Error("wilds_card_transfer_recipient_invalid");
   const inspection = await input.rail.inspectBearerTransferInstrument(instrument);
   if (!inspection.valid || !inspection.offlineVerified
     || inspection.instrument.artifactDigest !== instrument.artifactDigest) {

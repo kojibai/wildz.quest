@@ -2,13 +2,16 @@
 
 import { useWildsCharacterTexture } from "./wilds-character-material";
 import { useWildsNaturalTexture } from "./wilds-natural-material";
-import { useMemo, useRef, type RefObject } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { companionFootRows, companionFootStep, writeWildsCompanionAnimation, type WildsCompanionGait } from "./wilds-companion-gait";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { creatureForm } from "./creature-catalog";
 import { threeCreatureColor, type CardKaiAppearance } from "./card-kai-appearance";
 import { useWildsReadability } from "./WildsReadabilityContext";
+import { createWildsCreatureFace, fallbackWildsCreatureFace } from "./wilds-creature-face";
+import { createWildsFaceMaterial } from "./wilds-face-geometry";
+import { projectWildsBlinkProfile, sampleWildsBlink } from "./wilds-face-motion";
 
 export type WildsCreaturePose = "idle" | "curious" | "work" | "attack" | "impact" | "weakened" | "capture";
 export type WildsCreatureLocomotion = "ground" | "swim" | "air";
@@ -101,6 +104,7 @@ export function WildsCreatureActor({
   identityToken,
   morphology,
   anatomy,
+  face,
   cadenceMs,
   pose = "idle",
   locomotion = "ground",
@@ -117,6 +121,7 @@ export function WildsCreatureActor({
   identityToken?: string;
   morphology?: { head: number; torso: number; limb: number; symmetry: number };
   anatomy?: CardKaiAppearance["anatomy"];
+  face?: CardKaiAppearance["face"];
   cadenceMs?: number;
   pose?: WildsCreaturePose;
   poseRef?: RefObject<WildsCreaturePose>;
@@ -160,6 +165,27 @@ export function WildsCreatureActor({
       asymmetry: morphology?.symmetry ?? identityNumber(token, 37) * 0.18
     };
   }, [formId, identityToken, morphology?.head, morphology?.limb, morphology?.symmetry, morphology?.torso]);
+  // Projections are copied when world state changes. Reuse the mesh while the
+  // sealed facial traits remain identical instead of uploading it every update.
+  const hasSealedFace = Boolean(face);
+  const fallbackFace = useMemo(() => hasSealedFace ? null : fallbackWildsCreatureFace(identityToken ?? formId, familyId), [hasSealedFace, identityToken, formId, familyId]);
+  const traits = face ?? fallbackFace!;
+  const faceTraits = useMemo(() => ({
+    geometry: { head: traits.geometry.head, cheek: traits.geometry.cheek, forehead: traits.geometry.forehead,
+      jaw: traits.geometry.jaw, muzzle: traits.geometry.muzzle, eyeSize: traits.geometry.eyeSize,
+      eyeSpacing: traits.geometry.eyeSpacing, eyeHeight: traits.geometry.eyeHeight, eyeTilt: traits.geometry.eyeTilt,
+      pupil: traits.geometry.pupil, brow: traits.geometry.brow, highlight: traits.geometry.highlight, signature: traits.geometry.signature },
+    eye: traits.eye, mouth: traits.mouth, blinkMs: traits.blinkMs
+  }), [traits.geometry.head, traits.geometry.cheek, traits.geometry.forehead, traits.geometry.jaw,
+    traits.geometry.muzzle, traits.geometry.eyeSize, traits.geometry.eyeSpacing, traits.geometry.eyeHeight,
+    traits.geometry.eyeTilt, traits.geometry.pupil, traits.geometry.brow, traits.geometry.highlight, traits.geometry.signature,
+    traits.eye, traits.mouth, traits.blinkMs]);
+  const faceGeometry = useMemo(() => createWildsCreatureFace(faceTraits, threeCreatureColor(primary), threeCreatureColor(accent), threeCreatureColor(glow), identityToken ?? formId), [faceTraits, primary, accent, glow, identityToken, formId]);
+  const faceSurface = useMemo(() => createWildsFaceMaterial(skinTexture, .58), [skinTexture]);
+  const blinkProfile = useMemo(() => projectWildsBlinkProfile(identityToken ?? formId, faceTraits.blinkMs), [identityToken, formId, faceTraits.blinkMs]);
+  const faceMesh = useRef<THREE.Mesh>(null);
+  useEffect(() => () => faceGeometry.dispose(), [faceGeometry]);
+  useEffect(() => () => faceSurface.material.dispose(), [faceSurface]);
   const locomotionFrame = useRef<MutableWildsCreatureLocomotionFrame>({ rootY: 0, rootPitch: 0, rootRoll: 0, limbPitch: 0, wingAngle: 0 });
 
   const acceptedPose = useRef<{ pose: WildsCreaturePose; locomotion: WildsCreatureLocomotion; grounded: boolean; height: number } | null>(null);
@@ -170,6 +196,9 @@ export function WildsCreatureActor({
     const framePose = poseRef?.current ?? pose;
     writeWildsCompanionAnimation(walking.current, gait?.current ?? null, delta);
     const time = performance.now() / 1_000;
+    faceSurface.blink.value = sampleWildsBlink(blinkProfile, time * 1000, false, readability.motionScale);
+    // Pose refs are authoritative during active work/battle, without React updates.
+    if (faceMesh.current) faceMesh.current.scale.y = framePose === "weakened" ? .86 : framePose === "attack" ? .94 : 1;
     const cadence = cadenceMs ? Math.max(0.7, Math.min(3.4, 3_000 / cadenceMs)) : 2.1;
     const motion = readability.motionScale;
     const breath = Math.sin(time * cadence + identity.marking * 4) * 0.025 * motion;
@@ -224,7 +253,6 @@ export function WildsCreatureActor({
       : body === "armored"
         ? [identity.width * 1.08, identity.height * 0.9, 1]
         : [identity.width, identity.height, 0.94];
-  const eyeScaleY = pose === "weakened" ? 0.42 : pose === "attack" ? 0.7 : 1;
   const bodyColorFloor = pose === "capture" ? 0.2 : 0.11;
   const readableBodyColorFloor = Math.max(bodyColorFloor, readability.actorEmissive);
   const renderedPrimary = threeCreatureColor(primary);
@@ -250,15 +278,9 @@ export function WildsCreatureActor({
       </group>
 
       <group name="wilds-creature-face" position={[0, 0.31, 0.3]} ref={head} scale={identity.head}>
-        <mesh castShadow scale={[0.82, 0.72, 0.6]}><sphereGeometry args={[0.34, 20, 14]} /><meshStandardMaterial map={skinTexture} color={renderedPrimary} emissive={renderedPrimary} emissiveIntensity={0.07 + readability.actorEmissive * 0.45} roughness={0.58} /></mesh>
-        {[-1, 1].map((side) => <group key={side} position={[side * 0.13, 0.045, 0.19]} scale={[1, eyeScaleY, 1]}>
-          <mesh><sphereGeometry args={[0.072, 12, 9]} /><meshStandardMaterial color="#fffdf3" roughness={0.32} /></mesh>
-          <mesh position={[side * 0.008, -0.006, 0.061]}><sphereGeometry args={[0.033, 10, 8]} /><meshStandardMaterial color={renderedGlow} emissive={renderedGlow} emissiveIntensity={0.12} roughness={0.3} /></mesh>
-          <mesh position={[side * 0.016, 0.016, 0.09]}><sphereGeometry args={[0.011, 7, 6]} /><meshBasicMaterial color="#ffffff" /></mesh>
-        </group>)}
-        <mesh position={[0, -0.055, 0.255]} scale={[1, 0.72, 0.7]}><sphereGeometry args={[0.038, 9, 7]} /><meshStandardMaterial color="#5b3b35" roughness={0.48} /></mesh>
-        <mesh position={[0, -0.125, 0.246]} rotation={[Math.PI / 2, 0, 0]} scale={[1, pose === "attack" ? 1.35 : 0.55, 1]}><torusGeometry args={[0.055, 0.012, 6, 18, Math.PI]} /><meshStandardMaterial color="#7d3f50" roughness={0.54} /></mesh>
-        {[-1, 1].map((side) => <mesh key={side} position={[side * 0.2, -0.08, 0.19]} scale={[1.1, 0.55, 0.5]}><sphereGeometry args={[0.042, 8, 6]} /><meshStandardMaterial color="#ff9baa" transparent opacity={0.62} /></mesh>)}
+        <mesh castShadow ref={faceMesh} geometry={faceGeometry} name="genome-bound-face">
+          <primitive object={faceSurface.material} attach="material" emissive={renderedPrimary} emissiveIntensity={0.07 + readability.actorEmissive * 0.45} />
+        </mesh>
         <CreatureIdentityDetail texture={skinTexture} accent={renderedAccent} glow={renderedGlow} hasCrest={hasCrest} hasEars={hasEars} hasFins={hasFins} hasFrills={hasFrills} hasHorns={hasHorns} hasShell={hasShell} hasTail={hasTail} hasVoltrayCrown={hasVoltrayCrown} secondary={renderedSecondary} />
       </group>
 

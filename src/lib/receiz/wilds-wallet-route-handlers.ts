@@ -118,6 +118,8 @@ type AttemptPayload = Readonly<{
   idempotencyKey: string;
   rail: ReceizValueRailV122;
   amountPhiMicro: string;
+  /** Authenticated server binding; older attempts without it cannot name a recovered recipient. */
+  recipientUsername?: string;
   issuedAtKai: number;
   reviewExpiresAtKai: number;
   handleExpiresAtKai: number;
@@ -183,6 +185,8 @@ function openAttempt(value: string, secret: string): AttemptPayload {
       || !validPrivate(payload.idempotencyKey)
       || (payload.rail !== "settlement" && payload.rail !== "reserve")
       || !isMicroPhi(payload.amountPhiMicro)
+      || (payload.recipientUsername !== undefined
+        && normalizeWildsWalletPublicUsername(payload.recipientUsername) !== payload.recipientUsername)
       || !Number.isSafeInteger(payload.issuedAtKai)
       || !Number.isSafeInteger(payload.reviewExpiresAtKai)
       || !Number.isSafeInteger(payload.handleExpiresAtKai)
@@ -207,6 +211,7 @@ type ReceiveLocatorPayload = Readonly<{
   applicationId: string;
   destinationSubjectId: string;
   expectedDestinationHead: string;
+  recipientUsername?: string;
   issuedAtKai: number;
   expiresAtKai: number;
 }>;
@@ -234,6 +239,8 @@ function openReceiveLocator(locator: string, secret: string): ReceiveLocatorPayl
     const payload = JSON.parse(Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8")) as ReceiveLocatorPayload;
     if (payload.schema !== "wildz.wallet.receive-locator.v1" || !validPrivate(payload.applicationId)
       || !validPrivate(payload.destinationSubjectId) || !/^[a-f0-9]{64}$/.test(payload.expectedDestinationHead)
+      || (payload.recipientUsername !== undefined
+        && normalizeWildsWalletPublicUsername(payload.recipientUsername) !== payload.recipientUsername)
       || !Number.isSafeInteger(payload.issuedAtKai) || !Number.isSafeInteger(payload.expiresAtKai)
       || payload.expiresAtKai <= payload.issuedAtKai) throw new Error("payload");
     return Object.freeze(payload);
@@ -258,13 +265,21 @@ function exactTransferProjection(value: unknown): WildsWalletPhiTransferProjecti
     const expected = [...keys].sort();
     return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
   };
+  // Only the runtime opening the server-sealed attempt can supply this display
+  // binding. Browser recovery metadata is never a receipt's recipient source.
+  const recipientBound = item.recipientUsername !== undefined;
+  if (recipientBound && (typeof item.recipientUsername !== "string"
+    || normalizeWildsWalletPublicUsername(item.recipientUsername) !== item.recipientUsername)) {
+    throw new Error("wilds_wallet_transfer_projection_invalid");
+  }
+  const resultKeys = ["status", "rail", "amountPhiMicro", ...(recipientBound ? ["recipientUsername"] : [])];
   if ((item.status === "preview" || item.status === "staged")
     && exact(["status", "rail", "amountPhiMicro", "quotedUsdCents"])
     && isMicroPhi(item.amountPhiMicro)
     && typeof item.quotedUsdCents === "string" && /^[0-9]{1,30}$/.test(item.quotedUsdCents)) return Object.freeze(item) as WildsWalletPhiTransferProjection;
-  if (item.status === "unknown" && exact(["status", "rail", "amountPhiMicro"]) && isMicroPhi(item.amountPhiMicro)) return Object.freeze(item) as WildsWalletPhiTransferProjection;
+  if (item.status === "unknown" && exact(resultKeys) && isMicroPhi(item.amountPhiMicro)) return Object.freeze(item) as WildsWalletPhiTransferProjection;
   if (item.status === "zero-write" && exact(["status", "rail", "code"]) && typeof item.code === "string" && /^[A-Z_]{3,64}$/.test(item.code)) return Object.freeze(item) as WildsWalletPhiTransferProjection;
-  if (item.status === "committed" && exact(["status", "rail", "amountPhiMicro"]) && isMicroPhi(item.amountPhiMicro)) return Object.freeze(item) as WildsWalletPhiTransferProjection;
+  if (item.status === "committed" && exact(resultKeys) && isMicroPhi(item.amountPhiMicro)) return Object.freeze(item) as WildsWalletPhiTransferProjection;
   throw new Error("wilds_wallet_transfer_projection_invalid");
 }
 
@@ -343,6 +358,12 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
     if (now >= payload.handleExpiresAtKai) throw new Error("wilds_wallet_transfer_attempt_expired");
     return { payload, now };
   };
+  const boundProjection = (value: unknown, payload: AttemptPayload) => {
+    const projection = exactTransferProjection(value);
+    return payload.recipientUsername && (projection.status === "committed" || projection.status === "unknown")
+      ? Object.freeze({ ...projection, recipientUsername: payload.recipientUsername })
+      : projection;
+  };
   const runtime: WildsWalletTransferRouteRuntime = {
     durable: true as const,
     recipientLookupAdmission: "external-limiter" as const,
@@ -353,6 +374,9 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
       await input.journal.purgeTerminal(cleanupKai, 32);
       const idempotencyKey = idempotencyFor(authority, command.operationNonce, secret);
       const locator = command.recipientLocator ? openReceiveLocator(command.recipientLocator, secret) : null;
+      const recipientUsername = command.recipientUsername
+        ? normalizeWildsWalletPublicUsername(command.recipientUsername)
+        : locator?.recipientUsername;
       if (locator) {
         const now = await input.authorityAdmission.currentKai();
         if (!Number.isSafeInteger(now) || now < locator.issuedAtKai) throw new Error("wilds_wallet_transfer_clock_unavailable");
@@ -391,6 +415,7 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
         idempotencyKey,
         rail: command.rail,
         amountPhiMicro: command.amountPhiMicro,
+        ...(recipientUsername ? { recipientUsername } : {}),
         issuedAtKai,
         reviewExpiresAtKai: issuedAtKai + ATTEMPT_REVIEW_KAI,
         handleExpiresAtKai: issuedAtKai + ATTEMPT_RECOVERY_KAI
@@ -421,7 +446,7 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
         ownerBinding: payload.ownerBinding,
         rail: payload.rail
       }, { rail: adapter, authorityAdmission: input.authorityAdmission });
-      return exactTransferProjection(await executeWildsWalletPhiTransfer({
+      return boundProjection(await executeWildsWalletPhiTransfer({
         ownerBinding: payload.ownerBinding,
         idempotencyKey: payload.idempotencyKey,
         authorityContext
@@ -430,12 +455,12 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
         journal: input.journal,
         authorityAdmission: input.authorityAdmission,
         terminalIntegrity
-      }));
+      }), payload);
     },
     async status(authority: WildsWalletReadAuthority, attempt: string) {
       const { payload, now } = await openBoundAttempt(authority, attempt);
       await input.journal.purgeTerminal(now, 32);
-      return exactTransferProjection(await recoverWildsWalletPhiTransfer({
+      return boundProjection(await recoverWildsWalletPhiTransfer({
         ownerBinding: payload.ownerBinding,
         idempotencyKey: payload.idempotencyKey
       }, {
@@ -443,7 +468,7 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
         journal: input.journal,
         authorityAdmission: input.authorityAdmission,
         terminalIntegrity
-      }));
+      }), payload);
     },
     async receive(authority: WildsWalletReadAuthority, amountPhiMicro: string | null) {
       const binding = await input.context.receiveBinding(authority);
@@ -455,6 +480,7 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
         locator: sealReceiveLocator({
           schema: "wildz.wallet.receive-locator.v1",
           ...binding,
+          recipientUsername: normalizeWildsWalletPublicUsername(authority.profileHandle),
           issuedAtKai,
           expiresAtKai: issuedAtKai + ATTEMPT_RECOVERY_KAI
         }, secret),

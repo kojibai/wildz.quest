@@ -4,8 +4,6 @@ import {
   canonicalizeReceizV122,
   proofAuthorityChallengeBasisV123,
   receizBase64UrlEncode,
-  serializeReceizIdentityArtifact,
-  sha256ReceizBytes,
   signReceizIdentityLoginProof,
   type ReceizIdentityLoginProof
 } from "@receiz/sdk";
@@ -13,6 +11,7 @@ import { connectWildzProofSession, defaultIdentityRepository } from "@/lib/recei
 import { hasExactWildsIdentityAuthorityScopes, type WildsIdentityAuthorityPurpose } from "@/lib/receiz/wilds-wallet-authority-scopes";
 import { wildzRemoteSessionMatchesIdentity } from "@/lib/receiz/wildz-session-bridge";
 import { readWildzIdentityForSigning } from "@/lib/receiz/wildz-identity-signing-read";
+import { createWildzIdentityAuthorizationArtifact } from "@/lib/receiz/wildz-identity-authorization-artifact";
 export { projectWildsWalletSourceAuthority } from "./wilds-wallet-source-client";
 
 import { walletAuthorizationFailureCode, WildsWalletAuthorizationError } from "./wilds-wallet-authorization-error";
@@ -42,10 +41,9 @@ type ReadAuthorizationDependencies = Readonly<{
 const DEFAULT_DEPENDENCIES: ReadAuthorizationDependencies = {
   loadIdentity: async (keyId) => {
     const keyFile = await readWildzIdentityForSigning(keyId);
-    const artifact = serializeReceizIdentityArtifact(keyFile);
+    const transport = await createWildzIdentityAuthorizationArtifact(keyFile);
     return {
-      artifact,
-      artifactDigest: await sha256ReceizBytes(new TextEncoder().encode(artifact)),
+      ...transport,
       keyId: keyFile.keyId,
       sign: async (challengeB64Url) => signReceizIdentityLoginProof({ keyFile, challengeB64Url })
     };

@@ -2,11 +2,19 @@ import { creatureForm, creatureForms } from "./creature-catalog";
 import { deriveKaiCreatureBirth } from "./kai-creature-birth";
 import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import { deriveBirthGenome } from "./heartbound-genome";
+import { identityForGenome } from "./heartbound-identity";
 import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset, type LivingCardGenome } from "./living-card-types";
 import { deriveCardVariantV3 } from "./card-variant";
 import { validateLivingCreatureIdentity, type LivingCreatureIdentityV3 } from "./living-taxonomy";
-import type { PortableCardAsset } from "./portable-card";
+import { sha256PortableBasis, type PortableCardAsset } from "./portable-card";
+
+export type CreatureVisualFace = Readonly<{
+  geometry: NonNullable<LivingCardGenome["identity"]>["faceGeometry"];
+  eye: LivingCardGenome["face"]["eye"];
+  mouth: LivingCardGenome["face"]["mouth"];
+  blinkMs: number;
+}>;
 
 export type FunctionalAppendage = Readonly<{
   presence: "absent" | "vestigial" | "functional";
@@ -37,6 +45,7 @@ export type CreatureVisualIdentity = Readonly<{
   }>;
   appendages: CreatureVisualAppendages;
   morphology: Readonly<{ head: number; torso: number; limb: number; symmetry: number }>;
+  face: CreatureVisualFace;
   cadenceMs: number;
   fingerprint: string;
 }>;
@@ -66,6 +75,7 @@ export function projectLivingGenomeCreatureVisualIdentity(
   formId: string,
   overrides: VisualIdentityOverrides = {}
 ): CreatureVisualIdentity {
+  const identity = identityForGenome(genome, sha256PortableBasis(`wildz.creature.face:${genome.identityAnchor}`));
   return {
     formId,
     palette: { ...genome.palette },
@@ -76,6 +86,7 @@ export function projectLivingGenomeCreatureVisualIdentity(
       surface: genome.surface.kind
     },
     appendages: projectGenomeCreatureVisualAppendages(genome),
+    face: { geometry: { ...identity.faceGeometry }, eye: genome.face.eye, mouth: genome.face.mouth, blinkMs: identity.behavior.blinkMs },
     morphology: overrides.morphology ?? {
       head: genome.skeleton.head,
       torso: genome.skeleton.torso,

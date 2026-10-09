@@ -9,6 +9,7 @@ import { formatWildsPhiCompact } from "../src/features/play/wallet/wilds-wallet-
 import { createWildsWalletControllerState, gateWildsWalletClientCapabilities, reduceWildsWalletController } from "../src/features/play/wallet/wilds-wallet-controller";
 import { totalWildsStewardPhiMicro } from "../src/features/play/wallet/wilds-wallet-inventory";
 import { initialPlayState } from "../src/features/play/game-state";
+import { walletFoodFixture } from "./fixtures/wilds-wallet-food";
 
 function state(overrides: Record<string, unknown> = {}) {
   return {
@@ -109,7 +110,8 @@ test("wallet Assets renders the user's real two-sided card and direct send contr
   assert.match(markup, /Tap or swipe the card to see its complete verified back/);
   assert.match(markup, new RegExp(`aria-label="Open ${card.manifest.name} in Card Vault"`));
   assert.match(markup, /class="wilds-wallet-vault-pill"/);
-  assert.match(markup, /Receiz username or email to send this card/);
+  assert.match(markup, /Wallet asset recipient/);
+  assert.match(markup, /Review send/);
   assert.match(markup, new RegExp(`Send ${card.manifest.name}`));
   assert.doesNotMatch(markup, /Reserved cards|Not admitted/);
 });
@@ -129,6 +131,36 @@ test("wallet Assets renders exact warmed resource custody without fetching or es
   assert.match(markup, /Harvested with a willing companion/);
   assert.match(markup, /VERIFIED/);
   assert.doesNotMatch(markup, /Loading|reconnecting|projection/i);
+});
+
+test("wallet Resources includes every stored fruit, vegetable and meat portion alongside Living Honey", () => {
+  const { nourishment, meatLabel } = walletFoodFixture();
+  const resourceLot = {
+    schema: "wildz.resource-lot.v1", lotId: `wildz:resource:living-honey:${"a".repeat(64)}`, kind: "living-honey", quantity: 2, quality: 4,
+    ownerReceizId: "explorer", source: { groveId: "grove:one", groveSourceHead: `sha256:${"b".repeat(64)}`, groveAdmittedHead: `sha256:${"c".repeat(64)}`, operationId: "grove:one:harvest-honey:1", operationPlanDigest: `sha256:${"d".repeat(64)}`, kaiUPulse: 1 },
+    revision: 0, parentHead: null, transferable: true, authority: "source-proof-objects", head: `sha256:${"e".repeat(64)}`
+  } as const;
+  const props = { publicUsername: "explorer", nourishment, resourceLots: [resourceLot], state: state({ page: "assets" }), ...actions };
+  const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, props));
+  assert.match(markup, /<span>Resources<\/span><b>8<\/b>/);
+  assert.match(markup, /<strong>Wild fruit<\/strong><small>2 stored portions/);
+  assert.match(markup, /<strong>Wild berries<\/strong><small>1 stored portion/);
+  assert.match(markup, /<strong>Wild vegetables<\/strong><small>2 stored portions/);
+  assert.ok(markup.includes(`<strong>${meatLabel}</strong><small>1 stored portion`));
+  assert.match(markup, /Living Honey/);
+  assert.match(markup, /2 sealed units/);
+});
+
+test("wallet stored food omits consumed and unavailable portions", () => {
+  const { nourishment: gathered } = walletFoodFixture();
+  const [fruit] = Object.values(gathered.items).filter(item => item.foodKind === "orchard-fruit");
+  const vegetables = Object.values(gathered.items).filter(item => item.foodKind === "wild-vegetable");
+  const nourishment = { ...gathered, items: { ...gathered.items, [fruit!.itemId]: { ...fruit!, consumedKaiUPulse: 101 } }, unavailableItemIds: vegetables.map(item => item.itemId) };
+  const props = { publicUsername: "explorer", nourishment, state: state({ page: "assets" }), ...actions };
+  const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, props));
+  assert.match(markup, /<span>Resources<\/span><b>3<\/b>/);
+  assert.match(markup, /<strong>Wild fruit<\/strong><small>1 stored portion/);
+  assert.doesNotMatch(markup, /<strong>Wild vegetables<\/strong>/);
 });
 
 test("wallet groups large exact custody by asset kind and never substitutes aggregate projection counts", () => {
@@ -189,7 +221,7 @@ test("terminal is one modal dialog with five named surfaces and fail-closed send
   assert.match(markup, /aria-modal="true"/);
   assert.match(markup, />Wallet<\/h1>/);
   for (const label of ["Overview", "Send", "Receive", "Assets", "Ledger"]) assert.match(markup, new RegExp(`>${label}<`));
-  assert.match(markup, /cannot sign a transfer proof object/);
+  assert.match(markup, /Sending is unavailable/);
   assert.doesNotMatch(markup, /Transfer complete/);
   assert.doesNotMatch(markup, /proofDigest|subjectId|ownerReceizId|accessToken/);
   assert.doesNotMatch(markup, /explorer-with-an-intentionally-long-coordinate/);
@@ -258,9 +290,9 @@ test("transfer outcomes remain distinct and never promote ambiguous execution to
     }
   };
   const unknownMarkup = renderToStaticMarkup(createElement(WildsWalletTerminal, { publicUsername: "explorer", state: unknown, ...actions }));
-  assert.match(unknownMarkup, /Recovery pending/);
-  assert.match(unknownMarkup, /Check exact outcome/);
-  assert.doesNotMatch(unknownMarkup, /Transfer committed/);
+  assert.match(unknownMarkup, /Payment pending/);
+  assert.match(unknownMarkup, /Check payment status/);
+  assert.doesNotMatch(unknownMarkup, /Payment sent/);
 
   const rejected = reduceWildsWalletController(unknown, { type: "transfer-reset" });
   const rejectedMarkup = renderToStaticMarkup(createElement(WildsWalletTerminal, {
