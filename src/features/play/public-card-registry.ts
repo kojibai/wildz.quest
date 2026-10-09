@@ -192,7 +192,8 @@ export async function requireGloballyAvailablePublicWildsCard(
       headers: { accept: "application/json", "cache-control": "no-cache" }
     });
     const payload = await response.json().catch(() => null) as { ok?: boolean; record?: PublicWildsCardRecord } | null;
-    const record = parsePublicWildsCardRecord(payload?.record);
+    const record = parsePublicWildsCardRecord(payload?.record,
+      publicCardNeedsClientVerification(asset, options.proofObjects) ? undefined : asset);
     return response.ok && payload?.ok === true && record?.assetId === asset.id
       && record.asset.proof.digest === asset.proof.digest ? record : null;
   };

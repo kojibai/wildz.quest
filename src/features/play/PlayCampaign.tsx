@@ -1039,15 +1039,18 @@ export function PlayCampaign({
   const [activeWorkSource, setActiveWorkSource] = useState<WildsActiveWorkSource | null>(null);
   const harvestPendingRef = useRef(false);
   useEffect(() => {
-    if (!activeWorkSource || activeWorkSource.settledAtMs !== null) return;
+    if (!activeWorkSource) return;
     const startedAt = activeWorkSource.startedAtMs;
     // The deadline starts with the gesture, even if durable admission is still waiting.
     const deadline = window.setTimeout(() => {
       setActiveWorkSource(current => current?.startedAtMs === startedAt ? null : current);
-      showWorldFeedback("Your companion has finished working. Checking the saved harvest before updating your Satchel…");
+      if (activeWorkSource.settledAtMs === null) showWorldFeedback("Your companion has finished working. Checking the saved harvest before updating your Satchel…");
     }, Math.max(0, startedAt + 8000 - performance.now()));
     return () => window.clearTimeout(deadline);
   }, [activeWorkSource, showWorldFeedback]);
+  useEffect(() => {
+    setActiveWorkSource(current => current?.assetId && current.assetId !== state.selectedAssetId ? null : current);
+  }, [state.selectedAssetId]);
   const stewardPhiAwards = useMemo(() => Object.values(livingWorld.snapshot?.stewardPhiAwards ?? {})
     .filter((award) => sameWildzPlayerCoordinate(award.ownerReceizId, ownerReceizId))
     .sort((left, right) => right.awardId.localeCompare(left.awardId)), [livingWorld.snapshot?.stewardPhiAwards, ownerReceizId]);
@@ -1879,8 +1882,16 @@ export function PlayCampaign({
         partnerAdmission = null;
       }
       const workStartedAtMs = performance.now();
-      const arrival = { atMs: partner ? null : workStartedAtMs } as { atMs: number | null };
-      setActiveWorkSource({ arrival, sourceId: source.sourceId, kind: source.kind === "timber" ? "timber" : "stone", position: source.position, startedAtMs: workStartedAtMs, settledAtMs: null });
+      // Hay retains its existing hand-gathered proof. A rested companion can
+      // present the trip without inventing another contributor or harvest.
+      const presentationPartner = partner ?? (source.kind === "hay" && activeAsset && activeCondition
+        && activeCondition.life !== "dead" && !activeCondition.retiredAt && activeCondition.fatigue < 85
+        && activeCondition.injuries.length < 4 ? activeAsset : null);
+      const arrival = { atMs: null } as { atMs: number | null };
+      setActiveWorkSource(presentationPartner ? { arrival, assetId: presentationPartner.id, sourceId: source.sourceId,
+        kind: source.kind === "hay" ? "hay" : source.kind === "timber" ? "timber" : "stone", position: source.position,
+        startedAtMs: workStartedAtMs, settledAtMs: null,
+        onComplete: () => setActiveWorkSource(active => active?.startedAtMs === workStartedAtMs ? null : active) } : null);
       const priorAwards = new Set(Object.keys(livingWorld.snapshot?.stewardPhiAwards ?? {}));
       markPlaytest("harvest", "start");
       harvestPendingRef.current = true;
@@ -1888,9 +1899,10 @@ export function PlayCampaign({
       markPlaytest("harvest", "success");
       rememberJourney({ kind: "harvest", subjectId: source.sourceId, companionId: partner?.id, companionName: partner?.manifest.name, label: partner ? `Gathered ${source.kind} together` : `Gathered ${source.kind}`, position: source.position });
       if (partner) dispatch({ type: "record-steward-work", assetId: partner.id });
-      // Durable admission completes this task. Return immediately; arrival animation
-      // cannot retain the creature after its material is already in the Satchel.
-      setActiveWorkSource((active) => active?.startedAtMs === workStartedAtMs ? null : active);
+      // Save/credit remains immediate. The existing frame loop separately finishes
+      // the physical approach, work gesture and return without holding admission.
+      const settledAtMs = performance.now();
+      setActiveWorkSource((active) => active?.startedAtMs === workStartedAtMs ? { ...active, settledAtMs } : active);
       const award = Object.values(projection.stewardPhiAwards).find((candidate) => !priorAwards.has(candidate.awardId));
       const awardMessage = award ? `+Φ${formatWildsPhiExact(award.amountPhiMicro)} earned · ` : "";
       const satchelCount = Object.values(projection.materialLots).filter((lot) => lot.kind === source.kind

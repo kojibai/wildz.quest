@@ -10,6 +10,7 @@ export function createWildsResourcePlacementProjector() {
     resourceBody: ReturnType<typeof projectWildsResourceBody>;
     working: boolean;
     workStartedAtMs: number | undefined;
+    workSource?: WildsActiveWorkSource;
   };
   const cache = new WeakMap<WildsTerrainObstacle, {
     source: ReturnType<typeof projectWildsResourceSourceForObstacle>;
@@ -37,12 +38,13 @@ export function createWildsResourcePlacementProjector() {
       const workStartedAtMs = working ? work.startedAtMs : undefined;
       let placement = cached?.placement;
       if (!cached || cached.availableCapacity !== availableCapacity || placement?.working !== working
-        || placement.workStartedAtMs !== workStartedAtMs) {
+        || placement.workStartedAtMs !== workStartedAtMs || placement.workSource !== (working && work.arrival ? work : undefined)) {
         placement = {
           ...projectWildsObstaclePlacement(obstacle),
           resourceBody: projectWildsResourceBody({ kind: source.kind === "timber" ? "timber" : "stone", capacity: source.capacity, availableCapacity }),
           working,
-          workStartedAtMs
+          workStartedAtMs,
+          ...(working && work.arrival ? { workSource: work } : {})
         };
         cache.set(obstacle, { source, availableCapacity, placement });
       }

@@ -27,7 +27,7 @@ import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-place
 import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, buildWildsTerrainWaterProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
 import { wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
 import { createWildsResourcePlacementProjector } from "./wilds-resource-placements";
-import { projectWildsSourceWorkMotion, type WildsActiveWorkSource, type WildsResourceBodyProjection } from "@/features/play/wilds-work-presentation";
+import { projectWildsHarvestWorkPhase, projectWildsSourceWorkMotion, type WildsActiveWorkSource, type WildsResourceBodyProjection } from "@/features/play/wilds-work-presentation";
 import { projectWildsOverlooks, type WildsOverlookId } from "@/features/play/wilds-overlooks";
 import { WildsWorldArt } from "@/features/play/WildsWorldArt";
 import { WildsDiscoverySites } from "@/features/play/WildsDiscoverySites";
@@ -40,7 +40,7 @@ const PHI = (1 + Math.sqrt(5)) / 2;
 const GOLDEN_ANGLE = Math.PI * 2 / (PHI * PHI);
 
 type Tile = WildsBiomeTile & { key: string; tileX: number; tileZ: number };
-type Placement = { x: number; z: number; scale: number; variant: number; resourceBody?: WildsResourceBodyProjection; working?: boolean; workStartedAtMs?: number };
+type Placement = { x: number; z: number; scale: number; variant: number; resourceBody?: WildsResourceBodyProjection; working?: boolean; workStartedAtMs?: number; workSource?: WildsActiveWorkSource };
 const EMPTY_TILES = Object.freeze([]) as unknown as Tile[];
 const EMPTY_PLACEMENTS = Object.freeze([]) as unknown as Placement[];
 const EMPTY_VALUES = Object.freeze([]) as readonly never[];
@@ -84,6 +84,7 @@ function useInstances(
   const groundYs = useRef<number[]>([]);
   const animatedOffset = useRef(new THREE.Vector3());
   const previousActiveIndex = useRef(-1);
+  const previousWorkMotionActive = useRef(false);
   const animatedMatrix = useRef(new THREE.Matrix4());
   const animatedPosition = useRef(new THREE.Vector3());
   const animatedQuaternion = useRef(new THREE.Quaternion());
@@ -132,9 +133,19 @@ function useInstances(
     const item = items[activeIndex]!;
     const base = baseMatrices.current[activeIndex];
     if (!base || (motionKind === "timber" && item.resourceBody?.tree.stumpVisible)) return;
+    const now = performance.now();
+    if (item.workSource && projectWildsHarvestWorkPhase(item.workSource, now) !== "work") {
+      if (previousWorkMotionActive.current) {
+        mesh.current.setMatrixAt(activeIndex, base);
+        mesh.current.instanceMatrix.needsUpdate = true;
+      }
+      previousWorkMotionActive.current = false;
+      return;
+    }
+    previousWorkMotionActive.current = true;
     const motion = projectWildsSourceWorkMotion({
       kind: motionKind,
-      elapsedMs: performance.now() - item.workStartedAtMs!,
+      elapsedMs: now - (item.workSource?.arrival?.atMs ?? item.workStartedAtMs!),
       active: true,
       reducedMotion
     });

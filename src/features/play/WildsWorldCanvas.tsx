@@ -9,7 +9,7 @@ import { WildsFirstDrawPreparation } from "./WildsFirstDrawPreparation";
 import { WildsShaderPrewarm } from "./WildsShaderPrewarm";
 import { projectWildsTraversalCapabilities } from "./wilds-traversal-capabilities";
 import { emptyAdventureCondition } from "./adventure/card-condition";
-import { writeWildsCrewFollowSpeed, writeWildsCrewFollowRegroup, writeWildsCrewFollowPresentation } from "./wilds-crew-follow-motion";
+import { writeWildsCrewFollowSpeed, writeWildsCrewFollowRegroup, writeWildsCrewFollowPresentation, writeWildsCrewWorkDeparture } from "./wilds-crew-follow-motion";
 import { createWildsCrewTravelAuthority } from "./wilds-crew-travel-authority";
 import { createWildsCrewPhysicalScheduler, writeWildsCrewVisualPosition, WILDS_CREW_PHYSICAL_TICK_MS } from "./wilds-crew-physical-scheduler";
 import { wildsCrewUsesFrameWriter, writeWildsCrewRetainedTravelPosition, wildsCrewResidentExcludedIds, type WildsCrewTravelRuntime } from "./wilds-crew-travel-runtime";
@@ -121,7 +121,7 @@ import type { WildsSiteSpaceState } from "@/features/play/wilds-discovery-sites"
 import { wildsSiteRuntimeCameraIsFlooded, wildsSiteRuntimeDiagnostics, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeAerialCollision, writeWildsSiteRuntimeCamera, writeWildsSiteRuntimeEncounter, type WildsSiteRuntimeProjection } from "@/features/play/wilds-site-runtime";
 import { createWildsFlightCameraControlState, writeWildsFlightCameraControlState } from "@/features/play/wilds-flight-camera";
 import { projectWildsInteractionSurfacePoint, type WildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
-import { writeWildsWorkApproachAnchor, type WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
+import { completeWildsWorkPresentation, projectWildsHarvestWorkPhase, writeWildsWorkApproachAnchor, type WildsActiveWorkSource } from "@/features/play/wilds-work-presentation";
 import type { WildsStewardPlacement } from "@/features/play/wilds-steward-craft";
 import type { WildsWorldCapabilityFamily } from "@/features/play/wilds-world-capability-registry";
 import { projectWildsCapabilityPresentation } from "@/features/play/wilds-capability-presentation";
@@ -905,7 +905,7 @@ function useCrewFollower(input: {
   const navigationOrigin = input.workSource?.position ?? input.player;
   const originX = Math.floor(navigationOrigin.x / 16) * 16, originZ = Math.floor(navigationOrigin.z / 16) * 16;
   const allowAccompaniedWading = input.mode === "follow" && !input.workSource && !retainedTravel;
-  const canClimb = allowAccompaniedWading && input.partyCanClimb === true;
+  const canClimb = input.workSource ? input.travelerCanClimb === true : allowAccompaniedWading && input.partyCanClimb === true;
   const sampleSegment = useMemo(() => createWildsCrewPhysicalSampler({ canClimb, runtime: input.siteRuntime, spaceId: input.siteSpace.spaceId, obstacles: input.obstacles, originX, originZ, allowAccompaniedWading }), [input.siteRuntime, input.siteSpace.spaceId, input.obstacles, originX, originZ, allowAccompaniedWading, canClimb]);
   const authority = useMemo<WildsCrewNavigationAuthority>(() => ({ mode: "walk", permittedModes: ["walk"], sampleSegment }), [sampleSegment]);
   const frameInput = useMemo(() => ({ ...authority, speed: 5.5, deltaSeconds: 0, accompanyingSpeedLimit: 72 }), [authority]);
@@ -924,11 +924,11 @@ function useCrewFollower(input: {
     } else writeWildsCrewAlongsideTarget(target.current, heading.current, current.player, current.offsetX, delta);
     let x = target.current.x, z = target.current.z;
     const excursion = current.mode === "roam" && (!current.locomotion || current.locomotion === "ground") ? current.crewTravelRuntime?.current.get(current.assetId) : undefined;
-    if (excursion?.spaceId === current.siteSpace.spaceId) {
-      x = excursion.target.x; z = excursion.target.z;
-    } else if (current.workSource) {
+    if (current.workSource) {
       writeWildsWorkApproachAnchor(workAnchor.current, current.workSource, current.player);
       x = workAnchor.current.x; z = workAnchor.current.z;
+    } else if (excursion?.spaceId === current.siteSpace.spaceId) {
+      x = excursion.target.x; z = excursion.target.z;
     } else if (current.mode === "roam" && (!current.locomotion || current.locomotion === "ground")) {
       const cadence = Math.max(2500, Math.min(12000, current.cadenceMs * 2));
       const visit = Math.floor(current.kaiUPulse / 1_000_000 * KAI_PULSE_DURATION_MS / cadence);
@@ -943,7 +943,7 @@ function useCrewFollower(input: {
       cached.y = wildsSiteRuntimeGroundY(current.siteRuntime, current.siteSpace.spaceId, x, z, fallback);
       cached.x = x; cached.z = z; cached.runtime = current.siteRuntime; cached.space = current.siteSpace.spaceId; cached.interiorFloor = interiorFloor;
     }
-    target.current.x = x; target.current.z = z; target.current.y = excursion?.spaceId === current.siteSpace.spaceId ? excursion.target.y : cached.y;
+    target.current.x = x; target.current.z = z; target.current.y = !current.workSource && excursion?.spaceId === current.siteSpace.spaceId ? excursion.target.y : cached.y;
     const alternate = fallbackTarget.current;
     if (alternate && Math.hypot(x - alternate.requestedX, z - alternate.requestedZ) <= .35) {
       target.current.x = alternate.target.x; target.current.y = alternate.target.y; target.current.z = alternate.target.z;
@@ -964,7 +964,21 @@ function useCrewFollower(input: {
   useEffect(() => {
     path.current = []; fallbackTarget.current = null; stepState.current.waypointIndex = 0;
     stepState.current.reason = "arrived";
-  }, [input.mode, input.workSource?.sourceId]);
+    const current = latest.current;
+    if (current.workSource && current.mode === "follow" && !current.crewTravelRuntime?.current.has(current.assetId)
+      && (!current.locomotion || current.locomotion === "ground")) {
+      const landing = relocationPoint.current;
+      landing.x = current.player.x; landing.y = current.terrainElevation; landing.z = current.player.z;
+      writeWildsCrewWorkDeparture(position.current, landing, relocationSample.current, latestAuthority.current);
+      if (group.current) {
+        gait.current.x = group.current.position.x; gait.current.y = group.current.position.y; gait.current.z = group.current.position.z;
+        gait.current.travelled = gait.current.distance;
+        resetPresentation.current = false;
+      }
+    }
+    // This is a work-trip transition, not a walking-frame effect. Its origin and
+    // sampler are read only when the exact work identity changes.
+  }, [input.mode, input.workSource?.sourceId, input.workSource?.startedAtMs]);
   // Sampler refreshes do not clear routes or restart this timer. Each frame uses the
   // newest sampler, so changed collision is still enforced immediately.
   useEffect(() => {
@@ -1089,7 +1103,7 @@ function useCrewFollower(input: {
     const travel = current.crewTravelRuntime?.current.get(current.assetId);
     if (travel?.spaceId === current.siteSpace.spaceId) {
       if (travel.position) { travel.position.x = p.x; travel.position.y = p.y; travel.position.z = p.z; }
-      travel.paused = Boolean(travel.halted) || !current.enabled || current.mode !== "roam" || Boolean(current.locomotion && current.locomotion !== "ground");
+      travel.paused = Boolean(travel.halted) || !current.enabled || current.mode !== "roam" || Boolean(current.workSource) || Boolean(current.locomotion && current.locomotion !== "ground");
       travel.blocked = (directState.current.reason === "blocked" && !(stepState.current.reason === "moving" && stepState.current.waypointIndex < path.current.length))
         || (fallbackTarget.current !== null && directState.current.reason === "arrived" && Math.hypot(p.x - travel.target.x, p.z - travel.target.z) > .35);
     }
@@ -1131,11 +1145,28 @@ function ActiveCompanion({ hunt, suspended = false, world, partyCanClimb, crewTr
     try { return Boolean(asset && condition && projectWildsTraversalCapabilities(asset,condition).capabilities.includes("climb")); } catch { return false; }
   }, [asset,condition]);
   const { group, gait } = useCrewFollower({ suspended, world, travelerCanClimb, partyCanClimb, assetId: asset?.id ?? state.selectedAssetId, proofDigest: asset?.proof.digest ?? "", crewTravelRuntime, crewRelocationKey, kaiUPulse, locomotion, enabled, player: state.player, terrainElevation, siteRuntime, siteSpace, obstacles, mode, cadenceMs: appearance?.cadenceMs ?? 3200, seed, offsetX: -1.08, offsetZ: .42, workSource: activeWorkSource });
-  const working = Boolean(activeWorkSource);
+  const readability = useWildsReadability();
+  const workPose = useRef<WildsCreaturePose>("curious");
   const hunting = Boolean(hunt && hunt.hunterAssetId === asset?.id);
+  const presentationPose = activeWorkSource && !hunting ? workPose : undefined;
   const huntMotion = useRef<THREE.Group>(null);
   useFrame(() => {
     if (!huntMotion.current) return;
+    workPose.current = hunting ? "attack" : capabilityPresentation?.actorPose ?? "curious";
+    if (activeWorkSource && !hunting) {
+      const now = performance.now();
+      const phase = projectWildsHarvestWorkPhase(activeWorkSource, now);
+      completeWildsWorkPresentation(activeWorkSource, now);
+      const working = phase === "work" || phase === "settle";
+      workPose.current = phase === "work" ? "work" : "curious";
+      const facing = working && group.current
+        ? Math.atan2(activeWorkSource.position.x - state.player.x - group.current.position.x,
+          activeWorkSource.position.z - state.player.z - group.current.position.z) - group.current.rotation.y : 0;
+      const wave = working && readability.motionScale > 0 ? Math.sin((now - (activeWorkSource.arrival?.atMs ?? now)) * .0084) : 0;
+      huntMotion.current.position.set(Math.sin(facing) * wave * .05, Math.abs(wave) * .035, Math.cos(facing) * wave * .05);
+      huntMotion.current.rotation.y = facing;
+      return;
+    }
     if (!hunting || !hunt) { huntMotion.current.position.set(0, 0, 0); huntMotion.current.rotation.y = 0; return; }
     const progress = hunting && hunt ? Math.max(0, Math.min(1, (performance.now() - hunt.startedAtMs) / 420)) : 1;
     const surge = hunt.reducedMotion || progress === 1 ? 0 : Math.sin(progress * Math.PI) * .22;
@@ -1149,7 +1180,7 @@ function ActiveCompanion({ hunt, suspended = false, world, partyCanClimb, crewTr
     : null, [activeCapabilityFamily, activeWorkSource?.sourceId]);
   return (
     <group name="active-companion" ref={group} scale={0.82}>
-      <group ref={huntMotion}><WildsCreatureActor grounded gait={gait} accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} locomotion={locomotion} morphology={appearance?.morphology} pose={hunting ? "attack" : working ? "work" : capabilityPresentation?.actorPose ?? "curious"} primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} /></group>
+      <group ref={huntMotion}><WildsCreatureActor grounded gait={gait} poseRef={presentationPose} accent={appearance?.palette.accent ?? card.accent} anatomy={appearance?.anatomy} cadenceMs={appearance?.cadenceMs} familyId={asset?.manifest.familyId ?? card.id} formId={formId} glow={appearance?.palette.glow ?? card.accent} identityToken={appearance?.fingerprint} locomotion={locomotion} morphology={appearance?.morphology} pose={hunting ? "attack" : capabilityPresentation?.actorPose ?? "curious"} primary={appearance?.palette.primary ?? card.color} secondary={appearance?.palette.secondary ?? card.color} /></group>
       {capabilityPresentation ? <>
         <mesh position={[0, .035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <torusGeometry args={[.58, .025, 8, 40]} />

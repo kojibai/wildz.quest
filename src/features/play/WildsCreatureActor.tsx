@@ -105,6 +105,7 @@ export function WildsCreatureActor({
   pose = "idle",
   locomotion = "ground",
   gait,
+  poseRef,
   grounded = false
 }: {
   formId: string;
@@ -118,6 +119,7 @@ export function WildsCreatureActor({
   anatomy?: CardKaiAppearance["anatomy"];
   cadenceMs?: number;
   pose?: WildsCreaturePose;
+  poseRef?: RefObject<WildsCreaturePose>;
   locomotion?: WildsCreatureLocomotion;
   gait?: RefObject<WildsCompanionGait>;
   grounded?: boolean;
@@ -165,30 +167,31 @@ export function WildsCreatureActor({
   const walking = useRef({ distance: 0, sourceDistance: 0, weight: 0 });
   useFrame((_, delta) => {
     if (!root.current) return;
+    const framePose = poseRef?.current ?? pose;
     writeWildsCompanionAnimation(walking.current, gait?.current ?? null, delta);
     const time = performance.now() / 1_000;
     const cadence = cadenceMs ? Math.max(0.7, Math.min(3.4, 3_000 / cadenceMs)) : 2.1;
     const motion = readability.motionScale;
     const breath = Math.sin(time * cadence + identity.marking * 4) * 0.025 * motion;
-    const attack = pose === "attack";
-    const work = pose === "work";
+    const attack = framePose === "attack";
+    const work = framePose === "work";
     // Snapshot-driven stop/start must not flip a winged creature between air and ground every frame.
     const movingWeight = walking.current.weight;
     if (movingWeight > .35) groundFlightActive.current = true;
     else if (movingWeight < .08) groundFlightActive.current = false;
     const motionMode = locomotion === "ground" && anatomy?.locomotion === "flying" && wingPlan.pairCount > 0 && groundFlightActive.current ? "air" : locomotion;
-    const frame = writeWildsCreatureLocomotionFrame(locomotionFrame.current, motionMode, time, motion, identity.marking, pose);
+    const frame = writeWildsCreatureLocomotionFrame(locomotionFrame.current, motionMode, time, motion, identity.marking, framePose);
     const rootY = grounded && motionMode === "ground" ? (legged ? .48 * identity.height : body === "serpentine" ? .56 : .4 * identity.height * .9) : frame.rootY;
     const previous = acceptedPose.current;
-    const changed = !previous || previous.pose !== pose || previous.locomotion !== motionMode || previous.grounded !== grounded || previous.height !== identity.height;
+    const changed = !previous || previous.pose !== framePose || previous.locomotion !== motionMode || previous.grounded !== grounded || previous.height !== identity.height;
     // Show accepted battle/locomotion state immediately; the continuing breath,
     // impact, swimming and wing animation retains its original cadence.
     const blend = changed ? 1 : 1 - Math.exp(-18 * Math.min(.1, delta));
     root.current.position.y += (rootY - root.current.position.y) * blend;
     root.current.rotation.x += (frame.rootPitch - root.current.rotation.x) * blend;
     root.current.rotation.z += (frame.rootRoll - root.current.rotation.z) * blend;
-    if (changed) acceptedPose.current = { pose, locomotion: motionMode, grounded, height: identity.height };
-    root.current.scale.setScalar(pose === "capture" ? 0.9 + Math.sin(time * 5) * 0.035 * motion : 1);
+    if (changed) acceptedPose.current = { pose: framePose, locomotion: motionMode, grounded, height: identity.height };
+    root.current.scale.setScalar(framePose === "capture" ? 0.9 + Math.sin(time * 5) * 0.035 * motion : 1);
     if (bodyMotion.current) {
       const slithering = grounded && motionMode === "ground" && !legged && gait;
       const wave = slithering ? Math.sin(walking.current.distance * 7) * .10 * motion * walking.current.weight : 0;
@@ -196,8 +199,8 @@ export function WildsCreatureActor({
       bodyMotion.current.rotation.y = wave * 1.8;
     }
     if (head.current) {
-      head.current.rotation.x = attack ? -0.22 : work ? -.14 + Math.sin(time * 4.2) * .08 * motion : pose === "weakened" ? 0.16 : Math.sin(time * 0.9) * 0.045 * motion;
-      head.current.rotation.y = pose === "curious" ? Math.sin(time * 1.4) * 0.18 * motion : 0;
+      head.current.rotation.x = attack ? -0.22 : work ? -.14 + Math.sin(time * 4.2) * .08 * motion : framePose === "weakened" ? 0.16 : Math.sin(time * 0.9) * 0.045 * motion;
+      head.current.rotation.y = framePose === "curious" ? Math.sin(time * 1.4) * 0.18 * motion : 0;
       head.current.position.y = 0.31 + breath;
     }
     if (limbs.current) {
@@ -211,7 +214,7 @@ export function WildsCreatureActor({
       }
     }
     if (wings.current) wings.current.rotation.x = frame.wingAngle;
-    if (aura.current) aura.current.rotation.y = time * (pose === "capture" ? 2.4 : 0.7) * motion;
+    if (aura.current) aura.current.rotation.y = time * (framePose === "capture" ? 2.4 : 0.7) * motion;
   });
 
   const bodyScale: [number, number, number] = body === "long" || body === "serpentine"

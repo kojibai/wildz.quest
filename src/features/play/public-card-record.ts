@@ -1,5 +1,6 @@
 import { compressPublicCardRecord, decompressPublicCardRecord } from "./public-card-compression";
 import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
+import { isAdmittedWildsCard } from "./admitted-inventory";
 
 export type PublicCardParam = {
   assetId: string;
@@ -91,7 +92,24 @@ export function createPublicWildsCardTransportRecord(record: PublicWildsCardReco
   };
 }
 
-export function parsePublicWildsCardRecord(value: unknown): PublicWildsCardRecord | null {
+/** Compare every transported field against the immutable admitted object. A head
+ * match alone is insufficient; this avoids replaying its already admitted history. */
+function sameProofContents(actual: unknown, expected: unknown): boolean {
+  if (actual === expected) return true;
+  if (!actual || !expected || typeof actual !== "object" || typeof expected !== "object") return false;
+  if (Array.isArray(expected)) {
+    return Array.isArray(actual) && actual.length === expected.length
+      && Object.keys(actual).length === expected.length
+      && expected.every((value, index) => sameProofContents(actual[index], value));
+  }
+  if (Array.isArray(actual)) return false;
+  const keys = Object.keys(expected);
+  return Object.keys(actual).length === keys.length && keys.every(key => Object.hasOwn(actual, key)
+    && sameProofContents((actual as Record<string, unknown>)[key], (expected as Record<string, unknown>)[key]));
+}
+
+export function parsePublicWildsCardRecord(value: unknown, expectedAsset?: PortableCardAsset): PublicWildsCardRecord | null {
+  const admittedAsset = expectedAsset && isAdmittedWildsCard(expectedAsset) ? expectedAsset : null;
   const seen = new Set<object>();
   const parse = (candidate: unknown): PublicWildsCardRecord | null => {
     if (!isRecord(candidate) || seen.has(candidate)) return null;
@@ -121,8 +139,13 @@ export function parsePublicWildsCardRecord(value: unknown): PublicWildsCardRecor
       && typeof candidate.registeredAt === "string"
       && isRecord(candidate.asset)) {
       try {
-        const asset = candidate.asset as PortableCardAsset;
-        const record = createPublicWildsCardRecord(asset, candidate.sourceUrl, candidate.registeredAt);
+        if (admittedAsset && !sameProofContents(candidate.asset, admittedAsset)) return null;
+        const asset = admittedAsset ?? candidate.asset as PortableCardAsset;
+        const record: PublicWildsCardRecord = admittedAsset ? {
+          schema: "receiz.wilds_public_card.v1", assetId: asset.id,
+          sourceUrl: `${new URL(candidate.sourceUrl).origin}${canonicalPublicCardPath(asset.id)}`,
+          registeredAt: admittedIso(candidate.registeredAt), asset
+        } : createPublicWildsCardRecord(asset, candidate.sourceUrl, candidate.registeredAt);
         const source = new URL(candidate.sourceUrl);
         const collectionPath = /^\/u\/[a-z0-9_]{3,64}\/cards\//.test(source.pathname)
           && source.pathname.endsWith(`/cards/${encodeURIComponent(asset.id)}`) && !source.search && !source.hash;
@@ -150,4 +173,3 @@ export function parsePublicWildsCardRecord(value: unknown): PublicWildsCardRecor
   };
   return parse(value);
 }
-

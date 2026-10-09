@@ -5,10 +5,41 @@ import {
   projectWildsResourceBody,
   projectWildsSourceWorkMotion,
   projectWildsWorkPresentation,
+  projectWildsHarvestWorkPhase,
+  completeWildsWorkPresentation,
   writeWildsWorkApproachAnchor
 } from "../src/features/play/wilds-work-presentation";
 
 describe("living stewardship presentation", () => {
+  it("finishes travel and a visible work cycle even when the harvest saves before arrival", () => {
+    for (const kind of ["timber", "stone", "hay"] as const) {
+      let completions = 0;
+      const source = { sourceId: kind, kind, position: { x: 3, y: 0, z: 0 }, startedAtMs: 100,
+        settledAtMs: 110, arrival: { atMs: null as number | null, completed: false }, onComplete: () => completions++ };
+      assert.equal(projectWildsHarvestWorkPhase(source, 800), "approach");
+      assert.equal(completeWildsWorkPresentation(source, 800), false);
+      source.arrival.atMs = 900;
+      assert.equal(projectWildsHarvestWorkPhase(source, 900), "work");
+      assert.equal(projectWildsHarvestWorkPhase(source, 1799), "work");
+      assert.equal(projectWildsHarvestWorkPhase(source, 1800), "settle");
+      assert.equal(projectWildsHarvestWorkPhase(source, 2149), "settle");
+      assert.equal(completeWildsWorkPresentation(source, 2150), true);
+      for (let frame = 0; frame < 120; frame++) assert.equal(completeWildsWorkPresentation(source, 2150 + frame), false);
+      assert.equal(completions, 1);
+      assert.equal(source.settledAtMs, 110, "animation never rewrites durable admission");
+    }
+  });
+
+  it("does not invent settlement when admission is slow or fails", () => {
+    const source = { sourceId: "tree", kind: "timber" as const, position: { x: 3, y: 0, z: 0 }, startedAtMs: 100,
+      settledAtMs: null as number | null, arrival: { atMs: 800, completed: false } };
+    assert.equal(projectWildsHarvestWorkPhase(source, 5000), "work");
+    assert.equal(completeWildsWorkPresentation(source, 5000), false);
+    source.settledAtMs = 5100;
+    assert.equal(projectWildsHarvestWorkPhase(source, 5100), "settle");
+    assert.equal(projectWildsHarvestWorkPhase(source, 5449), "settle");
+    assert.equal(projectWildsHarvestWorkPhase(source, 5450), "complete");
+  });
   it("holds the harvesting destination while the explorer walks and resets for new work", () => {
     const anchor = { sourceId: "", startedAtMs: NaN, x: 0, z: 0 };
     const source = { sourceId: "tree", kind: "timber" as const, position: { x: 3, y: 0, z: 0 }, startedAtMs: 1, settledAtMs: null };
@@ -16,9 +47,9 @@ describe("living stewardship presentation", () => {
     const destination = { ...anchor };
     for (let frame = 0; frame < 600; frame++) writeWildsWorkApproachAnchor(anchor, source, { x: frame / 10, z: frame / 20 });
     assert.deepEqual(anchor, destination);
-    assert.equal(anchor.x, 3 - .82);
+    assert.equal(anchor.x, 3 - 1.6);
     writeWildsWorkApproachAnchor(anchor, { ...source, startedAtMs: 2 }, { x: 6, z: 0 });
-    assert.equal(anchor.x, 3 + .82);
+    assert.equal(anchor.x, 3 + 1.6);
   });
   it("isolates work motion to the exact active source without becoming authority", () => {
     const active = projectWildsWorkPresentation({ sourceId: "source:tree:1", activeSourceId: "source:tree:1", commandPending: true, commandSettled: false, elapsedMs: 640, reducedMotion: false });

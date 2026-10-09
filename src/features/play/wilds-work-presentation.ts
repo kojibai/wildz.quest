@@ -2,13 +2,33 @@ export type WildsWorkPresentationPhase = "idle" | "approach" | "work" | "settle"
 
 export type WildsActiveWorkSource = Readonly<{
   sourceId: string;
-  kind: "timber" | "stone";
+  kind: "timber" | "stone" | "hay";
+  assetId?: string;
   position: Readonly<{ x: number; y: number; z: number }>;
   startedAtMs: number;
   settledAtMs: number | null;
   /** Presentation-only arrival, written by the companion movement loop. */
-  arrival?: { atMs: number | null };
+  arrival?: { atMs: number | null; completed?: boolean };
+  onComplete?: () => void;
 }>;
+
+/** Local save timing must not erase the creature's visible trip. No authority,
+ * inventory writes, timers or allocations participate in this frame projection. */
+export function projectWildsHarvestWorkPhase(source: WildsActiveWorkSource, nowMs: number): "approach" | "work" | "settle" | "complete" {
+  const arrival = source.arrival?.atMs;
+  if (arrival === null) return "approach";
+  if (source.settledAtMs === null) return "work";
+  const settleAt = Math.max((arrival ?? source.startedAtMs) + 900, source.settledAtMs);
+  return nowMs < settleAt ? "work" : nowMs < settleAt + 350 ? "settle" : "complete";
+}
+
+/** Emit a single presentation completion from the existing companion frame loop. */
+export function completeWildsWorkPresentation(source: WildsActiveWorkSource, nowMs: number): boolean {
+  if (!source.arrival || source.arrival.completed || projectWildsHarvestWorkPhase(source, nowMs) !== "complete") return false;
+  source.arrival.completed = true;
+  source.onComplete?.();
+  return true;
+}
 
 export type WildsWorkApproachAnchor = { sourceId: string; startedAtMs: number; x: number; z: number };
 
@@ -19,8 +39,9 @@ export function writeWildsWorkApproachAnchor(anchor: WildsWorkApproachAnchor, so
   const distance = Math.max(.001, Math.hypot(dx, dz));
   anchor.sourceId = source.sourceId;
   anchor.startedAtMs = source.startedAtMs;
-  anchor.x = source.position.x - dx / distance * .82;
-  anchor.z = source.position.z - dz / distance * .82;
+  const standOff = source.kind === "hay" ? .82 : 1.6;
+  anchor.x = source.position.x - dx / distance * standOff;
+  anchor.z = source.position.z - dz / distance * standOff;
 }
 
 export type WildsResourceBodyProjection = Readonly<{

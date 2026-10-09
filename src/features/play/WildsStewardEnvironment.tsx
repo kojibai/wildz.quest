@@ -10,7 +10,7 @@ import { projectWildsTerrainActorPosition } from "./wilds-terrain-rendering";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
 import { wildsSiteRuntimeGroundY, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import { projectWildsResourceAffordance } from "./wilds-resource-affordance";
-import { projectWildsWorkPresentation, type WildsActiveWorkSource } from "./wilds-work-presentation";
+import { projectWildsHarvestWorkPhase, projectWildsWorkPresentation, type WildsActiveWorkSource } from "./wilds-work-presentation";
 import { useWildsReadability } from "./WildsReadabilityContext";
 import { constructionSourcesNear, type WildsStewardPlacement } from "./wilds-steward-craft";
 import { createWildsProximityIndex } from "./wilds-proximity-index";
@@ -261,17 +261,18 @@ function ResourceManifestation({ activeWorkSource, geometry, materials, onIntera
     if (!impact.current) return;
     // Idle sources have no animated fragments. Avoid allocating/freeze-projecting
     // work state for every visible source on every walking frame.
-    if (activeWorkSource?.sourceId !== source.sourceId || activeWorkSource.settledAtMs !== null) {
+    if (activeWorkSource?.sourceId !== source.sourceId || activeWorkSource.arrival?.atMs === null
+      || projectWildsHarvestWorkPhase(activeWorkSource, performance.now()) !== "work") {
       impact.current.visible = false;
       return;
     }
-    const elapsedMs = activeWorkSource?.sourceId === source.sourceId ? performance.now() - activeWorkSource.startedAtMs : 0;
+    const elapsedMs = performance.now() - (activeWorkSource.arrival?.atMs ?? activeWorkSource.startedAtMs);
     const work = projectWildsWorkPresentation({
       sourceId: source.sourceId,
       activeSourceId: activeWorkSource?.sourceId ?? null,
-      commandPending: Boolean(activeWorkSource && activeWorkSource.settledAtMs === null),
-      commandSettled: Boolean(activeWorkSource?.settledAtMs !== null && activeWorkSource?.settledAtMs !== undefined),
-      elapsedMs,
+      commandPending: true,
+      commandSettled: false,
+      elapsedMs: elapsedMs + 280,
       reducedMotion: readability.motionScale === 0
     });
     impact.current.visible = work.impact > .02;
@@ -295,7 +296,7 @@ function ResourceManifestation({ activeWorkSource, geometry, materials, onIntera
     <group name="work-impact-fragments" position={[0, timber ? .78 : .34, 0]} ref={impact} visible={false}>
       {Array.from({ length: 6 }, (_, index) => {
         const angle = index / 6 * Math.PI * 2;
-        return <Shared geometry={geometry.workChip} key={index} material={timber ? materials.timberChip : materials.stoneChip} position={[Math.cos(angle) * (.2 + index * .035), .06 + (index % 3) * .08, Math.sin(angle) * (.2 + index * .035)]} rotation={[angle, angle * .5, 0]} />;
+        return <Shared geometry={geometry.workChip} key={index} material={timber ? materials.timberChip : hay ? materials.hayBlade : materials.stoneChip} position={[Math.cos(angle) * (.2 + index * .035), .06 + (index % 3) * .08, Math.sin(angle) * (.2 + index * .035)]} rotation={[angle, angle * .5, 0]} />;
       })}
     </group>
     <Shared name="resource-tap-proxy" geometry={geometry.sourceHit} material={materials.sourceHit} position={[0, timber ? 1.8 : hay ? .45 : .38, 0]} scale={timber ? [1, 1, 1] : [.72, hay ? .22 : .2, .72]} />

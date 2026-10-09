@@ -32,6 +32,25 @@ export function writeWildsCrewFollowSpeed(state: WildsCrewFollowMotion, player: 
 }
 
 import type { WildsCrewNavigationAuthority, WildsCrewNavigationPoint, WildsCrewNavigationSample } from "./wilds-crew-navigation";
+/** The ordinary formation is presentation-relative and can overlap a trunk. On
+ * departure only, start independent navigation at the nearby admitted player
+ * landing if the formation is occupied. The visual writer keeps its old pose
+ * and eases into the route; independent/distant actors cannot use this recovery. */
+export function writeWildsCrewWorkDeparture(position: WildsCrewNavigationPoint, player: Readonly<WildsCrewNavigationPoint>, scratch: WildsCrewNavigationSample, authority: WildsCrewNavigationAuthority): boolean {
+  if (authority.mode !== "walk" || !authority.permittedModes.includes("walk")
+    || !Number.isFinite(position.x) || !Number.isFinite(position.y) || !Number.isFinite(position.z)
+    || !Number.isFinite(player.x) || !Number.isFinite(player.y) || !Number.isFinite(player.z)
+    || Math.hypot(position.x - player.x, position.y - player.y, position.z - player.z) > 2) return false;
+  scratch.allowed = false; scratch.y = NaN;
+  authority.sampleSegment(position, position, "walk", scratch);
+  if (scratch.allowed && Number.isFinite(scratch.y)) return false;
+  scratch.allowed = false; scratch.y = NaN;
+  authority.sampleSegment(player, player, "walk", scratch);
+  if (!scratch.allowed || !Number.isFinite(scratch.y)) return false;
+  position.x = player.x; position.y = scratch.y; position.z = player.z;
+  return true;
+}
+
 /** Explicit accompanying-party recovery, not a swept journey from the old pose.
  * Validates the player's current ground landing, then its adjacent formation segment.
  * The caller must discard gait distance for this reposition; expedition actors never use it. */

@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
-import { writeWildsCrewFollowSpeed, writeWildsCrewFollowPresentation } from "../src/features/play/wilds-crew-follow-motion";
+import { writeWildsCrewFollowSpeed, writeWildsCrewFollowPresentation, writeWildsCrewWorkDeparture } from "../src/features/play/wilds-crew-follow-motion";
+it("hands an overlapping formation to a validated nearby player anchor once, without relaxing subsequent collision",()=>{
+ const p={x:0,y:0,z:0},player={x:1.2,y:0,z:0},scratch={allowed:false,y:NaN};let checks=0;
+ const authority={mode:"walk" as const,permittedModes:["walk" as const],sampleSegment:(_from:unknown,to:{x:number},_mode:unknown,out:{allowed:boolean;y:number})=>{checks++;out.allowed=to.x>=1;out.y=0;}};
+ assert.equal(writeWildsCrewWorkDeparture(p,player,scratch,authority),true);assert.deepEqual(p,player);assert.equal(checks,2);
+ assert.equal(writeWildsCrewWorkDeparture(p,player,scratch,authority),false);assert.equal(checks,3);
+ assert.equal(writeWildsCrewWorkDeparture({x:-10,y:0,z:0},player,scratch,authority),false);assert.equal(checks,3,'no distant relocation');
+ assert.equal(writeWildsCrewWorkDeparture({x:0,y:0,z:0},player,scratch,{...authority,sampleSegment:(_from,_to,_mode,out)=>{out.allowed=false;out.y=NaN;}}),false,'forbidden landing stays forbidden');
+});
 it("smooths snapshot jumps and gait pulses while settling exactly after walking", () => {
   const state = { x: 0, y: 0, z: 0, distance: 0, speed: 0, travelled: 0 };
   let previous = 0;

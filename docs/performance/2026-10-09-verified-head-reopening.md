@@ -119,6 +119,12 @@ the readiness mark. Those short initial frame gaps were not isolated to a cause
 by this patch. They are reported separately from the later two-minute trace;
 this is not a claim that every initial render or device is entirely stall-free.
 
+The [opening-frame follow-up](2026-10-09-opening-and-resource-motion.md)
+isolates the optional shader compilation burst, schedules it between paints,
+and removes repeated verification of unchanged admitted public-card responses.
+It includes new measurements beginning input at the first playable HUD; the
+numbers above describe the earlier patch before that follow-up.
+
 Full map checks opened the World view and Fit all discovered territory, closed
 it, walked with real keyboard input, rotated the actual camera, then reopened
 it. The closed map held X 101, Z -238 while the HUD moved to X 97, Z -262;

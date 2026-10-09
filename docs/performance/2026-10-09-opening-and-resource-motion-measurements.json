@@ -1,0 +1,344 @@
+{
+  "date": "2026-10-09",
+  "scope": "Production Chromium at mobile and desktop viewports; synthetic accounts only; no physical iPhone/iPad measurement",
+  "fixture": "Valid encrypted 7,763,369-byte Identity Seal and received 301-event creature; normal owner starter retained",
+  "controlledOpening": {
+    "baselineCommit": "85528f4",
+    "optionalShaderFixCommit": "6b62219",
+    "viewport": [
+      390,
+      844
+    ],
+    "serviceWorkers": "blocked for controlled A/B",
+    "window": "Five seconds after first playable HUD",
+    "baseline": [
+      {
+        "readyMs": 568.315,
+        "postHudFrames": 642,
+        "p95FrameMs": 8.445,
+        "maxFrameMs": 34.15,
+        "gapsAbove30Ms": 1,
+        "postHudLongTasks": 0
+      },
+      {
+        "readyMs": 375.57,
+        "postHudFrames": 658,
+        "p95FrameMs": 8.805,
+        "maxFrameMs": 41.665,
+        "gapsAbove30Ms": 1,
+        "postHudLongTasks": 0
+      },
+      {
+        "readyMs": 442.93,
+        "postHudFrames": 640,
+        "p95FrameMs": 8.81,
+        "maxFrameMs": 41.745,
+        "gapsAbove30Ms": 1,
+        "postHudLongTasks": 0
+      }
+    ],
+    "final": [
+      {
+        "readyMs": 592.735,
+        "postHudFrames": 643,
+        "p95FrameMs": 8.56,
+        "maxFrameMs": 16.665,
+        "gapsAbove30Ms": 0,
+        "postHudLongTasks": 0
+      },
+      {
+        "readyMs": 406.11,
+        "postHudFrames": 650,
+        "p95FrameMs": 8.855,
+        "maxFrameMs": 9.335,
+        "gapsAbove30Ms": 0,
+        "postHudLongTasks": 0
+      },
+      {
+        "readyMs": 402.75,
+        "postHudFrames": 649,
+        "p95FrameMs": 8.565,
+        "maxFrameMs": 9.325,
+        "gapsAbove30Ms": 0,
+        "postHudLongTasks": 0
+      }
+    ],
+    "browserErrorCount": 0,
+    "limitations": [
+      "Three opening runs; do not infer a reliable startup-time delta",
+      "Previous 108\u2013125 ms gaps were not reproduced at that magnitude in this controlled setup",
+      "Pre-HUD bundle/scene initialization excluded from post-HUD frame metrics"
+    ]
+  },
+  "durableSealReopening": {
+    "firstUpgrade": {
+      "readyMs": 704.56,
+      "mainThreadSealReads": 0,
+      "pendingUploadValueScans": 0,
+      "custodyWorkers": 1,
+      "postHudLongTaskCount": 0,
+      "frames": {
+        "frames": 857,
+        "p95Ms": 8.635,
+        "maxMs": 9.325,
+        "over50Ms": 0
+      }
+    },
+    "retainedHeadReopening": {
+      "readyMs": 347.9,
+      "mainThreadSealReads": 0,
+      "pendingUploadValueScans": 0,
+      "custodyWorkers": 0,
+      "postHudLongTaskCount": 0,
+      "frames": {
+        "frames": 874,
+        "p95Ms": 8.66,
+        "maxMs": 9.335,
+        "over50Ms": 0
+      }
+    },
+    "offlineReopening": {
+      "label": "service-worker-controlled offline reopen; immediate HUD motion",
+      "readyAt": 339.245
+    },
+    "twoMinutesFromFirstPlayableHud": {
+      "frames": 14466,
+      "p95Ms": 9,
+      "maxMs": 16.655,
+      "over50Ms": 0,
+      "longTasks": [],
+      "sealReads": 0,
+      "elapsedMs": 120084,
+      "inputs": 1379,
+      "cameraDrags": 17,
+      "distinctPositions": 37,
+      "longTaskCount": 0
+    },
+    "storage": {
+      "version": 4,
+      "expiryIndex": true,
+      "custodyHead": true,
+      "custodyCoordinates": 1,
+      "expiredDeleted": true,
+      "currentRetained": true
+    },
+    "reconnectedOptionalAudio": {
+      "embodiedSamples": 15,
+      "audioFiles": 17
+    },
+    "browserErrorCount": 0
+  },
+  "unchangedAdmittedPublicRecord": {
+    "bytes": 362554,
+    "results": [
+      {
+        "beforeMs": 115.054,
+        "afterMs": 1.346
+      },
+      {
+        "beforeMs": 6.314,
+        "afterMs": 0.483
+      },
+      {
+        "beforeMs": 5.561,
+        "afterMs": 0.721
+      },
+      {
+        "beforeMs": 6.383,
+        "afterMs": 0.477
+      },
+      {
+        "beforeMs": 3.247,
+        "afterMs": 0.515
+      }
+    ],
+    "exclusions": [
+      "Network transfer",
+      "JSON response body parsing"
+    ],
+    "guard": "Exact deeply frozen asset must be admitted in private runtime WeakSet; every transported field must match"
+  },
+  "resourceTrips": {
+    "method": "Actual UI gather gestures; existing scene inspected via QA-only read hook; stationary player on physically supported paths; work screenshot included inside each sampling window",
+    "results": [
+      {
+        "kind": "timber",
+        "creditedLots": 1,
+        "saveMsAfterGesture": 38.74,
+        "arrivalMsAfterGesture": 208.255,
+        "saveBeforeArrival": true,
+        "maxDisplacementM": 1.192,
+        "returnOffsetM": 0.0,
+        "presentationReleased": true,
+        "frames": {
+          "count": 737,
+          "p95Ms": 9.935,
+          "maxMs": 16.735,
+          "over50Ms": 0
+        },
+        "longTaskCount": 0,
+        "browserErrorCount": 0
+      },
+      {
+        "kind": "stone",
+        "creditedLots": 1,
+        "saveMsAfterGesture": 31.865,
+        "arrivalMsAfterGesture": 94.415,
+        "saveBeforeArrival": true,
+        "maxDisplacementM": 0.535,
+        "returnOffsetM": 0.0,
+        "presentationReleased": true,
+        "frames": {
+          "count": 738,
+          "p95Ms": 9.9,
+          "maxMs": 10.335,
+          "over50Ms": 0
+        },
+        "longTaskCount": 0,
+        "browserErrorCount": 0
+      },
+      {
+        "kind": "hay",
+        "creditedLots": 1,
+        "saveMsAfterGesture": 47.96,
+        "arrivalMsAfterGesture": 202.9,
+        "saveBeforeArrival": true,
+        "maxDisplacementM": 1.189,
+        "returnOffsetM": 0.0,
+        "presentationReleased": true,
+        "frames": {
+          "count": 843,
+          "p95Ms": 9.88,
+          "maxMs": 33.41,
+          "over50Ms": 0
+        },
+        "longTaskCount": 0,
+        "browserErrorCount": 0
+      }
+    ],
+    "assertions": [
+      "Exactly one resource credited",
+      "Save completed before physical arrival",
+      "Creature left formation and returned within 0.001 m",
+      "Presentation released after work",
+      "Zero frames over 50 ms",
+      "Zero long tasks",
+      "Zero browser errors"
+    ],
+    "limits": "A steep mountain spawn without a climbing creature failed support and was replaced; unsupported traversal never granted"
+  },
+  "createPanel": {
+    "stateCount": 20,
+    "viewports": [
+      {
+        "viewport": {
+          "width": 390,
+          "height": 844
+        },
+        "panel": {
+          "x": 12,
+          "y": 424.703,
+          "width": 366,
+          "height": 293.297
+        },
+        "prompt": {
+          "x": 25,
+          "y": 595,
+          "width": 340,
+          "height": 112
+        },
+        "closedTabSizePx": [
+          44,
+          44
+        ]
+      },
+      {
+        "viewport": {
+          "width": 320,
+          "height": 640
+        },
+        "panel": {
+          "x": 12,
+          "y": 200.406,
+          "width": 296,
+          "height": 313.594
+        },
+        "prompt": {
+          "x": 25,
+          "y": 391,
+          "width": 270,
+          "height": 112
+        },
+        "closedTabSizePx": [
+          44,
+          44
+        ]
+      },
+      {
+        "viewport": {
+          "width": 390,
+          "height": 400
+        },
+        "panel": {
+          "x": 12,
+          "y": 55,
+          "width": 366,
+          "height": 257
+        },
+        "prompt": {
+          "x": 23,
+          "y": 205,
+          "width": 344,
+          "height": 96
+        },
+        "closedTabSizePx": [
+          44,
+          44
+        ]
+      },
+      {
+        "viewport": {
+          "width": 1280,
+          "height": 800
+        },
+        "panel": {
+          "x": 884,
+          "y": 370.703,
+          "width": 380,
+          "height": 293.297
+        },
+        "prompt": {
+          "x": 897,
+          "y": 541,
+          "width": 354,
+          "height": 112
+        },
+        "closedTabSizePx": [
+          44,
+          44
+        ]
+      }
+    ],
+    "assertions": [
+      "Only clicked/open tab shows label",
+      "At least 44 px hit targets",
+      "No toolbar overflow",
+      "Whole panel fits each viewport"
+    ],
+    "nativeKeyboardAppearance": "Not measured on physical iPhone",
+    "browserErrorCount": 0
+  },
+  "validation": {
+    "tests": {
+      "total": 3638,
+      "passed": 3637,
+      "skipped": 1,
+      "failed": 0
+    },
+    "build": "pass; two existing Receiz SDK web-worker dynamic require warnings",
+    "lint": "pass",
+    "architectureLock": "pass; 1009 runtime files",
+    "secretScan": "pass",
+    "diffCheck": "pass"
+  }
+}
