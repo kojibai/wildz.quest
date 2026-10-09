@@ -6,6 +6,7 @@ import { publishWildzProfileWithIdentityProof } from "./wildz-profile-identity-p
 import {
   canonicalWildzHandle,
   canonicalWildzProfilePath,
+  sanitizePublicWildzProfile,
   type PublicWildzProfile
 } from "@/features/profile/public-profile";
 import { registerPublicWildsCard } from "@/features/play/public-card-registry";
