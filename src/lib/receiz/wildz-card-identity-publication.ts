@@ -6,6 +6,7 @@ import type { PortableCardAsset } from "../../features/play/portable-card";
 import { WILDZ_PRODUCT } from "../wildz/product";
 import type { WildzIdentityRepository } from "./wildz-identity-repository";
 import { sameWildzPlayerCoordinate, parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import { readWildzIdentityForSigning } from "./wildz-identity-signing-read";
 
 /** Sign the public projection locally; the private Identity Seal never leaves its repository. */
 export async function publishWildzCardWithIdentityProof(
@@ -20,6 +21,9 @@ export async function publishWildzCardWithIdentityProof(
 ) {
   options.signal?.throwIfAborted();
   const repository = options.repository ?? defaultIdentityRepository;
+  const withKeyFile: WildzIdentityRepository["withKeyFile"] = options.repository
+    ? repository.withKeyFile.bind(repository)
+    : async (keyId, operation) => operation(await readWildzIdentityForSigning(keyId, options.signal));
   const session = await repository.active();
   let owner = parseWildzPlayerCoordinate(asset.manifest.ownerReceizId);
   if (!session || session.localAuthority !== "verified") throw new Error("wildz_card_identity_seal_required");
@@ -35,7 +39,7 @@ export async function publishWildzCardWithIdentityProof(
   const request = options.fetcher ?? globalThis.fetch;
   // A connected session has already aligned this exact key with Receiz. Older seal
   // metadata may predate that canonical handle; the registry still verifies its signature.
-  await repository.withKeyFile(session.keyId, async keyFile => {
+  await withKeyFile(session.keyId, async keyFile => {
     if (keyFile.keyId !== session.keyId || (session.remoteStatus !== "connected" && !sameWildzPlayerCoordinate(keyFile.owner.username ?? "", publisher.actorId))) {
       throw new Error("wildz_public_card_owner_mismatch");
     }

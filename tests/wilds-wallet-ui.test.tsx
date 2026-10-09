@@ -319,6 +319,18 @@ test("assets uses live resource units when the wallet summary is unknown or stal
   }
 });
 
+test("source-backed assets use current card restrictions after a same-account inventory change", () => {
+  const card = initialPlayState.inventory[0]!;
+  for (const status of ["verified", "listed", "suspended", "revoked"] as const) {
+    const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, {
+      publicUsername: "explorer", cards: [{ ...card, status }],
+      state: state({ page: "assets", balanceBasis: "saved", sourceAuthorityVerified: true }), ...actions
+    }));
+    if (status === "verified") assert.doesNotMatch(markup, /Unavailable to send/);
+    else assert.match(markup, /<dt>Unavailable to send<\/dt><dd>1<\/dd>/);
+  }
+});
+
 test("assets preserves unknown and available summary counts without live inventory", () => {
   for (const [transferableResourceCount, expected] of [[null, "—"], [734, "734"]] as const) {
     const markup = renderToStaticMarkup(createElement(WildsWalletTerminal, {

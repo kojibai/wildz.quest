@@ -3439,5 +3439,1032 @@
       "canvas": true,
       "heap": 122342718
     }
+  },
+  "walletSourceProjectionReuse": {
+    "node": {
+      "scenario": "Six isolated wallet source-projection attempts on a synthetic signed Seal containing 16 copies of one valid 301-event history; fresh Node process, not startup or iPhone timing",
+      "summary": {
+        "before": {
+          "medianElapsedMs": 19977.316416,
+          "medianMaxHeartbeatGapMs": 993.8827919999999,
+          "sourceReads": 6
+        },
+        "after": {
+          "medianElapsedMs": 3313.9257089999996,
+          "medianMaxHeartbeatGapMs": 975.5254169999998,
+          "sourceReads": 1
+        }
+      },
+      "samples": [
+        {
+          "pair": 0,
+          "version": "before",
+          "elapsedMs": 20174.503334,
+          "maxHeartbeatGapMs": 1023.2496659999997,
+          "ticks": 95,
+          "sourceReads": 6,
+          "attempts": 6,
+          "sourceDigest": "94f28f3ac8ff2f3e6d898a8d5fad4b3313d251b6fcf5f22d0e263e305abd63d9",
+          "balance": "2500000"
+        },
+        {
+          "pair": 0,
+          "version": "after",
+          "elapsedMs": 3313.9257089999996,
+          "maxHeartbeatGapMs": 986.251792,
+          "ticks": 18,
+          "sourceReads": 1,
+          "attempts": 6,
+          "sourceDigest": "94f28f3ac8ff2f3e6d898a8d5fad4b3313d251b6fcf5f22d0e263e305abd63d9",
+          "balance": "2500000"
+        },
+        {
+          "pair": 1,
+          "version": "after",
+          "elapsedMs": 3294.4838749999994,
+          "maxHeartbeatGapMs": 972.2556250000002,
+          "ticks": 15,
+          "sourceReads": 1,
+          "attempts": 6,
+          "sourceDigest": "94f28f3ac8ff2f3e6d898a8d5fad4b3313d251b6fcf5f22d0e263e305abd63d9",
+          "balance": "2500000"
+        },
+        {
+          "pair": 1,
+          "version": "before",
+          "elapsedMs": 19977.316416,
+          "maxHeartbeatGapMs": 985.9551250000004,
+          "ticks": 91,
+          "sourceReads": 6,
+          "attempts": 6,
+          "sourceDigest": "94f28f3ac8ff2f3e6d898a8d5fad4b3313d251b6fcf5f22d0e263e305abd63d9",
+          "balance": "2500000"
+        },
+        {
+          "pair": 2,
+          "version": "before",
+          "elapsedMs": 19909.919709,
+          "maxHeartbeatGapMs": 989.1558330000007,
+          "ticks": 97,
+          "sourceReads": 6,
+          "attempts": 6,
+          "sourceDigest": "94f28f3ac8ff2f3e6d898a8d5fad4b3313d251b6fcf5f22d0e263e305abd63d9",
+          "balance": "2500000"
+        },
+        {
+          "pair": 2,
+          "version": "after",
+          "elapsedMs": 3363.222083,
+          "maxHeartbeatGapMs": 1000.0841670000004,
+          "ticks": 16,
+          "sourceReads": 1,
+          "attempts": 6,
+          "sourceDigest": "94f28f3ac8ff2f3e6d898a8d5fad4b3313d251b6fcf5f22d0e263e305abd63d9",
+          "balance": "2500000"
+        },
+        {
+          "pair": 3,
+          "version": "after",
+          "elapsedMs": 3337.964625,
+          "maxHeartbeatGapMs": 966.6703750000001,
+          "ticks": 18,
+          "sourceReads": 1,
+          "attempts": 6,
+          "sourceDigest": "94f28f3ac8ff2f3e6d898a8d5fad4b3313d251b6fcf5f22d0e263e305abd63d9",
+          "balance": "2500000"
+        },
+        {
+          "pair": 3,
+          "version": "before",
+          "elapsedMs": 19993.556416000003,
+          "maxHeartbeatGapMs": 993.8827919999999,
+          "ticks": 94,
+          "sourceReads": 6,
+          "attempts": 6,
+          "sourceDigest": "94f28f3ac8ff2f3e6d898a8d5fad4b3313d251b6fcf5f22d0e263e305abd63d9",
+          "balance": "2500000"
+        },
+        {
+          "pair": 4,
+          "version": "before",
+          "elapsedMs": 19921.604916,
+          "maxHeartbeatGapMs": 996.7184589999997,
+          "ticks": 102,
+          "sourceReads": 6,
+          "attempts": 6,
+          "sourceDigest": "94f28f3ac8ff2f3e6d898a8d5fad4b3313d251b6fcf5f22d0e263e305abd63d9",
+          "balance": "2500000"
+        },
+        {
+          "pair": 4,
+          "version": "after",
+          "elapsedMs": 3302.9450830000005,
+          "maxHeartbeatGapMs": 975.5254169999998,
+          "ticks": 16,
+          "sourceReads": 1,
+          "attempts": 6,
+          "sourceDigest": "94f28f3ac8ff2f3e6d898a8d5fad4b3313d251b6fcf5f22d0e263e305abd63d9",
+          "balance": "2500000"
+        }
+      ]
+    },
+    "browserLargeSignedSource": {
+      "scenario": "Actual production wallet source function on an inactive synthetic signed 7.76 MB Seal in local IndexedDB, same live game, portrait Chromium; worker versus original fallback; not bjklock or iPhone",
+      "setup": {
+        "archiveCharacters": 7761476,
+        "activeUnchanged": true
+      },
+      "samples": [
+        {
+          "pair": 0,
+          "version": "main",
+          "elapsedMs": 5584.600000023842,
+          "balance": "2500000",
+          "longTasks": [
+            {
+              "at": 105577.30000007153,
+              "duration": 5572
+            }
+          ],
+          "maxFrameMs": 5566.600000000006,
+          "p95FrameMs": 5566.600000000006,
+          "frames": 15
+        },
+        {
+          "pair": 0,
+          "version": "worker",
+          "elapsedMs": 5892.800000071526,
+          "balance": "2500000",
+          "longTasks": [],
+          "maxFrameMs": 10.30000000000291,
+          "p95FrameMs": 9.19999999999709,
+          "frames": 718
+        },
+        {
+          "pair": 1,
+          "version": "worker",
+          "elapsedMs": 5974.300000071526,
+          "balance": "2500000",
+          "longTasks": [],
+          "maxFrameMs": 10.39999999999418,
+          "p95FrameMs": 9.5,
+          "frames": 728
+        },
+        {
+          "pair": 1,
+          "version": "main",
+          "elapsedMs": 5647.100000023842,
+          "balance": "2500000",
+          "longTasks": [
+            {
+              "at": 124540.10000002384,
+              "duration": 5638
+            }
+          ],
+          "maxFrameMs": 5632.300000000003,
+          "p95FrameMs": 5632.300000000003,
+          "frames": 13
+        },
+        {
+          "pair": 2,
+          "version": "main",
+          "elapsedMs": 5612.699999928474,
+          "balance": "2500000",
+          "longTasks": [
+            {
+              "at": 130687.5,
+              "duration": 5607
+            }
+          ],
+          "maxFrameMs": 5599.800000000003,
+          "p95FrameMs": 5599.800000000003,
+          "frames": 14
+        },
+        {
+          "pair": 2,
+          "version": "worker",
+          "elapsedMs": 5843.599999904633,
+          "balance": "2500000",
+          "longTasks": [],
+          "maxFrameMs": 10.400000000023283,
+          "p95FrameMs": 10,
+          "frames": 713
+        }
+      ]
+    },
+    "establishedAccountBefore35Seconds": {
+      "ready": 529.1000000238419,
+      "reads": [
+        {
+          "store": "identities",
+          "at": 283.39999997615814,
+          "elapsed": 1.7999999523162842,
+          "ciphertextCharacters": 4875
+        },
+        {
+          "store": "wrappingKeys",
+          "at": 287.89999997615814,
+          "elapsed": 0.10000002384185791
+        },
+        {
+          "store": "identities",
+          "at": 541.2999999523163,
+          "elapsed": 0.20000004768371582,
+          "ciphertextCharacters": 4875
+        },
+        {
+          "store": "wrappingKeys",
+          "at": 541.7999999523163,
+          "elapsed": 0.20000004768371582
+        },
+        {
+          "store": "identities",
+          "at": 854.6000000238419,
+          "elapsed": 0.09999990463256836,
+          "ciphertextCharacters": 4875
+        },
+        {
+          "store": "wrappingKeys",
+          "at": 854.7999999523163,
+          "elapsed": 0
+        },
+        {
+          "store": "identities",
+          "at": 1554.6999999284744,
+          "elapsed": 0.20000004768371582,
+          "ciphertextCharacters": 4875
+        },
+        {
+          "store": "wrappingKeys",
+          "at": 1555,
+          "elapsed": 0.10000002384185791
+        },
+        {
+          "store": "identities",
+          "at": 2266.6999999284744,
+          "elapsed": 3.100000023841858,
+          "ciphertextCharacters": 4875
+        },
+        {
+          "store": "wrappingKeys",
+          "at": 2280.100000023842,
+          "elapsed": 10.599999904632568
+        },
+        {
+          "store": "identities",
+          "at": 3561.399999976158,
+          "elapsed": 0.20000004768371582,
+          "ciphertextCharacters": 4875
+        },
+        {
+          "store": "wrappingKeys",
+          "at": 3561.6999999284744,
+          "elapsed": 0.10000002384185791
+        },
+        {
+          "store": "identities",
+          "at": 6275.299999952316,
+          "elapsed": 2.200000047683716,
+          "ciphertextCharacters": 4875
+        },
+        {
+          "store": "wrappingKeys",
+          "at": 6283.899999976158,
+          "elapsed": 2
+        },
+        {
+          "store": "identities",
+          "at": 7566,
+          "elapsed": 0.19999992847442627,
+          "ciphertextCharacters": 4875
+        },
+        {
+          "store": "wrappingKeys",
+          "at": 7566.399999976158,
+          "elapsed": 0
+        },
+        {
+          "store": "identities",
+          "at": 14285.799999952316,
+          "elapsed": 1.7000000476837158,
+          "ciphertextCharacters": 4875
+        },
+        {
+          "store": "wrappingKeys",
+          "at": 14290.399999976158,
+          "elapsed": 1.399999976158142
+        },
+        {
+          "store": "identities",
+          "at": 15572,
+          "elapsed": 0.19999992847442627,
+          "ciphertextCharacters": 4875
+        },
+        {
+          "store": "wrappingKeys",
+          "at": 15572.299999952316,
+          "elapsed": 0.10000002384185791
+        },
+        {
+          "store": "identities",
+          "at": 15872.799999952316,
+          "elapsed": 0.10000002384185791,
+          "ciphertextCharacters": 4875
+        },
+        {
+          "store": "wrappingKeys",
+          "at": 15873,
+          "elapsed": 0
+        },
+        {
+          "store": "identities",
+          "at": 30289.100000023842,
+          "elapsed": 2.399999976158142,
+          "ciphertextCharacters": 4875
+        },
+        {
+          "store": "wrappingKeys",
+          "at": 30295.899999976158,
+          "elapsed": 9.100000023841858
+        },
+        {
+          "store": "identities",
+          "at": 31578.399999976158,
+          "elapsed": 0.10000002384185791,
+          "ciphertextCharacters": 4875
+        },
+        {
+          "store": "wrappingKeys",
+          "at": 31578.600000023842,
+          "elapsed": 0
+        }
+      ],
+      "tasks": [
+        {
+          "at": 53.799999952316284,
+          "duration": 110
+        },
+        {
+          "at": 205,
+          "duration": 54
+        },
+        {
+          "at": 335.10000002384186,
+          "duration": 69
+        }
+      ],
+      "errors": [],
+      "position": "Open world map. Current position X 99, Z -195. 0 roaming creatures"
+    },
+    "establishedAccountAfter35Seconds": {
+      "ready": 518.8450000286102,
+      "canvas": 254.06000006198883,
+      "reads": [],
+      "walletWorkers": [
+        {
+          "at": 534.545000076294,
+          "fields": [
+            "keyId"
+          ],
+          "url": "http://127.0.0.1:3110/_next/static/chunks/7320.080085298c17689e.js",
+          "replyAt": 603.4100000858307,
+          "ok": true
+        }
+      ],
+      "signingWorkers": [
+        {
+          "at": 861.8200000524521,
+          "fields": [
+            "command",
+            "keyId"
+          ],
+          "url": "http://127.0.0.1:3110/_next/static/chunks/4750.45fdd26764e84871.js",
+          "replyAt": 914.0199999809265,
+          "ok": true
+        },
+        {
+          "at": 15931.465000033379,
+          "fields": [
+            "command",
+            "keyId"
+          ],
+          "url": "http://127.0.0.1:3110/_next/static/chunks/4750.45fdd26764e84871.js",
+          "replyAt": 15985.625,
+          "ok": true
+        }
+      ],
+      "errors": [],
+      "tasks": [
+        {
+          "at": 54.04000008106232,
+          "duration": 107
+        },
+        {
+          "at": 202.36000001430511,
+          "duration": 51
+        },
+        {
+          "at": 328.210000038147,
+          "duration": 69
+        }
+      ],
+      "position": "Open world map. Current position X 99, Z -195. 0 roaming creatures"
+    },
+    "checks": {
+      "noMainThreadSealReads": true,
+      "oneWalletProjectionAfterDraw": true,
+      "signingWorkersSucceeded": true,
+      "positionPreserved": true,
+      "noJavaScriptErrors": true
+    },
+    "cachedStartupPairs": {
+      "scenario": "Five alternating cached production reload pairs on the same established small account; server stopped; portrait Chromium, not iPhone",
+      "summary": {
+        "before": {
+          "medianReadyMs": 330.59999990463257,
+          "preWorldIdentityReads": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "walletWorkerCounts": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "identityReads": [
+            5,
+            4,
+            4,
+            4,
+            4
+          ]
+        },
+        "after": {
+          "medianReadyMs": 337.60000002384186,
+          "preWorldIdentityReads": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "walletWorkerCounts": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "identityReads": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "checks": {
+        "noPreWorldIdentityRead": true,
+        "workerAfterDraw": true,
+        "samePosition": true,
+        "noJavaScriptErrors": true
+      },
+      "samples": [
+        {
+          "pair": 0,
+          "version": "before",
+          "ready": 521.6000000238419,
+          "canvas": 254.60000002384186,
+          "reads": [
+            {
+              "store": "identities",
+              "at": 278.5,
+              "elapsed": 1.7999999523162842,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 282,
+              "elapsed": 0.10000002384185791
+            },
+            {
+              "store": "identities",
+              "at": 533.8999999761581,
+              "elapsed": 0.20000004768371582,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 534.3999999761581,
+              "elapsed": 0.10000002384185791
+            },
+            {
+              "store": "identities",
+              "at": 848,
+              "elapsed": 0,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 848.1000000238419,
+              "elapsed": 0.09999990463256836
+            },
+            {
+              "store": "identities",
+              "at": 1546.3999999761581,
+              "elapsed": 0.20000004768371582,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 1546.6000000238419,
+              "elapsed": 0.09999990463256836
+            },
+            {
+              "store": "identities",
+              "at": 2262.899999976158,
+              "elapsed": 2.799999952316284,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 2271,
+              "elapsed": 9.600000023841858
+            }
+          ],
+          "walletWorkers": [],
+          "signingWorkers": [],
+          "errors": [],
+          "tasks": [
+            {
+              "at": 55,
+              "duration": 105
+            },
+            {
+              "at": 202.5,
+              "duration": 52
+            },
+            {
+              "at": 328.1999999284744,
+              "duration": 67
+            }
+          ],
+          "position": "Open world map. Current position X 99, Z -195. 0 roaming creatures"
+        },
+        {
+          "pair": 0,
+          "version": "after",
+          "ready": 400.39999997615814,
+          "canvas": 168.39999997615814,
+          "reads": [],
+          "walletWorkers": [
+            {
+              "at": 414.5,
+              "fields": [
+                "keyId"
+              ],
+              "url": "http://127.0.0.1:3110/_next/static/chunks/7320.080085298c17689e.js",
+              "replyAt": 475,
+              "ok": true
+            }
+          ],
+          "signingWorkers": [
+            {
+              "at": 739.5999999046326,
+              "fields": [
+                "command",
+                "keyId"
+              ],
+              "url": "http://127.0.0.1:3110/_next/static/chunks/4750.45fdd26764e84871.js",
+              "replyAt": 783.5999999046326,
+              "ok": true
+            }
+          ],
+          "errors": [],
+          "tasks": [
+            {
+              "at": 34,
+              "duration": 53
+            },
+            {
+              "at": 233.69999992847443,
+              "duration": 55
+            }
+          ],
+          "position": "Open world map. Current position X 99, Z -195. 0 roaming creatures"
+        },
+        {
+          "pair": 1,
+          "version": "after",
+          "ready": 314,
+          "canvas": 87.69999992847443,
+          "reads": [],
+          "walletWorkers": [
+            {
+              "at": 324.6999999284744,
+              "fields": [
+                "keyId"
+              ],
+              "url": "http://127.0.0.1:3110/_next/static/chunks/7320.080085298c17689e.js",
+              "replyAt": 386.6999999284744,
+              "ok": true
+            }
+          ],
+          "signingWorkers": [
+            {
+              "at": 646.2999999523163,
+              "fields": [
+                "command",
+                "keyId"
+              ],
+              "url": "http://127.0.0.1:3110/_next/static/chunks/4750.45fdd26764e84871.js",
+              "replyAt": 689.6999999284744,
+              "ok": true
+            }
+          ],
+          "errors": [],
+          "tasks": [],
+          "position": "Open world map. Current position X 99, Z -195. 0 roaming creatures"
+        },
+        {
+          "pair": 1,
+          "version": "before",
+          "ready": 329.3000000715256,
+          "canvas": 107.90000009536743,
+          "reads": [
+            {
+              "store": "identities",
+              "at": 119.5,
+              "elapsed": 1.5,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 121.20000004768372,
+              "elapsed": 0
+            },
+            {
+              "store": "identities",
+              "at": 339.60000002384186,
+              "elapsed": 1.5,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 341.60000002384186,
+              "elapsed": 0.10000002384185791
+            },
+            {
+              "store": "identities",
+              "at": 653.3000000715256,
+              "elapsed": 0,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 653.4000000953674,
+              "elapsed": 0.09999990463256836
+            },
+            {
+              "store": "identities",
+              "at": 1349.8000000715256,
+              "elapsed": 0.19999992847442627,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 1350.1000000238419,
+              "elapsed": 0
+            }
+          ],
+          "walletWorkers": [],
+          "signingWorkers": [],
+          "errors": [],
+          "tasks": [
+            {
+              "at": 172.30000007152557,
+              "duration": 51
+            }
+          ],
+          "position": "Open world map. Current position X 99, Z -195. 0 roaming creatures"
+        },
+        {
+          "pair": 2,
+          "version": "before",
+          "ready": 338,
+          "canvas": 107.90000009536743,
+          "reads": [
+            {
+              "store": "identities",
+              "at": 145.70000004768372,
+              "elapsed": 1.899999976158142,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 149.20000004768372,
+              "elapsed": 0.10000002384185791
+            },
+            {
+              "store": "identities",
+              "at": 348.7000000476837,
+              "elapsed": 0.2999999523162842,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 349.10000002384186,
+              "elapsed": 0.10000002384185791
+            },
+            {
+              "store": "identities",
+              "at": 656,
+              "elapsed": 0,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 656,
+              "elapsed": 0.20000004768371582
+            },
+            {
+              "store": "identities",
+              "at": 1357.6000000238419,
+              "elapsed": 0.10000002384185791,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 1357.8000000715256,
+              "elapsed": 0
+            }
+          ],
+          "walletWorkers": [],
+          "signingWorkers": [],
+          "errors": [],
+          "tasks": [],
+          "position": "Open world map. Current position X 99, Z -195. 0 roaming creatures"
+        },
+        {
+          "pair": 2,
+          "version": "after",
+          "ready": 323.5,
+          "canvas": 89.79999995231628,
+          "reads": [],
+          "walletWorkers": [
+            {
+              "at": 334.2999999523163,
+              "fields": [
+                "keyId"
+              ],
+              "url": "http://127.0.0.1:3110/_next/static/chunks/7320.080085298c17689e.js",
+              "replyAt": 397.60000002384186,
+              "ok": true
+            }
+          ],
+          "signingWorkers": [
+            {
+              "at": 662.3999999761581,
+              "fields": [
+                "command",
+                "keyId"
+              ],
+              "url": "http://127.0.0.1:3110/_next/static/chunks/4750.45fdd26764e84871.js",
+              "replyAt": 706.2000000476837,
+              "ok": true
+            }
+          ],
+          "errors": [],
+          "tasks": [],
+          "position": "Open world map. Current position X 99, Z -195. 0 roaming creatures"
+        },
+        {
+          "pair": 3,
+          "version": "after",
+          "ready": 346.10000002384186,
+          "canvas": 111.60000002384186,
+          "reads": [],
+          "walletWorkers": [
+            {
+              "at": 356.7999999523163,
+              "fields": [
+                "keyId"
+              ],
+              "url": "http://127.0.0.1:3110/_next/static/chunks/7320.080085298c17689e.js",
+              "replyAt": 422.6999999284744,
+              "ok": true
+            }
+          ],
+          "signingWorkers": [
+            {
+              "at": 679,
+              "fields": [
+                "command",
+                "keyId"
+              ],
+              "url": "http://127.0.0.1:3110/_next/static/chunks/4750.45fdd26764e84871.js",
+              "replyAt": 727.2999999523163,
+              "ok": true
+            }
+          ],
+          "errors": [],
+          "tasks": [],
+          "position": "Open world map. Current position X 99, Z -195. 0 roaming creatures"
+        },
+        {
+          "pair": 3,
+          "version": "before",
+          "ready": 330.59999990463257,
+          "canvas": 108.39999997615814,
+          "reads": [
+            {
+              "store": "identities",
+              "at": 127.79999995231628,
+              "elapsed": 2.399999976158142,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 130.5,
+              "elapsed": 1.6999999284744263
+            },
+            {
+              "store": "identities",
+              "at": 341,
+              "elapsed": 0.5,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 341.6999999284744,
+              "elapsed": 0.10000002384185791
+            },
+            {
+              "store": "identities",
+              "at": 653.7999999523163,
+              "elapsed": 0.10000002384185791,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 654,
+              "elapsed": 0.09999990463256836
+            },
+            {
+              "store": "identities",
+              "at": 1353.5,
+              "elapsed": 0.09999990463256836,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 1353.6999999284744,
+              "elapsed": 0.10000002384185791
+            }
+          ],
+          "walletWorkers": [],
+          "signingWorkers": [],
+          "errors": [],
+          "tasks": [
+            {
+              "at": 173,
+              "duration": 50
+            }
+          ],
+          "position": "Open world map. Current position X 99, Z -195. 0 roaming creatures"
+        },
+        {
+          "pair": 4,
+          "version": "before",
+          "ready": 323.39999997615814,
+          "canvas": 87.10000002384186,
+          "reads": [
+            {
+              "store": "identities",
+              "at": 97.79999995231628,
+              "elapsed": 1.2000000476837158,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 100,
+              "elapsed": 0.10000002384185791
+            },
+            {
+              "store": "identities",
+              "at": 333.7999999523163,
+              "elapsed": 0.30000007152557373,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 334.2999999523163,
+              "elapsed": 0
+            },
+            {
+              "store": "identities",
+              "at": 640.6999999284744,
+              "elapsed": 0.10000002384185791,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 640.8999999761581,
+              "elapsed": 0
+            },
+            {
+              "store": "identities",
+              "at": 1343.5,
+              "elapsed": 0.19999992847442627,
+              "ciphertextCharacters": 4875
+            },
+            {
+              "store": "wrappingKeys",
+              "at": 1343.6999999284744,
+              "elapsed": 0.20000004768371582
+            }
+          ],
+          "walletWorkers": [],
+          "signingWorkers": [],
+          "errors": [],
+          "tasks": [],
+          "position": "Open world map. Current position X 99, Z -195. 0 roaming creatures"
+        },
+        {
+          "pair": 4,
+          "version": "after",
+          "ready": 337.60000002384186,
+          "canvas": 109,
+          "reads": [],
+          "walletWorkers": [
+            {
+              "at": 349.7999999523163,
+              "fields": [
+                "keyId"
+              ],
+              "url": "http://127.0.0.1:3110/_next/static/chunks/7320.080085298c17689e.js",
+              "replyAt": 413.10000002384186,
+              "ok": true
+            }
+          ],
+          "signingWorkers": [
+            {
+              "at": 677.1999999284744,
+              "fields": [
+                "command",
+                "keyId"
+              ],
+              "url": "http://127.0.0.1:3110/_next/static/chunks/4750.45fdd26764e84871.js",
+              "replyAt": 724.1999999284744,
+              "ok": true
+            }
+          ],
+          "errors": [],
+          "tasks": [],
+          "position": "Open world map. Current position X 99, Z -195. 0 roaming creatures"
+        }
+      ]
+    },
+    "localWalletOpenClose": {
+      "before": {
+        "origin": 1791515360793,
+        "workers": 1,
+        "position": "Open world map. Current position X 151, Z -202. 0 roaming creatures"
+      },
+      "after": {
+        "origin": 1791515360793,
+        "workers": 1,
+        "position": "Open world map. Current position X 151, Z -202. 0 roaming creatures",
+        "errors": []
+      },
+      "openMs": 67.5,
+      "cards": 1,
+      "samePage": true,
+      "noNewWalletProjection": true
+    },
+    "profileAndFreezeResume": {
+      "before": {
+        "origin": 1791515360793,
+        "workers": 1,
+        "position": "Open world map. Current position X 149, Z -240. 0 roaming creatures"
+      },
+      "after": {
+        "sameCanvas": true,
+        "origin": 1791515360793,
+        "ready": true,
+        "workers": 1,
+        "errors": []
+      },
+      "profileCards": 1,
+      "resumeWallMs": 5,
+      "samePage": true,
+      "noRepeatedWalletProjection": true
+    }
   }
 }

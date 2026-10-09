@@ -2,7 +2,6 @@
 
 import {
   canonicalizeReceizV122,
-  projectReceizIdentityAccount,
   proofAuthorityChallengeBasisV123,
   receizBase64UrlEncode,
   serializeReceizIdentityArtifact,
@@ -13,7 +12,7 @@ import {
 import { connectWildzProofSession, defaultIdentityRepository } from "@/lib/receiz/wildz-identity-adapter";
 import { hasExactWildsIdentityAuthorityScopes, type WildsIdentityAuthorityPurpose } from "@/lib/receiz/wilds-wallet-authority-scopes";
 import { wildzRemoteSessionMatchesIdentity } from "@/lib/receiz/wildz-session-bridge";
-import { projectWildsWalletFromIdentityAccount } from "./wilds-wallet-source-authority";
+export { projectWildsWalletSourceAuthority } from "./wilds-wallet-source-client";
 
 import { walletAuthorizationFailureCode, WildsWalletAuthorizationError } from "./wilds-wallet-authorization-error";
 import { createWildsWalletReadAuthorizationCoordinator } from "./wilds-wallet-read-authorization-coordinator";
@@ -119,10 +118,4 @@ async function completeWildsWalletReadAuthorization(keyId: string, dependencies:
       && hasExactWildsIdentityAuthorityScopes(value.scopes, purpose);
   };
   return attempt(true);
-}
-
-export async function projectWildsWalletSourceAuthority(keyId: string) {
-  return defaultIdentityRepository.withKeyFile(keyId, async (keyFile) =>
-    projectWildsWalletFromIdentityAccount(await projectReceizIdentityAccount(keyFile))
-  );
 }

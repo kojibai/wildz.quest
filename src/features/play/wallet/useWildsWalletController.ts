@@ -6,6 +6,7 @@ import { normalizeWildsWalletPublicUsername } from "@/lib/receiz/wilds-wallet-pr
 import { createWildsWalletControllerDriver, type WildsWalletControllerDriver, wildsWalletSharedSessionCache } from "./wilds-wallet-controller-driver";
 
 import { WildsWalletAuthorizationError } from "./wilds-wallet-authorization-error";
+import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
 
 type FetchResponse = Readonly<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 export type WildsWalletClientAuthorizationPort = Readonly<{
@@ -23,8 +24,9 @@ export function wildsWalletStatusNeedsIdentityReadAuthority(status: WildsWalletC
 export function useWildsWalletController(
   identityKey: string,
   authorityGeneration: string,
-  options: Readonly<{ authorization?: WildsWalletClientAuthorizationPort; readAuthorization?: WildsWalletReadAuthorizationPort }> = {}
+  options: Readonly<{ authorization?: WildsWalletClientAuthorizationPort; readAuthorization?: WildsWalletReadAuthorizationPort; backgroundReady?: boolean; sourceKey?: string }> = {}
 ) {
+  const sourceKey = options.sourceKey ?? authorityGeneration;
   const [state, setState] = useState<WildsWalletControllerState>(() => hydrateWildsWalletControllerState(identityKey, authorityGeneration, wildsWalletSharedSessionCache));
   const [operationError, setOperationError] = useState<string | null>(null);
   const stateRef = useRef(state);
@@ -33,6 +35,7 @@ export function useWildsWalletController(
     driverRef.current = createWildsWalletControllerDriver({
       identityKey,
       authorityGeneration,
+      sourceKey,
       fetcher: (path, init) => fetch(path, { ...init, cache: "no-store", credentials: "same-origin", headers: init.method === "POST" ? { "content-type": "application/json" } : undefined }) as Promise<FetchResponse>,
       publish(next) { stateRef.current = next; setState(next); }
     });
@@ -41,18 +44,17 @@ export function useWildsWalletController(
   const driver = driverRef.current;
   const readAuthorityErrorRef = useRef<WildsWalletAuthorizationError | null>(null);
   const readAuthorityPromiseRef = useRef<Promise<boolean> | null>(null);
-  const sourceAuthorityPromiseRef = useRef<Promise<void> | null>(null);
+  const backgroundReady = options.backgroundReady ?? true;
   const preloadGenerationRef = useRef("");
   useEffect(() => {
-    if (stateRef.current.identityKey !== identityKey || stateRef.current.authorityGeneration !== authorityGeneration) {
+    if (stateRef.current.identityKey !== identityKey || stateRef.current.authorityGeneration !== authorityGeneration || driver.sourceKey !== sourceKey) {
       readAuthorityPromiseRef.current = null;
-      sourceAuthorityPromiseRef.current = null;
       readAuthorityErrorRef.current = null;
       setOperationError(null);
-      driver.setAuthority(identityKey, authorityGeneration);
+      driver.setAuthority(identityKey, authorityGeneration, sourceKey);
     }
-  }, [authorityGeneration, driver, identityKey]);
-  useEffect(() => () => driver.close(), [driver]);
+  }, [authorityGeneration, driver, identityKey, sourceKey]);
+  useEffect(() => () => driver.dispose(), [driver]);
   useEffect(() => {
     const onVisibilityChange = () => { if (document.visibilityState === "hidden") driver.cancelPending(); };
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -101,12 +103,10 @@ export function useWildsWalletController(
   }, [driver, options.readAuthorization]);
   const admitSourceThenRefresh = useCallback(async (refreshOptions: Readonly<{ replace?: boolean }> = {}) => {
     const expected = { identityKey: driver.state.identityKey, authorityGeneration: driver.state.authorityGeneration };
-    if (options.readAuthorization?.projectSource && !sourceAuthorityPromiseRef.current) {
-      const operation = options.readAuthorization.projectSource()
-        .then((response) => { driver.admitSourceAuthority(response, expected); })
+    const authorization = options.readAuthorization;
+    if (authorization?.projectSource) {
+      void driver.projectSourceAuthority(() => authorization.projectSource!())
         .catch(() => { /* Failed projection grants no source authority; retry the read below. */ });
-      sourceAuthorityPromiseRef.current = operation;
-      void operation.finally(() => { if (sourceAuthorityPromiseRef.current === operation) sourceAuthorityPromiseRef.current = null; });
     }
     // Saved identity projection enriches the view independently. It must not
     // hold the live balance request behind a large imported proof archive.
@@ -114,58 +114,66 @@ export function useWildsWalletController(
     await refreshWithIdentityAuthority(refreshOptions);
   }, [driver, options.readAuthorization, refreshWithIdentityAuthority]);
   useEffect(() => {
-    const preloadKey = JSON.stringify([identityKey, authorityGeneration]);
+    if (!backgroundReady) return;
+    const preloadKey = JSON.stringify([identityKey, authorityGeneration, sourceKey]);
     if (!authorityGeneration || !options.readAuthorization || preloadGenerationRef.current === preloadKey) return;
+    let disposed = false;
     const preload = () => {
+      if (disposed || document.visibilityState !== "visible") return;
       // Mark only when the callback actually runs. Effect cleanup can cancel a
       // scheduled preload (including Strict Mode's initial cleanup).
       preloadGenerationRef.current = preloadKey;
       void admitSourceThenRefresh();
     };
-    const schedule = typeof window.requestIdleCallback === "function"
-      ? window.requestIdleCallback(preload, { timeout: 1_500 })
-      : window.setTimeout(preload, 250);
-    return () => {
-      if (typeof window.cancelIdleCallback === "function" && typeof schedule === "number") window.cancelIdleCallback(schedule);
-      else window.clearTimeout(schedule);
-    };
-  }, [admitSourceThenRefresh, authorityGeneration, identityKey, options.readAuthorization]);
+    void wildzGameplayBackground.run(preload, { timeoutMs: 1_500 }).catch(() => undefined);
+    return () => { disposed = true; };
+  }, [backgroundReady, admitSourceThenRefresh, authorityGeneration, identityKey, options.readAuthorization, sourceKey]);
   useEffect(() => {
+    if (!backgroundReady) return;
+    let disposed = false;
     const resume = () => {
       if (document.visibilityState !== "visible" || !options.readAuthorization) return;
-      const current = driver.state;
-      if (current.identityKey !== identityKey || current.authorityGeneration !== authorityGeneration) return;
-      if (current.status !== "verified" || current.balanceBasis === "saved"
-        || wildsWalletStatusNeedsIdentityReadAuthority(current.status, current.transportAuthorityRequired)) {
-        void admitSourceThenRefresh({ replace: true });
-      }
+      void wildzGameplayBackground.run(() => {
+        if (disposed || document.visibilityState !== "visible") return;
+        const current = driver.state;
+        if (current.identityKey !== identityKey || current.authorityGeneration !== authorityGeneration) return;
+        if (current.status !== "verified" || current.balanceBasis === "saved"
+          || wildsWalletStatusNeedsIdentityReadAuthority(current.status, current.transportAuthorityRequired)) {
+          return admitSourceThenRefresh({ replace: true });
+        }
+      }).catch(() => undefined);
     };
     window.addEventListener("online", resume);
     document.addEventListener("visibilitychange", resume);
     return () => {
+      disposed = true;
       window.removeEventListener("online", resume);
       document.removeEventListener("visibilitychange", resume);
     };
-  }, [admitSourceThenRefresh, authorityGeneration, driver, identityKey, options.readAuthorization]);
+  }, [backgroundReady, admitSourceThenRefresh, authorityGeneration, driver, identityKey, options.readAuthorization]);
   // Retry read-only work after cancellation or transient failure, even when the
   // terminal is closed and only the world HUD needs the balance.
   useEffect(() => {
+    if (!backgroundReady) return;
     if (!authorityGeneration || !options.readAuthorization) return;
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     let failures = 0;
     const retry = async () => {
       if (disposed) return;
-      if (document.visibilityState === "visible" && navigator.onLine !== false
-        && driver.state.status !== "verified" && driver.state.requestId === null) {
-        await admitSourceThenRefresh();
-        failures = (driver.state as WildsWalletControllerState).status === "verified" ? 0 : failures + 1;
-      }
+      await wildzGameplayBackground.run(async () => {
+        if (disposed) return;
+        if (document.visibilityState === "visible" && navigator.onLine !== false
+          && driver.state.status !== "verified" && driver.state.requestId === null) {
+          await admitSourceThenRefresh();
+          failures = (driver.state as WildsWalletControllerState).status === "verified" ? 0 : failures + 1;
+        }
+      }).catch(() => undefined);
       if (!disposed) timer = setTimeout(retry, Math.min(30_000, 2_000 * 2 ** Math.min(failures, 4)));
     };
     timer = setTimeout(retry, 2_000);
     return () => { disposed = true; clearTimeout(timer); };
-  }, [admitSourceThenRefresh, authorityGeneration, driver, options.readAuthorization]);
+  }, [backgroundReady, admitSourceThenRefresh, authorityGeneration, driver, options.readAuthorization]);
   const openTerminal = useCallback(() => { driver.open(); void admitSourceThenRefresh(); }, [admitSourceThenRefresh, driver]);
   const visible = state.identityKey === identityKey && state.authorityGeneration === authorityGeneration ? state
     : renewWildsWalletControllerState(state, createWildsWalletControllerState(identityKey, authorityGeneration));

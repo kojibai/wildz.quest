@@ -4,6 +4,7 @@ import type { PublicWildzProfile } from "../../features/profile/public-profile";
 import type { WildzIdentityRepository } from "./wildz-identity-repository";
 import { sameWildzPlayerCoordinate, parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import { prepareWildzProfilePublication } from "./wildz-profile-signing-client";
+import { readWildzIdentityForSigning } from "./wildz-identity-signing-read";
 
 /** Sign locally and relay only the sanitized public projection and its signature. */
 export async function publishWildzProfileWithIdentityProof(profile: PublicWildzProfile, options: {
@@ -15,11 +16,14 @@ export async function publishWildzProfileWithIdentityProof(profile: PublicWildzP
 } = {}) {
   options.signal?.throwIfAborted();
   const repository = options.repository ?? defaultIdentityRepository;
+  const withKeyFile: WildzIdentityRepository["withKeyFile"] = options.repository
+    ? repository.withKeyFile.bind(repository)
+    : async (keyId, operation) => operation(await readWildzIdentityForSigning(keyId, options.signal));
   const session = await repository.active();
   const owner = parseWildzPlayerCoordinate(profile.username);
   if (!session || session.localAuthority !== "verified") throw new Error("wildz_profile_identity_seal_required");
   if (!owner || !sameWildzPlayerCoordinate(owner.actorId, session.actorId)) throw new Error("wildz_public_profile_owner_mismatch");
-  const prepared = await repository.withKeyFile(session.keyId, keyFile => prepareWildzProfilePublication({
+  const prepared = await withKeyFile(session.keyId, keyFile => prepareWildzProfilePublication({
     profile, session, keyFile, assets: options.assets, occurredAt: options.occurredAt
   }, options.signal));
   options.signal?.throwIfAborted();

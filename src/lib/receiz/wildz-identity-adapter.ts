@@ -295,16 +295,18 @@ export async function connectWildzProofSession(
   if (session.localAuthority !== "verified") {
     return wildzRemoteSessionBridge.current();
   }
+  // This challenge belongs only to the distribution session. An unavailable
+  // transport needs no local key read, decryption, or embedded archive parse.
+  const challengeResponse = await fetch("/api/auth/wildz/challenge", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store"
+  });
+  const challenge: unknown = await challengeResponse.json().catch(() => null);
+  if (!challengeResponse.ok || !isWildzProofChallengeResponse(challenge)) {
+    throw new Error("wildz_proof_challenge_unavailable");
+  }
   return defaultIdentityRepository.withKeyFile(session.keyId, async (keyFile) => {
-    const challengeResponse = await fetch("/api/auth/wildz/challenge", {
-      method: "POST",
-      credentials: "same-origin",
-      cache: "no-store"
-    });
-    const challenge: unknown = await challengeResponse.json().catch(() => null);
-    if (!challengeResponse.ok || !isWildzProofChallengeResponse(challenge)) {
-      throw new Error("wildz_proof_challenge_unavailable");
-    }
     let passphrase = options.passphrase;
     if (identityKeyNeedsPassphrase(keyFile) && passphrase === undefined) {
       passphrase = options.requestPassphrase?.()

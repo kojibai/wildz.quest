@@ -7,6 +7,16 @@ import { WildsWalletBrowserFixture } from "../src/features/play/wallet/WildsWall
 import { WildsWalletInstrument } from "../src/features/play/wallet/WildsWalletInstrument";
 import { createWildsWalletControllerState } from "../src/features/play/wallet/wilds-wallet-controller";
 
+test("passive wallet reads wait for the world while direct terminal actions remain immediate", () => {
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  const hook = readFileSync("src/features/play/wallet/useWildsWalletController.ts", "utf8");
+  assert.match(campaign, /backgroundReady: worldVisible/);
+  assert.equal((hook.match(/if \(!backgroundReady/g) ?? []).length, 3,
+    "initial preload, resume listeners, and retry timer must all wait for the draw");
+  assert.match(hook, /wildzGameplayBackground\.run/);
+  assert.match(hook, /const openTerminal = useCallback\(\(\) => \{ driver\.open\(\); void admitSourceThenRefresh\(\); \}/);
+});
+
 test("browser fixture exposes deterministic verified, offline, recovery, rejection, and committed states", () => {
   const markup = renderToStaticMarkup(createElement(WildsWalletBrowserFixture));
   for (const state of ["verified", "offline-verified", "unknown", "zero-write", "committed"]) {

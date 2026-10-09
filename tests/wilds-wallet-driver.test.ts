@@ -3,6 +3,123 @@ import { test } from "node:test";
 import { createWildsWalletControllerDriver } from "../src/features/play/wallet/wilds-wallet-controller-driver";
 import { createWildsWalletSessionCache } from "../src/features/play/wallet/wilds-wallet-controller";
 import { writeWildsCreatureLocomotionFrame } from "../src/features/play/WildsCreatureActor";
+import type { WildsWalletReadResponse } from "../src/features/play/wallet/wilds-wallet-controller";
+
+function projectSource(driver: ReturnType<typeof createWildsWalletControllerDriver>, project: () => Promise<WildsWalletReadResponse | null>) {
+  const sourceDriver = driver as typeof driver & { projectSourceAuthority(project: () => Promise<WildsWalletReadResponse | null>): Promise<void> };
+  return sourceDriver.projectSourceAuthority(project);
+}
+
+test("closing and reopening the wallet joins the source already being verified", async () => {
+  let release!: () => void, projections = 0;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const driver = createWildsWalletControllerDriver({ identityKey: "keeper", authorityGeneration: "seal",
+    cache: createWildsWalletSessionCache(4), publish() {}, fetcher: async () => { throw new Error("offline"); } });
+  const project = async () => { projections++; await held; return null; };
+  const first = projectSource(driver, project);
+  driver.open(); driver.close(); driver.open();
+  const reopened = projectSource(driver, project);
+  assert.equal(reopened, first);
+  assert.equal(projections, 1);
+  release(); await reopened;
+  assert.equal(driver.state.sourceAuthorityVerified, true);
+});
+
+test("disposing a wallet retires late source admission without affecting a replacement", async () => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const driver = createWildsWalletControllerDriver({ identityKey: "keeper", authorityGeneration: "seal",
+    cache: createWildsWalletSessionCache(4), publish() {}, fetcher: async () => { throw new Error("offline"); } });
+  const first = projectSource(driver, async () => { await held; return null; });
+  (driver as typeof driver & { dispose(): void }).dispose();
+  release(); await first;
+  assert.equal(driver.state.sourceAuthorityVerified, false);
+  await projectSource(driver, async () => null);
+  assert.equal(driver.state.sourceAuthorityVerified, true);
+});
+
+test("distribution-session renewal cannot replay an unchanged local Seal", async () => {
+  let projections = 0;
+  const driver = createWildsWalletControllerDriver({ identityKey: "keeper", authorityGeneration: "remote-1",
+    ...{ sourceKey: "local-seal-1" }, cache: createWildsWalletSessionCache(4), publish() {},
+    fetcher: async () => { throw new Error("offline"); } });
+  const renew = driver.setAuthority as (owner: string, generation: string, sourceKey: string) => void;
+  const project = async () => { projections++; return null; };
+  await projectSource(driver, project);
+  renew("keeper", "remote-2", "local-seal-1");
+  await projectSource(driver, project);
+  assert.equal(projections, 1);
+  assert.equal(driver.state.sourceAuthorityVerified, true);
+  renew("keeper", "remote-2", "local-seal-2");
+  await projectSource(driver, project);
+  assert.equal(projections, 2, "replacing the local source requires its actual proof");
+});
+
+test("a local source finishing during transport renewal admits only the same held Seal", async () => {
+  let release!: () => void, projections = 0;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const driver = createWildsWalletControllerDriver({ identityKey: "keeper", authorityGeneration: "remote-1",
+    ...{ sourceKey: "local-seal" }, cache: createWildsWalletSessionCache(4), publish() {},
+    fetcher: async () => { throw new Error("offline"); } });
+  const renew = driver.setAuthority as (owner: string, generation: string, sourceKey: string) => void;
+  const project = async () => { projections++; await held; return null; };
+  const before = projectSource(driver, project);
+  renew("keeper", "remote-2", "local-seal");
+  const after = projectSource(driver, project);
+  assert.equal(before, after);
+  release(); await after;
+  assert.equal(projections, 1);
+  assert.equal(driver.state.authorityGeneration, "remote-2");
+  assert.equal(driver.state.sourceAuthorityVerified, true);
+});
+
+test("retained source authority survives transport retries without reopening its proof archive", async () => {
+  let projections = 0;
+  const driver = createWildsWalletControllerDriver({ identityKey: "keeper", authorityGeneration: "seal-1",
+    cache: createWildsWalletSessionCache(4), publish() {}, fetcher: async () => { throw new Error("offline"); } });
+  const project = async () => { projections++; return null; };
+  await projectSource(driver, project);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await driver.refresh();
+    await projectSource(driver, project);
+  }
+  assert.equal(projections, 1);
+  assert.equal(driver.state.sourceAuthorityVerified, true);
+  driver.setAuthority("keeper", "seal-2");
+  await projectSource(driver, project);
+  assert.equal(projections, 2, "a new authority generation must reopen the actual source");
+});
+
+test("source projection joins pending work and retries failure without admitting authority", async () => {
+  let release!: () => void, attempts = 0;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const driver = createWildsWalletControllerDriver({ identityKey: "keeper", authorityGeneration: "seal",
+    cache: createWildsWalletSessionCache(4), publish() {}, fetcher: async () => { throw new Error("offline"); } });
+  const project = async () => { attempts++; await held; throw new Error("source unavailable"); };
+  const first = projectSource(driver, project), joined = projectSource(driver, project);
+  assert.equal(first, joined);
+  assert.equal(attempts, 1);
+  release();
+  await assert.rejects(first, /source unavailable/);
+  assert.equal(driver.state.sourceAuthorityVerified, false);
+  await projectSource(driver, async () => { attempts++; return null; });
+  assert.equal(attempts, 2);
+  assert.equal(driver.state.sourceAuthorityVerified, true);
+});
+
+test("a source finishing after an account round trip cannot admit stale authority", async () => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const driver = createWildsWalletControllerDriver({ identityKey: "keeper", authorityGeneration: "seal",
+    cache: createWildsWalletSessionCache(4), publish() {}, fetcher: async () => { throw new Error("offline"); } });
+  const first = projectSource(driver, async () => { await held; return null; });
+  driver.setAuthority("other", "other-seal");
+  driver.setAuthority("keeper", "seal");
+  release(); await first;
+  assert.equal(driver.state.sourceAuthorityVerified, false);
+  await projectSource(driver, async () => null);
+  assert.equal(driver.state.sourceAuthorityVerified, true);
+});
 
 const response = () => ({
   summary: { status: "verified", admittedPhiMicro: "1", displayUsdCents: null, assetCountsStatus: "unknown", transferableResourceCount: null, transferableCardCount: null, reservedCardCount: null, pendingCount: null },

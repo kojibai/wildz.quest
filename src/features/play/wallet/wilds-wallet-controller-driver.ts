@@ -33,6 +33,7 @@ async function json(response: DriverResponse) {
 export function createWildsWalletControllerDriver(input: {
   identityKey: string;
   authorityGeneration: string;
+  sourceKey?: string;
   fetcher: DriverFetcher;
   readTimeoutMs?: number;
   publish(state: WildsWalletControllerState): void;
@@ -46,6 +47,10 @@ export function createWildsWalletControllerDriver(input: {
   let transferPromise: Promise<void> | null = null;
   let recipientRequest: Readonly<{ id: number; controller: AbortController }> | null = null;
   let recipientSequence = 0;
+  let sourcePromise: Promise<void> | null = null;
+  let sourceRevision = 0;
+  let sourceKey = input.sourceKey ?? input.authorityGeneration;
+  let sourceSnapshot: { response: WildsWalletReadResponse | null } | null = null;
   const publish = (event: Parameters<typeof reduceWildsWalletController>[1]) => {
     state = reduceWildsWalletController(state, event);
     runtime.recordPublication();
@@ -124,6 +129,28 @@ export function createWildsWalletControllerDriver(input: {
       runtime.recordCacheWrite();
     }
     publish({ type: "source-authority-resolved", identityKey, authorityGeneration, response });
+  };
+  const projectSourceAuthority = (project: () => Promise<WildsWalletReadResponse | null>): Promise<void> => {
+    // A completed source admission belongs to this exact active authority.
+    // Transport failure cannot change the durable Seal or require replaying it.
+    if (state.sourceAuthorityVerified) return Promise.resolve();
+    if (sourceSnapshot) {
+      admitSourceAuthority(sourceSnapshot.response);
+      return Promise.resolve();
+    }
+    if (sourcePromise) return sourcePromise;
+    const revision = sourceRevision;
+    const operation = (async () => {
+      const response = await project();
+      if (sourceRevision === revision) {
+        sourceSnapshot = { response };
+        admitSourceAuthority(response);
+      }
+    })();
+    sourcePromise = operation;
+    const retire = () => { if (sourcePromise === operation) sourcePromise = null; };
+    void operation.then(retire, retire);
+    return operation;
   };
   const requestReceive = (amountPhiMicro?: string) => {
     if (receivePromise) return receivePromise;
@@ -276,14 +303,26 @@ export function createWildsWalletControllerDriver(input: {
   };
   return {
     get state() { return state; },
+    get sourceKey() { return sourceKey; },
     diagnostics: runtime.diagnostics,
     open() { publish({ type: "open" }); },
     close() { runtime.cancelAll(); recipientRequest?.controller.abort(); recipientRequest = null; refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "close" }); },
+    dispose() { sourceRevision++; sourcePromise = null; sourceSnapshot = null; this.close(); },
     cancelPending() { runtime.cancelAll(); recipientRequest?.controller.abort(); recipientRequest = null; refreshPromise = null; receivePromise = null; transferPromise = null; publish({ type: "cancel-pending" }); },
     cancelForExclusiveOwner(owner: WorldOverlayOwner) { if (owner !== "none" && owner !== "wallet") {
       if (!state.open && !recipientRequest && state.receiveRequestId === null && state.transfer.requestId === null && state.transfer.authorizationPointerId === null) return;
       runtime.cancelInteractive(); recipientRequest?.controller.abort(); recipientRequest = null; receivePromise = null; transferPromise = null; publish({ type: "exclusive-owner-changed", owner }); } },
-    setAuthority(identityKey: string, authorityGeneration: string) { cache.delete(walletAuthorityCacheKey(state.identityKey, state.authorityGeneration)); runtime.cancelAll(); recipientRequest?.controller.abort(); recipientRequest = null; refreshPromise = null; receivePromise = null; transferPromise = null; state = renewWildsWalletControllerState(state, hydrateWildsWalletControllerState(identityKey, authorityGeneration, cache)); runtime.recordPublication(); input.publish(state); },
+    setAuthority(identityKey: string, authorityGeneration: string, localSourceKey = authorityGeneration) {
+      // Renewing distribution credentials does not replace the local proof.
+      // An account/source replacement retires both completed and pending work.
+      if (state.identityKey !== identityKey || sourceKey !== localSourceKey) {
+        sourceRevision++; sourcePromise = null; sourceSnapshot = null; sourceKey = localSourceKey;
+      }
+      cache.delete(walletAuthorityCacheKey(state.identityKey, state.authorityGeneration)); runtime.cancelAll(); recipientRequest?.controller.abort();
+      recipientRequest = null; refreshPromise = null; receivePromise = null; transferPromise = null;
+      state = renewWildsWalletControllerState(state, hydrateWildsWalletControllerState(identityKey, authorityGeneration, cache));
+      runtime.recordPublication(); input.publish(state);
+    },
     navigate(page: WildsWalletControllerState["page"]) { publish({ type: "navigate", page }); },
     recipientUnavailable(username: string) { publish({ type: "recipient-lookup-unavailable", username }); },
     lookupRecipient,
@@ -300,6 +339,7 @@ export function createWildsWalletControllerDriver(input: {
     recoverTransfer,
     refresh,
     admitSourceAuthority,
+    projectSourceAuthority,
     requestReceive
   };
 }

@@ -85,7 +85,9 @@ and updates elapsed-time projections.
 
 ## Verification and remaining qualification
 
-- `pnpm test`: 3,575 passed, one skipped, zero failures.
+- Initial committed patch `fec7030`: `pnpm test` reported 3,575 passed,
+  one skipped, zero failures. The wallet follow-up reports 3,593 passed,
+  one skipped, zero failures.
 - `pnpm build`, `pnpm typecheck`, `pnpm lint`, and `git diff --check` passed.
   The build/lint retain existing circular-chunk, SDK worker dependency, image,
   and hook warnings; lint reports zero errors.
@@ -318,3 +320,114 @@ Reproduce the body/texture benchmark after `pnpm test` with
 `node scripts/benchmark-breath-and-texture.mjs`. The raw alternating pairs are
 under `breathAndTexture` in the measurements JSON. Profiling wrappers are
 confined to the isolated browser probes and are absent from production source.
+
+## Repeated Identity Seal reads and large wallet archives
+
+A follow-up trace of the established isolated test account found 13 reads of
+`identities` and 13 reads of `wrappingKeys` within 35 seconds. The first Seal
+read started at 283.4 ms, before world readiness at 529.1 ms. This was not 13
+server authentications: each local read decrypted and parsed the saved Seal,
+and the wallet source path also ran the complete SDK account projection.
+Wallet retries reopened the same archive at roughly 0.28, 2.27, 6.28, 14.29,
+and 30.29 seconds. Distribution reconnect and publication signing contributed
+other reads. A long embedded history makes this work much more expensive;
+being originally caught by another user does not itself establish the cause.
+
+The wallet now admits the exact local source once per controller/source and
+joins its pending projection. Failed transport, visibility recovery, terminal
+close/reopen, and renewal of the same account's distribution session reuse
+that source. Account/source replacement or controller disposal retires late
+admission. A failed source projection never grants authority and remains
+retryable. This is runtime reuse of the actual completed local check, with no
+stored acceptance flag, proof eviction, expiry, or server permission added.
+Current asset restrictions are derived from current cards rather than cached
+startup counts.
+
+The final warmed, cached production PWA was reopened with the local server
+stopped and observed for another 35 seconds. Main-thread Seal and wrapping-key
+reads fell from 13 each to zero. Exactly one wallet worker started at 534.5 ms,
+after world readiness at 518.8 ms, and replied successfully at 603.4 ms. Two
+publication signing workers also replied successfully. The same X 99/Z −195
+position remained, with zero JavaScript errors. These counts distinguish
+eliminated retries from work moved to workers: three worker operations remain,
+and this is not a claim of one global Seal read. A preceding probe with an
+uncached signing worker fell back to two main-thread reads and was excluded
+from the warmed comparison. The fallback behavior remains explicit.
+
+Five alternating cached baseline/final reload pairs retained the same account,
+position, and error-free world. All baseline samples read a Seal before world
+readiness; all final samples performed zero main-thread Seal reads and started
+one successful wallet worker afterward. Median world readiness was
+330.60 → 337.60 ms, with three of five pairs favoring the final build. This
+small-account comparison does **not** establish a startup-time gain; the
+repeatable gain is removal of archive retries and the large-history gameplay
+stall measured below.
+
+The final offline wallet rendered its local terminal and one carried card,
+then closed and reopened without another wallet projection or page reload.
+The measured 67.5 ms from automation start to visible terminal includes
+Playwright input/wait overhead and is not an intrinsic rendering benchmark.
+Profile displayed the same carried card offline. A three-second Chromium
+lifecycle freeze retained the same canvas, page time origin, and ready world;
+the next animation frame was observed 5 ms after the resume command, with no
+new wallet projection. This does not simulate every iOS visibility or process
+termination case. Expected network failures from the stopped server were
+logged in the console; the checks reported zero uncaught JavaScript errors.
+
+Passive wallet loading waits for the completed world draw. Direct wallet
+opening still starts immediately. The full archive is read, decrypted, parsed,
+and projected in a worker with the same repository and Receiz SDK; only its
+small admitted wallet response returns to the game. Profile and card signing
+also read their small signing portion through a worker, avoiding main-thread
+archive decoding. Their existing owner/custody, unlock, signature, and relay
+checks remain. Unsupported or uncached worker transport retains the original
+local path as a background fallback; that fallback can still have a large
+synchronous parse. An unavailable distribution challenge now fails before
+reading a private key it cannot use.
+
+### Controlled large-history measurements
+
+The synthetic signed Seal contains 16 copies of one valid 301-event history,
+not 16 distinct creatures, and is 7,763,362 serialized bytes. Its verified PHI
+balance is 2,500,000 micro-PHI. It is not the user's `bjklock` account.
+
+| Measure | Repeated/main-thread path | Retained/worker path |
+| --- | ---: | ---: |
+| Six source attempts, fresh Node process, five alternating pairs | 19,977.32 ms median; six Seal reads | 3,313.93 ms median; one Seal read |
+| One actual browser projection, three alternating pairs | 5,612.7 ms median | 5,892.8 ms median |
+| Browser projection's main-thread long-task duration | 5,607 ms median | No tasks over 50 ms |
+| Worst browser frame interval during projection | 5,599.8 ms median | 10.4 ms median |
+
+Reuse removed 83.4% of accumulated work in the six-attempt benchmark. The
+worker did not make the verification itself faster: it completed about 280 ms
+later in these browser samples while removing the multi-second gameplay stall.
+All six browser results admitted the same SDK-verified balance. The synthetic
+source was stored inactive in the isolated browser's actual IndexedDB, never
+replaced the active account, and was removed by its exact test key afterward.
+No user-owned proof or owner state was cleared.
+
+Reproduce after `pnpm test`:
+
+```sh
+node scripts/benchmark-pwa-account-reopen.mjs --write-fixture output/performance/wallet-history-fixture.json
+node scripts/benchmark-wallet-source-reuse.mjs --make output/performance/wallet-synthetic-seal.json output/performance/wallet-history-fixture.json
+node scripts/benchmark-wallet-source-reuse.mjs --run output/performance/wallet-synthetic-seal.json
+```
+
+Regression tests cover retry reuse, pending deduplication, terminal close/reopen,
+late completion after disposal and an account round trip, local-source changes,
+remote-generation renewal, worker rejection and transport fallback, wrong-key
+replies, signing cancellation, current inventory counts, and failed/malformed
+challenges performing zero private storage opens. The independent review found
+and then verified fixes for pending work being discarded on close and cached
+inventory restrictions becoming stale.
+
+Remaining work outside these savings includes full continuation construction
+when a distribution server actually issues a valid challenge, wallet read
+signing when a live server requires fresh authority, and missing foreign-card
+custody that still needs the exact Seal fallback. Those operations have not all
+been moved off-thread by this follow-up. Publication retries can still perform
+separate signing reads in their workers. There is no claim that every component
+reads the Seal only once globally, or that cold process restoration is free.
+Actual installed iPhone/iPad reopening, app switching, and the `bjklock` archive
+still need device measurements; desktop samples cannot certify zero latency.

@@ -59,6 +59,7 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
   const selectedResource = resourceLots.find((lot) => lot.lotId === selectedResourceId) ?? resourceLots[0] ?? null;
   const selectedMaterial = materialLots.find((lot) => lot.lotId === selectedMaterialId) ?? materialLots[0] ?? null;
   const sourceSettledPhiMicro = totalWildsStewardPhiMicro(stewardPhiAwards);
+  const reservedCardCount = cards.filter(card => card.status === "listed" || card.status === "suspended" || card.status === "revoked").length;
   useEffect(() => { setOrigin(window.location.origin); }, []);
   useEffect(() => { setVisibleLimit(PAGE_SIZE); }, [filter, query]);
 
@@ -152,7 +153,7 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
       <div><dt>Stewardship earned</dt><dd><PhiNetworkAmount value={formatWildsPhiExact(sourceSettledPhiMicro)} /></dd><small>Lifetime world rewards. Settled rewards are already included in your available PHI.</small></div>
       <div><dt>Resource units</dt><dd>{(inventoryCounts?.resourceUnits ?? state.summary.transferableResourceCount)?.toLocaleString("en-US") ?? "—"}</dd><small>Your current beans, fusion sparks, catalysts, available building materials, and Living Honey units.</small></div>
       <div><dt>Creature cards</dt><dd>{cards.length}</dd><small>Verified cards in your active Wildz Vault.</small></div>
-      {state.summary.reservedCardCount ? <div><dt>Unavailable to send</dt><dd>{state.summary.reservedCardCount}</dd><small>Already listed, committed, suspended, or revoked.</small></div> : null}
+      {reservedCardCount ? <div><dt>Unavailable to send</dt><dd>{reservedCardCount}</dd><small>Already listed, committed, suspended, or revoked.</small></div> : null}
     </dl> : null}
     <div className="wilds-wallet-asset-browser">
       <div aria-label="Asset categories" className="wilds-wallet-asset-filters" role="group">

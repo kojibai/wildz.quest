@@ -583,6 +583,8 @@ export function PlayCampaign({
         authorizeWildsLivingWorldOperationWithIdentity(walletReadIdentityKey, authorization)
     : undefined, [walletReadIdentityKey]);
   const walletController = useWildsWalletController(walletIdentityKey, walletAuthorityGeneration, {
+    backgroundReady: worldVisible,
+    sourceKey: walletReadIdentityKey ?? undefined,
     authorization: walletTransferAuthorization,
     readAuthorization: walletReadAuthorization
   });
