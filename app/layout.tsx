@@ -74,6 +74,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  colorScheme: "dark",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: WILDZ_PRODUCT.themeColor },
     { media: "(prefers-color-scheme: dark)", color: WILDZ_PRODUCT.themeColor }
@@ -82,7 +83,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="wildz-document">
       <body><NativeInteractionGuard /><WildzClientErrorCapture />{children}<PwaController /></body>
     </html>
   );

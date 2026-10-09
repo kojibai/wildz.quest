@@ -6,6 +6,7 @@ import type { PortableCardAsset } from "./portable-card";
 import { projectCardKaiAppearance } from "./card-kai-appearance";
 import { WildsCreatureActor } from "./WildsCreatureActor";
 import { projectWildsTerrainActorPosition } from "./wilds-terrain-rendering";
+import { useWildsEmbodiedSource } from "./WildsEmbodiedAudioContext";
 
 export type WildsHomeResidentsInput = Readonly<{ shelterPosition: { x:number; z:number }; cards: readonly PortableCardAsset[] }>;
 
@@ -17,6 +18,10 @@ function Resident({ card,index,shelterPosition,player,terrainElevation,reducedMo
   const appearance = useMemo(() => projectCardKaiAppearance(card),[card]);
   const root = useRef<Group>(null);
   const position = useMemo(() => projectWildsTerrainActorPosition({x:shelterPosition.x + (index === 0 ? -2.4 : 2.4),z:shelterPosition.z + 1.6},{x:player.x,z:player.z},.2,{anchorElevation:terrainElevation}),[shelterPosition.x,shelterPosition.z,player.x,player.z,terrainElevation,index]);
+  useWildsEmbodiedSource(`resident:${card.id}`,()=>({
+    id:`resident:${card.id}`,kind:'creature',spaceId:'wildz.space.outer.v1',active:true,locomotion:'ground',
+    position:{x:player.x+position[0],y:terrainElevation+position[1],z:player.z+position[2]}
+  }));
   useFrame(({clock}) => {
     if (!root.current) return;
     // A quiet lookout turns in place; no terrain sampling or allocations in the frame loop.

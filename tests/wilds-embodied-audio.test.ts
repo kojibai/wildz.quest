@@ -59,3 +59,27 @@ test('every known floor has a fitting footfall and swimming never invents ground
   if(expected)assert.ok(sounds[0].assetId.startsWith(expected));else assert.deepEqual(sounds,[]);
  }
 });
+
+test('swimming has quiet water strokes, skips terrain, and never replays a dive or resumed movement',()=>{
+ const planner=createWildsEmbodiedAudioPlanner();let probes=0;
+ const swim=(x:number):WildsEmbodiedSnapshot=>({...frame(x),grounded:false,swimming:true,underwater:true,surfaceAt:()=>{probes++;return 'deep-water';}});
+ planner.sample(swim(0),0);
+ const sounds=planner.sample(swim(1.3),125);
+ assert.ok(sounds.some(sound=>sound.assetId.startsWith('swim-water-')));
+ assert.equal(probes,0);
+ assert.deepEqual(planner.sample(swim(1.3),250),[]);
+ assert.deepEqual(planner.sample({...swim(100),swimming:false},375),[]);
+ assert.deepEqual(planner.sample(swim(101),500),[]);
+ assert.deepEqual(planner.sample(swim(102),3000),[]);
+});
+
+test('steep mountain contacts use climbing texture and underwater listeners do not hear land birds',()=>{
+ const planner=createWildsEmbodiedAudioPlanner();planner.sample(frame(0,[],'mountain-rock'),0);
+ assert.equal(planner.sample(frame(.9,[],'mountain-rock'),125)[0].assetId,'climb-rock');
+ const submerged=createWildsEmbodiedAudioPlanner();
+ for(let t=0;t<30000;t+=125){
+  const sounds=submerged.sample({...frame(0,[bird()]),grounded:false,swimming:true,underwater:true},t);
+  assert.ok(sounds.every(sound=>sound.assetId.startsWith('swim-water-')));
+  assert.ok(sounds.length<=2);
+ }
+});

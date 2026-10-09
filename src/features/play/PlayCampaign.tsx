@@ -1416,16 +1416,19 @@ export function PlayCampaign({
     });
   }, [activeDistrictId, activeLandmarkId, kaiExpression.dayPhase, reducedMotion, state.battle, state.encounter, state.missionProgress, state.player, state.worldMastery]);
   const [embodiedAudioSources] = useState<WildsEmbodiedAudioRegistry>(() => new Map());
+  const embodiedCanopy = useMemo(() => siteRuntime.sites.some(site => site.key === state.siteSpace.siteKey && site.family === "canopy-route"), [siteRuntime.sites, state.siteSpace.siteKey]);
   const embodiedSnapshot: WildsEmbodiedSnapshot = {
-    listener: state.siteSpace.position,
+    listener: aquaticPresentation.mode === "swim" ? { ...state.siteSpace.position, y: aquaticPresentation.actorWorldY } : state.siteSpace.position,
     heading: cameraHeadingRef.current,
     spaceId: state.siteSpace.spaceId,
     grounded: aerialStateRef.current.mode === "ground" && verticalTraversalRef.current.layer === "ground" && state.playerBreaths?.mode !== "bed",
     running: movementMode === "run",
+    swimming: aquaticPresentation.mode === "swim",
+    underwater: aquaticPresentation.mode === "swim",
     sources: { *[Symbol.iterator]() { let inspected = 0; for (const read of embodiedAudioSources.values()) { if (++inspected > 64) break; const source = read(); if (source) yield source; } } },
     surfaceAt: (point, spaceId) => wildsFootSurfaceAt(point, spaceId, {
       flooded: state.siteSpace.flooded,
-      canopy: siteRuntime.sites.some(site => site.key === state.siteSpace.siteKey && site.family === "canopy-route"),
+      canopy: embodiedCanopy,
       navigation: creationNavigation,
       creations: creationPhysical
     })
@@ -1435,7 +1438,12 @@ export function PlayCampaign({
   const readEmbodiedSnapshot = () => ({
     ...embodiedSnapshotRef.current,
     heading: cameraHeadingRef.current,
-    grounded: aerialStateRef.current.mode === "ground" && verticalTraversalRef.current.layer === "ground" && embodiedSnapshotRef.current.grounded
+    grounded: aerialStateRef.current.mode === "ground" && verticalTraversalRef.current.layer === "ground" && embodiedSnapshotRef.current.grounded,
+    swimming: aerialStateRef.current.mode === "ground" && (verticalTraversalRef.current.layer === "water" || embodiedSnapshotRef.current.swimming),
+    underwater: aerialStateRef.current.mode === "ground" && (verticalTraversalRef.current.layer === "water" || embodiedSnapshotRef.current.underwater),
+    listener: verticalTraversalRef.current.layer === "water"
+      ? { ...embodiedSnapshotRef.current.listener, y: verticalTraversalRef.current.worldY }
+      : embodiedSnapshotRef.current.listener
   });
   const presentation = useWildsPresentation({
     audioScene,

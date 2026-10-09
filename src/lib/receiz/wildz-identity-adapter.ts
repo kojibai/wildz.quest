@@ -50,6 +50,7 @@ import {
   wildzIdentitySealFilename
 } from "./wildz-identity-seal";
 import { createWildzIdentityPlayerCardOffThread, createWildzIdentityPlayerCardBundleOffThread } from "./wildz-identity-export-client";
+import { readWildzIdentityForSigning } from "./wildz-identity-signing-read";
 import {
   createWildzIdentityBoundPlayerVault,
   wildzIdentityKeyNeedsPassphrase
@@ -306,42 +307,43 @@ export async function connectWildzProofSession(
   if (!challengeResponse.ok || !isWildzProofChallengeResponse(challenge)) {
     throw new Error("wildz_proof_challenge_unavailable");
   }
-  return defaultIdentityRepository.withKeyFile(session.keyId, async (keyFile) => {
-    let passphrase = options.passphrase;
-    if (identityKeyNeedsPassphrase(keyFile) && passphrase === undefined) {
-      passphrase = options.requestPassphrase?.()
-        ?? (typeof window !== "undefined"
-          ? window.prompt("Enter this Identity Seal's passphrase to connect Wildz.") ?? undefined
-          : undefined);
+  // Distribution needs the signing portion, never the imported account archive
+  // on the gameplay thread. Local bootstrap remains independent of this work.
+  const keyFile = await readWildzIdentityForSigning(session.keyId);
+  let passphrase = options.passphrase;
+  if (identityKeyNeedsPassphrase(keyFile) && passphrase === undefined) {
+    passphrase = options.requestPassphrase?.()
+      ?? (typeof window !== "undefined"
+        ? window.prompt("Enter this Identity Seal's passphrase to connect Wildz.") ?? undefined
+        : undefined);
+  }
+  const continuation = await buildReceizIdContinueRequest(
+    receizDeviceIdentityFromKeyFile(keyFile),
+    {
+      nonceB64Url: challenge.nonceB64Url,
+      ...(passphrase !== undefined ? { passphrase } : {})
     }
-    const continuation = await buildReceizIdContinueRequest(
-      receizDeviceIdentityFromKeyFile(keyFile),
-      {
-        nonceB64Url: challenge.nonceB64Url,
-        ...(passphrase !== undefined ? { passphrase } : {})
-      }
-    );
-    const vaultCardAdmission = options.vaultAdmission
-      ? await createWildzIdentityVaultAdmissionProof({
-        keyFile,
-        session,
-        admission: options.vaultAdmission,
-        ...(passphrase !== undefined ? { passphrase } : {})
-      })
-      : null;
-    const admission = await fetch("/api/auth/wildz/session", {
-      method: "POST",
-      credentials: "same-origin",
-      cache: "no-store",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        ...continuation,
-        ...(vaultCardAdmission ? { vaultCardAdmission } : {})
-      })
-    });
-    if (!admission.ok) throw new Error("wildz_proof_admission_failed");
-    return wildzRemoteSessionBridge.current();
+  );
+  const vaultCardAdmission = options.vaultAdmission
+    ? await createWildzIdentityVaultAdmissionProof({
+      keyFile,
+      session,
+      admission: options.vaultAdmission,
+      ...(passphrase !== undefined ? { passphrase } : {})
+    })
+    : null;
+  const admission = await fetch("/api/auth/wildz/session", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      ...continuation,
+      ...(vaultCardAdmission ? { vaultCardAdmission } : {})
+    })
   });
+  if (!admission.ok) throw new Error("wildz_proof_admission_failed");
+  return wildzRemoteSessionBridge.current();
 }
 
 export async function claimWildzProfileIdentity(

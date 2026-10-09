@@ -23,5 +23,6 @@ export function wildsFootSurfaceAt(point:WildsAudioPoint,spaceId:string,input:{f
   if(input.flooded)return 'shallow-water';
   if(input.canopy)return 'wood';
   if(spaceId!=='wildz.space.outer.v1')return 'rock';
-  return sampleWildsTerrain(point.x,point.z).surface;
+  const terrain=sampleWildsTerrain(point.x,point.z);
+  return terrain.surface==='rock'&&terrain.traversal.some(requirement=>requirement.kind==='climb')?'mountain-rock':terrain.surface;
 }

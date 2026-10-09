@@ -1,38 +1,547 @@
 [
-  { "id": "receiz-kai-turah-signature", "kind": "signature", "path": "/audio/wildz/signature/kai_turah_tone.mp3", "sourcePage": "receiz-commerce://public/assets/chimes/kai_turah_tone.mp3", "license": "Receiz-Owned", "licenseUrl": "receiz-owned://kai-turah-tone", "sha256": "66b80d96e761afea62113ac40e64594d6ca49f24add92d8a74aecf15a900347f", "loop": false, "roles": ["commerce", "proof-seal", "settlement"] },
-  { "id": "exploration-theme", "kind": "music", "path": "/audio/wildz/music/exploration-theme.mp3", "sourcePage": "https://opengameart.org/content/exploration-theme", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "6f523e7a15c723d27dc04dab545d2ad884570039e8e93fd3206882591bca3dad", "loop": true, "roles": ["exploration", "biome", "district"] },
-  { "id": "mortal-arena-boss", "kind": "music", "path": "/audio/wildz/music/mortal-arena-boss.mp3", "sourcePage": "https://opengameart.org/content/oh-boss", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "3b87e3259cc0c33216b6e9c9192e1a7544c4daa06bc6390d2c99cb4eef4935c2", "loop": false, "roles": ["mortal-arena", "boss", "combat-final"] },
-  { "id": "forest-ambience", "kind": "ambience", "path": "/audio/wildz/ambience/forest-ambience.mp3", "sourcePage": "https://opengameart.org/content/forest-ambience", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "9850aa1d0d5d66bd9c5daf8bb77c6d852e01f2f4de22f283bd5621e8bed13b75", "loop": true, "roles": ["forest", "biome", "rest"] },
-  { "id": "ui-confirm", "kind": "effect", "path": "/audio/wildz/effects/interface/confirmation_001.ogg", "sourcePage": "https://kenney.nl/assets/interface-sounds", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "063564703b6094d70718a3e787a55cc9141611e4ecd6b6637f8828f79b4a8c3a", "loop": false, "roles": ["confirm", "ready"] },
-  { "id": "ui-error", "kind": "effect", "path": "/audio/wildz/effects/interface/error_001.ogg", "sourcePage": "https://kenney.nl/assets/interface-sounds", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "46e67425d16339772e8d328fb36a49426c9467418686e11beeb71ff84b0f6433", "loop": false, "roles": ["error", "blocked"] },
-  { "id": "ui-select", "kind": "effect", "path": "/audio/wildz/effects/interface/select_002.ogg", "sourcePage": "https://kenney.nl/assets/interface-sounds", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "4cc6ac5341b9b2c86fef80c347de028e9ab9f2e037586ac7d9fa59a403a1c012", "loop": false, "roles": ["select", "focus"] },
-  { "id": "ui-open", "kind": "effect", "path": "/audio/wildz/effects/interface/open_003.ogg", "sourcePage": "https://kenney.nl/assets/interface-sounds", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "bcdca6b5c9c33aa15ca3fb18a1fa8d98a01b528b85be08c5a610e57c75fc022d", "loop": false, "roles": ["drawer-open", "sheet-open"] },
-  { "id": "ui-close", "kind": "effect", "path": "/audio/wildz/effects/interface/close_003.ogg", "sourcePage": "https://kenney.nl/assets/interface-sounds", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "39a1a7f3bc001766c1881841e9903c6b16f5a10b5666e0791d7f6444677d8b05", "loop": false, "roles": ["drawer-close", "sheet-close"] },
-  { "id": "ui-scroll", "kind": "effect", "path": "/audio/wildz/effects/interface/scroll_002.ogg", "sourcePage": "https://kenney.nl/assets/interface-sounds", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "6fbcda22bc45349c66f1ba4b56d6c211b12264e83667de4b9af1e4ffcef74be5", "loop": false, "roles": ["drawer-snap", "page"] },
-  { "id": "ui-expand", "kind": "effect", "path": "/audio/wildz/effects/interface/maximize_003.ogg", "sourcePage": "https://kenney.nl/assets/interface-sounds", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "df16f25d45189f5d44d6a482ab20d5067350ca8525a9affa1f8ce599e31a20a5", "loop": false, "roles": ["drawer-expand", "milestone"] },
-  { "id": "step-1", "kind": "effect", "path": "/audio/wildz/effects/gameplay/footstep00.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "6fe61ef1fc3bcf0e253bf2eb64759db6cb69e2fe452f4d88cc597ecf78a3d601", "loop": false, "roles": ["walk", "run"] },
-  { "id": "step-2", "kind": "effect", "path": "/audio/wildz/effects/gameplay/footstep01.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "313472dba31fd0c855376069fa368bb5a198c27251cc8398ef464578b7047a4c", "loop": false, "roles": ["walk", "run"] },
-  { "id": "step-3", "kind": "effect", "path": "/audio/wildz/effects/gameplay/footstep02.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "2d9575b7dead6e1217ca113991fc5229e9b6d998ea0726ebbb277e7398ab888f", "loop": false, "roles": ["walk", "run"] },
-  { "id": "step-4", "kind": "effect", "path": "/audio/wildz/effects/gameplay/footstep03.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "a86756b9af9f370455ab47844239bb07fd1bee7a113068c91f0fcd9b72703fae", "loop": false, "roles": ["walk", "run"] },
-  { "id": "step-5", "kind": "effect", "path": "/audio/wildz/effects/gameplay/footstep04.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "fd264d72a7cd622b82abde202f4ed09fa7de95d34c36473ee938ce66cdf39830", "loop": false, "roles": ["walk", "run"] },
-  { "id": "weapon-draw", "kind": "effect", "path": "/audio/wildz/effects/gameplay/drawKnife1.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "276403e72c3b71c47bc24db3083970c23f8e5551ffa78f436f83483c56f3f0bb", "loop": false, "roles": ["battle-ready", "ability-ready"] },
-  { "id": "strike-slice", "kind": "effect", "path": "/audio/wildz/effects/gameplay/knifeSlice.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "4cd96dc630bed9840c15f1dd2306da2cc56a4da26a5d3f1a03c5a7265ac5e54f", "loop": false, "roles": ["strike", "ability"] },
-  { "id": "guard-click", "kind": "effect", "path": "/audio/wildz/effects/gameplay/metalClick.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "9851a69d0c613e13bceef08060ecc4148f098ef487927cbebe270d642398a3b3", "loop": false, "roles": ["guard", "parry"] },
-  { "id": "proof-latch", "kind": "effect", "path": "/audio/wildz/effects/gameplay/metalLatch.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "ba9ba60b172b3ebc131a940f25793cd2e207aca7af73dc80d637277f060f1708", "loop": false, "roles": ["proof", "lock", "checkpoint"] },
-  { "id": "book-open", "kind": "effect", "path": "/audio/wildz/effects/gameplay/bookOpen.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "953390534377222bee89ac8cd9e60a58fdc037c71a4d7c18c43cd647c7f34ba8", "loop": false, "roles": ["vault-open", "history-open"] },
-  { "id": "book-close", "kind": "effect", "path": "/audio/wildz/effects/gameplay/bookClose.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "81e976532565f4372abd14e83d2684195fa548d0a28d345de221e56052454f32", "loop": false, "roles": ["vault-close", "history-close"] },
-  { "id": "book-flip", "kind": "effect", "path": "/audio/wildz/effects/gameplay/bookFlip1.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "fa81ac2fedc8c641661b87e349630a36c9800e795e0c800e029214efdbe26a7d", "loop": false, "roles": ["vault-page", "history-page"] },
-  { "id": "door-open", "kind": "effect", "path": "/audio/wildz/effects/gameplay/doorOpen_1.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "4ab93bab96522d8eb109ff96dc57cb6765deb02448fe14c10472084be5bb2a0b", "loop": false, "roles": ["landmark-enter", "arena-enter"] },
-  { "id": "door-close", "kind": "effect", "path": "/audio/wildz/effects/gameplay/doorClose_1.ogg", "sourcePage": "https://kenney.nl/assets/rpg-audio", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "834d29c60a8a8bfb50b158cdb6b7dfa8f02812a408a1ee9703d038dfab0b1aeb", "loop": false, "roles": ["landmark-exit", "arena-seal"] },
-  {"id": "step-grass-1", "kind": "effect", "path": "/audio/wildz/effects/embodied/step-grass-1-4bb6fd3ccfdf.mp3", "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "4bb6fd3ccfdf66a483f7faaa078b918d5cfd7a14401561d591281e6374c70d9a", "loop": false, "roles": ["grass", "fauna-motion"]},
-  {"id": "step-grass-2", "kind": "effect", "path": "/audio/wildz/effects/embodied/step-grass-2-eae246644a06.mp3", "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "eae246644a06779f90e9a5388548a6074c0228b3da1ff74853dee9092c0c31e3", "loop": false, "roles": ["grass", "fauna-motion"]},
-  {"id": "step-soil", "kind": "effect", "path": "/audio/wildz/effects/embodied/step-soil-8e1db40a47f7.mp3", "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "8e1db40a47f7112069df1e600606bfbab6ced31fc6977d91ca110fae32a35994", "loop": false, "roles": ["soil", "sand"]},
-  {"id": "step-trail", "kind": "effect", "path": "/audio/wildz/effects/embodied/step-trail-dad0167cbe23.mp3", "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "dad0167cbe2307694199a0bd09a91fdce120daca4e762c01f1495b2ac0f31731", "loop": false, "roles": ["trail"]},
-  {"id": "step-rock", "kind": "effect", "path": "/audio/wildz/effects/embodied/step-rock-401999ecd4cb.mp3", "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "401999ecd4cbe4764379c0d486d7d9cb274d0aa0d1cbd845e9b81767aaee5e7e", "loop": false, "roles": ["rock"]},
-  {"id": "step-wood-1", "kind": "effect", "path": "/audio/wildz/effects/embodied/step-wood-1-62a62146d45c.mp3", "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "62a62146d45c0359460dab0e423facec88c5e58a627b3d4f64780852bc38a7b9", "loop": false, "roles": ["wood"]},
-  {"id": "step-wood-2", "kind": "effect", "path": "/audio/wildz/effects/embodied/step-wood-2-c6acf4330551.mp3", "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "c6acf4330551c2618c551c9582ec91ea985ca56382bfeaba86231a7ddd3af6d3", "loop": false, "roles": ["wood"]},
-  {"id": "step-water-1", "kind": "effect", "path": "/audio/wildz/effects/embodied/step-water-1-e6e1004a69ec.mp3", "sourcePage": "https://opengameart.org/content/6-short-water-splashes", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "e6e1004a69eca88d3a9c9ecef8dbadf97bff81e4da0b67701d8ae0639eee4294", "loop": false, "roles": ["water"]},
-  {"id": "step-water-2", "kind": "effect", "path": "/audio/wildz/effects/embodied/step-water-2-b65b01156154.mp3", "sourcePage": "https://opengameart.org/content/6-short-water-splashes", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "b65b01156154f03cb02e2583caa7a803506fab42cc042d032c32e16448249e14", "loop": false, "roles": ["water"]},
-  {"id": "fauna-bird", "kind": "effect", "path": "/audio/wildz/effects/embodied/fauna-bird-30358bddf60b.mp3", "sourcePage": "https://opengameart.org/content/bird-chirping-sounds", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "30358bddf60bd806c79a449b30752ff24248cc55e3d68c4d12f7ad4e0f0de6ef", "loop": false, "roles": ["bird", "distance"]},
-  {"id": "creature-call", "kind": "effect", "path": "/audio/wildz/effects/embodied/creature-call-70311014a079.mp3", "sourcePage": "https://opengameart.org/content/some-animal-noise", "license": "CC0-1.0", "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/", "sha256": "70311014a07928bd35f1e7013de172f5880c5fa62260a89d8e00299f043aa4dc", "loop": false, "roles": ["creature", "distance"]}
+  {
+    "id": "receiz-kai-turah-signature",
+    "kind": "signature",
+    "path": "/audio/wildz/signature/kai_turah_tone.mp3",
+    "sourcePage": "receiz-commerce://public/assets/chimes/kai_turah_tone.mp3",
+    "license": "Receiz-Owned",
+    "licenseUrl": "receiz-owned://kai-turah-tone",
+    "sha256": "66b80d96e761afea62113ac40e64594d6ca49f24add92d8a74aecf15a900347f",
+    "loop": false,
+    "roles": [
+      "commerce",
+      "proof-seal",
+      "settlement"
+    ]
+  },
+  {
+    "id": "exploration-theme",
+    "kind": "music",
+    "path": "/audio/wildz/music/exploration-theme.mp3",
+    "sourcePage": "https://opengameart.org/content/exploration-theme",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "6f523e7a15c723d27dc04dab545d2ad884570039e8e93fd3206882591bca3dad",
+    "loop": true,
+    "roles": [
+      "exploration",
+      "biome",
+      "district"
+    ]
+  },
+  {
+    "id": "mortal-arena-boss",
+    "kind": "music",
+    "path": "/audio/wildz/music/mortal-arena-boss.mp3",
+    "sourcePage": "https://opengameart.org/content/oh-boss",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "3b87e3259cc0c33216b6e9c9192e1a7544c4daa06bc6390d2c99cb4eef4935c2",
+    "loop": false,
+    "roles": [
+      "mortal-arena",
+      "boss",
+      "combat-final"
+    ]
+  },
+  {
+    "id": "forest-ambience",
+    "kind": "ambience",
+    "path": "/audio/wildz/ambience/forest-ambience.mp3",
+    "sourcePage": "https://opengameart.org/content/forest-ambience",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "9850aa1d0d5d66bd9c5daf8bb77c6d852e01f2f4de22f283bd5621e8bed13b75",
+    "loop": true,
+    "roles": [
+      "forest",
+      "biome",
+      "rest"
+    ]
+  },
+  {
+    "id": "ui-confirm",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/interface/confirmation_001.ogg",
+    "sourcePage": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "063564703b6094d70718a3e787a55cc9141611e4ecd6b6637f8828f79b4a8c3a",
+    "loop": false,
+    "roles": [
+      "confirm",
+      "ready"
+    ]
+  },
+  {
+    "id": "ui-error",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/interface/error_001.ogg",
+    "sourcePage": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "46e67425d16339772e8d328fb36a49426c9467418686e11beeb71ff84b0f6433",
+    "loop": false,
+    "roles": [
+      "error",
+      "blocked"
+    ]
+  },
+  {
+    "id": "ui-select",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/interface/select_002.ogg",
+    "sourcePage": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "4cc6ac5341b9b2c86fef80c347de028e9ab9f2e037586ac7d9fa59a403a1c012",
+    "loop": false,
+    "roles": [
+      "select",
+      "focus"
+    ]
+  },
+  {
+    "id": "ui-open",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/interface/open_003.ogg",
+    "sourcePage": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "bcdca6b5c9c33aa15ca3fb18a1fa8d98a01b528b85be08c5a610e57c75fc022d",
+    "loop": false,
+    "roles": [
+      "drawer-open",
+      "sheet-open"
+    ]
+  },
+  {
+    "id": "ui-close",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/interface/close_003.ogg",
+    "sourcePage": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "39a1a7f3bc001766c1881841e9903c6b16f5a10b5666e0791d7f6444677d8b05",
+    "loop": false,
+    "roles": [
+      "drawer-close",
+      "sheet-close"
+    ]
+  },
+  {
+    "id": "ui-scroll",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/interface/scroll_002.ogg",
+    "sourcePage": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "6fbcda22bc45349c66f1ba4b56d6c211b12264e83667de4b9af1e4ffcef74be5",
+    "loop": false,
+    "roles": [
+      "drawer-snap",
+      "page"
+    ]
+  },
+  {
+    "id": "ui-expand",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/interface/maximize_003.ogg",
+    "sourcePage": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "df16f25d45189f5d44d6a482ab20d5067350ca8525a9affa1f8ce599e31a20a5",
+    "loop": false,
+    "roles": [
+      "drawer-expand",
+      "milestone"
+    ]
+  },
+  {
+    "id": "step-1",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/footstep00.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "6fe61ef1fc3bcf0e253bf2eb64759db6cb69e2fe452f4d88cc597ecf78a3d601",
+    "loop": false,
+    "roles": [
+      "walk",
+      "run"
+    ]
+  },
+  {
+    "id": "step-2",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/footstep01.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "313472dba31fd0c855376069fa368bb5a198c27251cc8398ef464578b7047a4c",
+    "loop": false,
+    "roles": [
+      "walk",
+      "run"
+    ]
+  },
+  {
+    "id": "step-3",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/footstep02.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "2d9575b7dead6e1217ca113991fc5229e9b6d998ea0726ebbb277e7398ab888f",
+    "loop": false,
+    "roles": [
+      "walk",
+      "run"
+    ]
+  },
+  {
+    "id": "step-4",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/footstep03.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "a86756b9af9f370455ab47844239bb07fd1bee7a113068c91f0fcd9b72703fae",
+    "loop": false,
+    "roles": [
+      "walk",
+      "run"
+    ]
+  },
+  {
+    "id": "step-5",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/footstep04.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "fd264d72a7cd622b82abde202f4ed09fa7de95d34c36473ee938ce66cdf39830",
+    "loop": false,
+    "roles": [
+      "walk",
+      "run"
+    ]
+  },
+  {
+    "id": "weapon-draw",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/drawKnife1.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "276403e72c3b71c47bc24db3083970c23f8e5551ffa78f436f83483c56f3f0bb",
+    "loop": false,
+    "roles": [
+      "battle-ready",
+      "ability-ready"
+    ]
+  },
+  {
+    "id": "strike-slice",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/knifeSlice.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "4cd96dc630bed9840c15f1dd2306da2cc56a4da26a5d3f1a03c5a7265ac5e54f",
+    "loop": false,
+    "roles": [
+      "strike",
+      "ability"
+    ]
+  },
+  {
+    "id": "guard-click",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/metalClick.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "9851a69d0c613e13bceef08060ecc4148f098ef487927cbebe270d642398a3b3",
+    "loop": false,
+    "roles": [
+      "guard",
+      "parry"
+    ]
+  },
+  {
+    "id": "proof-latch",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/metalLatch.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "ba9ba60b172b3ebc131a940f25793cd2e207aca7af73dc80d637277f060f1708",
+    "loop": false,
+    "roles": [
+      "proof",
+      "lock",
+      "checkpoint"
+    ]
+  },
+  {
+    "id": "book-open",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/bookOpen.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "953390534377222bee89ac8cd9e60a58fdc037c71a4d7c18c43cd647c7f34ba8",
+    "loop": false,
+    "roles": [
+      "vault-open",
+      "history-open"
+    ]
+  },
+  {
+    "id": "book-close",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/bookClose.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "81e976532565f4372abd14e83d2684195fa548d0a28d345de221e56052454f32",
+    "loop": false,
+    "roles": [
+      "vault-close",
+      "history-close"
+    ]
+  },
+  {
+    "id": "book-flip",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/bookFlip1.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "fa81ac2fedc8c641661b87e349630a36c9800e795e0c800e029214efdbe26a7d",
+    "loop": false,
+    "roles": [
+      "vault-page",
+      "history-page"
+    ]
+  },
+  {
+    "id": "door-open",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/doorOpen_1.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "4ab93bab96522d8eb109ff96dc57cb6765deb02448fe14c10472084be5bb2a0b",
+    "loop": false,
+    "roles": [
+      "landmark-enter",
+      "arena-enter"
+    ]
+  },
+  {
+    "id": "door-close",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/gameplay/doorClose_1.ogg",
+    "sourcePage": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "834d29c60a8a8bfb50b158cdb6b7dfa8f02812a408a1ee9703d038dfab0b1aeb",
+    "loop": false,
+    "roles": [
+      "landmark-exit",
+      "arena-seal"
+    ]
+  },
+  {
+    "id": "step-grass-1",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/step-grass-1-fe4c136bbf2a.mp3",
+    "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "fe4c136bbf2a82e09211a47e459d5b81a876b8f31a4778f67ac582641d3cdd9b",
+    "loop": false,
+    "roles": [
+      "grass",
+      "fauna-motion"
+    ]
+  },
+  {
+    "id": "step-grass-2",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/step-grass-2-f1bdbea28a68.mp3",
+    "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "f1bdbea28a687845962c4d46d03cc8c690fbb4a44c547142c92ef48406f1f992",
+    "loop": false,
+    "roles": [
+      "grass",
+      "fauna-motion"
+    ]
+  },
+  {
+    "id": "step-soil",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/step-soil-bd176ccc83c1.mp3",
+    "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "bd176ccc83c1be3b7128f0450a2108f957fa119c859a3f41286ddb490d44806d",
+    "loop": false,
+    "roles": [
+      "soil",
+      "sand"
+    ]
+  },
+  {
+    "id": "step-trail",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/step-trail-02bec9a5b8e8.mp3",
+    "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "02bec9a5b8e8a95c5631e76d084b1b66f070eb17dd118da6f90fd51a75fb632d",
+    "loop": false,
+    "roles": [
+      "trail"
+    ]
+  },
+  {
+    "id": "step-rock",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/step-rock-f81cdc272427.mp3",
+    "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "f81cdc27242707e385fa7d63ae7828cc4bc55af3bae2ccd928b1cf4da8389d7e",
+    "loop": false,
+    "roles": [
+      "rock"
+    ]
+  },
+  {
+    "id": "step-wood-1",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/step-wood-1-0ae156fe871e.mp3",
+    "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "0ae156fe871eab756ccd5ae7487b58014943c45176d3c3552708aa187157af48",
+    "loop": false,
+    "roles": [
+      "wood"
+    ]
+  },
+  {
+    "id": "step-wood-2",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/step-wood-2-0495c9e3ab17.mp3",
+    "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "0495c9e3ab17f240ec1320fc1ad1982288034cbcf9de8c75c5af79b821ef222e",
+    "loop": false,
+    "roles": [
+      "wood"
+    ]
+  },
+  {
+    "id": "step-water-1",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/step-water-1-2df61c0144a3.mp3",
+    "sourcePage": "https://opengameart.org/content/6-short-water-splashes",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "2df61c0144a3690fff94062d890b18f8e8be1789e0db0775617ac759646cc904",
+    "loop": false,
+    "roles": [
+      "water"
+    ]
+  },
+  {
+    "id": "step-water-2",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/step-water-2-1560766ca445.mp3",
+    "sourcePage": "https://opengameart.org/content/6-short-water-splashes",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "1560766ca4457baac3c5ae1d97f443872e6761264b008e91e40c70175fc0c517",
+    "loop": false,
+    "roles": [
+      "water"
+    ]
+  },
+  {
+    "id": "fauna-bird",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/fauna-bird-9427fd3e4bd3.mp3",
+    "sourcePage": "https://opengameart.org/content/bird-chirping-sounds",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "9427fd3e4bd3272d717b878f4f7f2bd49bd6ff8376020dbabe3b2e2091b1ed40",
+    "loop": false,
+    "roles": [
+      "bird",
+      "distance"
+    ]
+  },
+  {
+    "id": "creature-call",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/creature-call-dffaa17d7cab.mp3",
+    "sourcePage": "https://opengameart.org/content/some-animal-noise",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "dffaa17d7cab713f22e0c063036298e56bb40a2310befc32f046006e3b2ed362",
+    "loop": false,
+    "roles": [
+      "creature",
+      "distance"
+    ]
+  },
+  {
+    "id": "swim-water-1",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/swim-water-1-7a603e3222f1.mp3",
+    "sourcePage": "https://opengameart.org/content/6-short-water-splashes",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "7a603e3222f1d3c0dd0b513405aea5f35f34cf24681ab6a2030f11402b6a2e48",
+    "loop": false,
+    "roles": [
+      "underwater",
+      "swim"
+    ]
+  },
+  {
+    "id": "swim-water-2",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/swim-water-2-14618dadd1aa.mp3",
+    "sourcePage": "https://opengameart.org/content/6-short-water-splashes",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "14618dadd1aa0f51db505ba0ec17d7f10d6afcce162297238a461989cfdb176f",
+    "loop": false,
+    "roles": [
+      "underwater",
+      "swim"
+    ]
+  },
+  {
+    "id": "climb-rock",
+    "kind": "effect",
+    "path": "/audio/wildz/effects/embodied/climb-rock-f52c3978f5b6.mp3",
+    "sourcePage": "https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "sha256": "f52c3978f5b6be5f58a2bcd1964978b3b4ab49097ddb595508392d7c7e935fc2",
+    "loop": false,
+    "roles": [
+      "mountain",
+      "climb"
+    ]
+  }
 ]

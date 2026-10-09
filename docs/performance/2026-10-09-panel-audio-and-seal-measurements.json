@@ -1,0 +1,355 @@
+{
+  "environment": {
+    "browser": "Chromium",
+    "build": "local production",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "physicalInstalledIOSPwa": false,
+    "account": "isolated established synthetic account",
+    "durableStorageCleared": false
+  },
+  "motion": {
+    "before": "Open world map. Current position X 88, Z -265. 0 roaming creatures",
+    "after": "Open world map. Current position X 74, Z -279. 0 roaming creatures",
+    "cameraBefore": [
+      0.8436614871025085,
+      -0.18091776967048645,
+      0.5054740905761719,
+      0,
+      0,
+      0.9415108561515808,
+      0.33698272705078125,
+      0,
+      -0.5368754863739014,
+      -0.2842993438243866,
+      0.7943164110183716,
+      0,
+      6.629247764067259e-07,
+      0.6922769698466453,
+      -8.061252872644218,
+      1
+    ],
+    "cameraAfter": [
+      -0.7460943829789783,
+      -0.6183422801945544,
+      0.24697378183950977,
+      0,
+      2.8115082623125787e-09,
+      0.37092047761245484,
+      0.9286646431737898,
+      0,
+      -0.6658402350235125,
+      0.6928714314083614,
+      -0.2767416837533245,
+      0,
+      -9.492212793560384e-09,
+      2.09628932280583,
+      -3.060601854929465,
+      1
+    ],
+    "walking": {
+      "name": "walking",
+      "frames": 920,
+      "p95Ms": 9.375,
+      "maxMs": 10.3100000000004,
+      "over50Ms": 0,
+      "longTasks": []
+    },
+    "camera": {
+      "name": "camera rotation",
+      "frames": 388,
+      "p95Ms": 9.389999999999418,
+      "maxMs": 10.244999999998981,
+      "over50Ms": 0,
+      "longTasks": []
+    },
+    "errorOverlay": 0
+  },
+  "audio": {
+    "startupAudioRequests": 0,
+    "requests": 14,
+    "ticks": 38,
+    "meanTickMs": 0.08605263421410009,
+    "p95TickMs": 0.21499991416931152,
+    "maxTickMs": 0.2549999952316284,
+    "maxVoices": 3,
+    "pauseVerified": true,
+    "resumePlayable": true,
+    "pageErrors": [],
+    "frameworkErrorOverlay": 0,
+    "loader": {
+      "text": "",
+      "min": "0",
+      "max": "6",
+      "now": "0",
+      "logo": "/brand/wildz-mark.svg",
+      "logoWidth": 64
+    },
+    "reduced": {
+      "scan": "none",
+      "fill": "0s",
+      "logo": "none"
+    }
+  },
+  "creation": {
+    "dark": {
+      "html": "rgb(9, 17, 13)",
+      "body": "rgb(9, 17, 13)",
+      "scheme": "dark"
+    },
+    "fit": [
+      {
+        "width": 390,
+        "height": 844,
+        "box": {
+          "x": 12,
+          "y": 433.921875,
+          "width": 366,
+          "height": 284.078125
+        },
+        "summaries": [
+          {
+            "name": "Choose creatures",
+            "x": 25,
+            "width": 69,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Allocate resources",
+            "x": 99,
+            "width": 69,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Choose object",
+            "x": 173,
+            "width": 69,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Build a farm",
+            "x": 247,
+            "width": 69,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          }
+        ]
+      },
+      {
+        "width": 375,
+        "height": 667,
+        "box": {
+          "x": 12,
+          "y": 256.921875,
+          "width": 351,
+          "height": 284.078125
+        },
+        "summaries": [
+          {
+            "name": "Choose creatures",
+            "x": 25,
+            "width": 65.25,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Allocate resources",
+            "x": 95.25,
+            "width": 65.25,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Choose object",
+            "x": 165.5,
+            "width": 65.25,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Build a farm",
+            "x": 235.75,
+            "width": 65.25,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          }
+        ]
+      },
+      {
+        "width": 320,
+        "height": 568,
+        "box": {
+          "x": 12,
+          "y": 137.625,
+          "width": 296,
+          "height": 304.375
+        },
+        "summaries": [
+          {
+            "name": "Choose creatures",
+            "x": 25,
+            "width": 52.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Allocate resources",
+            "x": 81.5,
+            "width": 52.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Choose object",
+            "x": 138,
+            "width": 52.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Build a farm",
+            "x": 194.5,
+            "width": 52.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          }
+        ]
+      },
+      {
+        "width": 844,
+        "height": 390,
+        "box": {
+          "x": 448,
+          "y": 36.21875,
+          "width": 380,
+          "height": 265.78125
+        },
+        "summaries": [
+          {
+            "name": "Choose creatures",
+            "x": 459,
+            "width": 73.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Allocate resources",
+            "x": 537.5,
+            "width": 73.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Choose object",
+            "x": 616,
+            "width": 73.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Build a farm",
+            "x": 694.5,
+            "width": 73.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          }
+        ]
+      },
+      {
+        "width": 1280,
+        "height": 900,
+        "box": {
+          "x": 884,
+          "y": 477.921875,
+          "width": 380,
+          "height": 286.078125
+        },
+        "summaries": [
+          {
+            "name": "Choose creatures",
+            "x": 897,
+            "width": 72.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Allocate resources",
+            "x": 974.5,
+            "width": 72.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Choose object",
+            "x": 1052,
+            "width": 72.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          },
+          {
+            "name": "Build a farm",
+            "x": 1129.5,
+            "width": 72.5,
+            "height": 56,
+            "animation": "none",
+            "blur": "none"
+          }
+        ]
+      }
+    ],
+    "preservedDraft": true,
+    "errors": [],
+    "errorOverlay": 0,
+    "checks": [
+      "selectors",
+      "resources",
+      "objects",
+      "farm",
+      "prompt typing",
+      "keyboard-sized viewport",
+      "panel keyboard positioning",
+      "minimize/restore",
+      "close"
+    ]
+  },
+  "assets": {
+    "count": 14,
+    "encodedBytes": 56469,
+    "sha256AndFilenameDigestsVerified": true,
+    "existingCatalogEntriesUnchanged": 25
+  },
+  "signingReadRegression": {
+    "mainThreadArchiveReads": 0,
+    "workerRequests": 1,
+    "actualContinuationSignatureVerified": true
+  },
+  "tests": {
+    "passed": 3607,
+    "skipped": 1,
+    "failed": 0
+  }
+}

@@ -1750,6 +1750,13 @@ textarea {
   font: inherit;
 }
 
+/* Keep the native PWA under-page canvas dark, including behind the iOS keyboard. */
+html.wildz-document,
+html.wildz-document > body {
+  background: #09110d;
+  color-scheme: dark;
+}
+
 button {
   cursor: pointer;
 }
