@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { embedPortableCardInPng } from "../src/features/play/card-export";
 import { sealCollectedCard, evolvePortableCard } from "../src/features/play/portable-card";
-import { createWildzArtifactCodec, readWildzArtifactCrewCustody, canOperateWildzCrewCard, mergeWildzCrewCustody, wildzCrewCustodySources } from "../src/lib/receiz/wildz-artifact-codec";
+import { createWildzArtifactCodec, readWildzArtifactCrewCustody, canOperateWildzCrewCard, mergeWildzCrewCustody, wildzCrewCustodySources,
+  retainWildzCrewCustodyMemory, restoreWildzCrewCustodyMemory } from "../src/lib/receiz/wildz-artifact-codec";
+import { prepareWildsIncomingInventory } from "../src/features/play/wilds-incoming-inventory";
+import { retainWildzInventoryMemory, restoreWildzInventoryMemory, wildzInventoryMemoryKey } from "../src/features/identity/wildz-inventory-memory";
+import { reopenWildzCrewCustodyOffThread } from "../src/lib/receiz/wildz-crew-custody-client";
 import { reopenWildzCrewCustody } from "../src/lib/receiz/wildz-crew-custody-source";
 import { createWildzIdentityRepository } from "../src/lib/receiz/wildz-identity-repository";
 import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
@@ -24,6 +28,87 @@ function fixture() {
     filename: "card.receiz", mimeType: "application/json", ownerReceizId: "keeper", claimId: "claim", verifyPath: "/verify", recordId: "record", compatibility: "current-native" }; } };
   return { codec, history, opens: () => opens };
 }
+
+test("received-card custody reopens from its authenticated exact head without inspecting the original Seal", async () => {
+  const f = fixture(), database = createMemoryWildzContinuityDatabase(), owner = { keyId: "keeper-key", actorId: "keeper" };
+  const token = readWildzArtifactCrewCustody(await f.codec.inspect({ bytes: sourceBytes, mimeType: "application/json" }));
+  const grown = evolvePortableCard({ previous: card, nextFormId: "mintcub-2", evolvedAt: "2026-07-15T13:00:00.000Z" });
+  const inventory = await prepareWildsIncomingInventory([grown]);
+  await retainWildzInventoryMemory(database, owner, inventory);
+  await retainWildzCrewCustodyMemory(database, owner, token, inventory);
+  const cold = await restoreWildzInventoryMemory(database, owner, structuredClone(inventory));
+  assert.ok(cold);
+  const restored = await restoreWildzCrewCustodyMemory(database, owner, cold);
+  assert.equal(canOperateWildzCrewCard(cold[0]!, owner.actorId, restored), true);
+  assert.deepEqual(wildzCrewCustodySources(restored), [{ artifactSha256: sourceSha, assetIds: [grown.id] }]);
+  assert.equal(f.opens(), 1);
+  assert.equal(await restoreWildzCrewCustodyMemory(database, { ...owner, actorId: "other" }, cold), null);
+  const changed = await prepareWildsIncomingInventory([{ ...grown, status: "listed" }]);
+  assert.equal(await restoreWildzCrewCustodyMemory(database, owner, changed), null, "a different exact head requires its normal custody source");
+});
+
+test("lookalike custody tokens and edited source coordinates cannot grant retained authority", async () => {
+  const f = fixture(), database = createMemoryWildzContinuityDatabase(), owner = { keyId: "keeper-key", actorId: "keeper" };
+  const inventory = await prepareWildsIncomingInventory([structuredClone(card)]);
+  await retainWildzCrewCustodyMemory(database, owner, { owner: "keeper" }, inventory);
+  assert.equal(await restoreWildzCrewCustodyMemory(database, owner, inventory), null);
+  const token = readWildzArtifactCrewCustody(await f.codec.inspect({ bytes: sourceBytes, mimeType: "application/json" }));
+  await retainWildzCrewCustodyMemory(database, owner, token, inventory);
+  const key = wildzInventoryMemoryKey(owner, "crew-custody");
+  const memory = await database.read<Record<string, unknown>>("meta", key);
+  assert.ok(memory);
+  await database.transaction(["meta"], "readwrite", tx => tx.put("meta", { ...memory, coordinates: [JSON.stringify([card.id, "c".repeat(64)])] }, key));
+  assert.equal(await restoreWildzCrewCustodyMemory(database, owner, inventory), null);
+});
+
+test("received custody memory does not depend on unrelated owner-native creature growth", async () => {
+  const { createReceizIdentityKeyFile, serializeReceizIdentityArtifact } = await import("@receiz/sdk");
+  const database = createMemoryWildzContinuityDatabase(), owner = { keyId: "mixed-memory-key", actorId: "keeper" };
+  const own = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "keeper", encounterId: "own-crew", capturedAt: "2026-07-15T12:00:00.000Z" });
+  const { keyFile } = await createReceizIdentityKeyFile({ owner: { uid: "keeper", username: "keeper", displayName: "Keeper" }, portableState: { snapshot: { cards: [own, card] } } });
+  const token = readWildzArtifactCrewCustody(await fixture().codec.inspect({ bytes: new TextEncoder().encode(serializeReceizIdentityArtifact(keyFile)), mimeType: "application/json" }));
+  assert.ok(token);
+  const grown = evolvePortableCard({ previous: own, nextFormId: "mintcub-2", evolvedAt: "2026-07-15T13:00:00.000Z" });
+  // A worker can observe the owner's later durable growth while the rendering
+  // thread still holds its bootstrap snapshot. Foreign custody is unchanged.
+  await retainWildzCrewCustodyMemory(database, owner, token, await prepareWildsIncomingInventory([grown, card]));
+  const bootstrapCards = await prepareWildsIncomingInventory([own, card]);
+  const retained = await restoreWildzCrewCustodyMemory(database, owner, bootstrapCards);
+  assert.equal(canOperateWildzCrewCard(card, owner.actorId, retained), true);
+  assert.equal(canOperateWildzCrewCard(own, owner.actorId, retained), true);
+});
+
+test("custody worker success must resolve through an authenticated head and transfers no archive", async () => {
+  const f = fixture(), owner = { keyId: "keeper-key", actorId: "keeper" };
+  const token = readWildzArtifactCrewCustody(await f.codec.inspect({ bytes: sourceBytes, mimeType: "application/json" }));
+  let reads = 0, fallbacks = 0, terminated = 0;
+  const worker = { onmessage: null as Worker["onmessage"], onerror: null as Worker["onerror"], onmessageerror: null as Worker["onmessageerror"],
+    terminate: () => { terminated++; }, postMessage(value: unknown) {
+      assert.deepEqual(value, owner, "only owner coordinates cross into the worker");
+      queueMicrotask(() => worker.onmessage?.call(worker as unknown as Worker, { data: { ...owner, ok: true } } as MessageEvent));
+    } };
+  const restored = await reopenWildzCrewCustodyOffThread({ ...owner, username: "keeper", portableStateStatus: "verified" } as typeof owner, [card], async () => { fallbacks++; return token; }, {
+    createWorker: () => worker, readMemory: async () => ++reads === 1 ? null : token
+  });
+  assert.equal(restored, token); assert.equal(reads, 2); assert.equal(fallbacks, 0); assert.equal(terminated, 1);
+  reads = 0;
+  assert.equal(await reopenWildzCrewCustodyOffThread(owner, [card], async () => { throw Error("no fallback after a completed read"); }, {
+    createWorker: () => worker, readMemory: async () => null
+  }), null, "a success flag alone never creates custody");
+});
+
+test("retained custody avoids workers and unavailable transport preserves source recovery", async () => {
+  const f = fixture(), owner = { keyId: "keeper-key", actorId: "keeper" };
+  const token = readWildzArtifactCrewCustody(await f.codec.inspect({ bytes: sourceBytes, mimeType: "application/json" }));
+  assert.equal(await reopenWildzCrewCustodyOffThread(owner, [card], async () => { throw Error("retained head already exists"); }, {
+    createWorker: () => { throw Error("a retained head must not start a worker"); }, readMemory: async () => token
+  }), token);
+  let recoveries = 0;
+  assert.equal(await reopenWildzCrewCustodyOffThread(owner, [card], async () => { recoveries++; return token; }, {
+    createWorker: () => { throw Error("worker transport unavailable"); }, readMemory: async () => null
+  }), token);
+  assert.equal(recoveries, 1);
+});
 test("native verified inspection admits received keeper and causal growth without another source read", async () => {
   const f = fixture();
   const inspected = await f.codec.inspect({ bytes: sourceBytes, mimeType: "application/json" });

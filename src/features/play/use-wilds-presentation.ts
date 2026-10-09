@@ -61,6 +61,8 @@ export function useWildsPresentation({
   const [audioReady, setAudioReady] = useState(false);
   const [visualEvents, setVisualEvents] = useState<WildsVisualEvent[]>([]);
   const runtimeRef = useRef<ReturnType<typeof createWildsAudioRuntime> | null>(null);
+  const audioSceneRef = useRef(audioScene);
+  audioSceneRef.current = audioScene;
   const audioSettingsRef = useRef(audioSettings);
   const previousEncounter = useRef<WildsEncounterAudioState>({
     phase: encounter.phase,
@@ -119,8 +121,18 @@ export function useWildsPresentation({
 
   useEffect(() => {
     if (!audioReady || !audioScene || audioSettings.muted) return;
-    void runtimeRef.current?.setScene(audioScene);
+    void runtimeRef.current?.setScene(audioScene).catch(() => undefined);
   }, [audioReady, audioScene, audioSettings.muted]);
+
+  useEffect(() => {
+    if (!audioReady || audioSettings.muted) return;
+    const refresh = () => {
+      const scene = audioSceneRef.current;
+      if (scene) void runtimeRef.current?.setScene(scene).catch(() => undefined);
+    };
+    window.addEventListener("online", refresh);
+    return () => window.removeEventListener("online", refresh);
+  }, [audioReady, audioSettings.muted]);
 
   useEffect(() => {
     if (!audioReady || !embodiedEnabled || audioSettings.muted) return;
@@ -147,6 +159,8 @@ export function useWildsPresentation({
       }, 125);
     };
     document.addEventListener("visibilitychange", start);
+    const reconnect = () => { preloadIndex = 0; void loadSamples(); };
+    window.addEventListener("online", reconnect);
     start();
     async function loadSamples() {
       if (preloading) return;
@@ -163,7 +177,7 @@ export function useWildsPresentation({
         }
       } finally { preloading = false; }
     }
-    return () => { active = false; document.removeEventListener("visibilitychange", start); pause(); };
+    return () => { active = false; document.removeEventListener("visibilitychange", start); window.removeEventListener("online", reconnect); pause(); };
   }, [audioReady, embodiedEnabled, audioSettings.muted]);
 
   useEffect(() => {

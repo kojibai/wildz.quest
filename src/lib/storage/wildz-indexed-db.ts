@@ -5,6 +5,8 @@ export interface WildzContinuityTransaction {
   getAll<T>(store: WildzStoreName): Promise<T[]>;
   put<T>(store: WildzStoreName, value: T, key?: IDBValidKey): Promise<void>;
   delete(store: WildzStoreName, key: IDBValidKey): Promise<void>;
+  /** Optional for in-memory adapters. Production deletes by expiry keys without cloning upload bytes. */
+  deleteExpiredPendingRestores?(nowMs: number): Promise<number | null>;
 }
 
 export interface WildzContinuityDatabase {
@@ -17,7 +19,8 @@ export interface WildzContinuityDatabase {
 }
 
 const DEFAULT_DATABASE_NAME = "receiz.wildz.continuity.v1";
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
+const PENDING_EXPIRY_INDEX = "expiresAtMs";
 const STORE_NAMES: readonly WildzStoreName[] = ["wrappingKeys", "identities", "ownerStates", "meta", "pendingRestores", "artifacts"];
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
@@ -49,6 +52,22 @@ function transactionPort(transaction: IDBTransaction): WildzContinuityTransactio
     },
     async delete(store: WildzStoreName, key: IDBValidKey) {
       await requestResult(transaction.objectStore(store).delete(key));
+    },
+    async deleteExpiredPendingRestores(nowMs: number) {
+      const store = transaction.objectStore("pendingRestores");
+      if (!store.indexNames?.contains(PENDING_EXPIRY_INDEX) || typeof IDBKeyRange === "undefined") return null;
+      return new Promise<number>((resolve, reject) => {
+        let deleted = 0;
+        const request = store.index(PENDING_EXPIRY_INDEX).openKeyCursor(IDBKeyRange.upperBound(nowMs));
+        request.onerror = () => reject(request.error ?? Error("wildz_pending_expiry_read_failed"));
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) { resolve(deleted); return; }
+          const removal = store.delete(cursor.primaryKey);
+          removal.onerror = () => reject(removal.error ?? Error("wildz_pending_expiry_delete_failed"));
+          removal.onsuccess = () => { deleted++; cursor.continue(); };
+        };
+      });
     }
   };
 }
@@ -84,7 +103,13 @@ export function createWildzContinuityDatabase(options: {
       };
       request.addEventListener("upgradeneeded", () => {
         for (const store of STORE_NAMES) {
-          if (!request.result.objectStoreNames.contains(store)) request.result.createObjectStore(store);
+          const created = !request.result.objectStoreNames.contains(store) ? request.result.createObjectStore(store) : null;
+          if (store === "pendingRestores") {
+            const pending = created ?? request.transaction?.objectStore(store);
+            if (pending?.createIndex && !pending.indexNames.contains(PENDING_EXPIRY_INDEX)) {
+              pending.createIndex(PENDING_EXPIRY_INDEX, "expiresAtMs");
+            }
+          }
         }
       });
       request.addEventListener("success", () => {

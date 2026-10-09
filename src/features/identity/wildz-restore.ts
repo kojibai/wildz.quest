@@ -1,8 +1,9 @@
 import { createAdmittedWildsInventory } from "../play/admitted-inventory";
 import { prepareWildsIncomingInventory } from "../play/wilds-incoming-inventory";
+import { restoreWildzInventoryMemory, retainWildzInventoryMemory } from "./wildz-inventory-memory";
 import { hasLaterWildsPlayerLedger } from "../play/wilds-play-state-source";
 import { isVerifiedWildzCardDescendant } from "../../lib/receiz/wildz-card-descendant";
-import { readWildzArtifactCrewCustody, mergeWildzCrewCustody, wildzCrewCustodySources, type WildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
+import { readWildzArtifactCrewCustody, mergeWildzCrewCustody, wildzCrewCustodySources, retainWildzCrewCustodyMemory, type WildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
 import { normalizeWildzCrewCustodySources, wildzCrewCustodySourceKey } from "../../lib/receiz/wildz-crew-custody-source";
 import {
   applyWildsInput,
@@ -400,7 +401,13 @@ export async function loadWildzRestoredOwnerState(input: {
     if (record.keyId === input.session.keyId && record.actorId === input.session.actorId
       && (record.schema === OWNER_STATE_SCHEMA || record.schema === LEGACY_OWNER_PLAY_STATE_SCHEMA)
       && Array.isArray(record.playState?.inventory)) {
-      const inventory = await prepareWildsIncomingInventory(record.playState.inventory);
+      const remembered = await restoreWildzInventoryMemory(input.database, input.session, record.playState.inventory);
+      const inventory = remembered ?? await prepareWildsIncomingInventory(record.playState.inventory);
+      // Older installs acquire the authenticated local head once. A storage or
+      // crypto failure keeps the original complete proof path and durable source.
+      if (!remembered && inventory.length === record.playState.inventory.length) {
+        await retainWildzInventoryMemory(input.database, input.session, inventory).catch(() => undefined);
+      }
       return storedOwnerState({ ...record, playState: { ...record.playState, inventory } }, input.session);
     }
   }
@@ -422,7 +429,7 @@ export async function saveWildzRestoredPlayState(input: {
   character?: WildzCharacterGenesis | null;
 }) {
   const scope = wildzOwnerScope(input.session.keyId, input.session.actorId);
-  return input.database.transaction(["ownerStates", "meta"], "readwrite", async (tx) => {
+  const saved = await input.database.transaction(["ownerStates", "meta"], "readwrite", async (tx) => {
     const current = storedOwnerState(await tx.get<unknown>("ownerStates", scope), input.session, input.playState.inventory);
     if (current && hasLaterWildsPlayerLedger(current.playState, input.playState)) return current.playState;
     const stored = createStoredWildzPlayState(
@@ -440,6 +447,8 @@ export async function saveWildzRestoredPlayState(input: {
     await tx.put("ownerStates", stored, scope);
     return stored.playState;
   });
+  await retainWildzInventoryMemory(input.database, input.session, saved.inventory).catch(() => undefined);
+  return saved;
 }
 
 export async function restoreWildzArtifactForSurface(input: {
@@ -669,6 +678,8 @@ export async function restoreWildzArtifactForSurface(input: {
   }
   if (!committedOwnerState) throw new Error("wildz_restore_storage_failed");
   const committed = committedOwnerState as StoredWildzOwnerState;
+  await retainWildzInventoryMemory(input.database, session, committed.playState.inventory).catch(() => undefined);
+  await retainWildzCrewCustodyMemory(input.database, session, crewCustody, committed.playState.inventory).catch(() => undefined);
   return {
     restoreStatus: "committed",
     crewCustody,

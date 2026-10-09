@@ -32,6 +32,7 @@ import {
 import {
   defaultWildzProofSourceRepository,
   bootstrapWildzContinuity,
+  cleanupWildzPendingVaultRestores,
   reopenWildzContinuityCrewCustody,
   commitWildzArtifactContinuity,
   alignWildzContinuityWithProofSession,
@@ -258,7 +259,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (!worldPainted) return;
     let active = true;
     void (async () => {
-      for (const load of [loadWildzProfileSheet, loadWildzVaultSheet,
+      for (const load of [cleanupWildzPendingVaultRestores, loadWildzProfileSheet, loadWildzVaultSheet,
         () => import("../../lib/receiz/local-seal/browser").then(runtime => runtime.prewarmWildzLocalSealer())]) {
         await wildzGameplayBackground.run(async () => {
           if (active) await load();

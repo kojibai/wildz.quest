@@ -218,6 +218,8 @@ export function createWildzPendingVaultRepository(options: {
     async purgeExpired() {
       const current = now();
       return options.database.transaction(["pendingRestores"], "readwrite", async (tx) => {
+        const indexed = await tx.deleteExpiredPendingRestores?.(current);
+        if (typeof indexed === "number") return indexed;
         const stored = await tx.getAll<unknown>("pendingRestores");
         let deleted = 0;
         for (const value of stored) {

@@ -3,8 +3,9 @@ import { prepareWildzGameImage } from "./wildz-game-image-export";
 import { openWildzSealedCard, verifyWildzSealedCard } from "./wildz-sealed-card";
 import { createWildzIdentityPlayerVaultPreparer, savePreparedWildzIdentityPlayerVault } from "./wildz-prepared-player-vault";
 export { savePreparedWildzIdentityPlayerVault, type WildzPreparedIdentityPlayerVault } from "./wildz-prepared-player-vault";
-import { mergeWildzCrewCustody, readWildzArtifactCrewCustody, type WildzCrewCustody } from "./wildz-artifact-codec";
-import { reopenWildzCrewCustody, wildzCrewCustodySourceKey } from "./wildz-crew-custody-source";
+import { mergeWildzCrewCustody, readWildzArtifactCrewCustody, restoreWildzCrewCustodyMemory, retainWildzCrewCustodyMemory, type WildzCrewCustody } from "./wildz-artifact-codec";
+import { reopenWildzCrewCustodyOffThread } from "./wildz-crew-custody-client";
+import { reopenWildzStoredCrewCustody } from "./wildz-crew-custody-local";
 import { defaultContinuityDatabase, defaultIdentityRepository } from "./wildz-active-identity";
 import { wildzDurablePlayStateSaver } from "../performance/wildz-durable-save";
 import {
@@ -227,6 +228,7 @@ export async function alignWildzContinuityWithProofSession(
       if (stored && oldScope !== nextScope) await tx.put("ownerStates", stored, nextScope);
       if (oldScope !== nextScope) await tx.delete("ownerStates", oldScope);
     });
+    if (stored) await retainWildzCrewCustodyMemory(database, session, snapshot.crewCustody, stored.playState.inventory).catch(() => undefined);
     return { ...snapshot, session };
   });
 }
@@ -424,7 +426,6 @@ export async function bootstrapWildzContinuity(
   onProgress?: (stage: "identity" | "owner-state" | "snapshot") => void
 ): Promise<WildzContinuitySnapshot> {
   return enqueueContinuityOperation(async () => {
-    await defaultPendingVaultRepository.purgeExpired().catch(() => 0);
     let session = await defaultIdentityRepository.bootstrap(legacyStorage);
     if (session.localAuthority === "remote-only") {
       const reconciliation = reconcileWildzRemoteIdentitySession(
@@ -457,6 +458,7 @@ export async function bootstrapWildzContinuity(
     onProgress?.("owner-state");
     const snapshot = commitWildzBootstrapContinuity({
       session,
+      crewCustody: playState ? await restoreWildzCrewCustodyMemory(defaultContinuityDatabase, session, playState.inventory) : null,
       playState,
       character: ownerState?.character ?? null,
       playerContinuity: ownerState ? {
@@ -472,25 +474,22 @@ export async function bootstrapWildzContinuity(
   });
 }
 
+/** Expired temporary upload cleanup is independent of active proof authority. */
+export async function cleanupWildzPendingVaultRestores() {
+  return defaultPendingVaultRepository.purgeExpired().catch(() => 0);
+}
+
 /** Optional source reopening runs after bootstrap so offline verification cannot
  * hold the world or original creatures behind a captured-card source. */
 export async function reopenWildzContinuityCrewCustody(snapshot: WildzContinuitySnapshot) {
   if (!snapshot.playState || snapshot.crewCustody) return snapshot.crewCustody ?? null;
-  return reopenWildzCrewCustody({ owner: snapshot.session.actorId, cards: snapshot.playState.inventory,
-    sources: await defaultContinuityDatabase.read("meta", wildzCrewCustodySourceKey(snapshot.session.keyId, snapshot.session.actorId)),
-    history: { async read(sha) {
-      const native = await defaultArtifactHistory.read(sha);
-      if (native) return native;
-      const seal = await defaultContinuityDatabase.read<{ bytes: Uint8Array; mimeType: string }>("meta", `wildz:crew-seal-source:v1:${sha}`);
-      return seal ? { artifactBytes: seal.bytes, mimeType: seal.mimeType, filename: "identity-seal" } : null;
-    } }, codec: defaultArtifactCodec,
-    readIdentitySeal: () => defaultIdentityRepository.withKeyFile(snapshot.session.keyId, async keyFile => {
-      if (!keyFile.portableState) return null;
-      const inspection = await defaultArtifactCodec.inspect({
-        bytes: new TextEncoder().encode(JSON.stringify(keyFile)), mimeType: "application/json"
-      });
-      return readWildzArtifactCrewCustody(inspection);
-    }) });
+  return reopenWildzCrewCustodyOffThread(snapshot.session, snapshot.playState.inventory,
+    () => reopenWildzContinuityCrewCustodyLocally(snapshot));
+}
+
+export async function reopenWildzContinuityCrewCustodyLocally(snapshot: WildzContinuitySnapshot) {
+  if (!snapshot.playState || snapshot.crewCustody) return snapshot.crewCustody ?? null;
+  return reopenWildzStoredCrewCustody(snapshot.session, snapshot.playState.inventory);
 }
 
 export async function createNamedWildzIdentity(
@@ -589,7 +588,9 @@ export function saveWildzContinuityPlayState(
     const active = await defaultIdentityRepository.active();
     if (!sameOwner(active, current.session)) return null;
     const input = { session: current.session, playState, player: playerContinuity ?? current.playerContinuity, character };
-    return wildzDurablePlayStateSaver.save(input, () => saveWildzRestoredPlayState({ database: defaultContinuityDatabase, ...input }));
+    const saved = await wildzDurablePlayStateSaver.save(input, () => saveWildzRestoredPlayState({ database: defaultContinuityDatabase, ...input }));
+    if (saved) await retainWildzCrewCustodyMemory(defaultContinuityDatabase, current.session, current.crewCustody, saved.inventory).catch(() => undefined);
+    return saved;
   });
 }
 

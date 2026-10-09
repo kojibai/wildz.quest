@@ -73,7 +73,7 @@ import {
   type PlayState,
   type WildsInput
 } from "@/features/play/game-state";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
 import { sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
@@ -257,7 +257,10 @@ const WildsSagaPanel = dynamic(() => import("@/features/play/WildsSagaPanel").th
 const WildsStewardCraftPanel = dynamic(() => import("@/features/play/WildsStewardCraftPanel").then((mod) => mod.WildsStewardCraftPanel), { ssr: false });
 const WildsJourneyPanel = dynamic(() => import("./WildsJourneyPanel").then((mod) => mod.WildsJourneyPanel), { ssr: false });
 const WildsPlaytestPanel = dynamic(() => import("./WildsPlaytestPanel").then((mod) => mod.WildsPlaytestPanel), { ssr: false });
-const WildsWorldMap = dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false });
+// Retain the prepared atlas while closed without rebuilding it on every walking
+// update. Opening always receives the latest position, discovery and callbacks.
+const WildsWorldMap = memo(dynamic(() => import("@/features/play/WildsWorldMap").then((mod) => mod.WildsWorldMap), { ssr: false }),
+  (previous, next) => !previous.open && !next.open);
 const WildsLandmarkExperience = dynamic(() => import("@/features/play/WildsLandmarkExperience").then((mod) => mod.WildsLandmarkExperience), { ssr: false });
 const WildsSettlementExperience = dynamic(() => import("@/features/play/WildsSettlementExperience").then((mod) => mod.WildsSettlementExperience), { ssr: false });
 const WildsEcologyExperience = dynamic(() => import("@/features/play/WildsEcologyExperience").then((mod) => mod.WildsEcologyExperience), { ssr: false });

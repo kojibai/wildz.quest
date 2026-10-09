@@ -8,7 +8,7 @@ import {
   signReceizIdentityLoginProof,
   type ReceizIdentityLoginProof
 } from "@receiz/sdk";
-import { defaultIdentityRepository } from "@/lib/receiz/wildz-identity-adapter";
+import { readWildzIdentityForSigning } from "@/lib/receiz/wildz-identity-signing-read";
 import { wildsWalletTransferConsentStatementDigest } from "@/lib/receiz/wilds-wallet-transfer-consent";
 import { WILDS_WALLET_AUTHORITY_WINDOW_PULSES } from "@/lib/receiz/wilds-wallet-authority-scopes";
 import { WILDZ_RECEIZ_APPLICATION_ID } from "@/lib/receiz/wildz-application";
@@ -32,7 +32,8 @@ type TransferAuthorizationDependencies = Readonly<{
 }>;
 
 const DEFAULT_DEPENDENCIES: TransferAuthorizationDependencies = {
-  loadIdentity: (keyId) => defaultIdentityRepository.withKeyFile(keyId, async (keyFile) => {
+  loadIdentity: async (keyId) => {
+    const keyFile = await readWildzIdentityForSigning(keyId);
     const artifact = serializeReceizIdentityArtifact(keyFile);
     return {
       artifact,
@@ -40,7 +41,7 @@ const DEFAULT_DEPENDENCIES: TransferAuthorizationDependencies = {
       keyId: keyFile.keyId,
       sign: async (challengeB64Url) => signReceizIdentityLoginProof({ keyFile, challengeB64Url })
     };
-  }),
+  },
   statementDigest: wildsWalletTransferConsentStatementDigest,
   createChallenge: createReceizProofAuthorityChallenge
 };

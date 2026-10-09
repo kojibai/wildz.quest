@@ -7,6 +7,36 @@ import { createWildsAudioRuntime } from "../src/features/play/wilds-audio";
 const memory = { activeProgramId: null, enteredAt: 0, recent: [] } as const;
 
 describe("Wilds adaptive audio director", () => {
+  it("retains fallback ambience and avoids repeated offline scene fetches until reconnect", async () => {
+    let online = false, attempts = 0, stopped = 0;
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: { get onLine() { return online; } } });
+    const param = { setValueAtTime() {}, exponentialRampToValueAtTime() {} };
+    const runtime = createWildsAudioRuntime(() => ({ currentTime: 0, destination: {}, resume: async () => {}, close: async () => {},
+      createOscillator: () => ({ type: "sine", frequency: param, connect() {}, disconnect() {}, start() {}, stop() { stopped++; } }),
+      createGain: () => ({ gain: param, connect() {}, disconnect() {} }), decodeAudioData: async () => ({}),
+      createBufferSource: () => ({ buffer: null, connect() {}, disconnect() {}, start() {}, stop() {} })
+    }), async () => { attempts++; if (!online) throw Error("offline"); return { ok: true, arrayBuffer: async () => new ArrayBuffer(1) }; });
+    try {
+      await runtime.unlock(); runtime.startAmbience();
+      const scene = projectWildsAudioScene({ position: { x: 80, z: 80 } });
+      await assert.doesNotReject(runtime.setScene(scene));
+      const firstAttempts = attempts;
+      assert.ok(firstAttempts > 0);
+      for (let i = 0; i < 50; i++) await runtime.setScene({ ...scene });
+      assert.equal(attempts, firstAttempts, "walking cannot continuously retry unavailable optional files");
+      assert.equal(runtime.activeProgramId(), null);
+      assert.equal(stopped, 0, "working synthesized ambience is preserved");
+      online = true;
+      assert.equal(await runtime.setScene(scene), "biome-heartwood");
+      assert.ok(attempts > firstAttempts);
+      assert.ok(stopped > 0, "decoded ambience replaces the fallback after reconnect");
+    } finally {
+      await runtime.destroy();
+      if (descriptor) Object.defineProperty(globalThis, "navigator", descriptor);
+      else Reflect.deleteProperty(globalThis, "navigator");
+    }
+  });
   it("cancels a pending scene load when its audio context is destroyed during reload",async()=>{
     let release!:()=>void,decodes=0;
     const pendingFetch=new Promise<void>(resolve=>{release=resolve;});

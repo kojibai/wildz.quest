@@ -100,7 +100,7 @@ describe("Wilds adaptive quality integration", () => {
       "WildsRaidExperience",
       "WildsTrainerEncounter",
       "MortalArenaExperience"
-    ]) assert.match(campaign, new RegExp(`const ${surface} = dynamic`));
+    ]) assert.match(campaign, new RegExp(`const ${surface} = (?:memo\\()?dynamic`));
     assert.match(campaign, /void import\("@\/features\/games\/mortal-arena\/MortalArenaExperience"\)/);
   });
 });

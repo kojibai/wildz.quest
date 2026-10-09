@@ -287,6 +287,7 @@ export function createWildsAudioRuntime(
   let ambience: Array<{ oscillator: OscillatorLike; gain: GainLike }> = [];
   const buffers = new Map<string, unknown>();
   const loading = new Map<string, Promise<void>>();
+  const unavailableOffline = new Set<string>();
   const activeSources = new Set<AudioBufferSourceLike>();
   const embodiedSources = new Map<AudioBufferSourceLike, { cleanup: () => void; gain: GainLike; sound: WildsEmbodiedSound }>();
   let airflowSource: AudioBufferSourceLike | null = null;
@@ -299,6 +300,11 @@ export function createWildsAudioRuntime(
     const decodingContext=context;
     await Promise.all(assetIds.map(async (assetId) => {
       if (buffers.has(assetId)) return;
+      const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+      // Cached files may still load offline. Try once; walking must not retry a
+      // missing optional recording every scene update. Reconnect permits retry.
+      if (offline && unavailableOffline.has(assetId)) return;
+      if (!offline) unavailableOffline.delete(assetId);
       const existing = loading.get(assetId);
       if (existing) return existing;
       const asset = WILDS_AUDIO_BY_ID.get(assetId);
@@ -315,6 +321,7 @@ export function createWildsAudioRuntime(
         } catch(error) {
           // A reload can close the context while fetch/decode is in flight.
           if(destroyed||context!==decodingContext)return;
+          if (typeof navigator !== "undefined" && navigator.onLine === false) unavailableOffline.add(assetId);
           throw error;
         }
       })().finally(() => loading.delete(assetId));
@@ -453,7 +460,9 @@ export function createWildsAudioRuntime(
     const next = selectWildsAudioProgram(scene, programMemory, nowMs);
     if (next.id === programMemory.activeProgramId) return next.id;
     const assetIds = next.layers.filter((id) => WILDS_AUDIO_BY_ID.has(id));
-    await preload(assetIds);
+    try { await preload(assetIds); } catch { return programMemory.activeProgramId; }
+    // Keep existing decoded/synthesized ambience when optional files are absent.
+    if (assetIds.some(id => !buffers.has(id))) return programMemory.activeProgramId;
     // Decoding can finish out of order while the player moves between scenes.
     // Only the latest requested scene may replace the audible program.
     if (request !== sceneRequest || destroyed || settings.muted || !context) return programMemory.activeProgramId;
@@ -554,6 +563,7 @@ export function createWildsAudioRuntime(
       activeSources.clear();
       stopProgram();
       buffers.clear();
+      unavailableOffline.clear();
       const activeContext = context;
       context = null;
       if (activeContext) await activeContext.close();

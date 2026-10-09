@@ -3,6 +3,8 @@ import { livingCardHasIrreversibleMortality, verifyLivingCardRetirementAuthority
 import { hasWildzCanonicalPngProof } from "./wildz-png-envelope";
 import { hasWildzCardSealPayload, unpackWildzCardSealPayload } from "./wildz-card-seal-payload";
 import { isAdmittedWildsCard } from "../../features/play/admitted-inventory";
+import { retainWildzInventoryMemory, readWildzInventoryMemoryHead, matchesWildzInventoryMemoryHead } from "../../features/identity/wildz-inventory-memory";
+import type { WildzContinuityDatabase } from "../storage/wildz-indexed-db";
 import { isVerifiedWildzCardDescendant } from "./wildz-card-descendant";
 import {
   projectReceizIdentityAccount,
@@ -86,6 +88,43 @@ export function canOperateWildzCrewCard(card: PortableCardAsset, owner: string, 
     || isVerifiedWildzCardDescendant(source, card)));
   if (cacheable) checks.set(card, allowed);
   return allowed;
+}
+
+/** Retain custody only from an actual opened-source token, for exact currently
+ * admitted cards. A stored source coordinate or lookalike token grants nothing. */
+export async function retainWildzCrewCustodyMemory(database: WildzContinuityDatabase,
+  owner: { keyId: string; actorId: string }, token: WildzCrewCustody | null | undefined, inventory: readonly PortableCardAsset[]) {
+  const source = token && sameWildzPlayerCoordinate(token.owner, owner.actorId) ? crewAdmissions.get(token) : null;
+  if (!source) return;
+  const entries = source.flatMap(entry => {
+    const card = inventory.find(card => card.id === entry.card.id);
+    return card && isAdmittedWildsCard(card) && canOperateWildzCrewCard(card, owner.actorId, token)
+      ? [{ card, artifactSha256: entry.artifactSha256 }] : [];
+  });
+  if (!entries.length) return;
+  await retainWildzInventoryMemory(database, owner, entries.map(entry => entry.card), {
+    kind: "crew-custody", coordinates: entries.map(entry => JSON.stringify([entry.card.id, entry.artifactSha256]))
+  });
+}
+
+/** A durable locally authenticated head reissues its exact custody token without
+ * reopening the large original Seal. Changed heads return to source inspection. */
+export async function restoreWildzCrewCustodyMemory(database: WildzContinuityDatabase,
+  owner: { keyId: string; actorId: string }, inventory: readonly PortableCardAsset[]) {
+  if (!inventory.some(card => !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, owner.actorId))) return null;
+  try {
+    const memory = await readWildzInventoryMemoryHead(database, owner, "crew-custody");
+    if (!memory?.coordinates.length) return null;
+    const byId = new Map(inventory.map(card => [card.id, card]));
+    const entries: CrewCustodyEntry[] = memory.coordinates.map(coordinate => {
+      const [id, sha] = JSON.parse(coordinate) as unknown[];
+      const card = typeof id === "string" ? byId.get(id) : null;
+      if (!card || !isAdmittedWildsCard(card) || typeof sha !== "string" || !/^[a-f0-9]{64}$/.test(sha)) throw Error("wildz_custody_memory_invalid");
+      return { card, artifactSha256: sha };
+    });
+    if (!await matchesWildzInventoryMemoryHead(memory, entries.map(entry => entry.card))) return null;
+    return issueCrewCustody(owner.actorId, entries);
+  } catch { return null; }
 }
 
 export type WildzPlayerBinding = "identity-portable-state" | "identity-v3-binding" | "artifact-v4-required" | null;

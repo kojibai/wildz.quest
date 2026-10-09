@@ -1,0 +1,1032 @@
+{
+  "date": "2026-10-09",
+  "scope": {
+    "browser": "Production Chromium, desktop Mac, viewport 390 x 844",
+    "physicalIPhone": false,
+    "accounts": "Isolated synthetic fixtures only; no real user private Seal read",
+    "startupScheduler": "scheduler and requestIdleCallback disabled; not a WebKit emulator",
+    "startupServiceWorkers": "blocked for matched startup comparison; enabled for separate offline shell test",
+    "comparison": "Same long-account 301-event state and position before/after. Native position differs; account-type scene comparison is not controlled"
+  },
+  "startup": {
+    "baselineCommit": "7485e51",
+    "baselineSummary": {
+      "native": {
+        "runs": 3,
+        "medianReadyMs": 436.6299999952316,
+        "medianRestoreAfterReadMs": 43.18999993801117,
+        "preReadySealReads": [
+          0,
+          0,
+          0
+        ]
+      },
+      "long": {
+        "runs": 3,
+        "medianReadyMs": 741.3600000143051,
+        "medianRestoreAfterReadMs": 362.35000002384186,
+        "preReadySealReads": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "finalSummary": {
+      "native": {
+        "runs": 3,
+        "medianReadyMs": 439.664999961853,
+        "medianRestoreAfterReadMs": 13.989999890327454,
+        "preReadySealReads": [
+          0,
+          0,
+          0
+        ]
+      },
+      "long": {
+        "runs": 3,
+        "medianReadyMs": 415.31500005722046,
+        "medianRestoreAfterReadMs": 15.670000076293945,
+        "preReadySealReads": [
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "longAccountGain": {
+      "readyMs": 326.04499995708466,
+      "readyPercent": 43.97930829162531,
+      "restoreMs": 346.6799999475479,
+      "restorePercent": 95.67545189036487
+    },
+    "baseline": [
+      {
+        "name": "native",
+        "readyAt": 501.5049999952316,
+        "progress": [
+          {
+            "stage": 0,
+            "at": 83.59499990940094
+          },
+          {
+            "stage": 1,
+            "at": 187.75499999523163
+          },
+          {
+            "stage": 3,
+            "at": 230.95499992370605
+          },
+          {
+            "stage": 4,
+            "at": 259.1949999332428
+          },
+          {
+            "stage": 5,
+            "at": 391.56499993801117
+          }
+        ],
+        "ownerRead": {
+          "store": "ownerStates",
+          "start": 187.44999992847443,
+          "end": 187.76499998569489
+        },
+        "preReadySealReads": 0,
+        "longTasks": [
+          {
+            "start": 333.2999999523163,
+            "duration": 53
+          }
+        ]
+      },
+      {
+        "name": "native",
+        "readyAt": 417.5499999523163,
+        "progress": [
+          {
+            "stage": 0,
+            "at": 17.014999985694885
+          },
+          {
+            "stage": 1,
+            "at": 114.9650000333786
+          },
+          {
+            "stage": 3,
+            "at": 142.56500005722046
+          },
+          {
+            "stage": 4,
+            "at": 172.6050000190735
+          },
+          {
+            "stage": 5,
+            "at": 302.4650000333786
+          }
+        ],
+        "ownerRead": {
+          "store": "ownerStates",
+          "start": 114.67999994754791,
+          "end": 114.97500002384186
+        },
+        "preReadySealReads": 0,
+        "longTasks": [
+          {
+            "start": 247.375,
+            "duration": 50
+          }
+        ]
+      },
+      {
+        "name": "native",
+        "readyAt": 436.6299999952316,
+        "progress": [
+          {
+            "stage": 0,
+            "at": 15.879999995231628
+          },
+          {
+            "stage": 1,
+            "at": 109.74000000953674
+          },
+          {
+            "stage": 3,
+            "at": 161.16999995708466
+          },
+          {
+            "stage": 4,
+            "at": 188.5
+          },
+          {
+            "stage": 5,
+            "at": 321.4299999475479
+          }
+        ],
+        "ownerRead": {
+          "store": "ownerStates",
+          "start": 109.45000004768372,
+          "end": 109.75499999523163
+        },
+        "preReadySealReads": 0,
+        "longTasks": []
+      },
+      {
+        "name": "long",
+        "readyAt": 804.8950001001358,
+        "progress": [
+          {
+            "stage": 0,
+            "at": 17.03500008583069
+          },
+          {
+            "stage": 1,
+            "at": 158.72000002861023
+          },
+          {
+            "stage": 3,
+            "at": 521.0900000333786
+          },
+          {
+            "stage": 4,
+            "at": 542.2350000143051
+          },
+          {
+            "stage": 5,
+            "at": 691.7350000143051
+          }
+        ],
+        "ownerRead": {
+          "store": "ownerStates",
+          "start": 158.4300000667572,
+          "end": 158.74000000953674
+        },
+        "preReadySealReads": 0,
+        "longTasks": [
+          {
+            "start": 636.6900000572205,
+            "duration": 51
+          }
+        ]
+      },
+      {
+        "name": "long",
+        "readyAt": 741.3600000143051,
+        "progress": [
+          {
+            "stage": 0,
+            "at": 22.12999999523163
+          },
+          {
+            "stage": 1,
+            "at": 120.26999998092651
+          },
+          {
+            "stage": 3,
+            "at": 485.6599999666214
+          },
+          {
+            "stage": 4,
+            "at": 505.93500006198883
+          },
+          {
+            "stage": 5,
+            "at": 629.960000038147
+          }
+        ],
+        "ownerRead": {
+          "store": "ownerStates",
+          "start": 119.89999997615814,
+          "end": 120.29499995708466
+        },
+        "preReadySealReads": 0,
+        "longTasks": [
+          {
+            "start": 574.4500000476837,
+            "duration": 51
+          }
+        ]
+      },
+      {
+        "name": "long",
+        "readyAt": 669.7699999809265,
+        "progress": [
+          {
+            "stage": 0,
+            "at": 15.264999985694885
+          },
+          {
+            "stage": 1,
+            "at": 113.49000000953674
+          },
+          {
+            "stage": 3,
+            "at": 401.52999997138977
+          },
+          {
+            "stage": 4,
+            "at": 421.31500005722046
+          },
+          {
+            "stage": 5,
+            "at": 555.6200000047684
+          }
+        ],
+        "ownerRead": {
+          "store": "ownerStates",
+          "start": 113.12999999523163,
+          "end": 113.50499999523163
+        },
+        "preReadySealReads": 0,
+        "longTasks": [
+          {
+            "start": 500.5550000667572,
+            "duration": 51
+          }
+        ]
+      }
+    ],
+    "final": [
+      {
+        "name": "native",
+        "readyAt": 435.1800000667572,
+        "progress": [
+          {
+            "stage": 0,
+            "at": 24.520000100135803
+          },
+          {
+            "stage": 1,
+            "at": 138.13999998569489
+          },
+          {
+            "stage": 3,
+            "at": 152.13999998569489
+          },
+          {
+            "stage": 4,
+            "at": 175.13499999046326
+          },
+          {
+            "stage": 5,
+            "at": 301.2150000333786
+          }
+        ],
+        "ownerRead": {
+          "store": "ownerStates",
+          "start": 137.8050000667572,
+          "end": 138.15000009536743
+        },
+        "preReadySealReads": 0,
+        "longTasks": [
+          {
+            "start": 336.90500009059906,
+            "duration": 50
+          }
+        ]
+      },
+      {
+        "name": "native",
+        "readyAt": 456.789999961853,
+        "progress": [
+          {
+            "stage": 0,
+            "at": 21.449999928474426
+          },
+          {
+            "stage": 1,
+            "at": 151.79999995231628
+          },
+          {
+            "stage": 3,
+            "at": 168.50499999523163
+          },
+          {
+            "stage": 4,
+            "at": 191.26499998569489
+          },
+          {
+            "stage": 5,
+            "at": 317.9649999141693
+          }
+        ],
+        "ownerRead": {
+          "store": "ownerStates",
+          "start": 151.49500000476837,
+          "end": 151.80999994277954
+        },
+        "preReadySealReads": 0,
+        "longTasks": [
+          {
+            "start": 354.5349999666214,
+            "duration": 51
+          }
+        ]
+      },
+      {
+        "name": "native",
+        "readyAt": 439.664999961853,
+        "progress": [
+          {
+            "stage": 0,
+            "at": 19.924999952316284
+          },
+          {
+            "stage": 1,
+            "at": 145.69999992847443
+          },
+          {
+            "stage": 3,
+            "at": 159.20999991893768
+          },
+          {
+            "stage": 4,
+            "at": 183.2699999809265
+          },
+          {
+            "stage": 5,
+            "at": 303.6399999856949
+          }
+        ],
+        "ownerRead": {
+          "store": "ownerStates",
+          "start": 145.375,
+          "end": 146.19999992847443
+        },
+        "preReadySealReads": 0,
+        "longTasks": [
+          {
+            "start": 335.4650000333786,
+            "duration": 53
+          }
+        ]
+      },
+      {
+        "name": "long",
+        "readyAt": 478.99000000953674,
+        "progress": [
+          {
+            "stage": 0,
+            "at": 18.575000047683716
+          },
+          {
+            "stage": 1,
+            "at": 196.48500001430511
+          },
+          {
+            "stage": 3,
+            "at": 215.33500003814697
+          },
+          {
+            "stage": 4,
+            "at": 235
+          },
+          {
+            "stage": 5,
+            "at": 357.7699999809265
+          }
+        ],
+        "ownerRead": {
+          "store": "ownerStates",
+          "start": 196.06000006198883,
+          "end": 196.50999999046326
+        },
+        "preReadySealReads": 0,
+        "longTasks": [
+          {
+            "start": 300.8250000476837,
+            "duration": 50
+          }
+        ]
+      },
+      {
+        "name": "long",
+        "readyAt": 406.06000006198883,
+        "progress": [
+          {
+            "stage": 0,
+            "at": 17.134999990463257
+          },
+          {
+            "stage": 1,
+            "at": 128.15499997138977
+          },
+          {
+            "stage": 3,
+            "at": 143.41500008106232
+          },
+          {
+            "stage": 4,
+            "at": 164.89999997615814
+          },
+          {
+            "stage": 5,
+            "at": 286.25999999046326
+          }
+        ],
+        "ownerRead": {
+          "store": "ownerStates",
+          "start": 127.73000001907349,
+          "end": 129.11500000953674
+        },
+        "preReadySealReads": 0,
+        "longTasks": []
+      },
+      {
+        "name": "long",
+        "readyAt": 415.31500005722046,
+        "progress": [
+          {
+            "stage": 0,
+            "at": 18.045000076293945
+          },
+          {
+            "stage": 1,
+            "at": 126.10000002384186
+          },
+          {
+            "stage": 3,
+            "at": 141.79000008106232
+          },
+          {
+            "stage": 4,
+            "at": 164.01000010967255
+          },
+          {
+            "stage": 5,
+            "at": 290.1600000858307
+          }
+        ],
+        "ownerRead": {
+          "store": "ownerStates",
+          "start": 125.79500007629395,
+          "end": 126.12000000476837
+        },
+        "preReadySealReads": 0,
+        "longTasks": [
+          {
+            "start": 234.6450001001358,
+            "duration": 50
+          }
+        ]
+      }
+    ]
+  },
+  "intermediateWalletRegression": {
+    "scope": "Intermediate production build with retained heads and custody worker, before default wallet signing reads were fixed. HUD timing in this probe marks mount, not interactive readiness.",
+    "serializedSealBytes": 7763369,
+    "warmMainSealReads": [
+      {
+        "store": "identities",
+        "start": 617.0500000715256,
+        "end": 628.5550000667572
+      },
+      {
+        "store": "identities",
+        "start": 2598.375,
+        "end": 2602.1650000810623
+      },
+      {
+        "store": "identities",
+        "start": 7733.8150000572205,
+        "end": 7738.540000081062
+      }
+    ],
+    "postMountLongTasks": [
+      {
+        "start": 287.08000004291534,
+        "duration": 53
+      },
+      {
+        "start": 378.8700000047684,
+        "duration": 53
+      },
+      {
+        "start": 436.3799999952316,
+        "duration": 124
+      },
+      {
+        "start": 639.6750000715256,
+        "duration": 1127
+      },
+      {
+        "start": 2317.5,
+        "duration": 51
+      },
+      {
+        "start": 2608.7000000476837,
+        "duration": 1098
+      },
+      {
+        "start": 7743.925000071526,
+        "duration": 1082
+      }
+    ],
+    "motion": {
+      "frames": 837,
+      "p95Ms": 9.1299999999992,
+      "maxMs": 1116.655,
+      "over50Ms": 7
+    },
+    "first": {
+      "label": "first upgrade; no retained head",
+      "before": "Open world map. Current position X 42, Z 43. 0 roaming creatures",
+      "after": "Open world map. Current position X 26, Z 81. 0 roaming creatures",
+      "readyAt": 425.88499999046326,
+      "sealReads": [
+        {
+          "store": "identities",
+          "start": 834.7150000333786,
+          "end": 841.375
+        },
+        {
+          "store": "identities",
+          "start": 2809.689999938011,
+          "end": 2822.694999933243
+        },
+        {
+          "store": "identities",
+          "start": 8001.649999976158,
+          "end": 8005.235000014305
+        }
+      ],
+      "pendingValueScans": 0,
+      "custodyWorkers": [
+        {
+          "url": "http://127.0.0.1:3110/_next/static/chunks/3417.7a3a4237978f8ab2.js",
+          "ownerMessages": [
+            {
+              "keys": [
+                "schema",
+                "keyId",
+                "actorId",
+                "username",
+                "displayName",
+                "createdAt",
+                "portableStateStatus",
+                "localAuthority",
+                "remoteStatus"
+              ],
+              "bytes": 361,
+              "at": 800.4499999284744
+            }
+          ],
+          "replies": []
+        }
+      ],
+      "postHudLongTasks": [
+        {
+          "start": 513.7350000143051,
+          "duration": 76
+        },
+        {
+          "start": 704.4449999332428,
+          "duration": 71
+        },
+        {
+          "start": 851.2699999809265,
+          "duration": 1112
+        },
+        {
+          "start": 2828.5099999904633,
+          "duration": 1136
+        },
+        {
+          "start": 8012.204999923706,
+          "duration": 1086
+        }
+      ],
+      "motion": {
+        "frames": 832,
+        "p95Ms": 9.144999999999527,
+        "maxMs": 1133.3249999999998,
+        "over50Ms": 6
+      }
+    },
+    "storage": {
+      "version": 4,
+      "expiryIndex": true,
+      "custodyHead": true,
+      "custodyCoordinates": 1,
+      "expiredDeleted": true,
+      "currentRetained": true
+    }
+  },
+  "offlineAudioRegression": {
+    "scope": "Before optional scene retry suppression; offline first pointer/audio unlock after keyboard-only online play",
+    "twoMinutes": {
+      "frames": 14380,
+      "p95Ms": 9.264999999999418,
+      "maxMs": 174.99499999999898,
+      "over50Ms": 1,
+      "longTasks": [],
+      "sealReads": 0,
+      "elapsedMs": 120069,
+      "inputs": 1380,
+      "cameraDrags": 17,
+      "distinctPositions": 34
+    },
+    "unhandledFetchErrors": 1318,
+    "diagnostic": {
+      "scenario": "Synthetic valid encrypted 7.76 MB Seal; one received 301-event creature; no real user data",
+      "first": {
+        "label": "first upgrade; no retained head",
+        "before": "Open world map. Current position X 42, Z 43. 0 roaming creatures",
+        "after": "Open world map. Current position X 26, Z 81. 0 roaming creatures",
+        "readyAt": 695.0149999856949,
+        "sealReads": [],
+        "pendingValueScans": 0,
+        "custodyWorkers": [
+          {
+            "url": "http://127.0.0.1:3110/_next/static/chunks/3417.680a035b0d8d438d.js",
+            "ownerMessages": [
+              {
+                "keys": [
+                  "keyId",
+                  "actorId"
+                ],
+                "bytes": 112,
+                "at": 749.9199999570847
+              }
+            ],
+            "replies": []
+          }
+        ],
+        "postHudLongTasks": [],
+        "motion": {
+          "frames": 846,
+          "p95Ms": 8.815000000000055,
+          "maxMs": 141.3449999999999,
+          "over50Ms": 1
+        }
+      },
+      "retained": {
+        "label": "reopen with durable heads",
+        "before": "Open world map. Current position X 26, Z 81. 0 roaming creatures",
+        "after": "Open world map. Current position X -12, Z 119. 0 roaming creatures",
+        "readyAt": 404.7299998998642,
+        "sealReads": [],
+        "pendingValueScans": 0,
+        "custodyWorkers": [],
+        "postHudLongTasks": [
+          {
+            "start": 1921.619999885559,
+            "duration": 52
+          }
+        ],
+        "motion": {
+          "frames": 865,
+          "p95Ms": 9.110000000000582,
+          "maxMs": 149.64500000000004,
+          "over50Ms": 2
+        }
+      },
+      "offline": {
+        "label": "service-worker-controlled offline reopen",
+        "before": "Open world map. Current position X -12, Z 119. 0 roaming creatures",
+        "after": "Open world map. Current position X -52, Z 138. 0 roaming creatures",
+        "readyAt": 402.65000009536743,
+        "sealReads": [],
+        "pendingValueScans": 0,
+        "custodyWorkers": [],
+        "postHudLongTasks": [],
+        "motion": {
+          "frames": 863,
+          "p95Ms": 9.049999999999727,
+          "maxMs": 91.65999999999997,
+          "over50Ms": 1
+        }
+      },
+      "twoMinutes": {
+        "scope": "diagnostic after offline pointer/audio unlock"
+      },
+      "storage": {
+        "version": 4,
+        "expiryIndex": true,
+        "custodyHead": true,
+        "custodyCoordinates": 1,
+        "expiredDeleted": true,
+        "currentRetained": true
+      },
+      "errors": [
+        {
+          "message": "Failed to fetch",
+          "stack": "TypeError: Failed to fetch\n    at a (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38160)\n    at http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38520\n    at http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38742\n    at Array.map (<anonymous>)\n    at w (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38397)\n    at Object.z [as setScene] (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:41343)\n    at http://127.0.0.1:3110/_next/static/chunks/6843-4ff32bb820afb76e.js:1:504824\n    at o1 (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:88957)\n    at uE (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:104849)\n    at ux (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:104733)"
+        },
+        {
+          "message": "Failed to fetch",
+          "stack": "TypeError: Failed to fetch\n    at a (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38160)\n    at http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38520\n    at http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38742\n    at Array.map (<anonymous>)\n    at w (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38397)\n    at Object.z [as setScene] (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:41343)\n    at http://127.0.0.1:3110/_next/static/chunks/6843-4ff32bb820afb76e.js:1:504824\n    at o1 (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:88957)\n    at uE (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:104849)\n    at ux (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:104733)"
+        },
+        {
+          "message": "Failed to fetch",
+          "stack": "TypeError: Failed to fetch\n    at a (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38160)\n    at http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38520\n    at http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38742\n    at Array.map (<anonymous>)\n    at w (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38397)\n    at Object.z [as setScene] (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:41343)\n    at http://127.0.0.1:3110/_next/static/chunks/6843-4ff32bb820afb76e.js:1:504824\n    at o1 (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:88957)\n    at uE (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:104849)\n    at ux (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:104733)"
+        },
+        {
+          "message": "Failed to fetch",
+          "stack": "TypeError: Failed to fetch\n    at a (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38160)\n    at http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38520\n    at http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38742\n    at Array.map (<anonymous>)\n    at w (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38397)\n    at Object.z [as setScene] (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:41343)\n    at http://127.0.0.1:3110/_next/static/chunks/6843-4ff32bb820afb76e.js:1:504824\n    at o1 (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:88957)\n    at uE (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:104849)\n    at ux (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:104733)"
+        },
+        {
+          "message": "Failed to fetch",
+          "stack": "TypeError: Failed to fetch\n    at a (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38160)\n    at http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38520\n    at http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38742\n    at Array.map (<anonymous>)\n    at w (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38397)\n    at Object.z [as setScene] (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:41343)\n    at http://127.0.0.1:3110/_next/static/chunks/6843-4ff32bb820afb76e.js:1:504824\n    at o1 (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:88957)\n    at uE (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:104849)\n    at ux (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:104733)"
+        },
+        {
+          "message": "Failed to fetch",
+          "stack": "TypeError: Failed to fetch\n    at a (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38160)\n    at http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38520\n    at http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38742\n    at Array.map (<anonymous>)\n    at w (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:38397)\n    at Object.z [as setScene] (http://127.0.0.1:3110/_next/static/chunks/5642-b1ad846cede73735.js:1:41343)\n    at http://127.0.0.1:3110/_next/static/chunks/6843-4ff32bb820afb76e.js:1:504824\n    at o1 (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:88957)\n    at uE (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:104849)\n    at ux (http://127.0.0.1:3110/_next/static/chunks/acfafb44-f6a0b112f5720eb7.js:1:104733)"
+        }
+      ],
+      "errorCount": 22,
+      "failures": {
+        "/textures/wilds-limestone.webp": 1,
+        "/textures/wilds-cloth.webp": 1,
+        "/textures/wilds-leather.webp": 1,
+        "/textures/wilds-scales.webp": 1,
+        "/wilds-forest-floor.webp": 1,
+        "/api/wilds/wallet/capabilities": 1,
+        "/api/wilds/wallet/ledger": 1,
+        "/api/wilds/wallet/summary": 1,
+        "/audio/wildz/signature/kai_turah_tone.mp3": 1,
+        "/audio/wildz/effects/interface/confirmation_001.ogg": 1,
+        "/audio/wildz/effects/interface/error_001.ogg": 1,
+        "/audio/wildz/effects/gameplay/knifeSlice.ogg": 1,
+        "/audio/wildz/effects/gameplay/doorOpen_1.ogg": 1,
+        "/audio/wildz/effects/gameplay/metalLatch.ogg": 1,
+        "/audio/wildz/music/exploration-theme.mp3": 21,
+        "/audio/wildz/ambience/forest-ambience.mp3": 21,
+        "/audio/wildz/effects/embodied/step-grass-1-33bcec664435.mp3": 1,
+        "/audio/wildz/effects/embodied/step-grass-2-f422f53c9b07.mp3": 1,
+        "/audio/wildz/effects/embodied/step-soil-bd176ccc83c1.mp3": 1,
+        "/audio/wildz/effects/embodied/step-trail-02bec9a5b8e8.mp3": 1,
+        "/audio/wildz/effects/embodied/step-rock-f81cdc272427.mp3": 1,
+        "/audio/wildz/effects/embodied/step-wood-1-0ae156fe871e.mp3": 1,
+        "/audio/wildz/effects/embodied/step-wood-2-0495c9e3ab17.mp3": 1,
+        "/audio/wildz/effects/embodied/step-water-1-2df61c0144a3.mp3": 1,
+        "/audio/wildz/effects/embodied/step-water-2-1560766ca445.mp3": 1,
+        "/audio/wildz/effects/embodied/fauna-bird-9427fd3e4bd3.mp3": 1,
+        "/audio/wildz/effects/embodied/creature-call-dffaa17d7cab.mp3": 1,
+        "/audio/wildz/effects/embodied/swim-water-1-7a603e3222f1.mp3": 1,
+        "/audio/wildz/effects/embodied/swim-water-2-14618dadd1aa.mp3": 1,
+        "/audio/wildz/effects/embodied/climb-rock-f52c3978f5b6.mp3": 1,
+        "/audio/wildz/effects/embodied/flight-wind-332250010e52.mp3": 1
+      }
+    }
+  },
+  "receivedSealAndOfflineFinal": {
+    "scenario": "Synthetic valid encrypted 7.76 MB Seal; one received 301-event creature; no real user data",
+    "first": {
+      "label": "first upgrade; no retained head",
+      "before": "Open world map. Current position X 42, Z 43. 0 roaming creatures",
+      "after": "Open world map. Current position X 26, Z 81. 0 roaming creatures",
+      "readyAt": 692.0250000953674,
+      "sealReads": [],
+      "pendingValueScans": 0,
+      "custodyWorkers": [
+        {
+          "url": "http://127.0.0.1:3110/_next/static/chunks/3417.d43693fcccc75aa1.js",
+          "ownerMessages": [
+            {
+              "keys": [
+                "keyId",
+                "actorId"
+              ],
+              "bytes": 112,
+              "at": 704.9450000524521
+            }
+          ],
+          "replies": []
+        }
+      ],
+      "postHudLongTasks": [],
+      "motion": {
+        "frames": 851,
+        "p95Ms": 8.9050000000002,
+        "maxMs": 107.98000000000002,
+        "over50Ms": 1
+      }
+    },
+    "retained": {
+      "label": "reopen with durable heads",
+      "before": "Open world map. Current position X 26, Z 81. 0 roaming creatures",
+      "after": "Open world map. Current position X -12, Z 119. 0 roaming creatures",
+      "readyAt": 412.18500006198883,
+      "sealReads": [],
+      "pendingValueScans": 0,
+      "custodyWorkers": [],
+      "postHudLongTasks": [],
+      "motion": {
+        "frames": 861,
+        "p95Ms": 8.789999999999964,
+        "maxMs": 124.945,
+        "over50Ms": 1
+      }
+    },
+    "offline": {
+      "label": "service-worker-controlled offline reopen",
+      "before": "Open world map. Current position X -12, Z 119. 0 roaming creatures",
+      "after": "Open world map. Current position X -52, Z 138. 0 roaming creatures",
+      "readyAt": 392.52999997138977,
+      "sealReads": [],
+      "pendingValueScans": 0,
+      "custodyWorkers": [],
+      "postHudLongTasks": [],
+      "motion": {
+        "frames": 857,
+        "p95Ms": 8.809999999999945,
+        "maxMs": 116.66499999999996,
+        "over50Ms": 1
+      }
+    },
+    "twoMinutes": {
+      "frames": 14404,
+      "p95Ms": 9.139999999999418,
+      "maxMs": 16.665000000000873,
+      "over50Ms": 0,
+      "longTasks": [],
+      "sealReads": 0,
+      "elapsedMs": 120050,
+      "inputs": 1393,
+      "cameraDrags": 17,
+      "distinctPositions": 34
+    },
+    "storage": {
+      "version": 4,
+      "expiryIndex": true,
+      "custodyHead": true,
+      "custodyCoordinates": 1,
+      "expiredDeleted": true,
+      "currentRetained": true
+    },
+    "reconnected": {
+      "embodiedSamples": 15,
+      "audioFiles": 17
+    },
+    "errors": [],
+    "errorCount": 0
+  },
+  "closedMapMotion": {
+    "before": "Open world map. Current position X 101, Z -238. 0 roaming creatures",
+    "after": "Open world map. Current position X 97, Z -262. 0 roaming creatures",
+    "mapPosition": "Current position X 101, Z -238",
+    "dormantPosition": "Current position X 101, Z -238",
+    "reopenedPosition": "Current position X 97, Z -262",
+    "cameraBefore": [
+      0.8436614871025085,
+      -0.18091776967048645,
+      0.5054740905761719,
+      0,
+      0,
+      0.9415108561515808,
+      0.33698272705078125,
+      0,
+      -0.5368754863739014,
+      -0.2842993438243866,
+      0.7943164110183716,
+      0,
+      1.1478043688839534e-06,
+      -0.8473604959064218,
+      -8.61231282199742,
+      1
+    ],
+    "cameraAfter": [
+      -0.7460943358174572,
+      -0.6183422809407617,
+      0.2469737782520106,
+      0,
+      -8.326672684688674e-17,
+      0.3709204792976379,
+      0.9286646246910095,
+      0,
+      -0.6658402176528978,
+      0.6928714377956079,
+      -0.27674167586243836,
+      0,
+      -3.648988666782316e-08,
+      -0.33382845628364843,
+      -9.144829166097704,
+      1
+    ],
+    "walking": {
+      "name": "walking",
+      "frames": 913,
+      "p95Ms": 9.079999999999927,
+      "maxMs": 9.340000000000146,
+      "over50Ms": 0,
+      "longTasks": []
+    },
+    "camera": {
+      "name": "camera rotation",
+      "frames": 382,
+      "p95Ms": 8.944999999999709,
+      "maxMs": 16.665000000000873,
+      "over50Ms": 0,
+      "longTasks": []
+    },
+    "pageErrors": [],
+    "errorOverlay": 0
+  },
+  "nodeHeadProbe": {
+    "scope": "Node synthetic local owner restoration; not browser, network, or physical iPhone timing",
+    "cards": 1,
+    "historyEvents": 301,
+    "medianRetainedMs": 7.2671249999999645,
+    "samples": [
+      {
+        "run": 0,
+        "path": "first-admission",
+        "elapsedMs": 123.78116700000004,
+        "proofAdmissions": 1,
+        "ticks": 17,
+        "maxHeartbeatGapMs": 28.64104199999997
+      },
+      {
+        "run": 1,
+        "path": "retained-head",
+        "elapsedMs": 7.2671249999999645,
+        "proofAdmissions": 0,
+        "ticks": 2,
+        "maxHeartbeatGapMs": 5.286082999999962
+      },
+      {
+        "run": 2,
+        "path": "retained-head",
+        "elapsedMs": 6.186374999999998,
+        "proofAdmissions": 0,
+        "ticks": 3,
+        "maxHeartbeatGapMs": 2.627999999999929
+      },
+      {
+        "run": 3,
+        "path": "retained-head",
+        "elapsedMs": 6.91720799999996,
+        "proofAdmissions": 0,
+        "ticks": 2,
+        "maxHeartbeatGapMs": 5.384291999999959
+      },
+      {
+        "run": 4,
+        "path": "retained-head",
+        "elapsedMs": 10.00329099999999,
+        "proofAdmissions": 0,
+        "ticks": 3,
+        "maxHeartbeatGapMs": 3.7890409999999974
+      },
+      {
+        "run": 5,
+        "path": "retained-head",
+        "elapsedMs": 9.937209000000053,
+        "proofAdmissions": 0,
+        "ticks": 3,
+        "maxHeartbeatGapMs": 4.658665999999926
+      }
+    ]
+  },
+  "checks": {
+    "tests": 3626,
+    "passed": 3625,
+    "skipped": 1,
+    "failed": 0,
+    "productionBuild": "passed; two existing SDK vendor dynamic-require warnings",
+    "lint": "passed",
+    "architectureLock": "passed",
+    "secretScan": "passed",
+    "gitDiffCheck": "passed"
+  }
+}

@@ -1,6 +1,6 @@
 import { isAdmittedWildsCard, verifyAndAdmitWildsCard } from "./admitted-inventory";
 import { canonicalPortableCardJson, type PortableCardAsset } from "./portable-card";
-import { wildzGameplayBackground } from "../../lib/performance/wildz-gameplay-background";
+import { yieldWildzForeground } from "../../lib/performance/wildz-foreground-yield";
 import { prepareWildsInventoryCardConvergence } from "./wilds-inventory-convergence";
 import { isLivingCardAsset } from "./living-card-types";
 import { verifyCreatureHistoryCooperatively } from "./creature-history";
@@ -18,11 +18,14 @@ export async function prepareWildsIncomingInventory(
   const source = Array.isArray(incoming) ? Array.from(incoming) : [];
   const knownById = new Map(known.filter(isAdmittedWildsCard).map(card => [card.id, card]));
   const now = environment.now ?? (() => performance.now());
-  const yieldToBrowser = environment.yield ?? (() => wildzGameplayBackground.run(() => undefined));
+  const yieldToBrowser = environment.yield ?? yieldWildzForeground;
   const prepared: PortableCardAsset[] = [];
   let index = 0;
   while (index < source.length) {
-    await yieldToBrowser();
+    // Give already queued timers/input one initial turn. Further proof batches
+    // use message tasks, avoiding a display interval for every history slice.
+    if (index === 0 && !environment.yield) await new Promise(resolve => setTimeout(resolve, 0));
+    else await yieldToBrowser();
     const started = now();
     do {
       const card = source[index++]!;

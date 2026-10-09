@@ -4,6 +4,7 @@ import {
   restoreWildzArtifactForSurface,
   type WildzCommittedArtifactRestore
 } from "../../features/identity/wildz-restore";
+import { retainWildzInventoryMemory } from "../../features/identity/wildz-inventory-memory";
 import { WildzRetirementQuarantineError, type WildzArtifactCodec, type WildzArtifactInspection } from "./wildz-artifact-codec";
 import {
   wildzOwnerScope,
@@ -105,6 +106,7 @@ export function createWildzVaultLoginCoordinator(input: {
       if (error instanceof Error && error.message.startsWith("wildz_restore_")) throw error;
       throw new Error("wildz_restore_storage_failed");
     }
+    await retainWildzInventoryMemory(input.database, session, stored.playState.inventory).catch(() => undefined);
     return {
       status: "committed",
       restore: {

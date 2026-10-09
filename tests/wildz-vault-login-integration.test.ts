@@ -43,15 +43,14 @@ test("explicit uploads adopt ownership in both directions", () => {
   assert.match(shell, /playerId:\s*current\.session\.username \?\? current\.session\.actorId/);
 });
 
-test("bootstrap best-effort purges expired staged Vault bytes before identity recovery", () => {
+test("expired temporary uploads are cleaned after the world paints without holding identity recovery", () => {
   const adapter = read("src/lib/receiz/wildz-identity-adapter.ts");
   const bootstrapStart = adapter.indexOf("export async function bootstrapWildzContinuity");
-  const purge = adapter.indexOf("defaultPendingVaultRepository.purgeExpired()", bootstrapStart);
-  const identityBootstrap = adapter.indexOf("defaultIdentityRepository.bootstrap", bootstrapStart);
-
-  assert.ok(bootstrapStart >= 0);
-  assert.ok(purge > bootstrapStart && purge < identityBootstrap);
-  assert.match(adapter.slice(purge, identityBootstrap), /catch/);
+  const bootstrapEnd = adapter.indexOf("export async function cleanupWildzPendingVaultRestores", bootstrapStart);
+  assert.doesNotMatch(adapter.slice(bootstrapStart, bootstrapEnd), /purgeExpired/);
+  const shell = read("src/features/shell/WildzApp.tsx");
+  const cleanup = shell.indexOf("for (const load of [cleanupWildzPendingVaultRestores");
+  assert.ok(cleanup > shell.indexOf("if (!worldPainted) return;"));
 });
 
 test("bootstrap never revalidates proof-native identity or Vault authority through OAuth", () => {

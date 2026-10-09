@@ -12,6 +12,7 @@ import {
 import { connectWildzProofSession, defaultIdentityRepository } from "@/lib/receiz/wildz-identity-adapter";
 import { hasExactWildsIdentityAuthorityScopes, type WildsIdentityAuthorityPurpose } from "@/lib/receiz/wilds-wallet-authority-scopes";
 import { wildzRemoteSessionMatchesIdentity } from "@/lib/receiz/wildz-session-bridge";
+import { readWildzIdentityForSigning } from "@/lib/receiz/wildz-identity-signing-read";
 export { projectWildsWalletSourceAuthority } from "./wilds-wallet-source-client";
 
 import { walletAuthorizationFailureCode, WildsWalletAuthorizationError } from "./wilds-wallet-authorization-error";
@@ -39,7 +40,8 @@ type ReadAuthorizationDependencies = Readonly<{
 }>;
 
 const DEFAULT_DEPENDENCIES: ReadAuthorizationDependencies = {
-  loadIdentity: (keyId) => defaultIdentityRepository.withKeyFile(keyId, async (keyFile) => {
+  loadIdentity: async (keyId) => {
+    const keyFile = await readWildzIdentityForSigning(keyId);
     const artifact = serializeReceizIdentityArtifact(keyFile);
     return {
       artifact,
@@ -47,7 +49,7 @@ const DEFAULT_DEPENDENCIES: ReadAuthorizationDependencies = {
       keyId: keyFile.keyId,
       sign: async (challengeB64Url) => signReceizIdentityLoginProof({ keyFile, challengeB64Url })
     };
-  }),
+  },
   async request(path, body) {
     const response = await fetch(path, {
       method: body === undefined ? "GET" : "POST",
