@@ -1,4 +1,4 @@
-import { LinearSRGBColorSpace, NoToneMapping, type Camera, type Scene, type WebGLRenderer, type WebGLRenderTarget } from "three";
+import { LinearSRGBColorSpace, NoToneMapping, Object3D, type Camera, type Scene, type WebGLRenderer, type WebGLRenderTarget } from "three";
 
 type PrewarmRenderer = Pick<WebGLRenderer, "extensions" | "compile" | "getRenderTarget" | "getActiveCubeFace" | "getActiveMipmapLevel" | "setRenderTarget" | "toneMapping">;
 
@@ -62,10 +62,11 @@ export function prewarmWildsSceneShaders(
   scene: Scene,
   camera: Camera,
   transmissionTarget: WebGLRenderTarget,
-  signal: AbortSignal
+  signal: AbortSignal,
+  source: Object3D = scene
 ): void {
   if (signal.aborted || !renderer.extensions.has("KHR_parallel_shader_compile")) return;
-  renderer.compile(scene, camera);
+  renderer.compile(source, camera, scene);
   if (signal.aborted) return;
 
   // Three's transmission pass draws opaque materials into linear working color
@@ -78,11 +79,83 @@ export function prewarmWildsSceneShaders(
     transmissionTarget.texture.colorSpace = LinearSRGBColorSpace;
     renderer.setRenderTarget(transmissionTarget);
     renderer.toneMapping = NoToneMapping;
-    renderer.compile(scene, camera);
+    renderer.compile(source, camera, scene);
   } finally {
     renderer.toneMapping = toneMapping;
     renderer.setRenderTarget(target, cubeFace, mipLevel);
   }
+}
+
+/** Submit one renderable between paints, then let its asynchronous GPU work
+ * complete before submitting more. Background priority alone cannot prevent a
+ * whole-scene compile from starving the compositor after the HUD appears. */
+export function prewarmWildsSceneShadersCooperatively(
+  renderer: PrewarmRenderer & Pick<WebGLRenderer, "getContext" | "info">,
+  scene: Scene,
+  camera: Camera,
+  target: WebGLRenderTarget,
+  signal: AbortSignal,
+  schedule: (task: () => void) => () => void,
+  onComplete: () => void
+): () => void {
+  let cancelled = false, finished = false, index = 0;
+  let cancelScheduled: (() => void) | undefined;
+  let pending: WebGLProgram[] = [];
+  const objects: Object3D[] = [];
+  const stop = () => {
+    cancelled = true; cancelScheduled?.(); cancelScheduled = undefined;
+    objects.length = 0; pending = []; signal.removeEventListener("abort", stop);
+  };
+  const finish = () => {
+    if (cancelled || finished) return;
+    finished = true; objects.length = 0; pending = [];
+    signal.removeEventListener("abort", stop); onComplete();
+  };
+  if (signal.aborted) { stop(); return stop; }
+  signal.addEventListener("abort", stop, { once: true });
+  try {
+    if (!renderer.extensions.has("KHR_parallel_shader_compile")) { finish(); return stop; }
+    const extension = renderer.extensions.get("KHR_parallel_shader_compile") as KHR_parallel_shader_compile | null;
+    if (!extension) { finish(); return stop; }
+    const context = renderer.getContext();
+    scene.traverse(object => {
+      const renderable = object as Object3D & { isMesh?: boolean; isPoints?: boolean; isLine?: boolean; isSprite?: boolean };
+      if (renderable.isMesh || renderable.isPoints || renderable.isLine || renderable.isSprite) objects.push(object);
+    });
+    // compile(source, camera, scene) retains the actual world's lights, fog,
+    // environment, and object flags without moving or cloning scene children.
+    const source = new Object3D();
+    const run = () => {
+      cancelScheduled = undefined;
+      if (cancelled || finished) return;
+      try {
+        if (context.isContextLost()) { finish(); return; }
+        if (pending.length) {
+          const live = new Set(renderer.info.programs?.map(program => program.program));
+          pending = pending.filter(program => live.has(program)
+            && !context.getProgramParameter(program, extension.COMPLETION_STATUS_KHR));
+          if (pending.length) { cancelScheduled = schedule(run); return; }
+        }
+        let object: Object3D | undefined;
+        while (index < objects.length) {
+          const candidate = objects[index++]!;
+          let root = candidate;
+          while (root.parent) root = root.parent;
+          if (root === scene) { object = candidate; break; }
+        }
+        if (!object) { finish(); return; }
+        source.traverse = visit => { visit(object!); };
+        const existing = new Set(renderer.info.programs?.map(program => program.program));
+        prewarmWildsSceneShaders(renderer, scene, camera, target, signal, source);
+        if (cancelled || signal.aborted) return;
+        pending = (renderer.info.programs ?? []).map(program => program.program as WebGLProgram)
+          .filter(program => program && !existing.has(program));
+        cancelScheduled = schedule(run);
+      } catch { finish(); }
+    };
+    cancelScheduled = schedule(run);
+  } catch { finish(); }
+  return stop;
 }
 
 /** Changes that can introduce a new program. Excludes animated transforms,

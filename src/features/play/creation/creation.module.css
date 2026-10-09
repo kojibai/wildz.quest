@@ -67,46 +67,51 @@
 .panel small { color: #aebfae; }
 .menus {
   position: relative;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) 44px;
-  gap: 5px;
-  margin: 10px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 4px;
   flex-shrink: 0;
 }
-.menus[data-has-farm=true] { grid-template-columns: repeat(4, minmax(0, 1fr)) 44px; }
-.menus details { min-width: 0; border-radius: 12px; }
+.menus details { flex: 0 0 44px; min-width: 0; border-radius: 12px; }
+.menus details[open] { flex: 1 1 44px; max-width: 132px; }
 .menus summary,
 .menus > button.manual {
   position: relative;
   box-sizing: border-box;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 7px;
   width: 100%;
   min-width: 0;
-  min-height: 56px;
-  padding: 7px 3px;
-  color: #bccdbb;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 9px;
+  color: #bed3bc;
   border: 1px solid #bcd0b52b;
   border-radius: 12px;
-  background: linear-gradient(150deg, #2941327a, #102219);
-  box-shadow: inset 0 1px #e0eadb0c;
+  background: linear-gradient(155deg, #2947358c, #0d2117);
+  box-shadow: inset 0 1px #e0eadb14, inset 0 -1px #0003;
   list-style: none;
   cursor: pointer;
   touch-action: manipulation;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 650;
   line-height: 1;
   white-space: nowrap;
 }
+.menus > button.manual { flex: 0 0 44px; width: 44px; }
+.menus summary > span:not([data-count]) { display: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.menus details[open] summary > span:not([data-count]) { display: block; }
+.menus details[open] summary:has([data-count]) { padding-right: 23px; }
 .menus summary::-webkit-details-marker { display: none; }
 .menus summary > svg { width: 17px; height: 17px; flex-shrink: 0; }
 .menus summary > span[data-count] {
   position: absolute;
-  top: 5px;
-  right: 4px;
+  top: 3px;
+  right: 3px;
   max-width: 29px;
   padding: 2px 4px;
   overflow: hidden;
@@ -120,10 +125,11 @@
 }
 .menus details[open] summary {
   color: #eef4d3;
-  border-color: #cfcc8a8c;
-  background: linear-gradient(145deg, #38523b, #1a3123);
-  box-shadow: inset 0 1px #f4e5ae2b, inset 0 -2px #d9d49140;
+  border-color: #d0c68b94;
+  background: linear-gradient(145deg, #38533a, #173321);
+  box-shadow: inset 0 1px #f4e5ae38, inset 0 -2px #d9d4914d, 0 2px 8px #0002;
 }
+.menus summary:active, .menus > button.manual:active { background: #28432e; border-color: #d0c68b94; }
 .menus details > div {
   position: absolute;
   left: 0;
@@ -177,9 +183,9 @@
 .objects [data-placed-object] > button + button { min-height: 44px; font-size: 10px; color: #d8e5b9; }
 .panel .roster button[aria-pressed=true], .panel .objects button[aria-pressed=true] { background: #bdd6a21f; border-color: #cfcc8a87; color: #eff4d7; box-shadow: inset 0 1px #e2e6bc16; }
 .objects p[role=status] { margin: 0; font-size: 11px; color: #cee2bb; }
-.composerArea { min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-top: 8px; }
+.composerArea { min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-top: 4px; }
 .composer { position: relative; }
-.composer textarea { display: block; resize: vertical; min-height: 76px; max-height: 140px; width: 100%; box-sizing: border-box; padding: 11px 56px 11px 12px; color: #f0f3e3; color-scheme: dark; background: #08150e; border: 1px solid #bfd1aa3b; border-radius: 14px; box-shadow: inset 0 2px 8px #0003; font: inherit; font-size: 16px; line-height: 1.4; caret-color: #d4edac; }
+.composer textarea { display: block; resize: vertical; min-height: 112px; max-height: 180px; width: 100%; box-sizing: border-box; padding: 11px 56px 11px 12px; color: #f0f3e3; color-scheme: dark; background: #08150e; border: 1px solid #bfd1aa3b; border-radius: 14px; box-shadow: inset 0 2px 8px #0003; font: inherit; font-size: 16px; line-height: 1.4; caret-color: #d4edac; }
 .composer textarea::placeholder { color: #94aa94; }
 .composer textarea:focus { border-color: #c7d49a8a; }
 .composer textarea:focus-visible { outline-offset: -3px; outline-color: #c7d49a66; }
@@ -212,12 +218,11 @@
 }
 @media (max-width: 600px) {
   .panel { bottom: calc(126px + env(safe-area-inset-bottom)); right: max(12px, env(safe-area-inset-right)); width: calc(100% - 24px); border-radius: 17px; }
-  .menus { margin: 8px 0; }
   .history { max-height: 80px; }
 }
 @media (max-width: 340px) {
   .menus { gap: 4px; }
-  .menus summary { font-size: 8px; }
+  .menus summary { gap: 5px; padding-inline: 7px; font-size: 10px; }
   .menus summary > span[data-count] { max-width: 23px; padding: 2px 3px; }
 }
 @media (max-height: 560px) {
@@ -225,6 +230,7 @@
   .body { padding: 10px; }
   .welcome small { display: none; }
   .status { max-height: 80px; }
+  .composer textarea { min-height: 96px; max-height: 140px; }
   .menus details > div { bottom: auto; top: calc(100% + 9px); max-height: min(180px, calc(100svh - 210px)); }
 }
 @media (prefers-reduced-motion: reduce) {

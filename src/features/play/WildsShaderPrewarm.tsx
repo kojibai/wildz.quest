@@ -3,7 +3,8 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { WebGLRenderTarget } from "three";
-import { prewarmWildsSceneShaders, wildsSceneShaderSignature } from "./wilds-shader-prewarm";
+import { prewarmWildsSceneShadersCooperatively, wildsSceneShaderSignature } from "./wilds-shader-prewarm";
+import { scheduleAfterPaint } from "./schedule-after-paint";
 
 /** Optional shader preparation never participates in the first-frame gate. */
 export function WildsShaderPrewarm() {
@@ -17,6 +18,7 @@ export function WildsShaderPrewarm() {
     let signature: string | null = null;
     let idle: number | null = null;
     let timer: number | null = null;
+    let cancelPreparation: (() => void) | null = null;
     const schedule = () => {
       if (controller.signal.aborted) return;
       timer = window.setTimeout(check, 2_000);
@@ -30,9 +32,8 @@ export function WildsShaderPrewarm() {
         const next = `${camera.layers.mask}|${wildsSceneShaderSignature(scene)}`;
         if (next === signature) { schedule(); return; }
         signature = next;
-        try { prewarmWildsSceneShaders(gl, scene, camera, target, controller.signal); }
-        catch { /* Rendering remains authoritative if optional preparation fails. */ }
-        schedule();
+        cancelPreparation = prewarmWildsSceneShadersCooperatively(gl, scene, camera, target,
+          controller.signal, scheduleAfterPaint, () => { cancelPreparation = null; schedule(); });
       };
       if (typeof window.requestIdleCallback === "function") idle = window.requestIdleCallback(run, { timeout: 1_000 });
       else timer = window.setTimeout(run, 0);
@@ -42,6 +43,7 @@ export function WildsShaderPrewarm() {
     const first = window.requestAnimationFrame(() => { timer = window.setTimeout(check, 0); });
     return () => {
       controller.abort();
+      cancelPreparation?.();
       window.cancelAnimationFrame(first);
       if (timer !== null) window.clearTimeout(timer);
       if (idle !== null) window.cancelIdleCallback(idle);
