@@ -4,6 +4,8 @@ import { createReceizIdentityKeyFile, createReceizProofAuthorityChallenge, recei
 import { createWildsResourceSourceClientV128, createWildsResourceSourceRecoveryStoreV128, openWildsResourceSourceAuthorityV128 } from "../src/lib/receiz/wilds-resource-source-client-v128";
 import type { WildzContinuityDatabase } from "../src/lib/storage/wildz-indexed-db";
 import { prepareWildsResourceSourcePageV128 } from "../src/lib/receiz/wilds-resource-source-v128";
+import {canonicalPortableCardJson,sha256PortableBasis} from '../src/features/play/portable-card';
+import {queueWildsResourceGameplayV128} from '../src/lib/receiz/wilds-resource-gameplay-store-v128';
 import {createWildsResourcePackageExchangeV128} from '../src/lib/receiz/wilds-resource-exchange-v128';
 
 function database(fail = false): WildzContinuityDatabase {
@@ -146,4 +148,43 @@ test("resource actor bootstrap never transports a plaintext private recovery key
   const signedGrantChallenge = { ...fixture.input.signedGrantChallenge, proof: { ...fixture.input.signedGrantChallenge.proof, keyId: fixture.plaintextKey.keyId } };
   await assert.rejects(openWildsResourceSourceAuthorityV128({ ...fixture.input, keyFile: fixture.plaintextKey, identityArtifact, grant, signedGrantChallenge }), /identity_private_key_forbidden/);
   assert.equal(fixture.writes(), 0);
+});
+
+test('explicit market qualification freezes a replay-only accepted resource trace without assigning a recipient',async()=>{
+ const fixture=await createFixture(),owner=fixture.authority.ownerReceizId;const attempted:Uint8Array[]=[];
+ const sdk={assets:{createProofObject:async(input:{payload:{bytes:Uint8Array}})=>{attempted.push(new Uint8Array(input.payload.bytes));throw Error('qualification source seal sentinel');}}} as unknown as ReceizClient;
+ const exchange=createWildsResourcePackageExchangeV128({sdk,database:fixture.storage,authority:fixture.authority,session:fixture.session as never,gameplayOwnerId:'explorer',locator:{read:async()=>null,publish:async()=>assert.fail('no root seal yet')}});
+ await assert.rejects(exchange.qualifyGameplay({attemptId:'market:qualify'}),/publication_pending/);
+ const retained=await fixture.storage.read<{event:{kind:string;ownerReceizId:string;recipientHandle?:string;commands:unknown[]}}>('meta',JSON.stringify(['wildz.resource-exchange-attempt.v128',owner,`market:qualify:trace:${sha256PortableBasis(canonicalPortableCardJson({owner:'explorer',commands:[]})).slice(7)}`]));
+ assert.equal(retained?.event.kind,'replay');assert.equal(retained?.event.recipientHandle,undefined);assert.equal(retained?.event.ownerReceizId,owner);
+ await assert.rejects(exchange.qualifyGameplay({attemptId:'market:qualify'}),/publication_pending/);assert.deepEqual(attempted[0],attempted[1]);
+});
+
+
+test('stable market selection binds new retained gameplay to a new exact replay attempt',async()=>{
+ const fixture=await createFixture(),attempted:Uint8Array[]=[];
+ const sdk={assets:{createProofObject:async(value:{payload:{bytes:Uint8Array}})=>{attempted.push(new Uint8Array(value.payload.bytes));throw Error('source qualification sentinel');}}} as unknown as ReceizClient;
+ const exchange=createWildsResourcePackageExchangeV128({sdk,database:fixture.storage,authority:fixture.authority,session:fixture.session as never,gameplayOwnerId:'explorer',locator:{read:async()=>null,publish:async()=>assert.fail('no qualified seal yet')}});
+ await assert.rejects(exchange.qualifyGameplay({attemptId:'market:selection'}),/publication_pending/);
+ await queueWildsResourceGameplayV128({database:fixture.storage,ownerReceizId:fixture.authority.ownerReceizId,gameplayOwnerId:'explorer',command:{kind:'food.consume',commandId:'consume:new',itemId:'unknown:portion',kaiUPulse:1,reserveMicroBreaths:0}});
+ // Invalid current history cannot reuse the earlier empty accepted intent.
+ await assert.rejects(exchange.qualifyGameplay({attemptId:'market:selection'}),/missing-item/);
+ assert.equal(attempted.length,1);
+});
+
+test('over-limit source and downstream custody fail before source CAS while retaining exact retry Original',async()=>{
+ const {assertWildsResourceSourceRequestCapacityV128}=await import('../src/lib/receiz/wilds-resource-source-archive-v128');
+ const fixture=await createFixture();await fixture.create().publish({attemptId:'collect:capacity',page:fixture.page});
+ const retained=await fixture.store.read(fixture.authority.ownerReceizId,'collect:capacity');assert.ok(retained);
+ const source={schema:'receiz.sealed-artifact-bytes.v124' as const,exactBytesB64u:'eA',artifactSha256:'1'.repeat(64),payloadSha256:'2'.repeat(64),filename:'fixture.receizbundle',mimeType:'application/vnd.receiz.bundle+json'};
+ await fixture.store.retainSource(retained,source);let writes=0;
+ const sdk={sources:{publishSealedSourceV124:async()=>{writes++;assert.fail('over-limit capacity must precede source CAS');}}} as unknown as ReceizClient;
+ const create=()=>createWildsResourceSourceClientV128({sdk,authority:fixture.authority,session:fixture.session as never,recoveryStore:fixture.store});
+ for(const mode of ['source','custody'] as const){
+  const result=await create().publish({attemptId:'collect:capacity',page:fixture.page,beforeCommit:async actual=>{
+   assert.deepEqual(actual,source);await assertWildsResourceSourceRequestCapacityV128({applicationId:'wildz',authoritySessionHandle:fixture.session.authoritySessionHandle,sourceArtifact:mode==='source'?{...source,exactBytesB64u:'A'.repeat(2_000_000)}:source},new Uint8Array(mode==='custody'?2_000_000:1));
+  }});
+  assert.equal(result.status,'pending');assert.match(result.message!,new RegExp(`${mode}_request_too_large`));
+ }
+ assert.equal(writes,0);assert.equal(fixture.sealedInputs.length,1);assert.deepEqual((await fixture.store.read(fixture.authority.ownerReceizId,'collect:capacity'))?.sourceArtifact,source);
 });

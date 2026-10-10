@@ -4,12 +4,30 @@ import { createReceizCommerceAdapter } from "./adapter";
 import { resolveWildsWalletReadAuthority } from "./wilds-wallet-route-authority";
 import { readWildzProofSessionCookie } from "./wildz-proof-session";
 import { readWildzReceizChatSession } from "./wildz-receiz-chat-session";
-import { isWildsWalletSourceSdkPathV128, WILDS_WALLET_RESOURCE_SOURCE_URL_V128 } from "../../features/play/wallet/wilds-wallet-source-sdk-v128";
+import { isWildsWalletSourceSdkPathV128, isWildsWalletMarketSourcePageUrlV128, isWildsWalletResourceSourcePageUrlV128, WILDS_WALLET_RESOURCE_SOURCE_URL_V128, WILDS_WALLET_MARKET_SOURCE_URL_V128 } from "../../features/play/wallet/wilds-wallet-source-sdk-v128";
+import { describeWildzMarketSourceArchivePageV128, type WildzMarketSourceArchivePageV128 } from "./wildz-market-source-archive-v128";
+import {describeWildzMarketSourceBytesPageV128} from "./wildz-market-source-original-locator-v128";
+import {describeWildsResourceSourceArchivePageV128} from "./wilds-resource-source-archive-v128";
 import { normalizeWildsWalletPublicUsername } from "./wilds-wallet-projections";
 
 const MAX_BYTES = 2_000_000;
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const configuredApplication = () => { const id = process.env.RECEIZ_CLIENT_ID?.trim(); if (!id) throw Error("The registered Receiz application is required for source authority."); return id; };
+/** Content-addressed transport only; each source still needs native admission. */
+export function assertWildsWalletSourceArchivePageV128(namespace: string, url: string, page: unknown): void {
+  if (!object(page)) throw Error("The exact source archive page is required.");
+  const resource = namespace === "wildz.resources.v128" && isWildsWalletResourceSourcePageUrlV128(url);
+  const market = namespace === "wildz.market.v128" && isWildsWalletMarketSourcePageUrlV128(url);
+  if (!resource && !market) throw Error("The source archive page belongs to another namespace.");
+  const digest = page.schema === "wildz.market-source-bytes-page.v128"
+    ? describeWildzMarketSourceBytesPageV128(page).digest
+    : resource && page.schema === "wildz.resource-source-page.v128"
+      ? describeWildsResourceSourceArchivePageV128(page).digest
+      : market && page.schema === "wildz.market-source-page.v128"
+        ? describeWildzMarketSourceArchivePageV128(page as WildzMarketSourceArchivePageV128).digest
+        : null;
+  if (digest !== url.split("/").at(-1)) throw Error("The exact source archive page must match its content address.");
+}
 async function context(request: NextRequest) {
   const authority = await resolveWildsWalletReadAuthority(request), proof = readWildzProofSessionCookie(request);
   return { authority, proof, session: readWildzReceizChatSession(request, { ...authority, keyId: proof.keyId }) };
@@ -66,11 +84,18 @@ export async function proxyWildsWalletSourceSdkV128(request: NextRequest): Promi
     // A public locator is weaker than root source proof. It may name ONLY the
     // fixed Wildz source URL, never a user-selected URL/private account export.
     const records = body.feed.records;
-    if (body.feed.externalCreatorId !== authority.profileHandle || body.feed.namespace !== "wildz.resources.v128"
+    const pageUrl=Array.isArray(records)&&records.length===1&&object(records[0])&&typeof records[0].sourceUrl==="string"&&(isWildsWalletMarketSourcePageUrlV128(records[0].sourceUrl)||isWildsWalletResourceSourcePageUrlV128(records[0].sourceUrl))?records[0].sourceUrl:null;
+    const locator = body.feed.namespace === "wildz.resources.v128"
+      ? { url: pageUrl&&isWildsWalletResourceSourcePageUrlV128(pageUrl)?pageUrl:WILDS_WALLET_RESOURCE_SOURCE_URL_V128, schema: pageUrl&&isWildsWalletResourceSourcePageUrlV128(pageUrl)?"wildz.resource-source-page-locator.v128":"wildz.resource-source-locator.v128" }
+      : body.feed.namespace === "wildz.market.v128" ? { url: pageUrl&&isWildsWalletMarketSourcePageUrlV128(pageUrl)?pageUrl:WILDS_WALLET_MARKET_SOURCE_URL_V128, schema: pageUrl&&isWildsWalletMarketSourcePageUrlV128(pageUrl)?"wildz.market-source-page-locator.v128":"wildz.market-source-locator.v128" } : null;
+    if (!locator || body.feed.externalCreatorId !== authority.profileHandle
       || !Array.isArray(records) || records.length !== 1 || !object(records[0])
-      || records[0].sourceUrl !== WILDS_WALLET_RESOURCE_SOURCE_URL_V128 || records[0].externalCreatorId !== authority.profileHandle
-      || records[0].namespace !== "wildz.resources.v128" || !object(body.storeStateRecord)
-      || body.storeStateRecord.schema !== "wildz.resource-source-locator.v128") throw Error("The fixed resource source locator is required.");
+      || records[0].sourceUrl !== locator.url || records[0].externalCreatorId !== authority.profileHandle
+      || records[0].namespace !== body.feed.namespace || !object(body.storeStateRecord)
+      || body.storeStateRecord.schema !== locator.schema) throw Error("The fixed source locator is required.");
+    if(pageUrl){
+      assertWildsWalletSourceArchivePageV128(String(body.feed.namespace),pageUrl,body.storeStateRecord.page);
+    }
   } else if (!publicRead) {
     const bearer = request.headers.get("authorization")?.match(/^Bearer ([^\s]{1,12000})$/)?.[1];
     if (!bearer) throw Error("An actual scoped device grant is required for this source edge.");

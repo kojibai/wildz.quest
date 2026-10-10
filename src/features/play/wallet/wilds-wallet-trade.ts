@@ -3,6 +3,7 @@ import { parseWildzPlayerCoordinate, sameWildzPlayerCoordinate } from "@/lib/rec
 import type { WildsWalletAssetSendAsset, WildsWalletAssetSendSelection } from "./wilds-wallet-asset-send";
 import { createWildsWalletAssetSendReview } from "./wilds-wallet-asset-send";
 import type { WildsWalletTradeReply } from "./wilds-wallet-trade-messaging";
+import { admitWildzMarketPurchaseTermsV128, type WildzMarketPurchaseTermsV128 } from "../../market/wildz-market-purchase-terms-v128";
 
 /** A proposal describes exact selected sources. Only the native executor can settle them. */
 export type WildsWalletTradePackage = Readonly<{
@@ -25,7 +26,8 @@ export type WildsWalletTradeResult = Readonly<{
 export type WildsWalletProposeTrade = (draft: WildsWalletTradeDraft, inReplyTo?: WildsWalletTradeReply) => Promise<WildsWalletTradeResult>;
 export type WildsWalletTradeAgreement = Readonly<{
   schema: "wildz.wallet.trade-agreement.v1";
-  purpose?:"gift";
+  purpose?:"gift"|"market";
+  market?: WildzMarketPurchaseTermsV128;
   first: Readonly<{senderHandle: string; draft: WildsWalletTradeDraft}>;
   second: Readonly<{senderHandle: string; draft: WildsWalletTradeDraft}>;
 }>;
@@ -38,7 +40,8 @@ export type WildsWalletTradeExchangeResult = Readonly<{
 }>;
 export type WildsWalletApproveTrade = (agreement: WildsWalletTradeAgreement) => Promise<WildsWalletTradeExchangeResult>;
 
-export function createWildsWalletTradeAgreement(first: WildsWalletTradeAgreement["first"], second: WildsWalletTradeAgreement["second"],purpose?:"gift"): WildsWalletTradeAgreement {
+export function createWildsWalletTradeAgreement(first: WildsWalletTradeAgreement["first"], second: WildsWalletTradeAgreement["second"],purpose?:"gift"|"market", marketInput?: WildzMarketPurchaseTermsV128): WildsWalletTradeAgreement {
+  if (purpose !== undefined && purpose !== "gift" && purpose !== "market" || purpose !== "market" && marketInput !== undefined) throw Error("wilds_wallet_trade_purpose_invalid");
   const left = parseWildzPlayerCoordinate(first.senderHandle), right = parseWildzPlayerCoordinate(second.senderHandle);
   if (!left || !right || left.actorId === right.actorId) throw Error("wilds_wallet_trade_peer_invalid");
   const leftDraft = admitWildsWalletTradeDraft(first.draft, left.profileHandle);
@@ -46,7 +49,11 @@ export function createWildsWalletTradeAgreement(first: WildsWalletTradeAgreement
   if(purpose==="gift"&&(leftDraft.offered.phiMicro!=="0"||!leftDraft.offered.assets.length||leftDraft.requestedPhiMicro!=="0"||leftDraft.requestNote!=="Gift"||canonicalPortableCardJson(second.draft)!==canonicalPortableCardJson(expectedGift)))throw Error("wilds_wallet_gift_agreement_invalid");
   const rightDraft = purpose==="gift"?Object.freeze({...expectedGift,offered:Object.freeze({phiMicro:"0",assets:Object.freeze([])})}):admitWildsWalletTradeDraft(second.draft, right.profileHandle);
   if (!sameWildzPlayerCoordinate(leftDraft.recipientHandle, right.profileHandle) || !sameWildzPlayerCoordinate(rightDraft.recipientHandle, left.profileHandle)) throw Error("wilds_wallet_trade_recipient_invalid");
-  return Object.freeze({schema: "wildz.wallet.trade-agreement.v1",...(purpose?{purpose}:{}), first: Object.freeze({senderHandle: left.profileHandle, draft: leftDraft}), second: Object.freeze({senderHandle: right.profileHandle, draft: rightDraft})});
+  const market = purpose === "market" ? admitWildzMarketPurchaseTermsV128(marketInput) : undefined;
+  if (market && (market.buyerHandle !== left.profileHandle || market.sellerHandle !== right.profileHandle || leftDraft.offered.phiMicro !== market.quote.amountPhiMicro || leftDraft.offered.assets.length !== 0
+    || leftDraft.requestedPhiMicro !== "0" || rightDraft.offered.phiMicro !== "0" || rightDraft.requestedPhiMicro !== market.quote.amountPhiMicro
+    || canonicalPortableCardJson(rightDraft.offered.assets) !== canonicalPortableCardJson([market.asset]) || leftDraft.attemptId !== `${market.purchaseId}:buyer` || rightDraft.attemptId !== `${market.purchaseId}:seller`)) throw Error("wilds_wallet_market_package_invalid");
+  return Object.freeze({schema: "wildz.wallet.trade-agreement.v1",...(purpose?{purpose}:{}), ...(market ? {market} : {}), first: Object.freeze({senderHandle: left.profileHandle, draft: leftDraft}), second: Object.freeze({senderHandle: right.profileHandle, draft: rightDraft})});
 }
 
 export function createWildsWalletGiftAgreement(senderHandle:string,request:import("./wilds-wallet-asset-send").WildsWalletAssetSendRequest):WildsWalletTradeAgreement{
@@ -112,5 +119,5 @@ export function wildsWalletTradeDraftDigest(draft: WildsWalletTradeDraft) {
 
 /** The exact proposal digest identifies coordination only; it grants no custody. */
 export function wildsWalletTradeAgreementDigest(agreement: WildsWalletTradeAgreement) {
-  return sha256PortableBasis(canonicalPortableCardJson(createWildsWalletTradeAgreement(agreement.first, agreement.second, agreement.purpose))).replace(/^sha256:/, "");
+  return sha256PortableBasis(canonicalPortableCardJson(createWildsWalletTradeAgreement(agreement.first, agreement.second, agreement.purpose, agreement.market))).replace(/^sha256:/, "");
 }

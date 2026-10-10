@@ -3,6 +3,7 @@ import {
   transportReceizSealedArtifactV124, type ReceizClient, type ReceizPortableSealedArtifactV124,
 } from "@receiz/sdk";
 import { canonicalPortableCardJson, verifyAnyWildsCard, type PortableCardAsset } from "../../features/play/portable-card";
+import type { WildsWalletAssetSendAsset } from "../../features/play/wallet/wilds-wallet-asset-send";
 import { cardArtifactFingerprint } from "../../features/play/prepared-card-artifact";
 import { defaultContinuityDatabase } from "./wildz-active-identity";
 import type { WildzContinuityDatabase } from "../storage/wildz-indexed-db";
@@ -189,11 +190,9 @@ export function createWildsWalletCreatureBearerProducerV128(input: Readonly<{
     await readWildsWalletCreatureProjectionV128({ source: opened, projectionOriginal: source.projectionOriginal, artifacts: input.sdk.artifacts }); assertCurrent();
     return retainIndex(source, card.id);
   }
-  return {
-    retainCurrent, retainSuccessor,
-    async prepare(leg: WildsWalletBearerGiftLeg): Promise<WildsWalletBearerGiftSource> {
-      assertCurrent(); if (leg.request.asset.kind !== "creature" || leg.senderHandle !== input.ownerHandle) throw Error("Choose an owned creature for this native source.");
-      const assetId = leg.request.asset.assetId, key = sourceKey(input.ownerHandle, input.keyId, assetId);
+  async function prepareAsset(asset: WildsWalletAssetSendAsset): Promise<WildsWalletBearerGiftSource> {
+      assertCurrent(); if (asset.kind !== "creature") throw Error("Choose an owned creature for this native source.");
+      const assetId = asset.assetId, key = sourceKey(input.ownerHandle, input.keyId, assetId);
       const retained = await database.read<{artifactSha256:string;projectionArtifactSha256:string}>("meta", key); assertCurrent();
       if (retained) {
         const source = await store.readSource(input.ownerHandle, input.keyId, retained.artifactSha256, retained.projectionArtifactSha256);
@@ -221,6 +220,12 @@ export function createWildsWalletCreatureBearerProducerV128(input: Readonly<{
       const portable = await prepareWildsPortableDocumentV128({ assetType: "proof_object", payload: { bytes: payload.bytes, mimeType: "application/vnd.wildz.creature-bearer.v128+json" }, ownership: { ownerReceizId: input.ownerHandle, custody: "bearer", proofRef: "genesis" }, provenance: { root: payload.provenanceRoot, appends: [] }, settlement: { state: "none" } });
       const sealed = await input.sdk.assets.createProofObject({ assetType: "proof_object", payload: { bytes: serializeReceizPortableAssetDocument(portable), mimeType: "application/vnd.receiz.portable-asset.v1+json" } }, { idempotencyKey: `wildz:creature-bearer:${payload.payloadSha256}`, filename: `wildz-creature-${payload.payloadSha256}.receizbundle` }); assertCurrent();
       return projectCurrent(await transportReceizSealedArtifactV124(sealed), reservation.originProof, current);
+  }
+  return {
+    retainCurrent, retainSuccessor, prepareAsset,
+    async prepare(leg: WildsWalletBearerGiftLeg): Promise<WildsWalletBearerGiftSource> {
+      assertCurrent(); if (leg.senderHandle !== input.ownerHandle) throw Error("Choose an owned creature for this native source.");
+      return prepareAsset(leg.request.asset);
     },
   };
 }

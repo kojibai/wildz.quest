@@ -2,12 +2,13 @@ import type { WildsWalletTradeAgreement } from "./wilds-wallet-trade";
 import { canonicalPortableCardJson } from "../portable-card";
 import { createWildsWalletStagedTradePlan, wildsWalletStagedTradeApprovalChallenge, type WildsWalletStagedTradePlan, type WildsWalletStagedTradeApproval, type WildsWalletStagedTradePorts, type WildsWalletStagedTradeResult, type WildsWalletStagedTradeBinding, type WildsWalletStagedTradeLegOutcome } from "./wilds-wallet-staged-trade-types";
 import { admitWildsWalletStagedTradeApproval, admitWildsWalletStagedTradeRecovery, assertWildsWalletStagedTradeLegOutcome, wildsWalletStagedTradeStorageError, type WildsWalletStagedTradeRecovery, type WildsWalletStagedTradeRecoveryEntry, type WildsWalletStagedTradeRecoveryStore } from "./wilds-wallet-staged-trade-recovery";
+import type {WildsWalletStagedTradeArchiveStore} from "./wilds-wallet-staged-trade-archive";
 
 const equal = (left: unknown, right: unknown) => canonicalPortableCardJson(left) === canonicalPortableCardJson(right);
 const failed = (cause: unknown): WildsWalletStagedTradeResult => ({ status: "failed", message: cause instanceof Error ? cause.message : "Reopen the saved staged trade before continuing." });
 
 /** Finite saved consents authorize only these individual native operations, never an atomic exchange. */
-export function createWildsWalletStagedTradeController({ recoveryStore: store }: { recoveryStore: WildsWalletStagedTradeRecoveryStore }) {
+export function createWildsWalletStagedTradeController({ recoveryStore: store, archiveStore }: { recoveryStore: WildsWalletStagedTradeRecoveryStore; archiveStore?:WildsWalletStagedTradeArchiveStore }) {
   const assertBinding = (binding: WildsWalletStagedTradeBinding, ports: WildsWalletStagedTradePorts) => { if (!equal(binding, ports.currentBinding())) throw Error("The verified Explorer identity changed. No next trade leg was started."); };
   const save = (record: WildsWalletStagedTradeRecovery) => {
     store.write(record.binding.ownerHandle, record);
@@ -31,6 +32,35 @@ export function createWildsWalletStagedTradeController({ recoveryStore: store }:
   const checkedEntry = async (entry: WildsWalletStagedTradeRecoveryEntry, ports: WildsWalletStagedTradePorts) => {
     for (const approval of entry.approvals) await checkedApproval(approval, entry.plan, ports);
   };
+  const checkedTerminal = async (entry:WildsWalletStagedTradeRecoveryEntry,ports:WildsWalletStagedTradePorts) => {
+    if(entry.approvals.length!==2||entry.legs.some(leg=>!["accepted","committed"].includes(leg.status)||leg.projectionPending))throw Error("Resolve the original staged deliveries before archiving their history.");
+    await checkedEntry(entry,ports);
+    for(let index=0;index<entry.legs.length;index++)await ports.verifyLegReceipt(entry.plan.legs[index]!,{status:entry.legs[index]!.status as "accepted"|"committed",receipt:entry.legs[index]!.receipt});
+  };
+  const makeRoom = async (record:WildsWalletStagedTradeRecovery,ports:WildsWalletStagedTradePorts) => {
+    if(record.trades.length<32)return record;
+    if(!archiveStore)throw Error("The active staged trade queue is full. Resolve or safely archive its original native history before opening another agreement.");
+    for(const terminal of record.trades){
+      if(terminal.approvals.length!==2||terminal.legs.some(leg=>!["accepted","committed"].includes(leg.status)||leg.projectionPending))continue;
+      try{await checkedTerminal(terminal,ports);}catch{continue;}
+      assertBinding(record.binding,ports);
+      await archiveStore.retain(record.binding,terminal);
+      const retained=await archiveStore.read(record.binding,terminal.plan.tradeId);
+      if(!equal(retained,terminal))throw Error("The completed native trade could not be archived and read back.");
+      assertBinding(record.binding,ports);
+      const next={...record,trades:record.trades.filter(entry=>entry.plan.tradeId!==terminal.plan.tradeId)};save(next);return next;
+    }
+    throw Error("The active staged trade queue is full. Resolve its original pending deliveries before opening another agreement.");
+  };
+  const restore = async (record:WildsWalletStagedTradeRecovery,tradeId:string,ports:WildsWalletStagedTradePorts) => {
+    if(record.trades.some(entry=>entry.plan.tradeId===tradeId))return record;
+    if(!archiveStore)return record;
+    const retained=await archiveStore.read(record.binding,tradeId);if(!retained)return record;
+    const terminal=admitWildsWalletStagedTradeRecovery({schema:"wildz.wallet.staged-trade-recovery.v1",binding:record.binding,trades:[retained]},record.binding).trades[0]!;
+    if(terminal.plan.tradeId!==tradeId)throw Error("The archived native history belongs to another trade.");
+    await checkedTerminal(terminal,ports);assertBinding(record.binding,ports);
+    record=await makeRoom(record,ports);return replace(record,terminal);
+  };
   const emptyEntry = (plan: WildsWalletStagedTradePlan): WildsWalletStagedTradeRecoveryEntry => ({ plan, approvals: [], legs: plan.legs.map(leg => ({ legId: leg.legId, status: "ready" })) });
   const locked = async (ports: WildsWalletStagedTradePorts, action: (binding: WildsWalletStagedTradeBinding, record: WildsWalletStagedTradeRecovery) => Promise<WildsWalletStagedTradeResult>) => {
     try {
@@ -44,6 +74,7 @@ export function createWildsWalletStagedTradeController({ recoveryStore: store }:
   const waiting = (tradeId: string): WildsWalletStagedTradeResult => ({ status: "awaiting-peer", tradeId, message: "Both Explorers must approve this exact staged agreement. Each delivery settles separately." });
   const advance = async (tradeId: string, ports: WildsWalletStagedTradePorts, acceptLegId?: string): Promise<WildsWalletStagedTradeResult> => {
     return locked(ports, async (binding, record) => {
+      record=await restore(record,tradeId,ports);
       let entry = record.trades.find(trade => trade.plan.tradeId === tradeId);
       if (!entry) throw Error("The exact staged trade is not saved on this device.");
       await checkedEntry(entry, ports);
@@ -88,7 +119,14 @@ export function createWildsWalletStagedTradeController({ recoveryStore: store }:
         // custody law. The durable ready checkpoint still precedes private
         // delivery, which is dispatched once using those same approved bytes.
         if (!acceptLegId && leg.kind === "asset" && leg.senderHandle === binding.ownerHandle && saved.status === "ready" && outcome.status === "offered") outcome = { status: "none" };
-        if (outcome.status === "failed" || saved.status === "failed") return { status: "failed", tradeId, legId: leg.legId, message: "This staged leg did not settle. Earlier accepted deliveries remain completed; review the remaining exchange together." };
+        if (outcome.status === "failed" || saved.status === "failed") {
+          if(outcome.status==="failed"&&outcome.receipt!==undefined&&ports.verifyLegFailure){
+            try{await ports.verifyLegFailure(leg,outcome);assertBinding(binding,ports);checkpoint(index,outcome);
+              if(leg.senderHandle===binding.ownerHandle)await ports.publish({kind:"trade-staged-progress",tradeId,legId:leg.legId,outcome});
+            }catch{return {status:"pending",tradeId,legId:leg.legId,message:"The original rejection or its private delivery could not be checked. Keep this same attempt."};}
+          }
+          return { status: "failed", tradeId, legId: leg.legId, message: "This staged leg did not settle. Earlier accepted deliveries remain completed; review the remaining exchange together." };
+        }
         if (acceptLegId) {
           if (leg.legId !== acceptLegId) throw Error("Verify the earlier staged delivery before accepting this asset.");
           if (leg.kind !== "asset" || leg.recipientHandle !== binding.ownerHandle || !ports.acceptAsset) throw Error("Acceptance is unavailable for this exact asset stage.");
@@ -150,10 +188,12 @@ export function createWildsWalletStagedTradeController({ recoveryStore: store }:
     async approve(agreement: WildsWalletTradeAgreement, ports: WildsWalletStagedTradePorts): Promise<WildsWalletStagedTradeResult> {
       return locked(ports, async (binding, record) => {
         const plan = createWildsWalletStagedTradePlan(agreement);
+        record=await restore(record,plan.tradeId,ports);
         let entry = record.trades.find(trade => trade.plan.tradeId === plan.tradeId) ?? emptyEntry(plan);
         await checkedEntry(entry, ports);
         assertBinding(binding, ports);
         // Save the exact review before opening any identity consent interaction.
+        if(!record.trades.some(trade=>trade.plan.tradeId===plan.tradeId))record=await makeRoom(record,ports);
         record = replace(record, entry);
         let approval = entry.approvals.find(value => value.ownerHandle === binding.ownerHandle);
         if (!approval) {
@@ -179,12 +219,16 @@ export function createWildsWalletStagedTradeController({ recoveryStore: store }:
         if (![plan.agreement.first.senderHandle, plan.agreement.second.senderHandle].includes(binding.ownerHandle)) throw Error("This trade belongs to other Explorers.");
         const approval = await checkedApproval(raw, plan, ports);
         assertBinding(binding, ports);
+        record=await restore(record,plan.tradeId,ports);
         const entry = record.trades.find(trade => trade.plan.tradeId === plan.tradeId) ?? emptyEntry(plan);
         await checkedEntry(entry, ports);
         assertBinding(binding, ports);
         const existing = entry.approvals.find(value => value.ownerHandle === approval.ownerHandle);
         if (existing && (existing.approvalId !== approval.approvalId || existing.keyId !== approval.keyId || existing.identityArtifactDigest !== approval.identityArtifactDigest)) throw Error("This Explorer already approved a different identity or proof. Review a new agreement.");
-        if (!existing) replace(record, { ...entry, approvals: [...entry.approvals, approval] });
+        if (!existing) {
+          if(!record.trades.some(trade=>trade.plan.tradeId===plan.tradeId))record=await makeRoom(record,ports);
+          replace(record, { ...entry, approvals: [...entry.approvals, approval] });
+        }
         return waiting(plan.tradeId);
       });
     },

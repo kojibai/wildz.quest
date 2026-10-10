@@ -13,6 +13,7 @@ import { prepareWildsWalletStagedTradeIdentity, verifyWildsWalletStagedTradeIden
 import { admitWildsWalletStagedTradeSourceHeads, createWildsWalletStagedTradePlan, type WildsWalletStagedTradeBinding, type WildsWalletStagedTradeLeg, type WildsWalletStagedTradeMessage, type WildsWalletStagedTradePlan, type WildsWalletStagedTradePorts, type WildsWalletStagedTradeResult, type WildsWalletStagedTradeSourceHead, type WildsWalletStagedTradeAssetPort, type WildsWalletStagedTradeIncomingAsset } from "./wilds-wallet-staged-trade-types";
 import { admitWildsWalletStagedTradeMessage } from "./wilds-wallet-staged-trade-messaging";
 import { admitWildsWalletStagedTradeSourceNotice } from "./wilds-wallet-staged-trade-source-notice";
+import {wildsWalletBrowserStagedTradeArchiveStore,type WildsWalletStagedTradeArchiveStore} from "./wilds-wallet-staged-trade-archive";
 export { admitWildsWalletStagedTradeMessage } from "./wilds-wallet-staged-trade-messaging";
 
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
@@ -32,21 +33,30 @@ export type WildsWalletStagedTradeAdapterInput = Readonly<{
   ensureReady?(): Promise<boolean | void>;
   loadIdentityOriginal?(): Promise<ReceizPortableSealedArtifactV124>;
   recoveryStore?: WildsWalletStagedTradeRecoveryStore;
+  archiveStore?:WildsWalletStagedTradeArchiveStore;
   phi?: ReturnType<typeof createWildsWalletConnectPhiPort>;
   fetcher?: typeof fetch;
+  /** Trusted market service gate; omitted for ordinary wallet Trade/Gift.
+   * A market agreement must never inherit the generic Phi sender. */
+  marketExecution?: Readonly<{ assert(plan: WildsWalletStagedTradePlan, phase: "approve" | "observe" | "send-phi" | "send-asset" | "accept-asset"): Promise<void> }>;
 }>;
 
 /** Released SDK adapter. Construction is cheap; identity sources, enrollment,
  * signatures and native requests run only after an explicit approval/resume. */
 export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTradeAdapterInput) {
   const store = input.recoveryStore ?? wildsWalletBrowserStagedTradeRecoveryStore;
-  const controller = createWildsWalletStagedTradeController({ recoveryStore: store });
+  const controller = createWildsWalletStagedTradeController({ recoveryStore: store, archiveStore:input.archiveStore??(store===wildsWalletBrowserStagedTradeRecoveryStore?wildsWalletBrowserStagedTradeArchiveStore:undefined) });
   const phi = input.phi ?? createWildsWalletConnectPhiPort({ keyId: input.keyId, ownerHandle: input.ownerHandle, currentBinding: input.currentIdentity, ensureReady: input.ensureReady });
   let identity: Awaited<ReturnType<typeof prepareWildsWalletStagedTradeIdentity>> | null = null;
   let preparing: Promise<void> | null = null;
   const assertCurrent = () => {
     const current = input.currentIdentity();
     if (current.keyId !== input.keyId || current.ownerHandle !== input.ownerHandle) throw Error("The Explorer changed. Reopen the exact staged trade.");
+  };
+  const assertMarket = async (plan: WildsWalletStagedTradePlan, phase: "approve" | "observe" | "send-phi" | "send-asset" | "accept-asset") => {
+    if (plan.agreement.purpose !== "market") return;
+    if (!input.marketExecution) throw Error("Open this exact purchase in the marketplace. Generic wallet Trade cannot authorize a marketplace payment or delivery.");
+    await input.marketExecution.assert(plan, phase); assertCurrent();
   };
   const currentBinding = (): WildsWalletStagedTradeBinding => { assertCurrent(); if (!identity) throw Error("Review this staged trade with the held Identity Seal first."); return identity.binding; };
   const ensureIdentity = async () => {
@@ -81,6 +91,7 @@ export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTrad
   const ports: WildsWalletStagedTradePorts = {
     currentBinding,
     async readApprovalSources(plan, binding) {
+      await assertMarket(plan, "approve");
       const descriptors = await Promise.all(plan.legs.filter((leg): leg is Extract<WildsWalletStagedTradeLeg, { kind: "asset" }> => leg.kind === "asset" && leg.senderHandle === binding.ownerHandle).map(leg => input.assetPort.prepareSource(leg)));
       assertCurrent();
       return admitWildsWalletStagedTradeSourceHeads(plan, binding.ownerHandle, descriptors);
@@ -92,6 +103,7 @@ export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTrad
     },
     async sendAsset(leg) {
       assertCurrent();
+      await assertMarket(entryForLeg(leg).plan, "send-asset");
       const descriptor = descriptorForLeg(leg);
       if (input.ensureReady && await input.ensureReady() === false) throw Error("Reconnect the same Explorer before sending this stage.");
       assertCurrent();
@@ -99,6 +111,7 @@ export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTrad
     },
     async acceptAsset(leg) {
       assertCurrent();
+      await assertMarket(entryForLeg(leg).plan, "accept-asset");
       if (!input.assetPort.acceptSource) throw Error("Acceptance is unavailable for this asset source.");
       if (input.ensureReady && await input.ensureReady() === false) throw Error("Reconnect the same Explorer before accepting this stage.");
       assertCurrent();
@@ -106,9 +119,10 @@ export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTrad
       assertCurrent();
       return { status: outcome.status, ...(outcome.receipt === undefined ? {} : { receipt: outcome.receipt }), ...(outcome.message === undefined ? {} : { message: outcome.message }), ...(outcome.projectionPending === true ? { projectionPending: true as const } : {}) };
     },
-    sendPhi: leg => { assertCurrent(); return phi.sendPhi(leg); },
+    sendPhi: async leg => { assertCurrent(); await assertMarket(entryForLeg(leg).plan, "send-phi"); return phi.sendPhi(leg); },
     async observeLeg(leg) {
       const entry = entryForLeg(leg), saved = entry.legs.find(saved => saved.legId === leg.legId);
+      await assertMarket(entry.plan, "observe");
       const conversations = await input.readConversations(); assertCurrent();
       let locator = saved?.receipt;
       if (locator === undefined) for (const message of messages(conversations)) {
@@ -126,6 +140,10 @@ export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTrad
     async verifyLegReceipt(leg, outcome) {
       if (leg.kind === "phi") return phi.verifyPhiReceipt(leg, outcome);
       return input.assetPort.verifyAccepted(leg, descriptorForLeg(leg), outcome, await assetAuthorityForLeg(leg));
+    },
+    async verifyLegFailure(leg,outcome){
+      if(leg.kind!=="phi"||outcome.status!=="failed")throw Error("No native rejected payment was checked.");
+      return phi.verifyPhiRejection(leg,outcome.receipt);
     },
     publish: message => {
       assertCurrent();
@@ -158,6 +176,7 @@ export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTrad
       const entries = admitWildsWalletStagedTradeRecovery(store.load(input.ownerHandle), currentBinding()).trades;
       const incoming: WildsWalletStagedTradeIncomingAsset[] = [];
       for (const entry of entries) {
+        if (entry.plan.agreement.purpose === "market" && !input.marketExecution) continue;
         if (entry.approvals.length !== 2 || !entry.approvals.some(approval => approval.ownerHandle === input.ownerHandle && approval.keyId === input.keyId)) continue;
         for (let index = 0; index < entry.legs.length; index++) {
           const saved = entry.legs[index]!, leg = entry.plan.legs[index]!;
@@ -190,13 +209,15 @@ export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTrad
         // Accept cannot enroll, sign, or create an approval for a new agreement.
         const entry = admitWildsWalletStagedTradeRecovery(store.load(input.ownerHandle), currentBinding()).trades.find(entry => entry.plan.legs.some(leg => leg.legId === legId));
         if (!entry) throw Error("Approve this exact agreement before accepting its asset.");
+        await assertMarket(entry.plan, "accept-asset");
         return controller.acceptIncomingAsset(entry.plan.tradeId, legId, ports);
       } catch (cause) { return failure(cause); }
     },
     async approve(agreement: WildsWalletTradeAgreement): Promise<WildsWalletStagedTradeResult> {
       try {
-        await ensureIdentity();
         const plan = createWildsWalletStagedTradePlan(agreement);
+        await assertMarket(plan, "approve");
+        await ensureIdentity();
         await ingestPeerApprovals(plan);
         const approval = await controller.approve(agreement, ports);
         if (approval.status !== "awaiting-peer") return approval;
@@ -205,7 +226,8 @@ export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTrad
     },
     async resume(agreement: WildsWalletTradeAgreement): Promise<WildsWalletStagedTradeResult> {
       try {
-        await ensureIdentity(); const plan = createWildsWalletStagedTradePlan(agreement); await ingestPeerApprovals(plan);
+        const plan = createWildsWalletStagedTradePlan(agreement); await assertMarket(plan, "observe");
+        await ensureIdentity(); await ingestPeerApprovals(plan);
         const entry = admitWildsWalletStagedTradeRecovery(store.load(input.ownerHandle), currentBinding()).trades.find(entry => entry.plan.tradeId === plan.tradeId);
         // Re-deliver only the saved approval. Check never signs a new agreement.
         if (entry?.approvals.some(approval => approval.ownerHandle === input.ownerHandle)) {
@@ -219,6 +241,7 @@ export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTrad
     /** Does not open/enroll/sign a new identity during background inbox work. */
     async receive(message: unknown, senderHandle: string): Promise<WildsWalletStagedTradeResult> {
       try {
+        if (object(message) && object(message.plan) && object(message.plan.agreement) && message.plan.agreement.purpose === "market") await assertMarket(createWildsWalletStagedTradePlan(message.plan.agreement as unknown as WildsWalletTradeAgreement), "observe");
         if (!identity) return { status: "awaiting-peer", message: "Open the exact staged agreement to approve it with your Identity Seal." };
         if (object(message) && ["trade-bearer-source", "trade-bearer-accepted", "trade-resource-source", "trade-resource-accepted"].includes(String(message.kind))) {
           const entry = admitWildsWalletStagedTradeRecovery(store.load(input.ownerHandle), currentBinding()).trades.find(entry => entry.plan.tradeId === message.tradeId);

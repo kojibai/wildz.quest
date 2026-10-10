@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import type { WildzListing } from "../src/features/market/wildz-market";
 import { initialPlayState } from "../src/features/play/game-state";
@@ -45,41 +44,15 @@ test("market repository refuses reads and appends without remote conditional pro
   }), { status: "market_capability_unavailable" });
 });
 
-test("market composes the universal verified public-store projection without in-memory authority", () => {
-  const source = readFileSync("src/lib/receiz/wildz-market-repository.ts", "utf8");
-
-  assert.match(source, /restoreLatestPublicStore/);
-  assert.match(source, /publishPublicStore/);
-  assert.doesNotMatch(source, /WildzPublicProjectionRepository|new Map|Map</);
-  assert.match(source, /market_capability_unavailable/);
-  assert.match(source, /expectedAppendAnchorId/);
-  assert.match(source, /admissionProof/);
-  assert.match(source, /verifyAdmissionProof/);
-});
-
-test("a brand-new verified Receiz market begins at source genesis and publishes its first addition", async () => {
-  const publications: Record<string, unknown>[] = [];
+test("legacy market refuses public-store metadata as conditional source admission", async () => {
+  let publications = 0;
   const rail = resolveWildzMarketConditionalAppendRail({
     restoreLatestPublicStore: async () => ({ ok: true, state: null }),
-    publishPublicStore: async (input: Record<string, unknown>) => { publications.push(input); return { ok: true, appendProof: { schema: "receiz.public_store.append.v1" } }; }
+    publishPublicStore: async () => { publications++; return { ok: true }; }
   });
-  assert.ok(rail);
-  const repository = createReceizWildzMarketRepository({ rail });
-  const loaded = await repository.load();
-  assert.equal(loaded.status, "ready");
-  if (loaded.status !== "ready") return;
-  const listing = listingFixture();
-  const admitted = await repository.compareAndAppend({
-    current: loaded.state,
-    expectedRevision: 0,
-    expectedAppendAnchorId: null,
-    idempotencyKey: listing.idempotencyKey,
-    occurredAt: listing.createdAt,
-    event: { type: "listing-admitted", listing }
-  });
-  assert.equal(admitted.status, "admitted");
-  assert.equal((publications[0]?.state as { revision?: number }).revision, 1);
-  assert.equal(publications[0]?.tenantHost, "wildz.quest");
+  assert.equal(rail, null);
+  assert.deepEqual(await createReceizWildzMarketRepository({rail}).load(), {status: "market_capability_unavailable"});
+  assert.equal(publications, 0);
 });
 
 test("market repository rejects a shaped snapshot whose proof fails verification", async () => {

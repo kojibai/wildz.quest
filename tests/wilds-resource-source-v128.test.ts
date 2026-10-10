@@ -70,3 +70,22 @@ test("device consent changes when exact resource membership changes", async () =
   assert.notEqual(first.replay.head, second.replay.head);
   assert.equal(first.replay.namespace.digest, await digestReceizCanonicalV122(input.page.namespace));
 });
+
+test('stock named-domain namespace remains immutable while two admitted resource events advance distinct heads',async()=>{
+ const {wildsResourceSourceNamespaceV128}=await import('../src/lib/receiz/wilds-resource-exchange-v128');
+ const first=wildsResourceSourceNamespaceV128(),second=wildsResourceSourceNamespaceV128();
+ // This boundary port models the released host's exact namespace_json CAS,
+ // independently from root sealing. It never claims a live accepted source.
+ let namespace:unknown=null,head:string|null=null,writes=0;
+ const append=(expectedHead:string|null,newHead:string,actualNamespace:unknown)=>{
+  assert.equal(expectedHead,head);
+  if(namespace!==null)assert.equal(canonicalizeReceizV122(actualNamespace),canonicalizeReceizV122(namespace),'released SQL requires immutable namespace_json');
+  namespace=structuredClone(actualNamespace);head=newHead;writes++;
+ };
+ append(null,'a'.repeat(64),first);append('a'.repeat(64),'b'.repeat(64),second);
+ assert.equal(writes,2);assert.equal(head,'b'.repeat(64));
+ assert.throws(()=>append('b'.repeat(64),'c'.repeat(64),{...second,namespace:{members:{invented:99}}}),/immutable namespace_json/);
+ const input=await fixture(),prepared=await prepareWildsResourceSourcePageV128({...input,page:{...input.page,...first}});
+
+ assert.equal(new TextDecoder().decode(receizBase64UrlDecode(prepared.replay.namespace.exactBytesB64u)),canonicalizeReceizV122(first.namespace));
+});

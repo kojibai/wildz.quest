@@ -14791,6 +14791,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wildz-social-stack > .wildz-social-deck { padding-bottom: 2px; }
 .wildz-bottom-play-controls { grid-template-columns: 56px 72px minmax(72px, 94px); justify-content: space-between; }
 .wildz-quick-utilities { display: grid; grid-template-rows: repeat(3, 1fr); gap: 6px; }
+.wildz-utility-actions > button,
 .wildz-quick-utilities > button { display: grid; width: 48px; min-height: 44px; place-items: center; padding: 0; border: 1px solid rgba(224, 227, 207, .15); border-radius: 14px; color: #dce9e1; background: linear-gradient(145deg, rgba(52, 68, 60, .78), rgba(23, 37, 31, .88)); box-shadow: inset 0 1px rgba(255,255,255,.06); }
 .wilds-companion-command-zone { position: relative; display: grid; min-width: 72px; justify-items: end; padding-right: max(0px, env(safe-area-inset-right)); isolation: isolate; }
 .wilds-companion-command { position: relative; display: grid; width: clamp(72px, 22vw, 94px); aspect-ratio: 1; place-items: center; padding: 7px; overflow: visible; border: 1px solid color-mix(in srgb, var(--creature-primary, #78dda1) 55%, white 10%); border-radius: 31% 31% 38% 38%; color: #f4fff7; background: radial-gradient(circle at 50% 30%, rgba(102, 219, 158, .2), rgba(8, 28, 24, .97) 68%); box-shadow: 0 10px 28px rgba(0,0,0,.4), inset 0 1px rgba(255,255,255,.12); touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease; }
@@ -14821,6 +14822,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wildz-reference-hud > .wildz-mission-chip small { display: inline; margin-left: 3px; font-size: 6px; }
   .wildz-reference-hud > .wildz-minimap { top: calc(12px + var(--wildz-stage-safe-top)); width: 82px; }
   .wildz-bottom-play-controls { grid-template-columns: 50px 78px minmax(78px, 92px); min-height: 92px; }
+  .wildz-utility-actions > button,
   .wildz-quick-utilities > button { width: 46px; min-height: 42px; }
   .wilds-companion-command > .wilds-companion-active-portrait { width: 56px; height: 56px; }
 }
@@ -15938,6 +15940,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   animation: wildz-quick-utilities-in 160ms cubic-bezier(.2, .8, .2, 1) both;
 }
 
+.wildz-utility-actions > button,
 .wildz-quick-utilities > button {
   min-width: 44px;
   min-height: 44px;
@@ -16020,7 +16023,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   max-width: min(112px, 28vw);
 }
 
-/* Share the utility grid so an odd skill count pairs with the crew button. */
+/* Capability buttons share their containing utility grid. */
 .wildz-quick-utilities > .wilds-capability-controls {
   display: contents;
 }
@@ -17668,7 +17671,10 @@ body:has(.wilds-stage.is-creation-placement) .wildz-pwa-notice { visibility: hid
 .wildz-player-action-pad > button:active { transform:translateY(1px); background:#376d5e; box-shadow:inset 0 2px 4px #0006; }
 .wildz-player-action-pad > button:focus-visible { outline:2px solid #b7f2d5;outline-offset:3px; }
 .wildz-player-action-pad > button:disabled { opacity:.45; }
-.wildz-movement-home > .wildz-quick-utilities > .wildz-nourishment-pill { grid-column:1; grid-row:2; justify-self:start; }
+.wildz-utility-actions { display:grid; grid-column:1/-1; grid-template-columns:repeat(2,44px); gap:6px; }
+.wildz-utility-actions > :is(.wilds-capability-controls,.wildz-vertical-controls) { display:contents; }
+.wildz-utility-actions.has-odd-actions::before { content:""; grid-column:2; grid-row:1; pointer-events:none; }
+.wildz-utility-actions > :is(.wildz-crew-control,.wildz-nourishment-pill) { justify-self:start; }
 
 /* One quiet food shortcut in the movement utility stack. */
 .wildz-nourishment-pill {
@@ -17747,9 +17753,3 @@ body:has(.wilds-stage.is-creation-placement) .wildz-pwa-notice { visibility: hid
 @media (max-height: 540px) { .wilds-animal-actions { bottom: 118px; padding: 9px; } }
 @keyframes wildz-food-count-in { from { color: #efffcf; transform: scale(.85); } to { transform: scale(1); } }
 @media (prefers-reduced-motion: no-preference) { .wildz-nourishment-count > span { animation: wildz-food-count-in 180ms ease-out; } }
-
-/* Keep utility pairs nearest the pad; an odd set starts with a left-aligned crew action. */
-.wildz-movement-home > .wildz-quick-utilities.has-odd-actions > .wildz-crew-control {
-  grid-column: 1 / -1;
-  justify-self: start;
-}

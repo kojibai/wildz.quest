@@ -50,6 +50,56 @@ available. Existing local collection, inventory display, builds and Boss state
 continue through their original gameplay path. New source-backed builds plan
 against the freshly replayed resource source rather than its merged display.
 
+The marketplace uses a shared native source CAS for listings and named purchase
+reservations. A public store locator provides discovery; it does not establish
+custody or payment. Both devices approve the complete agreement, including the
+exact asset, named peers, USD price and current buyer-wallet Phi quote. A changed
+quote requires a new review before the first debit. An uncertain debit retains
+its original attempt and nonce. Actual canonical Connect payment admission and
+actual recipient asset acceptance remain separate stages. Closing a paid sale
+requires matching native source consents from both named peers. Listing status
+is a separate display projection and does not mutate the approved creature card.
+
+The released host requires the source namespace to stay immutable across CAS
+appends. Resource and market adapters use fixed law namespaces and replay the
+complete signed trace to derive current holdings. Lost replies recover the
+frozen publication through native replay rather than treating a cached count as
+success. Resource and market history use lossless, content-addressed pages within the
+released host's signed-request byte limit; every original still undergoes root,
+predecessor and source-law verification. Resource source tails stay bounded to
+32 Originals and 8 MiB of exact base64url text; older ancestry stays in immutable
+192 KiB pages and remains part of full verification. Package and creature-origin
+proof transport can reference exact Original byte pages. References establish no
+authority; reconstruction precedes native root opening. Source publication JSON
+and SDK custody portable/multipart capacity is checked before a new native source
+append. Private package and creature carriers remain bounded during their own
+retention and publication, after reservation or origin admission; referenced
+ancestry removes their former unbounded inline history.
+Private completed payment and trade
+checkpoints are archived only after native qualification and successful byte
+readback. Unknown and incomplete work stays available for recovery, and new
+work must pass local continuation capacity checks before reserving an asset.
+
+Legacy inline transport remains readable when its native chain has the required
+immutable law namespace. A previously admitted mutable-state namespace would
+fail qualification and cannot be silently rewritten into that law. No live
+source publication occurred in this task, and no such production chain was
+observed. This is not a migration claim for an unknown deployed source.
+
+The market runtime opens on an explicit market action. Constructing the HUD,
+subscribing to its cached listing display and ordinary gameplay rendering open
+no marketplace SDK runtime. Panel cleanup releases subscribers. These boundaries
+avoid new marketplace work in the gameplay frame loop; they are not a claim of
+zero network latency for proof verification or payment.
+
+Staged purchases cannot promise an atomic exchange or prevent an independent
+native claim or spend outside this app between payment and delivery. A known
+Connect rejection may have an authenticated app retry witness, below native
+financial authority. It cannot turn a missing receipt into proof of no payment;
+canonical payment admission takes priority, and uncertain purchases stay locked.
+These compatibility decisions are recorded in
+`docs/receiz-decisions/2026-10-10-published-v128-staged-marketplace.md`.
+
 Before release, run typecheck, lint, tests, production build, architecture lock,
 secret scan and the coordinated v128 compatibility/conformance checks. Live
 transfers and deployment require the separately reviewed user confirmation;
@@ -65,3 +115,16 @@ termination and a funded production transfer were not observed or claimed.
 Independent offline qualification requires an already enrolled disposable
 `WILDZ_TEST_SEAL_DIRECTORY`; that fixture was not supplied, so that separate
 qualification is still pending.
+
+Marketplace follow-up validation on 2026-10-10: 4,035 tests passed, one skipped,
+zero failures and cancellations. Full TypeScript, ESLint, production build,
+architecture lock (1,125 runtime files), secret scan, doctor and coordinated
+published-v128 checks passed. The existing SDK worker dependency warning remains.
+Focused native transport and recovery checks include lossless 130-event resource
+ancestry, exact signed-request sizes, zero source CAS writes for overlarge source
+or custody candidates, cold reads, corrupted pages and lost locator replies.
+Independent archive review passed 33 focused tests. Mobile UI checks cover the
+named buyer/seller staged flow through a development display simulation, plus
+paired left controls with the odd action at the top and the double-chevron jump
+icon. These local checks do not claim a funded production payment, live native
+custody exchange, or an enrolled production root-seal qualification.

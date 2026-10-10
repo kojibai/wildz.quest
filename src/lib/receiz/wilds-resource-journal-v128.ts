@@ -9,11 +9,11 @@ export const WILDS_RESOURCE_DOMAIN_V128='world:wildz:resource-custody:v128';
 export const WILDS_RESOURCE_NAMESPACE_V128='wildz.resources.v128';
 /** Law coordinates identify this exact application protocol. Native Record/Seal
  * and source CAS stay with the released SDK; this reducer admits game resources. */
-export const WILDS_RESOURCE_LAW_V128=Object.freeze({schema:'wildz.resource-law.v128',version:1,
+export const WILDS_RESOURCE_LAW_V128=Object.freeze({schema:'wildz.resource-law.v128',version:1,sourceNamespace:'immutable-law',
  genesis:'2026-07-15T00:00:00.000Z',birth:'full-genesis-command-replay',finiteSource:'global-current-head-and-exact-command',
  reservation:'whole-exact-born-members',ownership:'sdk-opened-current-original-and-recipient-device-source-cas',unpack:'one-use-exact-member-import',repack:'source-qualified-current-keeper-unspent-members'});
 export const WILDS_RESOURCE_REGISTRY_DIGEST_V128=sha256PortableBasis(canonicalPortableCardJson(WILDS_RESOURCE_LAW_V128)).slice(7);
-export const WILDS_RESOURCE_REDUCER_DIGEST_V128=sha256PortableBasis(canonicalPortableCardJson({...WILDS_RESOURCE_LAW_V128,reducer:'wilds-resource-journal-v128:3'})).slice(7);
+export const WILDS_RESOURCE_REDUCER_DIGEST_V128=sha256PortableBasis(canonicalPortableCardJson({...WILDS_RESOURCE_LAW_V128,reducer:'wilds-resource-journal-v128:4'})).slice(7);
 export const WILDS_RESOURCE_GENESIS_HEAD_V128=sha256PortableBasis(canonicalPortableCardJson({schema:'wildz.resource-genesis.v128',law:WILDS_RESOURCE_LAW_V128})).slice(7);
 export type WildsResourceJournalPackageV128=Readonly<{package:WildsResourcePackageV1;ownerReceizId:string;recipientHandle:string;
  status:'reserved'|'claimed'|'unpacked';custodyAppendId:string;claimAppendId?:string;artifactSha256?:string}>;

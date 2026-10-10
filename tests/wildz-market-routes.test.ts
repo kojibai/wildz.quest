@@ -78,13 +78,15 @@ test("listing admission requires an SDK-recovered public proof and exact request
   assert.doesNotMatch(publicCard, /new Map|Map<|publishPublicStore|resolveLocalPublicWildsCard/);
 });
 
-test("listing UI reads the durable head and submits only the exact listing DTO", () => {
+test("listing UI delegates the exact asset and price to the identity-bound native market service", () => {
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
-  assert.match(shell, /method:\s*"GET"/);
-  assert.match(shell, /const expectedRevision = Number\(head\.revision\)/);
-  assert.match(shell, /const expectedAppendAnchorId = head\.appendAnchorId/);
-  assert.match(shell, /JSON\.stringify\(\{\s*asset,\s*priceCents,\s*expectedRevision,\s*expectedAppendAnchorId\s*\}\)/s);
-  assert.doesNotMatch(shell, /JSON\.stringify\(\{[^}]*\b(actor|owner|assetId|proofDigest|currency|idempotencyKey)\b/s);
+  const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
+  assert.match(shell, /onMarketServiceChange=\{setMarketService\}/);
+  assert.match(campaign, /const snapshot = await lazyMarket\.service\.read\(\)/);
+  assert.match(campaign, /pending\?\.attemptId/);
+  assert.match(campaign, /lazyMarket\.service\.list\(\{asset: \{kind: "creature", assetId: card\.id\}, priceUsdCents: String\(priceCents\)/);
+  assert.match(campaign, /currentIdentity,\s*readSelections/);
+  assert.doesNotMatch(shell, /onListAsset=\{async/);
 });
 
 test("market routes expose no process-memory fallback and settle only through admitted proof", () => {
@@ -101,12 +103,14 @@ test("market routes expose no process-memory fallback and settle only through ad
   assert.doesNotMatch(checkout, /oneClickCheckout|checkoutSession/);
 });
 
-test("settled Market cards are admitted into the buyer Vault immediately", () => {
+test("Market delegates received custody to native asset acceptance rather than importing a response card", () => {
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
-  assert.match(shell, /applyWildsInput\(current\.playState, \{ type: "import-card", asset \}\)/);
-  assert.match(shell, /admitted\.proof\.digest !== asset\.proof\.digest/);
-  assert.match(shell, /onSettlement=\{admitPurchasedMarketAsset\}/);
-  assert.match(shell, /playStateSaveSchedulerRef\.current\?\.schedule/);
+  const controller = readFileSync("src/features/market/wildz-market-controller-v128.ts", "utf8");
+  assert.match(shell, /service=\{marketService && marketService\.binding\.keyId === identity\?\.keyId/);
+  assert.doesNotMatch(shell, /onSettlement=|admitPurchasedMarketAsset/);
+  assert.match(controller, /input\.staged\.assetPort\.verifyAccepted\(leg,descriptor,\{status:"accepted",receipt\}/);
+  assert.match(controller, /Only the exact buyer may accept this purchase/);
+  assert.match(controller, /adapter\.acceptIncomingAsset\(plan\.legs\[1\]\.legId\)/);
 });
 
 test("market exposes buyer-only reservation release and discovers expired reservations", () => {

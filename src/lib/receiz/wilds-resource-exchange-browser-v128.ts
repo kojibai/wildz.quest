@@ -56,6 +56,6 @@ export async function openWildsResourcePackageExchangeBrowserV128(input:Readonly
   ...(input.resolveOriginal?{resolveOriginal:input.resolveOriginal}:{})});
  // Exact grant/session live only in this operation's SDK closure. Recovery
  // stores public source bytes; it never stores an access token or signing key.
- return {sdk,exchange,database,session:opened.session,applicationId:configuration.applicationId,ownerReceizId:opened.author.ownerReceizId,keyId:keyFile.keyId,
+ return {sdk,exchange,database,sourceAuthor:opened.author,session:opened.session,applicationId:configuration.applicationId,ownerReceizId:opened.author.ownerReceizId,keyId:keyFile.keyId,
   identityArtifactDigest:transport.artifactDigest,consentStatement:canonicalizeReceizV122({statementDigest})};
 }

@@ -5,6 +5,8 @@ import type { openWildsResourcePackageExchangeBrowserV128 } from "../../../lib/r
 import type { WildsWalletCreatureAssetPortInputV128 } from "./wilds-wallet-creature-asset-port-v128";
 import type { createWildsWalletResourceSourceAssetPortV128 } from "./wilds-wallet-resource-source-controller-v128";
 import type { WildsWalletStagedTradeAssetPort, WildsWalletStagedTradeLeg } from "./wilds-wallet-staged-trade-types";
+import type { WildsWalletAssetSendAsset } from "./wilds-wallet-asset-send";
+import { canonicalPortableCardJson, sha256PortableBasis } from "../portable-card";
 
 type Runtime = Awaited<ReturnType<typeof openWildsResourcePackageExchangeBrowserV128>>;
 type ResourceInput = Parameters<typeof createWildsWalletResourceSourceAssetPortV128>[0];
@@ -48,7 +50,7 @@ export function createWildsWalletAssetPortV128(input: WildsWalletAssetPortInputV
     }
     return opening;
   };
-  let ports: Promise<Readonly<{ creature: WildsWalletStagedTradeAssetPort; resource: ResourcePort }>> | null = null;
+  let ports: Promise<Readonly<{ creature: ReturnType<typeof import("./wilds-wallet-creature-asset-port-v128")["createWildsWalletCreatureAssetPortV128"]>; resource: ResourcePort }>> | null = null;
   const loadPorts = () => {
     assertCurrent();
     if (!ports) ports = Promise.all([import("./wilds-wallet-creature-asset-port-v128"), import("./wilds-wallet-resource-source-controller-v128")]).then(([creature, resource]) => ({
@@ -71,5 +73,16 @@ export function createWildsWalletAssetPortV128(input: WildsWalletAssetPortInputV
       return current.acceptSource(leg, descriptor, authority);
     }
   };
-  return { ...port, openRuntime, unpackHeldPackage: async (packageId: string) => (await loadPorts()).resource.unpackHeldPackage(packageId), unpackReceivedPackage: async (...args: Parameters<ResourcePort["unpackReceivedPackage"]>) => (await loadPorts()).resource.unpackReceivedPackage(...args) };
+  return { ...port, openRuntime,
+    qualifyListing: async (asset: WildsWalletAssetSendAsset, summary?: string) => {
+      assertCurrent();
+      await input.flushGameplay(); assertCurrent();
+      if (asset.kind === "creature") return (await loadPorts()).creature.qualifyListing(asset, summary);
+      const { qualifyWildzMarketResourceSelectionV128 } = await import("../../../lib/receiz/wildz-market-resource-selection-v128");
+      const runtime = await openRuntime(); assertCurrent();
+      const selection = await qualifyWildzMarketResourceSelectionV128({runtime, asset, summary: summary?.trim() || "Resource package",
+        attemptId: `market-selection:${sha256PortableBasis(canonicalPortableCardJson({ownerHandle: input.ownerHandle, asset})).replace(/^sha256:/, "")}`});
+      assertCurrent(); return selection;
+    },
+    unpackHeldPackage: async (packageId: string) => (await loadPorts()).resource.unpackHeldPackage(packageId), unpackReceivedPackage: async (...args: Parameters<ResourcePort["unpackReceivedPackage"]>) => (await loadPorts()).resource.unpackReceivedPackage(...args) };
 }

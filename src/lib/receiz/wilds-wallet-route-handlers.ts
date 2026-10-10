@@ -72,6 +72,7 @@ export type WildsWalletStagedTransferProjection = Readonly<{
 
 export type WildsWalletTransferConsent = Readonly<{ artifact: unknown; challenge: unknown }>;
 export type WildsWalletConnectObservation = Readonly<{ attempt: string; senderHandle: string; recipientHandle: string; amountPhiMicro: string; operationNonce: string }>;
+export type WildsWalletConnectNoWriteObservation = WildsWalletConnectObservation & Readonly<{noWriteWitness:string}>;
 
 export interface WildsWalletTransferRouteRuntime {
   readonly durable: true;
@@ -91,6 +92,7 @@ export interface WildsWalletTransferRouteRuntime {
   ): Promise<unknown>;
   status(authority: WildsWalletReadAuthority, attempt: string, request?: NextRequest): Promise<unknown>;
   observe?(authority: WildsWalletReadAuthority, input: WildsWalletConnectObservation, request?: NextRequest): Promise<unknown>;
+  noWrite?(authority: WildsWalletReadAuthority,input:WildsWalletConnectNoWriteObservation,request?:NextRequest):Promise<unknown>;
   receive(authority: WildsWalletReadAuthority, amountPhiMicro: string | null, request?: NextRequest): Promise<unknown>;
 }
 
@@ -286,7 +288,8 @@ function exactTransferProjection(value: unknown): WildsWalletPhiTransferProjecti
     && isMicroPhi(item.amountPhiMicro)
     && typeof item.quotedUsdCents === "string" && /^[0-9]{1,30}$/.test(item.quotedUsdCents)) return Object.freeze(item) as WildsWalletPhiTransferProjection;
   if (item.status === "unknown" && exact(resultKeys) && isMicroPhi(item.amountPhiMicro)) return Object.freeze(item) as WildsWalletPhiTransferProjection;
-  if (item.status === "zero-write" && exact(["status", "rail", "code"]) && typeof item.code === "string" && /^[A-Z_]{3,64}$/.test(item.code)) return Object.freeze(item) as WildsWalletPhiTransferProjection;
+  if (item.status === "zero-write" && exact(["status", "rail", "code",...(item.noWriteWitness===undefined?[]:["noWriteWitness"])]) && typeof item.code === "string" && /^[A-Z_]{3,64}$/.test(item.code)
+    && (item.noWriteWitness===undefined||typeof item.noWriteWitness==="string"&&/^nw1\.[A-Za-z0-9_.-]{1,8192}$/.test(item.noWriteWitness))) return Object.freeze(item) as WildsWalletPhiTransferProjection;
   if (item.status === "committed" && exact(resultKeys) && isMicroPhi(item.amountPhiMicro)) return Object.freeze(item) as WildsWalletPhiTransferProjection;
   throw new Error("wilds_wallet_transfer_projection_invalid");
 }
@@ -661,6 +664,7 @@ function defaultDependencies(): WildsWalletRouteHandlerDependencies {
       consentChallenge: (authority: WildsWalletReadAuthority, input: Readonly<{ attempt: string; artifactDigest: string }>, request?: NextRequest) => liveTransferRuntime(authority, request).consentChallenge!(authority, input),
       preview: (authority: WildsWalletReadAuthority, command: WildsWalletTransferPreviewCommand, request?: NextRequest) => liveTransferRuntime(authority, request).preview(authority, command),
       execute: (authority: WildsWalletReadAuthority, command: Readonly<{ attempt: string; consent: WildsWalletTransferConsent }>, request?: NextRequest) => liveTransferRuntime(authority, request).execute(authority, command),
+      noWrite:(authority:WildsWalletReadAuthority,command:WildsWalletConnectNoWriteObservation,request?:NextRequest)=>{const runtime=liveTransferRuntime(authority,request);if(!runtime.noWrite)throw Error("receiz_wallet_transfer_unavailable");return runtime.noWrite(authority,command);},
       status: (authority: WildsWalletReadAuthority, attempt: string, request?: NextRequest) => liveTransferRuntime(authority, request).status(authority, attempt),
       observe: (authority: WildsWalletReadAuthority, input: WildsWalletConnectObservation, request?: NextRequest) => liveTransferRuntime(authority, request).observe!(authority, input),
       receive: (authority: WildsWalletReadAuthority, amountPhiMicro: string | null, request?: NextRequest) => liveTransferRuntime(authority, request).receive(authority, amountPhiMicro)
@@ -822,6 +826,17 @@ export function createWildsWalletRouteHandlers(
       }
     },
 
+    async transferNoWrite(request:NextRequest){
+      try{
+        assertSameOrigin(request);const authority=await dependencies.resolveAuthority(request);
+        const body=assertExactFields(await readJsonBody(request),["attempt","senderHandle","recipientHandle","amountPhiMicro","operationNonce","noWriteWitness"]);
+        if(typeof body.attempt!=="string"||!body.attempt.startsWith("v3.")||!validAttemptText(body.attempt)||typeof body.noWriteWitness!=="string"||!/^nw1\.[A-Za-z0-9_.-]{1,8192}$/.test(body.noWriteWitness)||typeof body.operationNonce!=="string"||!OPERATION_NONCE.test(body.operationNonce))throw Error("wilds_wallet_transfer_request_invalid");
+        const runtime=transferRuntimeOrThrow(dependencies.transferRuntime);if(!runtime.noWrite)throw Error("receiz_wallet_transfer_unavailable");
+        const value=await runtime.noWrite(authority,{attempt:body.attempt,senderHandle:`${normalizeWildsWalletPublicUsername(body.senderHandle)}.receiz.id`,recipientHandle:`${normalizeWildsWalletPublicUsername(body.recipientHandle)}.receiz.id`,amountPhiMicro:parseWildsWalletMicroPhi(body.amountPhiMicro),operationNonce:body.operationNonce,noWriteWitness:body.noWriteWitness},request);
+        if(!value||typeof value!=="object"||Object.keys(value).sort().join(",")!=="code,rail,retryAfterKai,status,terminal"||(value as Record<string,unknown>).status!=="zero-write"||(value as Record<string,unknown>).rail!=="settlement"||(value as Record<string,unknown>).code!=="INSUFFICIENT_VALUE"||typeof (value as Record<string,unknown>).terminal!=="boolean"||!Number.isSafeInteger((value as Record<string,unknown>).retryAfterKai))throw Error("wilds_wallet_transfer_projection_invalid");
+        return json(value);
+      }catch(cause){return failure(cause,"receiz_wallet_transfer_unavailable");}
+    },
     async transferObserve(request: NextRequest) {
       try {
         const authority = await dependencies.resolveAuthority(request);

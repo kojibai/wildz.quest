@@ -262,6 +262,7 @@ export function WildzWorldControls({
         projectWildsCapabilityControls(activeCard, cardConditions[activeCard.id] ?? emptyAdventureCondition(activeCard.id))
       )
     : []), [suppliedCapabilityControls, activeCard, cardConditions]);
+  const quickActionCount = capabilityControls.length + 1 + Number(Boolean(nourishment)) + Number(Boolean(bedSleep)) + (verticalControlsVisible ? 2 : 0);
   const activeEntry = companionRoster.find((entry) => entry.active) ?? null;
   const swimSpecialty = useMemo(() => {
     if (!activeCard) return "aquatic movement";
@@ -319,9 +320,8 @@ export function WildzWorldControls({
               {traversalCapabilities.includes("climb") ? <span role="img" aria-label="Automatic climbing" title="Your active companion can climb suitable terrain automatically."><Icons.climb aria-hidden="true" size={13} /></span> : null}
             </div>
           ) : null}
-          <button aria-label="Open creature crew" className="wildz-crew-control" title="Creature crew" disabled={!worldHomesEnabled} onClick={onOpenCrew} type="button"><Icons.roam aria-hidden="true" size={21} /></button>
-          {bedSleep ? <button aria-label={bedSleep.sleeping ? "Wake up" : "Sleep in bed"} title={bedSleep.sleeping ? "Wake up" : "Sleep in bed"} disabled={!worldHomesEnabled} onClick={handleBedSleep} type="button"><Icons.sleep aria-hidden="true" size={20} /></button> : null}
-          {nourishment ? <WildsNourishmentPill {...nourishment} enabled={worldHomesEnabled} cancelSignal={gestureCancelSignal} /> : null}
+          <div className={`wildz-utility-actions${quickActionCount % 2 ? " has-odd-actions" : ""}`}>
+          {bedSleep ? <button aria-label={bedSleep.sleeping ? "Wake up" : "Sleep in bed"} className="wildz-bed-sleep-control" title={bedSleep.sleeping ? "Wake up" : "Sleep in bed"} disabled={!worldHomesEnabled} onClick={handleBedSleep} type="button"><Icons.sleep aria-hidden="true" size={20} /></button> : null}
           <WildsCapabilityControls
             activeAerialMode={aerialMode}
             contexts={capabilityContexts}
@@ -363,6 +363,9 @@ export function WildzWorldControls({
               type="button"
             ><Icons.chevronDown size={18} /></button>
           </div> : null}
+          <button aria-label="Open creature crew" className="wildz-crew-control" title="Creature crew" disabled={!worldHomesEnabled} onClick={onOpenCrew} type="button"><Icons.roam aria-hidden="true" size={21} /></button>
+          {nourishment ? <WildsNourishmentPill {...nourishment} enabled={worldHomesEnabled} cancelSignal={gestureCancelSignal} /> : null}
+          </div>
           {traversalStatus ? <span aria-live="polite" className={`wildz-flight-status wildz-traversal-status${aerialEnergy <= 25 ? " is-low" : ""}`}>{traversalStatus}</span> : null}
           {verticalStatus ? <span aria-live="polite" className="wildz-vertical-status">{verticalStatus}</span> : null}
         </div>

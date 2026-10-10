@@ -18,7 +18,7 @@ function fixture() {
     throw Error("unexpected endpoint");
   };
   const input = { keyId, ownerHandle: leg.senderHandle, store, fetcher, authorization: { authorize: async () => { authorizations++; return { artifact: "synthetic encrypted artifact", challenge: {} }; } } };
-  return { input, calls, saved: () => saved, executes: () => executes, writes: () => writes, observations: () => observations, authorizations: () => authorizations, corrupt: () => { corruptRead = true; }, quota: () => { quota = true; } };
+  return { input, calls, saved: () => saved, executes: () => executes, writes: () => writes, observations: () => observations, authorizations: () => authorizations, corrupt: () => { corruptRead = true; }, quota: () => { quota = true; }, seed:(value:unknown)=>{saved=structuredClone(value);}, status:(value:string)=>{status=value;} };
 }
 
 test("staged Phi durably binds the exact Connect attempt and reconstruction only observes a lost response", async () => {
@@ -63,4 +63,50 @@ test("peer settlement receipt is only a locator and must be independently observ
   assert.equal(query.get("recipientHandle"), leg.recipientHandle);
   assert.equal(query.get("amountPhiMicro"), leg.amountPhiMicro);
   assert.equal(f.executes(), 1);
+});
+
+test("purchase preflight rejection after exact device consent keeps payment prepared and dispatches no debit", async () => {
+  const f = fixture();
+  const port = createWildsWalletConnectPhiPort({ ...f.input, beforeSubmit: async () => { throw Error("The USD quote changed. Review the exact purchase again."); } });
+  const result = await port.sendPhi(leg);
+  assert.equal(result.status, "failed"); assert.equal(f.authorizations(), 1); assert.equal(f.executes(), 0);
+  assert.equal((f.saved() as {entries:Array<{phase:string}>}).entries[0]?.phase, "prepared");
+});
+
+test("an insufficient rejection survives cold reconstruction and cannot become a second financial send",async()=>{
+ const f=fixture();let terminal=false,executions=0;
+ const input={...f.input,fetcher:async(path:string,init:any)=>{
+  if(path.endsWith("/execute")){executions++;return Response.json({status:"zero-write",rail:"settlement",code:"INSUFFICIENT_VALUE",noWriteWitness:"nw1.exact-actual-rejection"});}
+  if(path.endsWith("/no-write"))return Response.json({status:"zero-write",rail:"settlement",code:"INSUFFICIENT_VALUE",terminal,retryAfterKai:200});
+  return f.input.fetcher(path,init);
+ }};
+ const sent=await createWildsWalletConnectPhiPort(input).sendPhi(leg);assert.equal(sent.status,"failed");assert.equal((f.saved() as any).entries[0].phase,"rejected");
+ const restored=createWildsWalletConnectPhiPort(input);assert.equal((await restored.sendPhi(leg)).status,"failed");assert.equal(executions,1);
+ await assert.rejects(restored.verifyPhiZeroWrite(leg,sent.receipt),/authorization window/);terminal=true;await restored.verifyPhiZeroWrite(leg,sent.receipt);
+ f.status("committed");assert.equal((await restored.observePhi(leg,sent.receipt)).status,"committed","a historical rejection never overrides actual native settlement");
+ await assert.rejects(restored.verifyPhiZeroWrite(leg,sent.receipt));assert.equal(executions,1);
+});
+test("a full Phi queue archives a canonical committed original before eviction and old retry observes only its archived nonce",async()=>{
+ const f=fixture();
+ const entries=Array.from({length:128},(_,index)=>({leg:{attemptId:`archived:${index}`,senderHandle:leg.senderHandle,recipientHandle:leg.recipientHandle,amountPhiMicro:leg.amountPhiMicro},attempt:`v3.original-${index}`,phase:"submitted"}));
+ f.seed({schema:"wildz.wallet.connect-phi-recovery.v1",ownerHandle:leg.senderHandle,keyId,entries});f.status("committed");
+ const retained=new Map<string,any>();const archive={read:async(_binding:unknown,leg:any)=>structuredClone(retained.get(leg.attemptId)??null),retain:async(_binding:unknown,entry:any)=>{retained.set(entry.leg.attemptId,structuredClone(entry));return structuredClone(entry);}};
+ const port=createWildsWalletConnectPhiPort({...f.input,archiveStore:archive});assert.equal((await port.sendPhi(leg)).status,"pending");assert.equal((f.saved() as any).entries.length,128);assert.equal(retained.size,1);
+ const archived=[...retained.values()][0];assert.ok(archived);const before=f.executes();const previews=f.calls.filter(call=>call.path.endsWith("/preview")).length;
+ assert.equal((await createWildsWalletConnectPhiPort({...f.input,archiveStore:archive}).sendPhi(archived.leg)).status,"committed");assert.equal(f.executes(),before);assert.equal(f.calls.filter(call=>call.path.endsWith("/preview")).length,previews);
+});
+test("full uncertain Phi queues perform bounded reads and archive failures preserve all active originals before preview",async()=>{
+ for(const committed of [false,true]){
+  const f=fixture();const entries=Array.from({length:128},(_,index)=>({leg:{attemptId:`protected:${index}`,senderHandle:leg.senderHandle,recipientHandle:leg.recipientHandle,amountPhiMicro:leg.amountPhiMicro},attempt:`v3.protected-${index}`,phase:"submitted"}));const record={schema:"wildz.wallet.connect-phi-recovery.v1",ownerHandle:leg.senderHandle,keyId,entries};f.seed(record);if(committed)f.status("committed");
+  const archive={read:async()=>null,retain:async()=>{throw Error("archive quota");}};
+  assert.equal((await createWildsWalletConnectPhiPort({...f.input,archiveStore:archive}).sendPhi(leg)).status,"failed");assert.deepEqual((f.saved() as any).entries,record.entries);assert.equal(f.executes(),0);assert.equal(f.calls.some(call=>call.path.endsWith("/preview")),false);assert.equal(f.observations(),3);
+ }
+});
+
+test("bounded archive checks advance past uncertain originals without evicting them or starving verified completed history",async()=>{
+ const f=fixture(),entries=Array.from({length:128},(_,index)=>({leg:{attemptId:`mixed:${index}`,senderHandle:leg.senderHandle,recipientHandle:leg.recipientHandle,amountPhiMicro:leg.amountPhiMicro},attempt:`v3.mixed-${index}`,phase:"submitted"}));f.seed({schema:"wildz.wallet.connect-phi-recovery.v1",ownerHandle:leg.senderHandle,keyId,entries});f.status("committed");
+ const retained=new Map<string,any>(),archive={read:async(_binding:unknown,leg:any)=>structuredClone(retained.get(leg.attemptId)??null),retain:async(_binding:unknown,entry:any)=>{retained.set(entry.leg.attemptId,structuredClone(entry));return structuredClone(entry);}};
+ const input={...f.input,archiveStore:archive,fetcher:async(path:string,init:any)=>{if(path.includes("/observe?")){const attempt=new URL(path,"https://wildz.test").searchParams.get("attempt");if(["v3.mixed-0","v3.mixed-1","v3.mixed-2"].includes(attempt??""))return Response.json({status:"unknown"});}return f.input.fetcher(path,init);}};
+ assert.equal((await createWildsWalletConnectPhiPort(input).sendPhi(leg)).status,"failed");assert.equal(retained.size,0);assert.equal((await createWildsWalletConnectPhiPort(input).sendPhi(leg)).status,"pending");assert.equal(retained.size,1);assert.equal(f.executes(),1);
+ assert.deepEqual((f.saved() as any).entries.slice(0,3),entries.slice(0,3),"uncertain original bytes remain active");
 });

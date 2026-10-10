@@ -11,10 +11,10 @@ import {readWildzProfileDisplayName,saveWildzProfileDisplayName} from "../profil
 
 import { emitWildsPlaytestEvent } from "@/features/play/wilds-playtest-events";
 import { WildzMarketSheet } from "@/features/market/WildzMarketSheet";
+import type { WildzMarketServiceV128 } from "@/features/market/wildz-market-service-v128";
 import { PlayCampaign } from "@/features/play/PlayCampaign";
 import { generateIdentityBoundWildzCharacter, type WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { applyWildsInput, createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
-import type { WildsResourcePackageV1 } from "@/features/play/wilds-resource-package";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import {
   createWildsPlayerVault,
@@ -166,6 +166,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const [identityActivationRevision, setIdentityActivationRevision] = useState(0);
   const [paintedWorldKey, setPaintedWorldKey] = useState<string | null>(null);
   const [continuity, setContinuity] = useState<WildzContinuitySnapshot | null>(null);
+  const [marketService, setMarketService] = useState<WildzMarketServiceV128 | null>(null);
   const continuityRef = useRef<WildzContinuitySnapshot | null>(null);
   const playerStateSyncTimerRef = useRef<number | null>(null);
   const playerStateSyncInFlightRef = useRef(false);
@@ -1285,31 +1286,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     }, true);
   }, [acceptSnapshot]);
 
-  const admitPurchasedResourcePackage = useCallback((packageProof: WildsResourcePackageV1) => {
-    window.dispatchEvent(new CustomEvent("wildz:resource-package-settled", { detail: { packageId: packageProof.packageId } }));
-  }, []);
-
-  const admitPurchasedMarketAsset = useCallback((asset: PortableCardAsset) => {
-    const current = continuityRef.current;
-    if (!current?.playState || !current.playerContinuity) throw new Error("wildz_market_vault_unavailable");
-    const playState = applyWildsInput(current.playState, { type: "import-card", asset });
-    const admitted = playState.inventory.find((candidate) => candidate.id === asset.id);
-    if (!admitted || admitted.proof.digest !== asset.proof.digest) throw new Error("wildz_market_asset_admission_failed");
-    const snapshot = { ...current, playState };
-    acceptSnapshot(snapshot);
-    playStateSaveSchedulerRef.current?.schedule({
-      snapshot,
-      playState,
-      previousInventory: current.playState.inventory,
-      playerContinuity: current.playerContinuity
-    }, true);
-    if (typeof BroadcastChannel !== "undefined") {
-      const channel = new BroadcastChannel("receiz:wildz:ownership:v119");
-      channel.postMessage({ ownerActorId: current.session.actorId, assetIds: [asset.id] });
-      channel.close();
-    }
-  }, [acceptSnapshot]);
-
   useEffect(() => {
     const current = continuityRef.current;
     const assetIds = current?.playState?.inventory.map((asset) => asset.id) ?? [];
@@ -1428,25 +1404,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           onRestoreRoamingCapture={restoreRoamingCapture}
           onOpenProfile={(origin) => openShellOverlay({ kind: "profile", username: `@${ownerUsername}` }, origin)}
           onOpenMarket={(origin) => openShellOverlay({ kind: "market" }, origin)}
-          onListAsset={async (asset, priceCents) => {
-            if (!proofSessionConnected) return null;
-            const headResponse = await fetch("/api/market/listings", { method: "GET", credentials: "same-origin", cache: "no-store" });
-            const headResult = await headResponse.json().catch(() => null) as { status?: unknown; head?: { revision?: unknown; appendAnchorId?: unknown } } | null;
-            const head = headResult?.head;
-            if (!headResponse.ok || headResult?.status !== "ready" || !head || !Number.isInteger(head.revision)
-              || (head.appendAnchorId !== null && typeof head.appendAnchorId !== "string")) return null;
-            const expectedRevision = Number(head.revision);
-            const expectedAppendAnchorId = head.appendAnchorId as string | null;
-            const idempotencyKey = `list:${ownerUsername}:${asset.id}:${asset.proof.digest.slice(7, 23)}`;
-            const response = await fetch("/api/market/listings", {
-              method: "POST",
-              credentials: "same-origin",
-              headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
-              body: JSON.stringify({ asset, priceCents, expectedRevision, expectedAppendAnchorId })
-            });
-            if (!response.ok) return null;
-            return { ...asset, status: "listed" as const, synchronizedAt: new Date().toISOString() };
-          }}
+          onMarketServiceChange={setMarketService}
         /> : null}
         {!worldPainted && <div className="wildz-identity-loading">
           <Image src="/brand/wildz-mark.svg" alt="" width={64} height={64} priority />
@@ -1525,11 +1483,9 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             onSaveVault={saveCombinedVault}
             savePreparing={combinedVaultPreparing}
           /> : overlay.kind === "market" ? <WildzMarketSheet
-            listings={[]}
-            buyer={`@${ownerUsername}`}
             connected={proofSessionConnected}
-            onSettlement={admitPurchasedMarketAsset}
-            onResourcePackageSettlement={admitPurchasedResourcePackage}
+            service={marketService && marketService.binding.keyId === identity?.keyId
+              && sameWildzPlayerCoordinate(marketService.binding.ownerHandle, ownerUsername) ? marketService : null}
           /> : <div className="wildz-shell-overlay-placeholder">
             <Image src="/brand/wildz-mark.svg" alt="" width={48} height={48} />
             <strong>{overlay.kind}</strong>

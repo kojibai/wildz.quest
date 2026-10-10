@@ -106,7 +106,7 @@ export function createWildsResourceSourceClientV128(input: Readonly<{
   recoveryStore: WildsResourceSourceRecoveryStoreV128;
 }>) {
   const pending = new Map<string, Promise<WildsResourceSourcePublishResultV128>>();
-  const execute = async (request: Readonly<{ attemptId: string; page: WildsResourceSourcePageV128; beforeCommit?: () => Promise<void> }>): Promise<WildsResourceSourcePublishResultV128> => {
+  const execute = async (request: Readonly<{ attemptId: string; page: WildsResourceSourcePageV128; beforeCommit?: (sourceArtifact: ReceizPortableSealedArtifactV124) => Promise<void> }>): Promise<WildsResourceSourcePublishResultV128> => {
     if (!/^[A-Za-z0-9:._-]{6,180}$/.test(request.attemptId)) throw Error("wilds_resource_source_attempt_invalid");
     checkSession(input.authority, input.session);
     const page = structuredClone(request.page), ownerReceizId = input.authority.ownerReceizId;
@@ -140,7 +140,7 @@ export function createWildsResourceSourceClientV128(input: Readonly<{
       // Gameplay reach/head fences are ephemeral. Recheck after asynchronous
       // proof preparation and durable Original retention, immediately before
       // the source CAS. They never become replay bytes or recovery authority.
-      await request.beforeCommit?.();
+      await request.beforeCommit?.(sourceArtifact);
       const publication = await input.sdk.sources.publishSealedSourceV124({ applicationId: input.authority.grant.applicationId, authoritySessionHandle: input.session.authoritySessionHandle, sourceArtifact });
       if (publication.artifactSha256 !== sourceArtifact.artifactSha256 || publication.sourceKind !== "replay-segment"
         || !["published", "idempotent"].includes(publication.status)) throw Error("wilds_resource_source_publication_unconfirmed");
@@ -151,7 +151,7 @@ export function createWildsResourceSourceClientV128(input: Readonly<{
     }
   };
   return {
-    publish(request: Readonly<{ attemptId: string; page: WildsResourceSourcePageV128; beforeCommit?: () => Promise<void> }>) {
+    publish(request: Readonly<{ attemptId: string; page: WildsResourceSourcePageV128; beforeCommit?: (sourceArtifact: ReceizPortableSealedArtifactV124) => Promise<void> }>) {
       const running = pending.get(request.attemptId);
       // Separate requests still pass durable request conflict checks; serialize
       // this client rather than returning another request's apparent success.

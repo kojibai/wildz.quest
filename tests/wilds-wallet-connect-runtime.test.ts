@@ -19,6 +19,7 @@ async function fixture() {
   let lostReply = false;
   let corruptMember = false;
   let debitCount = 0;
+  let endlessPages=false,pageIndex=0,insufficient=false,now=receizKaiNow().pulse;
   const calls: { path: string; body: any }[] = [];
   const committed = new Map<string, any>();
   const fetchImpl: typeof fetch = async (url, init) => {
@@ -31,7 +32,7 @@ async function fixture() {
     }
     if (path.endsWith("/messages")) {
       assert.equal(new Headers(init?.headers).get("cookie"), "receiz_session=fixture-upstream-cookie");
-      return Response.json({ ok: true, conversation: { id: CONVERSATION }, messages: [...committed.values()], hasMore: false, nextCursor: null });
+      return Response.json({ ok: true, conversation: { id: CONVERSATION }, messages: [...committed.values()], hasMore: endlessPages, nextCursor: endlessPages?new Date(Date.now()-(++pageIndex)*86_400_000).toISOString():null });
     }
     if (path === "/api/connect/wallet/me") return Response.json({ ok: true, wallet: { userId: OWNER, balancePhiMicro: "9007199254740993000000", quote: { usdPerPhiMicrocents: "1000000000000" } } });
     if (path === "/api/sdk/v1/identity/proof-authority/exchange") {
@@ -40,6 +41,7 @@ async function fixture() {
       return Response.json({ ...basis, authorityDigest: await digestReceizCanonicalV122(basis), accessToken: "fixture-write" });
     }
     if (path === "/api/connect/transfers") {
+      if(insufficient)return Response.json({ok:false,error:"wallet_insufficient_funds"},{status:409});
       assert.equal(new Headers(init?.headers).get("authorization"), "Bearer fixture-write");
       const previous = committed.get(body.clientNonce);
       if (!previous) {
@@ -59,7 +61,7 @@ async function fixture() {
     return { client, walletSummary: () => client.connect.wallet(), connectTransfer: (body: any, idempotencyKey?: string) => client.connect.transfer(body, { idempotencyKey }), exchangeProofAuthorityV123: (body: any) => client.identity.exchangeProofAuthority(body), introspectAccessToken: async () => ({ active: true, sub: OWNER, scope: "receiz:wallet.read receiz:wallet.transfer", actor_label: keyFile.keyId }) };
   };
   const connectRuntimeModule = await import(modulePath);
-  const create = (admittedSession: unknown = session) => connectRuntimeModule.createWildsWalletConnectTransferRuntime({ session: admittedSession, createAdapter, fetchImpl, secret: SECRET, applicationId: WILDZ_RECEIZ_APPLICATION_ID, currentKai: () => receizKaiNow().pulse });
+  const create = (admittedSession: unknown = session) => connectRuntimeModule.createWildsWalletConnectTransferRuntime({ session: admittedSession, createAdapter, fetchImpl, secret: SECRET, applicationId: WILDZ_RECEIZ_APPLICATION_ID, currentKai: () => now });
   const consent = async (attempt: string, scopes = receizOidcScopesForRails("wallet")) => {
     // Use the SDK's exact artifact digest, never the fixture's display account.
     const { sha256ReceizBytes } = await import("@receiz/sdk");
@@ -67,7 +69,7 @@ async function fixture() {
     return { artifact, challenge: { ...signed.challenge, proof: await signReceizIdentityLoginProof({ keyFile, passphrase: "fixture-only", challengeB64Url: signed.challengeB64Url }) } };
   };
   const command = { recipientUsername: "bob", amountPhiMicro: "9007199254740993", rail: "settlement", operationNonce: "88888888-8888-4888-8888-888888888888" };
-  return { authority, session, create, command, consent, calls, committed, debitCount: () => debitCount, loseReply: () => { lostReply = true; }, corruptMember: () => { corruptMember = true; } };
+  return { authority, session, create, command, consent, calls, committed, debitCount: () => debitCount, loseReply: () => { lostReply = true; }, corruptMember: () => { corruptMember = true; },insufficient:()=>{insufficient=true;},clearInsufficient:()=>{insufficient=false;},endlessPages:()=>{endlessPages=true;},setKai:(value:number)=>{now=value;} };
 }
 
 test("released SDK Connect Send resolves real members and moves exact micro-Phi once across a lost reply and runtime reconstruction", async () => {
@@ -88,6 +90,17 @@ test("released SDK Connect Send resolves real members and moves exact micro-Phi 
   assert.equal(writes[0].body.conversationId, CONVERSATION);
   assert.equal(writes[0].body.recipientUserId, PEER);
   assert.equal(new Set(writes.map(call => call.body.clientNonce)).size, 1);
+});
+test("actual SDK insufficient rejection yields a bounded retry witness that cannot release before original consent expiry",async()=>{
+ const f=await fixture(),staged=await f.create().preview(f.authority,f.command);f.insufficient();
+ const outcome=await f.create().execute(f.authority,{attempt:staged.attempt,consent:await f.consent(staged.attempt)});
+ assert.equal(outcome.status,"zero-write");assert.match(outcome.noWriteWitness,/^nw1\./);assert.equal(typeof f.create().noWrite,"function");
+ const exact={attempt:staged.attempt,senderHandle:"alice.receiz.id",recipientHandle:"bob.receiz.id",amountPhiMicro:f.command.amountPhiMicro,operationNonce:f.command.operationNonce,noWriteWitness:outcome.noWriteWitness};
+ const early=await f.create().noWrite(f.authority,exact);assert.equal(early.terminal,false);assert.equal(early.retryAfterKai,staged.expiresAtKai);
+ f.setKai(staged.expiresAtKai);assert.equal((await f.create().noWrite(f.authority,exact)).terminal,true);
+ await assert.rejects(f.create().noWrite(f.authority,{...exact,amountPhiMicro:"1"}),/binding_invalid/);
+ await assert.rejects(f.create().noWrite(f.authority,{...exact,noWriteWitness:outcome.noWriteWitness.slice(0,-2)+"ab"}),/invalid/);
+ await assert.rejects(f.create().execute(f.authority,{attempt:staged.attempt,consent:await f.consent(staged.attempt)}),/review_expired/);assert.equal(f.debitCount(),0);
 });
 
 test("Connect preview refuses a mismatched canonical recipient without a financial write", async () => {
@@ -145,4 +158,16 @@ test("a recipient independently observes only the exact sealed Connect leg witho
   await assert.rejects(f.create({ ...peerSession, userId: "66666666-6666-4666-8666-666666666666" }).observe({ ...peerAuthority, ownerReceizId: "66666666-6666-4666-8666-666666666666" }, leg), /identity_mismatch/);
   assert.equal(f.calls.filter(call => call.path === "/api/connect/transfers").length, before);
   assert.equal(f.debitCount(), 1);
+});
+
+test("a known rejection witness never overrides an actual later canonical commitment of the same native nonce",async()=>{
+ const f=await fixture(),staged=await f.create().preview(f.authority,f.command);f.insufficient();
+ const rejected=await f.create().execute(f.authority,{attempt:staged.attempt,consent:await f.consent(staged.attempt)});assert.equal(rejected.status,"zero-write");
+ f.clearInsufficient();const actual=await f.create().execute(f.authority,{attempt:staged.attempt,consent:await f.consent(staged.attempt)});assert.equal(actual.status,"committed");f.setKai(staged.expiresAtKai);
+ await assert.rejects(f.create().noWrite(f.authority,{attempt:staged.attempt,senderHandle:"alice.receiz.id",recipientHandle:"bob.receiz.id",amountPhiMicro:f.command.amountPhiMicro,operationNonce:f.command.operationNonce,noWriteWitness:rejected.noWriteWitness}),/committed_since_rejection/);assert.equal(f.debitCount(),1);
+});
+
+test("truncated canonical history remains unknown and cannot qualify rejected-payment closure",async()=>{
+ const f=await fixture(),staged=await f.create().preview(f.authority,f.command);f.insufficient();const rejected=await f.create().execute(f.authority,{attempt:staged.attempt,consent:await f.consent(staged.attempt)});f.setKai(staged.expiresAtKai);f.endlessPages();
+ await assert.rejects(f.create().noWrite(f.authority,{attempt:staged.attempt,senderHandle:"alice.receiz.id",recipientHandle:"bob.receiz.id",amountPhiMicro:f.command.amountPhiMicro,operationNonce:f.command.operationNonce,noWriteWitness:rejected.noWriteWitness}),/receipt_unavailable/);assert.equal(f.debitCount(),0);
 });

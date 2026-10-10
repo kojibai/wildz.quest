@@ -44,7 +44,7 @@ import type { CreationCompileContext } from "./creation/compiler";
 import creationPanelClasses from "./creation/creation.module.css";
 import { useWildsResourceExchange } from './use-wilds-resource-exchange';
 import { foodUnavailableForExchange } from './wilds-resource-exchange-inventory';
-import type { WildsWalletAssetSendRequest } from './wallet/wilds-wallet-asset-send';
+import type { WildsWalletAssetSendRequest, WildsWalletAssetSendSelection } from './wallet/wilds-wallet-asset-send';
 import { reconcileWildsNourishmentCustody, recoverWildsUnpackedPackageFood, creditWildsImportedPackageFood } from './wilds-nourishment';
 import {recoverWildsWalletSourceFoodV128,selectWildsWalletSourceLotsV128} from './wallet/wilds-wallet-resource-use-projection-v128';
 import { hasRecoverableWildsNativeFood, recoverWildsNativeFoodFuel } from './wilds-food-fuel-recovery';
@@ -197,6 +197,9 @@ import { WILDZ_CARE_NOTIFICATIONS_READY, WILDZ_CARE_SCHEDULE_MESSAGE } from "@/f
 import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
 import { createWildsDreamTrial, type WildsDreamTrial } from "./wilds-dream-trial";
 import { useWildsWalletStagedTrade } from "./wallet/useWildsWalletStagedTrade";
+import type { WildzMarketServiceV128 } from "../market/wildz-market-service-v128";
+import { createLazyWildzMarketServiceV128 } from "../market/wildz-lazy-market-service-v128";
+import { projectWildzMarketHeldSelectionsV128 } from "../market/wildz-market-held-selections-v128";
 import { createWildsWalletAssetPortV128 } from "./wallet/wilds-wallet-asset-port-v128";
 import { createWildsWalletResourceProjectionStoreV128 } from "./wallet/wilds-wallet-resource-projection-store-v128";
 import { projectWildsWalletResourceProjectionsV128, type WildsWalletResourceProjectionRowV128 } from "./wallet/wilds-wallet-resource-projection-v128";
@@ -343,6 +346,7 @@ export function PlayCampaign({
   character,
   playerDisplayName = "Wildz Explorer",
   onListAsset,
+  onMarketServiceChange,
   shellOverlayOwner = "none",
   onOpenProfile = () => {},
   onOpenMarket = () => {},
@@ -378,6 +382,7 @@ export function PlayCampaign({
   character: WildzCharacterGenesis;
   playerDisplayName?: string;
   onListAsset?: (asset: PortableCardAsset, priceCents: number) => Promise<PortableCardAsset | null>;
+  onMarketServiceChange?: (service: WildzMarketServiceV128 | null) => void;
   shellOverlayOwner?: "none" | "profile" | "market";
   onOpenProfile?: (restoreOrigin: HTMLElement | null) => void;
   onOpenMarket?: (restoreOrigin: HTMLElement | null) => void;
@@ -1078,7 +1083,7 @@ export function PlayCampaign({
   const walletTradeOwnerHandle = walletPublicUsername ? `${walletPublicUsername.replace(/\.receiz\.id$/, "").toLowerCase()}.receiz.id` : null;
   const walletTradeIdentityRef = useRef({keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle});
   walletTradeIdentityRef.current = {keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle};
-  const {readTradeConversations, sendBearerGift, sendResourceSource} = messenger;
+  const {readTradeConversations, sendBearerGift, sendResourceSource, sendStagedTrade} = messenger;
   const [walletSourceRows, setWalletSourceRows] = useState<{keyId: string; owner: string; rows: readonly WildsWalletResourceProjectionRowV128[]} | null>(null);
   const currentWalletSourceRows = walletSourceRows && walletSourceRows.keyId === walletReadIdentityKey && walletSourceRows.owner === walletTradeOwnerHandle ? walletSourceRows.rows : EMPTY_WALLET_SOURCE_ROWS;
   const walletSourceProjection = useMemo(() => projectWildsWalletResourceProjectionsV128(currentWalletSourceRows), [currentWalletSourceRows]);
@@ -1108,7 +1113,7 @@ export function PlayCampaign({
       card: id => {
         const card = walletSourceLive.current.state.inventory.find(card => card.id === id);
         if (!card || !canOperateWildzCrewCard(card, capturedActor, walletSourceLive.current.crewCustody)
-          || ["listed", "suspended", "revoked"].includes(card.status)) throw Error("This exact creature is unavailable to send.");
+          || ["suspended", "revoked"].includes(card.status)) throw Error("This exact creature is unavailable to send.");
         return card;
       },
       prepareCard: card => {
@@ -1257,28 +1262,106 @@ export function PlayCampaign({
     if (expectedIdentity.keyId && expectedIdentity.ownerHandle) setWalletSourceRows({keyId: expectedIdentity.keyId, owner: expectedIdentity.ownerHandle, rows});
     return {projection: admitted.projection, events: admitted.events};
   };
+  const ensureWalletTradeReady = useCallback(async () => {
+    const expected = {...walletTradeIdentityRef.current};
+    const {defaultIdentityRepository, connectWildzProofSession} = await import("@/lib/receiz/wildz-identity-adapter");
+    const active = await defaultIdentityRepository.active();
+    if (!active || active.localAuthority !== "verified" || active.keyId !== expected.keyId || active.actorId !== ownerReceizId) return false;
+    const connected = await connectWildzProofSession(active, {forceRemote: true});
+    const current = await defaultIdentityRepository.active();
+    return current?.keyId === expected.keyId && connected.status === "connected" && connected.sessionKeyId === expected.keyId
+      && walletTradeIdentityRef.current.keyId === expected.keyId && walletTradeIdentityRef.current.ownerHandle === expected.ownerHandle;
+  }, [ownerReceizId]);
+  const [marketListedCards, setMarketListedCards] = useState<{keyId:string;ownerHandle:string;ids:readonly string[]} | null>(null);
+  const marketListedCardsRef = useRef(marketListedCards);
+  marketListedCardsRef.current = marketListedCards;
+  const currentMarketListedCardIds = marketListedCards && marketListedCards.keyId === walletReadIdentityKey && marketListedCards.ownerHandle === walletTradeOwnerHandle ? marketListedCards.ids : [];
+  const genericWalletAssetPort = useMemo(() => walletAssetPort ? {
+    ...walletAssetPort,
+    prepareSource: async (leg: Parameters<typeof walletAssetPort.prepareSource>[0]) => {
+      const asset = leg.request.asset;
+      const listed = marketListedCardsRef.current;
+      if (asset.kind === "creature" && (walletSourceLive.current.state.inventory.find(card => card.id === asset.assetId)?.status === "listed"
+        || listed && listed.keyId === walletTradeIdentityRef.current.keyId && listed.ownerHandle === walletTradeIdentityRef.current.ownerHandle && listed.ids.includes(asset.assetId)))
+        throw Error("Cancel this creature's market listing before offering it in Wallet.");
+      return walletAssetPort.prepareSource(leg);
+    }
+  } : null, [walletAssetPort]);
+  const marketReadSelectionsRef = useRef<() => readonly WildsWalletAssetSendSelection[]>(() => []);
+  const marketActiveRef = useRef(true);
+  const lazyMarket = useMemo(() => {
+    const keyId = walletReadIdentityKey, ownerHandle = walletTradeOwnerHandle;
+    if (!keyId || !ownerHandle || !walletAssetPort) return null;
+    const currentIdentity = () => {
+      const identity = walletTradeIdentityRef.current;
+      if (!marketActiveRef.current || identity.keyId !== keyId || identity.ownerHandle !== ownerHandle) throw Error("The Explorer changed. Reopen Market.");
+      return {keyId, ownerHandle};
+    };
+    return createLazyWildzMarketServiceV128({binding: {keyId, ownerHandle}, currentBinding: currentIdentity, open: async () => {
+      const [{createWildzMarketServiceV128}, {openWildzMarketSourceBrowserV128}] = await Promise.all([
+        import("../market/wildz-market-service-v128"), import("../../lib/receiz/wildz-market-source-browser-v128")
+      ]);
+      currentIdentity();
+      const qualifySelection = (asset: WildsWalletAssetSendRequest["asset"]) => walletAssetPort.qualifyListing(asset,
+        marketReadSelectionsRef.current().find(selection => JSON.stringify(selection.asset) === JSON.stringify(asset))?.label);
+      return createWildzMarketServiceV128({keyId, ownerHandle, currentIdentity,
+        readSelections: () => marketReadSelectionsRef.current(), qualifySelection,
+        openSource: async ({verifyTransition}) => openWildzMarketSourceBrowserV128({resourceRuntime: await walletAssetPort.openRuntime(),
+          qualifySelection: async selection => walletAssetPort.qualifyListing(selection.asset, selection.summary), verifyTransition}),
+        staged: {assetPort: walletAssetPort, readConversations: readTradeConversations, publish: sendStagedTrade,
+          sendWalletAsset: async () => ({status: "failed", message: "Review the exact native asset in Market."}), ensureReady: ensureWalletTradeReady}
+      });
+    }});
+  }, [walletReadIdentityKey, walletTradeOwnerHandle, walletAssetPort, readTradeConversations, sendStagedTrade, ensureWalletTradeReady]);
+  useEffect(() => {
+    marketActiveRef.current = true;
+    onMarketServiceChange?.(lazyMarket?.service ?? null);
+    if (!lazyMarket) return;
+    const unsubscribe = lazyMarket.service.subscribe(snapshot => {
+      const binding = lazyMarket.service.binding;
+      const ids = snapshot.listings.flatMap(listing => listing.asset.kind === "creature" && listing.sellerHandle === binding.ownerHandle
+        && (listing.status === "active" || listing.status === "reserved") ? [listing.asset.assetId] : []).sort();
+      const next = {...binding, ids};
+      marketListedCardsRef.current = next;
+      setMarketListedCards(previous => previous?.keyId === next.keyId && previous.ownerHandle === next.ownerHandle
+        && previous.ids.join("\n") === ids.join("\n") ? previous : next);
+    });
+    return () => { marketActiveRef.current = false; unsubscribe(); onMarketServiceChange?.(null); };
+  }, [lazyMarket, onMarketServiceChange]);
+  const cardListAttemptsRef = useRef(new Map<string, string>());
+  const listMarketCreature = useCallback(async (card: PortableCardAsset, priceCents: number) => {
+    if (!lazyMarket || !Number.isSafeInteger(priceCents) || priceCents < 1) throw Error("Unlock your Explorer and enter an exact USD price.");
+    const snapshot = await lazyMarket.service.read();
+    const pending = snapshot.pendingListings?.find(attempt => attempt.asset.kind === "creature" && attempt.asset.assetId === card.id);
+    if (pending && pending.priceUsdCents !== String(priceCents)) throw Error("This creature has a saved listing at another price. Check that same listing in Market first.");
+    const active = snapshot.listings.find(listing => listing.sellerHandle === lazyMarket.service.binding.ownerHandle
+      && listing.asset.kind === "creature" && listing.asset.assetId === card.id && (listing.status === "active" || listing.status === "reserved"));
+    if (active) {
+      if (active.priceUsdCents !== String(priceCents)) throw Error("This creature is already listed at another price. Cancel that listing in Market first.");
+      return {...card, synchronizedAt: new Date().toISOString()};
+    }
+    const key = JSON.stringify([lazyMarket.service.binding, card.id, priceCents]);
+    const attemptId = pending?.attemptId ?? cardListAttemptsRef.current.get(key) ?? `card-list:${crypto.randomUUID()}`;
+    cardListAttemptsRef.current.set(key, attemptId);
+    const result = await lazyMarket.service.list({asset: {kind: "creature", assetId: card.id}, priceUsdCents: String(priceCents),
+      attemptId});
+    if (result.status !== "listed") throw Error(result.message);
+    cardListAttemptsRef.current.delete(key);
+    return {...card, synchronizedAt: new Date().toISOString()};
+  }, [lazyMarket]);
   const stagedWalletTrade = useWildsWalletStagedTrade({
     ...walletTradeIdentityRef.current,
     currentIdentity: () => walletTradeIdentityRef.current,
     sendWalletAsset: async () => ({status: "failed", message: "Review the exact asset source in Wallet."}),
-    assetPort: walletAssetPort ?? {
+    assetPort: genericWalletAssetPort ?? {
       prepareSource: async () => { throw Error("Unlock your verified Explorer before sending an asset."); },
       sendSource: async () => ({status: "pending", message: "Unlock your Explorer to continue the saved offer."}),
       observeSource: async () => ({status: "pending", message: "Unlock your Explorer to check the saved offer."}),
       verifyAccepted: async () => { throw Error("Unlock your Explorer to verify this receipt."); }
     },
-    readConversations: messenger.readTradeConversations,
-    publish: messenger.sendStagedTrade,
-    ensureReady: async () => {
-      const expected = walletTradeIdentityRef.current;
-      const {defaultIdentityRepository, connectWildzProofSession} = await import("@/lib/receiz/wildz-identity-adapter");
-      const active = await defaultIdentityRepository.active();
-      if (!active || active.localAuthority !== "verified" || active.keyId !== expected.keyId || active.actorId !== ownerReceizId) return false;
-      const connected = await connectWildzProofSession(active, {forceRemote: true});
-      const current = await defaultIdentityRepository.active();
-      return current?.keyId === expected.keyId && connected.status === "connected" && connected.sessionKeyId === expected.keyId
-        && walletTradeIdentityRef.current.keyId === expected.keyId && walletTradeIdentityRef.current.ownerHandle === expected.ownerHandle;
-    }
+    readConversations: readTradeConversations,
+    publish: sendStagedTrade,
+    ensureReady: ensureWalletTradeReady
   });
   const {approve: approveWalletAgreement, receive: receiveWalletNotice} = stagedWalletTrade;
   const sendWalletAsset = useCallback(async (request: WildsWalletAssetSendRequest) => {
@@ -1306,8 +1389,9 @@ export function PlayCampaign({
       receivedWalletNotices.current.ids.add(message.id);
       if (receivedWalletNotices.current.ids.size > 256) receivedWalletNotices.current.ids.delete(receivedWalletNotices.current.ids.values().next().value!);
       void receiveWalletNotice(message.context, message.senderHandle).catch(() => undefined);
+      if (lazyMarket?.opened()) void lazyMarket.service.receive(message.context, message.senderHandle).catch(() => undefined);
     }
-  }, [messenger.conversations, receiveWalletNotice]);
+  }, [messenger.conversations, receiveWalletNotice, lazyMarket]);
   const pendingNativeFoodFuel = useMemo(() => livingWorld.snapshot
     ? hasRecoverableWildsNativeFood({ playerNourishment: state.playerNourishment }, livingWorld.snapshot, ownerReceizId) : false,
   [state.playerNourishment, livingWorld.snapshot, ownerReceizId]);
@@ -2028,6 +2112,9 @@ export function PlayCampaign({
     .filter(record => record.status !== "unpacked" && sameWildzPlayerCoordinate(record.ownerReceizId, ownerReceizId))
     .reduce((total, record) => total + record.package.members.reduce((units, member) => units + (member.kind === "resource" ? member.resourceLot.quantity : 1), 0), 0), [livingWorld.snapshot?.resourcePackages, ownerReceizId]);
   const walletResourceCards = useMemo(() => [...resourceExchange.cards, ...walletSourceProjection.cards.filter(card => card.ownerHandle === walletTradeOwnerHandle && card.kind !== "sent" && (card.kind !== "unpacked" || card.unpackable))], [resourceExchange.cards, walletSourceProjection.cards, walletTradeOwnerHandle]);
+  marketReadSelectionsRef.current = () => projectWildzMarketHeldSelectionsV128({cards: walletSourceLive.current.state.inventory,
+    canOperate: card => canOperateWildzCrewCard(card, walletSourceLive.current.ownerReceizId, walletSourceLive.current.crewCustody),
+    nourishment: walletVisibleNourishment, materialLots: availableMaterialLots, resourceLots: availableWalletResourceLots, resourceCards: walletResourceCards});
   const walletSourcePackedUnits = useMemo(() => currentWalletSourceRows.filter(row => row.currentOwnerHandle === row.ownerHandle && row.kind !== "unpacked" && row.kind !== "sent").reduce((total, row) => total + row.memberRefs.reduce((units, member) => units + member.quantity, 0), 0), [currentWalletSourceRows]);
   const stewardMaterials = useMemo(() => ({
     hay: availableMaterialLots.filter((lot) => lot.kind === "hay").length,
@@ -3617,7 +3704,8 @@ export function PlayCampaign({
             onExportVault={onExportVault}
             onPrepareVault={onPrepareVault}
             onInput={dispatch}
-            onListAsset={onListAsset}
+            onListAsset={lazyMarket ? listMarketCreature : onListAsset}
+            marketListedAssetIds={currentMarketListedCardIds}
             onRestoreArtifact={async (file, confirmCardOnly, currentPlayState) => {
               const outcome = await onRestoreArtifact(file, confirmCardOnly, currentPlayState);
               const verifiedAssetIds = new Set(outcome.verifiedAssetIds);
@@ -3924,7 +4012,8 @@ export function PlayCampaign({
                 receipts: initialPlayerContinuity?.receipts ?? []
               }))}
               onSendCard={async (asset, targetHandle) => { await walletController.secureTransferAuthority(); return messenger.sendCardOffer(asset, targetHandle); }}
-              onListCard={onListAsset}
+              onListCard={lazyMarket ? listMarketCreature : onListAsset}
+              marketListedAssetIds={currentMarketListedCardIds}
               onSendResource={async (resourceLot, targetHandle) => {
                 await walletController.secureTransferAuthority();
                 const response = await fetch("/api/wilds/resources/transfers", {

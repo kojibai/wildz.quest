@@ -22,7 +22,7 @@ function seal(attempt: unknown, secret: string, version = "v3") {
   const bytes = Buffer.concat([cipher.update(JSON.stringify(attempt), "utf8"), cipher.final()]);
   return `${version}.${iv.toString("base64url")}.${bytes.toString("base64url")}.${cipher.getAuthTag().toString("base64url")}`;
 }
-function decrypt(value: string, secret: string, version: "v2" | "v3"): unknown {
+function decrypt(value: string, secret: string, version: "v2" | "v3" | "nw1"): unknown {
   if (!new RegExp(`^${version}\\.[A-Za-z0-9_-]{16}\\.[A-Za-z0-9_-]{2,3600}\\.[A-Za-z0-9_-]{22}$`).test(value)) throw new Error("shape");
   const [, iv, bytes, tag] = value.split("."); const decipher = createDecipheriv("aes-256-gcm", key(secret), Buffer.from(iv, "base64url"));
   decipher.setAAD(Buffer.from(PURPOSE)); decipher.setAuthTag(Buffer.from(tag, "base64url"));
@@ -58,6 +58,14 @@ export function createWildsWalletConnectTransferRuntime(input: { session: WildzR
     return { attempt, session };
   };
   const projection = (status: "committed" | "unknown", attempt: Attempt) => Object.freeze({ status, rail: "settlement" as const, amountPhiMicro: attempt.amountPhiMicro, recipientUsername: attempt.recipientUsername });
+  const observationBinding=(authority:WildsWalletReadAuthority,command:{attempt:string;senderHandle:string;recipientHandle:string;amountPhiMicro:string;operationNonce:string})=>{
+    const attempt=open(command.attempt,secret),session=sessionFor(authority);
+    if(attempt.actorId!==normalizeWildsWalletPublicUsername(command.senderHandle)||attempt.recipientUsername!==normalizeWildsWalletPublicUsername(command.recipientHandle)||attempt.amountPhiMicro!==command.amountPhiMicro||attempt.operationNonce!==command.operationNonce)throw Error("wilds_wallet_transfer_consent_binding_invalid");
+    if(authority.ownerReceizId===attempt.ownerReceizId)bound(authority,command.attempt);
+    else if(authority.ownerReceizId!==attempt.recipientUserId||normalizeWildsWalletPublicUsername(authority.profileHandle)!==attempt.recipientUsername)throw Error("wilds_wallet_transfer_attempt_identity_mismatch");
+    return {attempt,session};
+  };
+  const noWriteBasis=(attempt:Attempt,value:string)=>({schema:"wildz.wallet.connect-zero-write.v1",attemptDigest:createHash("sha256").update(value).digest("hex"),clientNonce:attempt.clientNonce,ownerReceizId:attempt.ownerReceizId,recipientUserId:attempt.recipientUserId,keyId:attempt.keyId,amountPhiMicro:attempt.amountPhiMicro,operationNonce:attempt.operationNonce,reviewExpiresAtKai:attempt.reviewExpiresAtKai,code:"INSUFFICIENT_VALUE"});
   const resolveRecipient = async (authority: WildsWalletReadAuthority, username: string) => {
     const session = sessionFor(authority);
     if (username === normalizeWildsWalletPublicUsername(authority.profileHandle)) throw new Error("receiz_wallet_recipient_unavailable");
@@ -90,11 +98,12 @@ export function createWildsWalletConnectTransferRuntime(input: { session: WildzR
       const matches = response.messages.filter(message => matchesMessage(message, attempt, expectedMessageId, expectedTransferId));
       if (matches.length === 1) return true;
       if (matches.length > 1) throw new Error("receiz_wallet_connect_receipt_ambiguous");
-      if (response.hasMore !== true) return false;
-      if (typeof response.nextCursor !== "string" || !Number.isFinite(Date.parse(response.nextCursor)) || response.nextCursor === before) return false;
+      if(typeof response.hasMore!=="boolean")throw Error("receiz_wallet_connect_receipt_unavailable");
+      if (response.hasMore === false) return false;
+      if (typeof response.nextCursor !== "string" || !Number.isFinite(Date.parse(response.nextCursor)) || response.nextCursor === before) throw Error("receiz_wallet_connect_receipt_unavailable");
       before = response.nextCursor;
     }
-    return false;
+    return null;
   };
   const runtime: WildsWalletTransferRouteRuntime = {
     durable: true as const,
@@ -149,6 +158,7 @@ export function createWildsWalletConnectTransferRuntime(input: { session: WildzR
       const writer = input.createAdapter(granted.accessToken); const introspection = record(await writer.introspectAccessToken());
       const scopes = typeof introspection.scope === "string" ? introspection.scope.split(/\s+/) : [];
       if (granted.keyId !== session.keyId || introspection.active !== true || introspection.sub !== authority.ownerReceizId || introspection.actor_label !== session.keyId || !scopes.includes("receiz:wallet.transfer")) throw new Error("wilds_wallet_transfer_consent_binding_invalid");
+      if(currentKai()>=attempt.reviewExpiresAtKai)throw Error("wilds_wallet_transfer_review_expired");
       try {
         const response = record(await writer.connectTransfer({ conversationId: attempt.conversationId, recipientUserId: attempt.recipientUserId, unit: "phi", amountPhi: phiAmount(attempt.amountPhiMicro), note: attempt.note, clientNonce: attempt.clientNonce }, attempt.clientNonce));
         const transfer = record(response.transfer);
@@ -158,7 +168,7 @@ export function createWildsWalletConnectTransferRuntime(input: { session: WildzR
         // The host can fail after its atomic wallet transaction. Retain the
         // same attempt for an authenticated read; never infer zero writes.
         const payload = record(record(error).payload);
-        if (payload.error === "wallet_insufficient_funds") return { status: "zero-write", rail: "settlement", code: "INSUFFICIENT_VALUE" };
+        if (record(error).status===409&&payload.error === "wallet_insufficient_funds") return { status: "zero-write", rail: "settlement", code: "INSUFFICIENT_VALUE",noWriteWitness:seal(noWriteBasis(attempt,request.attempt),secret,"nw1") };
         return projection("unknown", attempt);
       }
     },
@@ -167,15 +177,22 @@ export function createWildsWalletConnectTransferRuntime(input: { session: WildzR
       try { return projection(await observe(attempt, session) ? "committed" : "unknown", attempt); } catch { return projection("unknown", attempt); }
     },
     async observe(authority, command) {
-      const attempt = open(command.attempt, secret); const session = sessionFor(authority);
-      if (attempt.actorId !== normalizeWildsWalletPublicUsername(command.senderHandle) || attempt.recipientUsername !== normalizeWildsWalletPublicUsername(command.recipientHandle)
-        || attempt.amountPhiMicro !== command.amountPhiMicro || attempt.operationNonce !== command.operationNonce) throw new Error("wilds_wallet_transfer_consent_binding_invalid");
-      // Only an original party may inspect the authenticated canonical DM.
-      // Recipient admission uses their own session; no sender credential leaves custody.
-      if (authority.ownerReceizId === attempt.ownerReceizId) {
-        bound(authority, command.attempt);
-      } else if (authority.ownerReceizId !== attempt.recipientUserId || normalizeWildsWalletPublicUsername(authority.profileHandle) !== attempt.recipientUsername) throw new Error("wilds_wallet_transfer_attempt_identity_mismatch");
+      const {attempt,session}=observationBinding(authority,command);
       try { return projection(await observe(attempt, session) ? "committed" : "unknown", attempt); } catch { return projection("unknown", attempt); }
+    },
+    async noWrite(authority,command){
+      const {attempt,session}=observationBinding(authority,command);
+      let witness:unknown;try{witness=decrypt(command.noWriteWitness,secret,"nw1");}catch{throw Error("wilds_wallet_transfer_no_write_witness_invalid");}
+      if(JSON.stringify(witness)!==JSON.stringify(noWriteBasis(attempt,command.attempt)))throw Error("wilds_wallet_transfer_consent_binding_invalid");
+      // Check the real rail again. A past insufficient response cannot close a
+      // different previously in-flight execution that has since committed.
+      const actual=await observe(attempt,session);
+      if(actual===null)throw Error("receiz_wallet_connect_receipt_unavailable");
+      if(actual)throw Error("wilds_wallet_transfer_committed_since_rejection");
+      // This witnesses only an actual rejected SDK call. It is not a native
+      // financial receipt. The old nonce could retry until its sealed review
+      // window closes, so source release is forbidden before that coordinate.
+      return {status:"zero-write",rail:"settlement",code:"INSUFFICIENT_VALUE",terminal:currentKai()>=attempt.reviewExpiresAtKai,retryAfterKai:attempt.reviewExpiresAtKai};
     },
     async receive(authority, amountPhiMicro) {
       const username = normalizeWildsWalletPublicUsername(authority.profileHandle);

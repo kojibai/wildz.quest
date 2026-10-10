@@ -1,6 +1,12 @@
 "use client";
 
 import { receizKaiNow } from "@receiz/sdk";
+import { canonicalPortableCardJson, sha256PortableBasis } from "../portable-card";
+import type { WildsWalletAssetSendAsset } from "./wilds-wallet-asset-send";
+import type { WildzMarketSelectionV128 } from "../../../lib/receiz/wildz-market-source-types-v128";
+import { readWildsWalletCreatureBearerV128 } from "./wilds-wallet-bearer-gift-source-v128";
+import { readWildsWalletCreatureProjectionV128 } from "./wilds-wallet-bearer-gift-proof";
+import type { WildsResourceSourceProofV128 } from "../../../lib/receiz/wilds-resource-exchange-v128";
 import type { PortableCardAsset } from "../portable-card";
 import type { WildzPreparedIdentityOwnedCard } from "../../../lib/receiz/wildz-identity-adapter";
 import type { openWildsResourcePackageExchangeBrowserV128 } from "../../../lib/receiz/wilds-resource-exchange-browser-v128";
@@ -43,7 +49,7 @@ export function createWildsWalletCreatureAssetPortV128(input: WildsWalletCreatur
     }
     return pending;
   };
-  return createWildsWalletBearerGiftController({
+  const controller = createWildsWalletBearerGiftController({
     ...input, assertSelection:assertWildsWalletCreatureGiftSelectionV128,
     sourceFor: async leg => (await open()).producer.prepare(leg),
     verifyOrigin: async (leg,source) => { const {runtime}=await open(); await verifyWildsWalletBearerGiftOriginV128(leg,source,runtime.sdk,runtime.applicationId); },
@@ -57,4 +63,19 @@ export function createWildsWalletCreatureAssetPortV128(input: WildsWalletCreatur
       if(input.onAcceptedOutgoing) await input.onAcceptedOutgoing(leg,source,runtime); current();
     },
   });
+  return {
+    ...controller,
+    async qualifyListing(asset: WildsWalletAssetSendAsset, summary?: string): Promise<WildzMarketSelectionV128> {
+      if (asset.kind !== "creature") throw Error("Choose an owned creature for this listing.");
+      const {runtime,producer}=await open(), source=await producer.prepareAsset(asset); current();
+      const opened=await readWildsWalletCreatureBearerV128(source.original,source.originProof as WildsResourceSourceProofV128,runtime.sdk,runtime.applicationId);
+      const projection=await readWildsWalletCreatureProjectionV128({source:opened,projectionOriginal:source.projectionOriginal,accepted:opened.derived.appendCount>0,artifacts:runtime.sdk.artifacts}); current();
+      if(opened.derived.ownerReceizId!==input.ownerHandle || projection.card.id!==asset.assetId) throw Error("This exact listing is no longer held by this Explorer.");
+      const description=summary?.trim() || projection.card.manifest.name || "Creature";
+      if(description.length>800) throw Error("The listing summary is too long.");
+      return Object.freeze({asset:Object.freeze({...asset}),semanticIds:Object.freeze([`creature:${opened.derived.namespace}:${opened.derived.artifactId}`]),
+        sourceDigest:sha256PortableBasis(canonicalPortableCardJson({schema:"wildz.market.creature-selection.v128",original:source.original.artifactSha256,projection:source.projectionOriginal.artifactSha256,head:opened.headReference,asset})).replace(/^sha256:/,""),
+        summary:description,resourceUnits:0,creatureCount:1});
+    }
+  };
 }

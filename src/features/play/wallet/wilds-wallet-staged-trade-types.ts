@@ -47,11 +47,13 @@ export type WildsWalletStagedTradePorts = {
   observeLeg(leg: WildsWalletStagedTradeLeg): Promise<WildsWalletStagedTradeLegOutcome>;
   /** Re-admit canonical native acceptance/settlement evidence and exact sender/recipient/amount/source binding. */
   verifyLegReceipt(leg: WildsWalletStagedTradeLeg, outcome: WildsWalletStagedTradeLegOutcome): Promise<void>;
+  /** Coordination-only rejection evidence; never settlement or asset custody. */
+  verifyLegFailure?(leg: WildsWalletStagedTradeLeg, outcome: WildsWalletStagedTradeLegOutcome): Promise<void>;
   publish(message: WildsWalletStagedTradeMessage): Promise<void>;
 };
 
 export function createWildsWalletStagedTradePlan(input: WildsWalletTradeAgreement): WildsWalletStagedTradePlan {
-  const agreement = createWildsWalletTradeAgreement(input.first, input.second, input.purpose);
+  const agreement = createWildsWalletTradeAgreement(input.first, input.second, input.purpose, input.market);
   const tradeId = `staged:${wildsWalletTradeAgreementDigest(agreement)}`;
   const legs: WildsWalletStagedTradeLeg[] = [];
   for (const party of [agreement.first, agreement.second]) {

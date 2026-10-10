@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { scheduleAfterPaint } from "./schedule-after-paint";
 import styles from "./WildsInventory.module.css";
+import { parseWildzMarketUsdInput } from "../market/wildz-market-presentation";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { emitWildsPlaytestEvent } from "./wilds-playtest-events";
@@ -74,6 +75,7 @@ export function WildsInventory({
   onPrepareVault,
   onInput,
   onListAsset,
+  marketListedAssetIds = [],
   onRestoreArtifact,
   readCrewHistory
 }: {
@@ -92,6 +94,7 @@ export function WildsInventory({
   onPrepareVault?: () => Promise<unknown>;
   onInput: (input: WildsInput) => void;
   onListAsset?: (asset: PlayState["inventory"][number], priceCents: number) => Promise<PlayState["inventory"][number] | null>;
+  marketListedAssetIds?: readonly string[];
   onRestoreArtifact: (
     file: File,
     confirmCardOnly: WildzCardOnlyConfirmation,
@@ -636,28 +639,35 @@ export function WildsInventory({
                   type="button"
                 >{cardSending ? "Preparing…" : "Send card"}</button>
               </div>
-              {onListAsset && selected.status !== "listed" ? (
+              {onListAsset && selected.status !== "listed" && !marketListedAssetIds.includes(selected.id) ? (
                 <div className="wilds-listing-control">
                   <label>List price <span>$</span><input aria-label="Wilds card listing price" inputMode="decimal" min="0.01" onChange={(event) => setPriceUsd(event.target.value)} step="0.01" type="number" value={priceUsd} /></label>
                   <button
                     className="button button-outline"
-                    disabled={selectedRetired || listing || !Number.isFinite(Number(priceUsd)) || Number(priceUsd) <= 0}
+                    disabled={selectedRetired || listing || !parseWildzMarketUsdInput(priceUsd) || BigInt(parseWildzMarketUsdInput(priceUsd) ?? "0") > 1_000_000_000n}
                     onClick={async () => {
+                      const cents = parseWildzMarketUsdInput(priceUsd);
+                      if (!cents || BigInt(cents) > 1_000_000_000n) return;
                       setListing(true);
-                      setListingMessage("Running Receiz offline verifier…");
-                      const listed = await onListAsset(selected, Math.round(Number(priceUsd) * 100));
-                      setListing(false);
-                      if (!listed?.synchronizedAt) {
-                        setListingMessage("Card was not listed. Check your Receiz ID and try again.");
-                        return;
+                      setListingMessage("Checking the current creature source…");
+                      try {
+                        const listed = await onListAsset(selected, Number(cents));
+                        if (!listed?.synchronizedAt) {
+                          setListingMessage("Check this same listing in Market before trying another sale.");
+                          return;
+                        }
+                        if (listed.status === "listed") onInput({ type: "mark-listed", assetId: selected.id, synchronizedAt: listed.synchronizedAt });
+                        setListingMessage("Listed in Market.");
+                      } catch (cause) {
+                        setListingMessage(cause instanceof Error ? cause.message : "Check this same listing in Market.");
+                      } finally {
+                        setListing(false);
                       }
-                      onInput({ type: "mark-listed", assetId: selected.id, synchronizedAt: listed.synchronizedAt });
-                      setListingMessage("Verified and listed on this Exchange.");
                     }}
                     type="button"
                   >{listing ? "Verifying…" : "Verify + list on Exchange"}</button>
                 </div>
-              ) : selected.status === "listed" ? <span className="wilds-apex-label">Listed on Exchange</span> : null}
+              ) : selected.status === "listed" || marketListedAssetIds.includes(selected.id) ? <span className="wilds-apex-label">Listed in Market</span> : null}
               {next ? <button className="button button-outline" disabled={selectedRetired || !canEvolve} onClick={() => onInput({ type: "evolve", assetId: selected.id, evolvedAt: new Date().toISOString() })} type="button">{selectedRetired ? "Retired creatures cannot evolve" : canEvolve ? `Evolve into ${next.name}` : `Needs L${next.evolution.level} · Bond ${next.evolution.bond}`}</button> : <span className="wilds-apex-label">{selectedRetired ? "Retired memorial" : "Apex form reached"}</span>}
               {downloadMessage ? <p aria-live="polite">{downloadMessage}</p> : null}
               {sendMessage ? <p aria-live="polite">{sendMessage}</p> : null}

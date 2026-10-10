@@ -17,6 +17,7 @@ import { countWildsWalletResourceInventory, projectWildsWalletFoodInventory, tot
 import type { WildsNourishmentState } from "@/features/play/wilds-nourishment";
 import type { ExchangeCard } from "@/features/play/WildsResourceExchange";
 import { WildsWalletAssetSend } from "./WildsWalletAssetSend";
+import { parseWildzMarketUsdInput } from "../../market/wildz-market-presentation";
 import type { WildsWalletAssetSend as WildsWalletAssetSendCallback, WildsWalletAssetSendSelection } from "./wilds-wallet-asset-send";
 
 type AssetFilter = "all" | "creatures" | "timber" | "stone" | "resources";
@@ -41,7 +42,7 @@ export function createWildsWalletResourceContentsRuntime(input: Readonly<{
   } };
 }
 
-export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, materialLots, nourishment, resourceLots, resourceCards = [], stewardPhiAwards, publicUsername = null, onOpenVaultCard, onPrepareCard, onListCard, onSendAsset, onUnpackResourceCard, state }: {
+export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, materialLots, nourishment, resourceLots, resourceCards = [], stewardPhiAwards, publicUsername = null, onOpenVaultCard, onPrepareCard, onListCard, marketListedAssetIds = [], onSendAsset, onUnpackResourceCard, state }: {
   cards: readonly PortableCardAsset[];
   cardConditions: Readonly<Record<string, AdventureCardCondition>>;
   inventoryCounts?: { resourceUnits: number; creatureCards: number };
@@ -56,6 +57,7 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
   onOpenVaultCard?: (assetId: string) => void;
   onPrepareCard?: (asset: PortableCardAsset) => Promise<WildzPreparedIdentityOwnedCard>;
   onListCard?: (asset: PortableCardAsset, priceCents: number) => Promise<PortableCardAsset | null>;
+  marketListedAssetIds?: readonly string[];
   onSendCard?: (asset: PortableCardAsset, targetHandle: string) => Promise<unknown>;
   onSendResource?: (resourceLot: WildsResourceLotV1, targetHandle: string) => Promise<Readonly<{ claimUrl: string }>>;
   onSendMaterial?: (materialLot: WildsMaterialLotV1, targetHandle: string) => Promise<Readonly<{ claimUrl: string }>>;
@@ -89,7 +91,7 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
   const visibleMaterials = filteredMaterials.slice(0, visibleLimit);
   const visibleResources = filteredResources.slice(0, visibleLimit);
   const sourceSettledPhiMicro = totalWildsStewardPhiMicro(stewardPhiAwards);
-  const reservedCardCount = cards.filter(card => card.status === "listed" || card.status === "suspended" || card.status === "revoked").length;
+  const reservedCardCount = cards.filter(card => card.status === "listed" || marketListedAssetIds.includes(card.id) || card.status === "suspended" || card.status === "revoked").length;
   useEffect(() => { setOrigin(window.location.origin); }, []);
   useEffect(() => { setVisibleLimit(PAGE_SIZE); }, [filter, query]);
   const selectSendAsset = (selection: WildsWalletAssetSendSelection) => {
@@ -100,7 +102,7 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
   };
   const selectedSendCreatureId = sendSelection?.asset.kind === "creature" ? sendSelection.asset.assetId : null;
   const selectedSendPackageId = sendSelection?.asset.kind === "package" ? sendSelection.asset.packageId : null;
-  const selectedSendUnavailable = selectedSendCreatureId !== null && !cards.some(card => card.id === selectedSendCreatureId && (card.status === "sealed_local" || card.status === "verified"))
+  const selectedSendUnavailable = selectedSendCreatureId !== null && !cards.some(card => card.id === selectedSendCreatureId && !marketListedAssetIds.includes(card.id) && (card.status === "sealed_local" || card.status === "verified"))
     || selectedSendPackageId !== null && !resourceCards.some(card => card.id === selectedSendPackageId && card.transferable);
 
   const exportSelectedCard = async () => {
@@ -122,8 +124,9 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
 
   const listSelectedCard = async () => {
     if (!selected || !onListCard) return;
-    const priceCents = Math.round(Number(priceUsd) * 100);
-    if (!Number.isSafeInteger(priceCents) || priceCents < 1) return;
+    const cents = parseWildzMarketUsdInput(priceUsd);
+    if (!cents || BigInt(cents) > 1_000_000_000n) return;
+    const priceCents = Number(cents);
     setListing(true);
     setMessage("Binding this exact card proof to its market listing…");
     try {
@@ -165,7 +168,7 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
         <div className="wilds-wallet-card-stage"><WildsCardScene asset={selected} condition={cardConditions[selected.id]} origin={origin} qr="" tapToFlip /></div>
         <small>Tap or swipe the card to see its complete verified back.</small>
         {onPrepareCard ? <button disabled={exporting || sendLocked} onClick={() => { void exportSelectedCard(); }} type="button">{exporting ? "Preparing verified card…" : "Download verified card"}</button> : null}
-        {onListCard ? <div className="wilds-wallet-resource-send"><label><span>Sell on Receiz Market</span><input aria-label="Card listing price in USD" inputMode="decimal" min="0.01" onChange={(event) => setPriceUsd(event.target.value)} placeholder="0.00" step="0.01" type="number" value={priceUsd} /></label><button disabled={listing || sendLocked || selected.status === "listed" || !Number.isFinite(Number(priceUsd)) || Number(priceUsd) <= 0} onClick={() => { void listSelectedCard(); }} type="button">{selected.status === "listed" ? "Already listed" : listing ? "Committing listing…" : `List ${selected.manifest.name}`}</button></div> : null}
+        {onListCard ? <div className="wilds-wallet-resource-send"><label><span>Sell on Receiz Market</span><input aria-label="Card listing price in USD" inputMode="decimal" min="0.01" onChange={(event) => setPriceUsd(event.target.value)} placeholder="0.00" step="0.01" type="number" value={priceUsd} /></label><button disabled={listing || sendLocked || (selected.status === "listed" || marketListedAssetIds.includes(selected.id)) || !parseWildzMarketUsdInput(priceUsd) || BigInt(parseWildzMarketUsdInput(priceUsd) ?? "0") > 1_000_000_000n} onClick={() => { void listSelectedCard(); }} type="button">{(selected.status === "listed" || marketListedAssetIds.includes(selected.id)) ? "Already listed" : listing ? "Committing listing…" : `List ${selected.manifest.name}`}</button></div> : null}
         {message ? <p aria-live="polite">{message}</p> : null}
       </div> : null}
     </div> : filter === "creatures" && !cards.length ? <p>No creature cards are carried by this Receiz ID yet.</p> : null}
