@@ -9,7 +9,6 @@ export async function publishWildsConstructionEntry(entry: WildsWorldOutboxEntry
   read: (url: string) => Promise<unknown>;
   publish: (draft: ReturnType<typeof createWildsWorldIdentityPublicationDraft>) => Promise<unknown>;
 }) {
-  if ((entry.command.type === "creation.construct" || entry.command.type === "creation.evolve") && entry.command.workerSources.some(source => source.nativeKeeper)) throw Error("wilds_native_world_keeper_source_required");
   const projection = verifyWildsWorldAdmittedSource(entry);
   const source = entry.admittedSource!;
   const baseCheckpoint = source.checkpoint!;

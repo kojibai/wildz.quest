@@ -1,4 +1,5 @@
-import { canOperateWildzCrewCard, mergeWildzCrewCustody, readWildzArtifactCrewCustody, wildzCrewCustodySources, type WildzArtifactCodec, type WildzCrewCustody, type WildzCrewCustodySource } from "./wildz-artifact-codec";
+import { canOperateWildzCrewCard, mergeWildzCrewCustody, readWildzArtifactCrewCustody, readWildzNativeBearerCrewCustody, wildzCrewCustodySources, type WildzArtifactCodec, type WildzCrewCustody, type WildzCrewCustodySource } from "./wildz-artifact-codec";
+import type { WildzContinuityDatabase } from "../storage/wildz-indexed-db";
 import type { PortableCardAsset } from "../../features/play/portable-card";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import type { WildzArtifactHistoryEntry } from "./wildz-artifact-history";
@@ -14,10 +15,11 @@ export function normalizeWildzCrewCustodySources(value: unknown): WildzCrewCusto
     ? [{ artifactSha256: row.artifactSha256, assetIds: row.assetIds }] : []);
 }
 export async function reopenWildzCrewCustody(input: {
-  owner: string; cards: readonly PortableCardAsset[]; sources: unknown;
+  owner: string; keyId?:string; cards: readonly PortableCardAsset[]; sources: unknown;
   history: { read(sha: string): Promise<Pick<WildzArtifactHistoryEntry, "artifactBytes" | "mimeType" | "filename"> | null> };
   codec: WildzArtifactCodec;
   readIdentitySeal?: () => Promise<WildzCrewCustody | null>;
+  database?: WildzContinuityDatabase;
 }): Promise<WildzCrewCustody | null> {
   const foreign = new Set(input.cards.filter(card => !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, input.owner)).map(card => card.id));
   if (!foreign.size) return null;
@@ -27,6 +29,12 @@ export async function reopenWildzCrewCustody(input: {
     if (seen.has(ref.artifactSha256) || !ref.assetIds.some(id => foreign.has(id))) continue;
     seen.add(ref.artifactSha256);
     try {
+      const database = input.database ?? (await import("./wildz-active-identity")).defaultContinuityDatabase;
+      const nativeGift = input.keyId ? await readWildzNativeBearerCrewCustody(database, ref.artifactSha256,{keyId:input.keyId,actorId:input.owner}).catch(() => null) : null;
+      if (nativeGift) {
+        if (sameWildzPlayerCoordinate(nativeGift.ownerHandle, input.owner)) tokens.push(nativeGift.crewCustody);
+        continue;
+      }
       const source = await input.history.read(ref.artifactSha256);
       if (!source) continue;
       const inspected = await input.codec.inspect({ bytes: source.artifactBytes, mimeType: source.mimeType, name: source.filename });

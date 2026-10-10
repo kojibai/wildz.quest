@@ -15,6 +15,7 @@ import {
   wildzVaultPendingCookieOptions
 } from "@/lib/receiz/wildz-proof-session";
 import { verifyWildzIdentityVaultAdmissionProof } from "@/lib/receiz/wildz-identity-vault-admission";
+import { WILDZ_RECEIZ_CHAT_SESSION_COOKIE, retainWildzReceizChatSession, wildzReceizChatSessionCookieOptions } from "@/lib/receiz/wildz-receiz-chat-session";
 
 export const runtime = "nodejs";
 
@@ -70,6 +71,7 @@ function canonicalReceizSession(value: unknown) {
     || typeof session.username !== "string"
     || (typeof session.displayName !== "string" && session.displayName !== null)) return null;
   return {
+    userId: session.uid,
     username: session.username,
     displayName: session.displayName
   };
@@ -162,6 +164,11 @@ export async function POST(request: NextRequest) {
       }
     }
     const response = NextResponse.json(publicWildzProofSession(session));
+    // Older/partial upstream projections still establish the existing Wildz
+    // session. Missing chat credentials disable only the additional Send port.
+    let chatSession: string | null = null;
+    try { chatSession = retainWildzReceizChatSession({ response: upstream, baseUrl, userId: canonical.userId, keyId: body.keyId, profileHandle: canonical.username }); } catch { /* Preserve the admitted baseline session. */ }
+    response.cookies.set(WILDZ_RECEIZ_CHAT_SESSION_COOKIE, chatSession ?? "", { ...wildzReceizChatSessionCookieOptions(), ...(chatSession ? {} : { maxAge: 0 }) });
     response.cookies.set(WILDZ_PROOF_SESSION_COOKIE, packWildzProofSession(session), wildzProofSessionCookieOptions());
     response.cookies.set(WILDZ_PROOF_NONCE_COOKIE, "", { ...wildzProofNonceCookieOptions(), maxAge: 0 });
     return response;
@@ -178,5 +185,6 @@ export async function DELETE() {
   response.cookies.set(WILDZ_PROOF_SESSION_COOKIE, "", { ...wildzProofSessionCookieOptions(), maxAge: 0 });
   response.cookies.set(WILDZ_PROOF_NONCE_COOKIE, "", { ...wildzProofNonceCookieOptions(), maxAge: 0 });
   response.cookies.set(WILDZ_VAULT_PENDING_COOKIE, "", { ...wildzVaultPendingCookieOptions(), maxAge: 0 });
+  response.cookies.set(WILDZ_RECEIZ_CHAT_SESSION_COOKIE, "", { ...wildzReceizChatSessionCookieOptions(), maxAge: 0 });
   return response;
 }

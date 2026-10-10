@@ -1,5 +1,7 @@
 "use client";
 
+import { admitWildsWalletResourceSourceMessageV128, wildsWalletResourceSourceMessageIdV128, type WildsWalletResourceSourceMessageV128 } from "./wallet/wilds-wallet-resource-source-messaging-v128";
+
 import { registerMessagePush, supportsMessagePush, readMessagePushConfig, type MessagePushConfig, WILDZ_MESSAGE_PUSH } from "@/features/pwa/message-push-client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -23,7 +25,9 @@ import { resourceOfferMessage } from './wilds-resource-messaging';
 import { formatWildsPhiExact } from "./wallet/wilds-wallet-format";
 import { assertWildsPrivateMessagePublished, wildsMessageRequestFailure } from "./wilds-messenger-delivery";
 import { validateWildsWalletTradeMessage, wildsWalletTradeMessageId, type WildsWalletTradeMessage } from "./wallet/wilds-wallet-trade-messaging";
-import { validateWildsWalletNativeTradeMessage, wildsWalletNativeTradeMessageId, type WildsWalletNativeTradeMessage } from "./wallet/wilds-wallet-native-trade-context";
+import { admitWildsWalletStagedTradeMessage, wildsWalletStagedTradeMessageId } from "./wallet/wilds-wallet-staged-trade-messaging";
+import type { WildsWalletStagedTradeMessage } from "./wallet/wilds-wallet-staged-trade-types";
+import {admitWildsWalletBearerGiftMessage,wildsWalletBearerGiftMessageId,type WildsWalletBearerGiftMessage} from './wallet/wilds-wallet-bearer-gift-messaging';
 
 type MessengerCache = {
   peers: WildsMessengerParticipant[];
@@ -215,6 +219,7 @@ export function useWildsMessenger(input: {
       });
       void refreshRooms();
       setError("");
+      return result.conversations;
     } catch (cause) {
       if (!quiet) setError(cause instanceof Error ? cause.message : "Inbox could not sync");
     } finally {
@@ -405,6 +410,7 @@ export function useWildsMessenger(input: {
 
   const sendTradePackage = useCallback(async (context: WildsWalletTradeMessage) => {
     if (!input.selfId || input.selfId.startsWith("guest:")) throw Error("Sign in to propose a trade.");
+    const actor = input.selfId;
     const peer = {id: context.draft.recipientHandle, handle: context.draft.recipientHandle};
     const admitted = validateWildsWalletTradeMessage(context, input.selfHandle, peer.handle);
     const result = await messengerRequest<{conversation: WildsConversation; publication?: unknown}>("/api/wilds/messages/thread", {
@@ -414,26 +420,60 @@ export function useWildsMessenger(input: {
         clientMessageId: wildsWalletTradeMessageId(input.selfHandle, admitted), context: admitted})
     });
     assertWildsPrivateMessagePublished(result.publication);
+    if (hydratedActorRef.current !== actor) throw Error("The signed-in Explorer changed. Reopen the wallet.");
     rememberPeer(peer); setConversations(current => admitConversationState(current, result.conversation));
     return admitted.draft.attemptId;
   }, [input.guestId, input.selfHandle, input.selfId, rememberPeer]);
 
-  const sendNativeTradeMessage = useCallback(async (recipientHandle: string, context: WildsWalletNativeTradeMessage) => {
-    if (!input.selfId || input.selfId.startsWith("guest:")) throw Error("Sign in to exchange a trade approval.");
-    const peer = {id: recipientHandle, handle: recipientHandle};
-    const admitted = validateWildsWalletNativeTradeMessage(context, input.selfHandle, recipientHandle);
+  const sendStagedTrade = useCallback(async (context: WildsWalletStagedTradeMessage, peerHandle: string) => {
+    if (!input.selfId || input.selfId.startsWith("guest:")) throw Error("Sign in to approve a trade.");
+    const actor = input.selfId;
+    const peer = {id: peerHandle, handle: peerHandle};
+    const admitted = admitWildsWalletStagedTradeMessage(context, input.selfHandle, peerHandle);
     const result = await messengerRequest<{conversation: WildsConversation; publication?: unknown}>("/api/wilds/messages/thread", {
       method: "POST", credentials: "same-origin", headers: {"content-type": "application/json"},
-      body: JSON.stringify({action: "trade-native", guestId: input.guestId, peer,
-        message: admitted.agreement.purpose === "gift"
-          ? admitted.phase === "receipt" ? "Gift accepted — recovering its receipt in Wallet." : admitted.phase === "approval" ? "Gift acceptance — check the gift in Wallet." : `Gift from @${input.selfHandle.replace(/^@/, "").replace(/\.receiz\.id$/, "")} — receive it in Wallet.`
-          : admitted.phase === "receipt" ? "Exchange settled — recovering the complete receipt in Wallet." : admitted.phase === "approval" ? "Trade approval — check the exchange in Wallet." : "Trade package prepared — review the exchange in Wallet.",
-        clientMessageId: wildsWalletNativeTradeMessageId(input.selfHandle, admitted), context: admitted})
+      body: JSON.stringify({action: "trade-staged", guestId: input.guestId, peer,
+        message: admitted.kind === "trade-staged-approval" ? "Trade agreement approved. Review the exact stages in Wallet." : "Trade stage update. Check the original agreement in Wallet.",
+        clientMessageId: wildsWalletStagedTradeMessageId(admitted), context: admitted})
     });
     assertWildsPrivateMessagePublished(result.publication);
+    if (hydratedActorRef.current !== actor) throw Error("The signed-in Explorer changed. Reopen the wallet.");
     rememberPeer(peer); setConversations(current => admitConversationState(current, result.conversation));
-    return wildsWalletNativeTradeMessageId(input.selfHandle, admitted);
   }, [input.guestId, input.selfHandle, input.selfId, rememberPeer]);
+
+  const readTradeConversations = useCallback(async () => {
+    const fresh = await refreshInbox(true);
+    return fresh ?? conversationsRef.current;
+  }, [refreshInbox]);
+
+  const sendBearerGift=useCallback(async(context:WildsWalletBearerGiftMessage,peerHandle:string)=>{
+    if(!input.selfId||input.selfId.startsWith('guest:'))throw Error('Sign in to send this gift.');
+    const actor=input.selfId,peer={id:peerHandle,handle:peerHandle};
+    const admitted=admitWildsWalletBearerGiftMessage(context,input.selfHandle,peerHandle);
+    const result=await messengerRequest<{conversation:WildsConversation;publication?:unknown}>('/api/wilds/messages/thread',{
+      method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({action:'trade-bearer',guestId:input.guestId,peer,
+        message:admitted.kind==='trade-bearer-source'?'Your agreed gift is ready to receive in Wallet.':'Your agreed gift was received. Check the saved trade in Wallet.',
+        clientMessageId:wildsWalletBearerGiftMessageId(admitted),context:admitted})});
+    assertWildsPrivateMessagePublished(result.publication);
+    if(hydratedActorRef.current!==actor)throw Error('The signed-in Explorer changed. Reopen the wallet.');
+    rememberPeer(peer);setConversations(current=>admitConversationState(current,result.conversation));return true;
+  },[input.selfId,input.selfHandle,input.guestId,rememberPeer]);
+
+
+  const sendResourceSource = useCallback(async (context: WildsWalletResourceSourceMessageV128, peerHandle: string) => {
+    if (!input.selfId || input.selfId.startsWith("guest:")) throw Error("Sign in to send this package.");
+    const actor = input.selfId, peer = {id: peerHandle, handle: peerHandle};
+    const admitted = admitWildsWalletResourceSourceMessageV128(context, input.selfHandle, peerHandle);
+    const result = await messengerRequest<{conversation: WildsConversation; publication?: unknown}>("/api/wilds/messages/thread", {
+      method: "POST", credentials: "same-origin", headers: {"content-type": "application/json"},
+      body: JSON.stringify({action: "trade-resource-source", guestId: input.guestId, peer,
+        message: admitted.kind === "trade-resource-source" ? "Your agreed package is ready to receive in Wallet." : "Your agreed package was received. Check the saved trade in Wallet.",
+        clientMessageId: wildsWalletResourceSourceMessageIdV128(admitted), context: admitted})
+    });
+    assertWildsPrivateMessagePublished(result.publication);
+    if (hydratedActorRef.current !== actor) throw Error("The signed-in Explorer changed. Reopen the wallet.");
+    rememberPeer(peer); setConversations(current => admitConversationState(current, result.conversation)); return true;
+  }, [input.selfId, input.selfHandle, input.guestId, rememberPeer]);
 
   const recordPhiTransfer = useCallback(async (
     peer: WildsMessengerParticipant,
@@ -554,7 +594,10 @@ export function useWildsMessenger(input: {
     hasPublishedCardOffer,
     sendResourceClaim,
     sendTradePackage,
-    sendNativeTradeMessage,
+    sendStagedTrade,
+    sendBearerGift,
+    sendResourceSource,
+    readTradeConversations,
     claimCardOffer,
     markRead,
     react,

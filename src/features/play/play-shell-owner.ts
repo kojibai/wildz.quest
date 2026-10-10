@@ -2,6 +2,7 @@ import type { WorldOverlayOwner } from "./world-overlay-state";
 
 export type PlayShellOwnerState = Readonly<{
   combat: boolean;
+  dream?: boolean;
   trainer: boolean;
   memorial: boolean;
   reward: boolean;
@@ -48,6 +49,7 @@ export function projectPlayCombatSurface(state: Readonly<Record<PlayCombatSurfac
 
 export function projectPlayShellOwner(state: PlayShellOwnerState): WorldOverlayOwner {
   if (state.combat) return "combat";
+  if (state.dream) return "dream";
   if (state.trainer) return "trainer";
   if (state.memorial) return "memorial";
   if (state.reward) return "reward";

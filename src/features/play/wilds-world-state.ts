@@ -1,4 +1,5 @@
 import {resolveWorldCreationAction,type WildsCreationActionRecord} from './creation/world-action';
+import {isQualifiedWildsApplicationResourceCustodyV128} from '../../lib/receiz/wilds-resource-gameplay-v128';
 import { applyWildsResourcePackageCommand, type WildsResourcePackageRecord, type WildsResourcePackageCommand, type WildsFoodCustody,type WildsFoodConsumptionReceipt } from "./wilds-resource-package-world";
 import type { WildsResourcePackageMember } from "./wilds-resource-package";
 import { projectWildsConstructionWeather, resolveWildsMaintenance, type WildsMaintenanceCommand, type WildsConstructionCondition } from "./wilds-construction-weather";
@@ -143,6 +144,7 @@ export type WildsStoryProjection = {
 export type WildsTrainerWorldProjection = { id: string; [key: string]: unknown };
 export type WildsTournamentWorldProjection = { id: string; phase?: string; [key: string]: unknown };
 
+export type WildsApplicationResourceCustodyV128=Readonly<{scheme:'wildz.resource-source.v128';ownerReceizId:string;packageId:string;unpackAppendId:string;sourceArtifactSha256:string}>;
 export type WildsWorldProjection = {
   resourcePackages?: Record<string, WildsResourcePackageRecord>;
   reservedResourceLots?: Record<string, string>;
@@ -176,6 +178,8 @@ export type WildsWorldProjection = {
   resourceCustody: Record<string, Readonly<{ ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string }>>;
   harvestedSources: Record<string, WildsHarvestedSourceStateV1>;
   materialLots: Record<string, WildsMaterialLotV1>;
+  /** Derived only from an independently admitted resource source. Stored JSON alone conveys no title. */
+  applicationSourceCustody?: Record<string,WildsApplicationResourceCustodyV128>;
   materialCustody: Record<string, Readonly<{ ownerReceizId: string; subjectId: string; subjectHead: string; receiptId: string; transferId: string }>>;
   consumedMaterialLots: Record<string, string>;
   structures: Record<string, WildsStructureV1>;
@@ -219,7 +223,11 @@ export type WildsWorldCheckpoint = {
 };
 
 /** The sealed lot preserves creator provenance; a later receipt changes custody only. */
-export function wildsMaterialCustodian(projection: Pick<WildsWorldProjection, "materialCustody">, lot: WildsMaterialLotV1) {
+export function wildsMaterialCustodian(projection: Pick<WildsWorldProjection, "materialCustody" | "applicationSourceCustody">, lot: WildsMaterialLotV1) {
+  const source=projection.applicationSourceCustody?.[lot.lotId];
+  if(isQualifiedWildsApplicationResourceCustodyV128(source,lot.lotId,lot.head)&&source.scheme==='wildz.resource-source.v128'&&typeof source.ownerReceizId==='string'&&source.ownerReceizId
+    &&/^wildz:package:[a-f0-9]{64}$/.test(source.packageId)&&/^[a-f0-9]{64}$/.test(source.sourceArtifactSha256)
+    &&typeof source.unpackAppendId==='string'&&source.unpackAppendId)return source.ownerReceizId;
   return projection.materialCustody?.[lot.lotId]?.ownerReceizId ?? lot.ownerReceizId;
 }
 

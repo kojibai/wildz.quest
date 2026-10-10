@@ -6,7 +6,6 @@ import React, { useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { WildsWalletControllerState, WildsWalletPage, WildsWalletPresentationState } from "./wilds-wallet-controller";
 import { PhiNetworkMark } from "./PhiNetworkMark";
 import { WildsWalletAssets } from "./WildsWalletAssets";
-import { WildsWalletGifts, type WildsWalletGift } from "./WildsWalletGifts";
 import { WildsWalletLedger } from "./WildsWalletLedger";
 import { WildsWalletOverview } from "./WildsWalletOverview";
 import { WildsWalletReceive } from "./WildsWalletReceive";
@@ -22,6 +21,8 @@ import type { WildsWalletAssetSend } from "./wilds-wallet-asset-send";
 import { WildsWalletTrade } from "./WildsWalletTrade";
 import type { WildsWalletApproveTrade, WildsWalletTradeExchangeResult, WildsWalletProposeTrade } from "./wilds-wallet-trade";
 import type { WildsWalletTradeInboxItem } from "./wilds-wallet-trade-messaging";
+import type { WildsWalletStagedTradeInboxItem } from "./wilds-wallet-staged-trade-inbox";
+import type { WildsWalletStagedTradeIncomingAsset, WildsWalletStagedTradeAcceptIncomingAsset } from "./wilds-wallet-staged-trade-types";
 
 const pages: readonly Readonly<{ page: WildsWalletPage; label: string; mark: string }>[] = [
   { page: "overview", label: "Overview", mark: "◫" }, { page: "send", label: "Send", mark: "↗" },
@@ -52,7 +53,7 @@ export type WildsWalletTerminalActions = WildsWalletSendActions & Readonly<{
   onReturnToMessages?(): void;
 }>;
 
-export function WildsWalletTerminal({ actionHistory, livingOperations, cards = [], cardConditions = {}, materialLots = [], ledgerMaterialLots, inventoryCounts, nourishment, resourceLots = [], resourceCards = [], stewardPhiAwards = [], onPrepareCard, onListCard, onSendCard, onSendMaterial, onSendResource, onSendAsset, onProposeTrade, incomingTrades, nativeTradeResults, onApproveTrade, onRecoverTrade, walletGifts = [], onAcceptGift, onRecoverGift, publicUsername, state, ...actions }: {
+export function WildsWalletTerminal({ actionHistory, livingOperations, cards = [], cardConditions = {}, materialLots = [], ledgerMaterialLots, inventoryCounts, nourishment, resourceLots = [], resourceCards = [], stewardPhiAwards = [], onPrepareCard, onListCard, onSendCard, onSendMaterial, onSendResource, onSendAsset, onUnpackResourceCard, onProposeTrade, incomingTrades, incomingAgreements, incomingAssets, onAcceptIncomingAsset, nativeTradeResults, onApproveTrade, onRecoverTrade, publicUsername, state, ...actions }: {
   actionHistory?: readonly WildsActivityEntry[];
   livingOperations?: Readonly<Record<string, WildsLivingOperationPlanV1>>;
   cards?: readonly PortableCardAsset[];
@@ -61,11 +62,12 @@ export function WildsWalletTerminal({ actionHistory, livingOperations, cards = [
   nourishment?: WildsNourishmentState;
   resourceCards?: readonly ExchangeCard[];
   onSendAsset?: WildsWalletAssetSend;
-  walletGifts?: readonly WildsWalletGift[];
-  onAcceptGift?: WildsWalletApproveTrade;
-  onRecoverGift?: WildsWalletApproveTrade;
+  onUnpackResourceCard?: (packageId: string) => Promise<void>;
   onProposeTrade?: WildsWalletProposeTrade;
   incomingTrades?: readonly WildsWalletTradeInboxItem[];
+  incomingAgreements?: readonly WildsWalletStagedTradeInboxItem[];
+  incomingAssets?: readonly WildsWalletStagedTradeIncomingAsset[];
+  onAcceptIncomingAsset?: WildsWalletStagedTradeAcceptIncomingAsset;
   onApproveTrade?: WildsWalletApproveTrade;
   onRecoverTrade?: WildsWalletApproveTrade;
   nativeTradeResults?:Readonly<Record<string,WildsWalletTradeExchangeResult>>;
@@ -107,9 +109,9 @@ export function WildsWalletTerminal({ actionHistory, livingOperations, cards = [
       <main className="wilds-wallet-terminal-content" id={`wilds-wallet-panel-${state.page}`} role="tabpanel">
         {state.page === "overview" ? <WildsWalletOverview inventoryCounts={inventoryCounts} ledgerProps={{ actionHistory, livingOperations, cards, materialLots: ledgerMaterialLots ?? materialLots, resourceLots, nourishment, resourceCards }} state={state} stewardPhiAwards={stewardPhiAwards} onNavigate={actions.onNavigate} onRefresh={actions.onRefresh} /> : null}
         {state.page === "send" ? <WildsWalletSend state={state} {...actions} /> : null}
-        {state.page === "receive" ? <><WildsWalletReceive publicUsername={publicUsername} state={state} onRequestReceive={actions.onRequestReceive} /><WildsWalletGifts gifts={walletGifts.filter(gift => gift.incoming)} results={nativeTradeResults} onAccept={onAcceptGift} onRecover={onRecoverGift} /></> : null}
-        {state.page === "assets" ? <><WildsWalletGifts gifts={walletGifts} results={nativeTradeResults} onAccept={onAcceptGift} onRecover={onRecoverGift} /><WildsWalletAssets cards={cards} cardConditions={cardConditions} inventoryCounts={inventoryCounts} materialLots={materialLots} nourishment={nourishment} resourceLots={resourceLots} resourceCards={resourceCards} stewardPhiAwards={stewardPhiAwards} publicUsername={publicUsername} onSendAsset={onSendAsset} onOpenVaultCard={closeAllowed ? actions.onOpenVaultCard : undefined} onPrepareCard={onPrepareCard} onListCard={onListCard} onSendCard={onSendCard} onSendMaterial={onSendMaterial} onSendResource={onSendResource} state={state} /></> : null}
-        {state.page === "trade" ? <WildsWalletTrade key={publicUsername ?? "signed-out"} cards={cards} nourishment={nourishment} materialLots={materialLots} resourceLots={resourceLots} resourceCards={resourceCards} publicUsername={publicUsername} onProposeTrade={onProposeTrade} incomingTrades={incomingTrades} nativeTradeResults={nativeTradeResults} onApproveTrade={onApproveTrade} onRecoverTrade={onRecoverTrade} /> : null}
+        {state.page === "receive" ? <WildsWalletReceive publicUsername={publicUsername} state={state} onRequestReceive={actions.onRequestReceive} /> : null}
+        {state.page === "assets" ? <WildsWalletAssets cards={cards} cardConditions={cardConditions} inventoryCounts={inventoryCounts} materialLots={materialLots} nourishment={nourishment} resourceLots={resourceLots} resourceCards={resourceCards} stewardPhiAwards={stewardPhiAwards} publicUsername={publicUsername} onSendAsset={onSendAsset} onUnpackResourceCard={onUnpackResourceCard} onOpenVaultCard={closeAllowed ? actions.onOpenVaultCard : undefined} onPrepareCard={onPrepareCard} onListCard={onListCard} onSendCard={onSendCard} onSendMaterial={onSendMaterial} onSendResource={onSendResource} state={state} /> : null}
+        {state.page === "trade" ? <WildsWalletTrade key={publicUsername ?? "signed-out"} cards={cards} nourishment={nourishment} materialLots={materialLots} resourceLots={resourceLots} resourceCards={resourceCards} publicUsername={publicUsername} onProposeTrade={onProposeTrade} incomingTrades={incomingTrades} incomingAgreements={incomingAgreements} incomingAssets={incomingAssets} onAcceptIncomingAsset={onAcceptIncomingAsset} nativeTradeResults={nativeTradeResults} onApproveTrade={onApproveTrade} onRecoverTrade={onRecoverTrade} /> : null}
         {state.page === "ledger" ? <WildsWalletLedger actionHistory={actionHistory} livingOperations={livingOperations} cards={cards} materialLots={ledgerMaterialLots ?? materialLots} resourceLots={resourceLots} nourishment={nourishment} resourceCards={resourceCards} state={state} stewardPhiAwards={stewardPhiAwards} /> : null}
       </main>
       <footer><span>RECEIZ V128 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>

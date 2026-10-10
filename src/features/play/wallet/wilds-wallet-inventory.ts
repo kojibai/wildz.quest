@@ -29,7 +29,11 @@ export function countWildsWalletResourceInventory(input: Readonly<{
 }>) {
   return availableWildsFood(input.nourishment).length
     + input.resourceLots.reduce((total, lot) => total + lot.quantity, 0)
-    + input.resourceCards.length;
+    + input.resourceCards.reduce<number>((total, card) => {
+      if (!card || typeof card !== "object" || !("resourceUnits" in card) || card.resourceUnits === undefined) return total + 1;
+      const units = card.resourceUnits;
+      return total + (typeof units === "number" && Number.isSafeInteger(units) && units >= 0 ? units : 0);
+    }, 0);
 }
 
 export function totalWildsStewardPhiMicro(

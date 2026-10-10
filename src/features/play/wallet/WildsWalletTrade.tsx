@@ -13,7 +13,10 @@ import { createWildsWalletTradeDraft, createWildsWalletTradeAgreement, type Wild
 import { admitWildsWalletTradeReview, sendSavedWildsWalletTradeReview, wildsWalletBrowserTradeRecoveryStore, type WildsWalletTradeRecoveryStore, type WildsWalletTradeReview } from "./wilds-wallet-trade-recovery";
 import type { WildsWalletTradeInboxItem, WildsWalletTradeReply } from "./wilds-wallet-trade-messaging";
 import type { WildsWalletAssetSendAsset } from "./wilds-wallet-asset-send";
-import {wildsWalletNativeTradeAgreementDigest} from "./wilds-wallet-native-trade-context";
+import { wildsWalletTradeAgreementDigest } from "./wilds-wallet-trade";
+import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
+import type { WildsWalletStagedTradeInboxItem } from "./wilds-wallet-staged-trade-inbox";
+import type { WildsWalletStagedTradeIncomingAsset, WildsWalletStagedTradeAcceptIncomingAsset } from "./wilds-wallet-staged-trade-types";
 import styles from "./WildsWalletTrade.module.css";
 
 function describeTradeAsset(asset: WildsWalletAssetSendAsset) {
@@ -24,7 +27,7 @@ function describeTradeAsset(asset: WildsWalletAssetSendAsset) {
     asset.resourceLotIds.length ? `${asset.resourceLotIds.length} resource lot${asset.resourceLotIds.length === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ");
 }
 
-export function WildsWalletTrade({ publicUsername, cards = [], nourishment, materialLots = [], resourceLots = [], resourceCards = [], incomingTrades = [], nativeTradeResults = {}, onProposeTrade, onApproveTrade, onRecoverTrade, recoveryStore = wildsWalletBrowserTradeRecoveryStore }: {
+export function WildsWalletTrade({ publicUsername, cards = [], nourishment, materialLots = [], resourceLots = [], resourceCards = [], incomingTrades = [], incomingAgreements = [], incomingAssets = [], onAcceptIncomingAsset, nativeTradeResults = {}, onProposeTrade, onApproveTrade, onRecoverTrade, recoveryStore = wildsWalletBrowserTradeRecoveryStore }: {
   publicUsername: string | null;
   cards?: readonly PortableCardAsset[];
   nourishment?: WildsNourishmentState;
@@ -33,6 +36,9 @@ export function WildsWalletTrade({ publicUsername, cards = [], nourishment, mate
   resourceCards?: readonly ExchangeCard[];
   onProposeTrade?: WildsWalletProposeTrade;
   incomingTrades?: readonly WildsWalletTradeInboxItem[];
+  incomingAgreements?: readonly WildsWalletStagedTradeInboxItem[];
+  incomingAssets?: readonly WildsWalletStagedTradeIncomingAsset[];
+  onAcceptIncomingAsset?: WildsWalletStagedTradeAcceptIncomingAsset;
   onApproveTrade?: WildsWalletApproveTrade;
   onRecoverTrade?: WildsWalletApproveTrade;
   nativeTradeResults?: Readonly<Record<string,WildsWalletTradeExchangeResult>>;
@@ -56,8 +62,9 @@ export function WildsWalletTrade({ publicUsername, cards = [], nourishment, mate
   const [inReplyTo, setInReplyTo] = useState<WildsWalletTradeReply | undefined>(restored.review?.inReplyTo);
   const [agreement, setAgreement] = useState<WildsWalletTradeAgreement | null>(null);
   const [exchange, setExchange] = useState<WildsWalletTradeExchangeResult | null>(null);
+  const [receiveResult, setReceiveResult] = useState<WildsWalletTradeExchangeResult | null>(null);
   const running = useRef(false);
-  const agreementDigest=useMemo(()=>agreement?wildsWalletNativeTradeAgreementDigest(agreement):null,[agreement]);
+  const agreementDigest=useMemo(()=>agreement?wildsWalletTradeAgreementDigest(agreement):null,[agreement]);
   const nativeResult=agreementDigest?nativeTradeResults[agreementDigest]:undefined;
   useEffect(()=>{if(nativeResult)setExchange(nativeResult);},[nativeResult]);
   const selections = useMemo<WildsWalletAssetSendSelection[]>(() => [
@@ -102,20 +109,32 @@ export function WildsWalletTrade({ publicUsername, cards = [], nourishment, mate
     catch { setExchange({status: "pending", message: "Check this same exchange to recover its status."}); }
     finally { running.current = false; setBusy(false); }
   };
+  const acceptIncoming = async (item: WildsWalletStagedTradeIncomingAsset) => {
+    if (!onAcceptIncomingAsset || running.current) return;
+    running.current = true; setBusy(true); setError("");
+    try {
+      const next = await onAcceptIncomingAsset(item.leg.legId);
+      setReceiveResult(next);
+      if (agreementDigest === wildsWalletTradeAgreementDigest(item.authority.plan.agreement)) setExchange(next);
+    } catch { setReceiveResult({ status: "pending", message: "Check this same approved delivery to recover its acceptance." }); }
+    finally { running.current = false; setBusy(false); }
+  };
+  const gift = agreement?.purpose === "gift";
+  const receivingGift = gift && !!publicUsername && sameWildzPlayerCoordinate(agreement.second.senderHandle, publicUsername);
   return <section aria-labelledby="wilds-wallet-trade-title" className={styles.panel}>
-    <header><small>PEER EXCHANGE</small><h2 id="wilds-wallet-trade-title">{agreement ? "Review final exchange" : review ? "Review trade package" : inReplyTo ? "Build your counteroffer" : "Build a trade"}</h2><p>Combine PHI, creatures and resources in one offer.</p></header>
+    <header><small>PEER EXCHANGE</small><h2 id="wilds-wallet-trade-title">{gift ? "Review gift" : agreement ? "Review final exchange" : review ? "Review trade package" : inReplyTo ? "Build your counteroffer" : "Build a trade"}</h2><p>{gift ? "Review the exact gift before agreeing to receive it." : "Combine PHI, creatures and resources in one offer."}</p></header>
     {agreement ? <>
-      {[agreement.first, agreement.second].map(side => <div key={side.senderHandle}><h3>@{side.senderHandle} sends</h3><p>{formatWildsPhiExact(side.draft.offered.phiMicro)} Φ</p><ul className={styles.package}>{side.draft.offered.assets.map((asset, index) => <li key={index}>{describeTradeAsset(asset)}</li>)}</ul></div>)}
-      <p>Approve these exact packages. The exchange completes after both people approve, with every asset moving together.</p>
-      {!exchange || exchange.status === "failed" ? <div className={styles.actions}><button disabled={busy} onClick={() => {setAgreement(null); setExchange(null);}} type="button">Back</button><button disabled={busy || !onApproveTrade} onClick={() => {void approve();}} type="button">{busy ? "Preparing approval…" : "Approve exchange"}</button></div> : null}
-      {exchange?.status === "awaiting-peer" || exchange?.status === "pending" ? <button disabled={busy || !onRecoverTrade} onClick={() => {void approve(true);}} type="button">{busy ? "Checking exchange…" : "Check same exchange"}</button> : null}
+      {(gift ? [agreement.first] : [agreement.first, agreement.second]).map(side => <div key={side.senderHandle}><h3>@{side.senderHandle} sends</h3>{side.draft.offered.phiMicro !== "0" ? <p>{formatWildsPhiExact(side.draft.offered.phiMicro)} Φ</p> : null}<ul className={styles.package}>{side.draft.offered.assets.map((asset, index) => <li key={index}>{describeTradeAsset(asset)}</li>)}</ul></div>)}
+      <p>{gift ? "Both people approve this exact gift. Once it is delivered, the recipient accepts it below. Nothing is requested in return." : "Both people approve these exact packages. Sends then complete in order. Completed sends remain delivered if a later send needs recovery."}</p>
+      {!exchange || exchange.status === "failed" ? <div className={styles.actions}><button disabled={busy} onClick={() => {setAgreement(null); setExchange(null);}} type="button">Back</button><button disabled={busy || !onApproveTrade} onClick={() => {void approve();}} type="button">{busy ? "Preparing approval…" : receivingGift ? "Accept gift" : gift ? "Approve gift" : "Approve exchange"}</button></div> : null}
+      {exchange?.status === "awaiting-peer" || exchange?.status === "pending" ? <button disabled={busy || !onRecoverTrade} onClick={() => {void approve(true);}} type="button">{busy ? "Checking…" : gift ? "Check same gift" : "Check same exchange"}</button> : null}
       {exchange?.status === "committed" && exchange.assetRecoveryRequired ? <button disabled={busy || !onRecoverTrade} onClick={() => {void approve(true);}} type="button">{busy ? "Refreshing assets…" : "Refresh received assets"}</button> : null}
       {exchange ? <p role="status">{exchange.message}</p> : null}
     </> : review ? <>
       <dl className={styles.review}><div><dt>Trade with</dt><dd>@{review.recipientHandle}</dd></div><div><dt>Your PHI</dt><dd>{formatWildsPhiExact(review.offered.phiMicro)} Φ</dd></div><div><dt>Requested PHI</dt><dd>{formatWildsPhiExact(review.requestedPhiMicro)} Φ</dd></div></dl>
       <ul className={styles.package}>{savedReview?.labels.map(({id, label, quantity}) => <li key={id}><span>{label}</span><b>{quantity}</b></li>)}</ul>
       {review.requestNote ? <p><strong>In exchange for:</strong> {review.requestNote}</p> : null}
-      <p>They can accept or counteroffer. You both review the final package before the exchange. Every agreed asset moves together.</p>
+      <p>They can accept or counteroffer. You both review the final packages before sending them in agreed stages.</p>
       {(!result && savedReview?.status !== "pending") || result?.status === "failed" ? <div className={styles.actions}><button disabled={busy} onClick={() => {
         try { if (publicUsername) recoveryStore.clear(publicUsername); setReview(null); setSavedReview(null); }
         catch (cause) { setError(cause instanceof Error ? cause.message : "Trade recovery is unavailable."); }
@@ -142,6 +161,17 @@ export function WildsWalletTrade({ publicUsername, cards = [], nourishment, mate
       {chosen.length ? <p>{chosen.length} asset selection{chosen.length === 1 ? "" : "s"} in your package</p> : null}
       <button onClick={prepare} type="button">Review package</button>
     </>}
+    {!agreement && incomingAgreements.length ? <div><h3>Agreements to review</h3>{incomingAgreements.map(item => <article key={item.id}>
+      <h4>@{item.senderHandle} · {item.agreement.purpose === "gift" ? "Gift" : "Staged exchange"}</h4>
+      <ul className={styles.package}>{item.agreement.first.draft.offered.assets.map((asset, index) => <li key={index}>{describeTradeAsset(asset)}</li>)}</ul>
+      <button disabled={busy || !onApproveTrade} type="button" onClick={() => { setAgreement(item.agreement); setExchange(null); setError(""); }}>{item.agreement.purpose === "gift" ? "Review gift" : "Review final exchange"}</button>
+    </article>)}</div> : null}
+    {incomingAssets.length ? <div><h3>Ready to receive</h3>{incomingAssets.map(item => <article key={item.leg.legId}>
+      <h4>@{item.leg.senderHandle} · {describeTradeAsset(item.leg.request.asset)}</h4>
+      <p>{item.status === "projection-pending" ? "Delivery is verified. Add the same saved received asset to your wallet." : item.status === "pending" ? "Check the same acceptance. Its original source will be preserved." : "This is the next delivery in your approved agreement."}</p>
+      <button disabled={busy || !onAcceptIncomingAsset} type="button" onClick={() => { void acceptIncoming(item); }}>{busy ? "Checking acceptance…" : item.status === "projection-pending" ? "Refresh received asset" : item.status === "pending" ? "Check same acceptance" : item.authority.plan.agreement.purpose === "gift" ? "Accept gift delivery" : "Accept received asset"}</button>
+    </article>)}</div> : null}
+    {receiveResult ? <p role="status">{receiveResult.message}</p> : null}
     {!agreement && incomingTrades.length ? <div><h3>Trade inbox</h3>{incomingTrades.map(item => <article key={item.id}>
       <h4>@{item.senderHandle} · {item.message.stage === "counteroffer" ? "Counteroffer" : "Trade offer"}</h4>
       <p>{formatWildsPhiExact(item.message.draft.offered.phiMicro)} Φ · {item.message.draft.offered.assets.length} asset selection{item.message.draft.offered.assets.length === 1 ? "" : "s"}</p>

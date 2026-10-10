@@ -2,6 +2,17 @@ import * as THREE from "three";
 import type {WildsExplorerAnatomy} from "./wilds-explorer-anatomy";
 import { WildsFaceGeometryBuilder, addWildsFaceEye } from "./wilds-face-geometry";
 
+/** Match the authored skull surface so identity-dependent lips never sink into it. */
+export function wildsExplorerFaceFrontDepth(anatomy: WildsExplorerAnatomy, x: number, y: number) {
+  const detail = anatomy.detail, skullY = y / anatomy.faceHeight;
+  const jaw = THREE.MathUtils.smoothstep(-skullY, 0, .225);
+  const temple = skullY > .06 ? THREE.MathUtils.lerp(1, detail.temple, THREE.MathUtils.smoothstep(skullY, .06, .18)) : 1;
+  const skullX = x / ((anatomy.cheek * (1 - jaw) + anatomy.jaw * jaw) * temple);
+  const cheek = Math.exp(-Math.pow((Math.abs(skullX) - .11) / .07, 2) - Math.pow((skullY - detail.cheekHeight + .065) / .08, 2));
+  const chin = Math.exp(-Math.pow(skullX / .085, 2) - Math.pow((skullY + .17) / .05, 2));
+  return -Math.sqrt(Math.max(0, .225 ** 2 - skullX ** 2 - skullY ** 2)) * detail.depth - cheek * .009 - chin * detail.chin;
+}
+
 /** Face, eyes, lips, brows and ears share one vertex-colored mesh and one material. */
 export function createWildsExplorerFace(anatomy:WildsExplorerAnatomy,skin:string,hair:string,remote=false) {
   const builder = new WildsFaceGeometryBuilder();
@@ -32,14 +43,16 @@ export function createWildsExplorerFace(anatomy:WildsExplorerAnatomy,skin:string
   }
   add(new THREE.SphereGeometry(1,10,8),skin,[0,-.006,-.2],[anatomy.noseWidth*.55*detail.noseBridge,.054,anatomy.noseLength*.8]);
   add(new THREE.SphereGeometry(1,10,6),skin,[0,-.04,-.213],[anatomy.noseWidth,.02,anatomy.noseLength*.67*detail.noseTip]);
-  const upperLip = new THREE.SphereGeometry(1,10,5),lipPositions=upperLip.getAttribute("position");
-  for(let i=0;i<lipPositions.count;i++) {
-    const x = lipPositions.getX(i);
-    lipPositions.setY(i,lipPositions.getY(i)-Math.exp(-Math.pow(x/.2,2))*detail.cupidBow/anatomy.lipFullness);
-  }
-  add(upperLip,lip,[0,-.098,-.184],[anatomy.mouthWidth,anatomy.lipFullness,.013]);
-  add(new THREE.SphereGeometry(1,10,5),lip,[0,-.115,-.18],[anatomy.mouthWidth*.92,anatomy.lipFullness*detail.lowerLip,.014]);
-  const mouth=new THREE.CatmullRomCurve3([new THREE.Vector3(-anatomy.mouthWidth,-.106,-.19),new THREE.Vector3(0,-.108,-.199),new THREE.Vector3(anatomy.mouthWidth,-.106,-.19)]);
+  const lipPoint = (x: number, y: number, relief: number) => new THREE.Vector3(x, y, wildsExplorerFaceFrontDepth(anatomy, x, y) - relief);
+  const w = anatomy.mouthWidth;
+  const upperLip = new THREE.CatmullRomCurve3([
+    lipPoint(-w, -.106, .003), lipPoint(-w * .42, -.099 - detail.cupidBow, .007),
+    lipPoint(0, -.103, .008), lipPoint(w * .42, -.099 - detail.cupidBow, .007), lipPoint(w, -.106, .003)
+  ]);
+  add(new THREE.TubeGeometry(upperLip,8,anatomy.lipFullness*.58,5,false),lip);
+  const lowerLip = new THREE.CatmullRomCurve3([lipPoint(-w, -.107, .003),lipPoint(0, -.115, .008),lipPoint(w, -.107, .003)]);
+  add(new THREE.TubeGeometry(lowerLip,8,anatomy.lipFullness*detail.lowerLip*.63,5,false),new THREE.Color(lip).multiplyScalar(1.08).getStyle());
+  const mouth=new THREE.CatmullRomCurve3([lipPoint(-w,-.106,.008),lipPoint(0,-.108,.014),lipPoint(w,-.106,.008)]);
   add(new THREE.TubeGeometry(mouth,6,.0018,3,false),new THREE.Color(lip).multiplyScalar(.55).getStyle());
   if(anatomy.freckles&&!remote)for(let i=0;i<6;i++) {
     const side=i%2?1:-1;

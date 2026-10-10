@@ -8,8 +8,6 @@ import { isCurrentWildzGameplaySource } from "../identity/wildz-gameplay-source"
 import { validateWildsRoamingHandoffCard } from "../../lib/receiz/wilds-roaming-handoff";
 import { pruneWildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
 import {readWildzProfileDisplayName,saveWildzProfileDisplayName} from "../profile/profile-display-name";
-import {qualifyWildzNativeTradeArtifact} from "@/lib/receiz/wildz-native-trade-custody";
-import type {ReceizCommittedNativeTradeV128} from "@receiz/sdk";
 
 import { emitWildsPlaytestEvent } from "@/features/play/wilds-playtest-events";
 import { WildzMarketSheet } from "@/features/market/WildzMarketSheet";
@@ -932,17 +930,15 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     return outcome;
   }, [acceptSnapshot, runtimeCheckpointStore]);
 
-  const restoreRoamingCapture = useCallback(async (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState, nativeTrade?: ReceizCommittedNativeTradeV128) => {
+  const restoreRoamingCapture = useCallback(async (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState) => {
     const current = continuityRef.current;
     const bytes = new Uint8Array(await file.arrayBuffer());
     const sidecar = structuredClone(currentCard);
     if (!current) throw new Error("wildz_restore_identity_missing");
-    if (nativeTrade) await qualifyWildzNativeTradeArtifact({committed:nativeTrade,bytes,ownerReceizId:current.session.actorId});
     const opened = await openWildzArtifactSameOrigin({ bytes, mimeType: file.type, name: file.name });
-    const custodyOwner = opened.nativeTradeCustody?.ownerReceizId ?? opened.ownershipWitness?.ownerReceizId;
-    if (opened.compatibility !== "current-native" || !custodyOwner
+    if (opened.compatibility !== "current-native" || !opened.ownershipWitness
       || !sameWildzPlayerCoordinate(opened.ownerReceizId, current.session.actorId)
-      || !sameWildzPlayerCoordinate(custodyOwner, current.session.actorId))
+      || !sameWildzPlayerCoordinate(opened.ownershipWitness.ownerReceizId, current.session.actorId))
       throw new Error("The captured artifact did not verify for this keeper.");
     validateWildsRoamingHandoffCard(opened.payloadBytes, sidecar);
     // Preserve the exact verified successor before retention or local restore.

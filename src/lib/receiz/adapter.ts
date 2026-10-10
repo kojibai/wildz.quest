@@ -217,8 +217,6 @@ export type ReceizCommerceAdapter = {
   executePhiSettlementV123: ReceizClient["value"]["executeSettlement"];
   executePhiReserveV123: ReceizClient["value"]["executeReserve"];
   phiExecutionByIdempotencyKeyV123: ReceizClient["value"]["executionByIdempotencyKey"];
-  nativeValueTransferSourceV123: ReceizClient["value"]["transferSource"];
-  nativeValueTransferCapabilitiesV123: ReceizClient["value"]["transferCapabilities"];
   quotePhiDisplayUsdV122: ReceizClient["value"]["quoteDisplayUsd"];
   twinMarketMandate(): Promise<TwinMarketMandateResponse>;
   saveTwinMarketMandate(body: SaveTwinMarketMandateInput): Promise<TwinMarketMandateResponse>;
@@ -865,10 +863,6 @@ export function createReceizCommerceAdapter(
     phiExecutionByIdempotencyKeyV123(idempotencyKey, authority) {
       return client.value.executionByIdempotencyKey(idempotencyKey, authority);
     },
-    nativeValueTransferSourceV123(input) {
-      return client.value.transferSource(input);
-    },
-    nativeValueTransferCapabilitiesV123() { return client.value.transferCapabilities(); },
     quotePhiDisplayUsdV122(amountPhiMicro, usdPerPhiMicrocents) {
       return client.value.quoteDisplayUsd(amountPhiMicro, usdPerPhiMicrocents);
     },

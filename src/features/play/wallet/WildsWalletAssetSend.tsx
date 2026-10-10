@@ -34,7 +34,7 @@ export function WildsWalletAssetSend({ selection, publicUsername, onSendAsset, d
       const outcome = await onSendAsset(review.request);
       setResult(outcome); locked = outcome.status === "pending";
     } catch {
-      setResult({ status: "pending", retryable: false, message: "Delivery is still being checked. Check the same gift before sending this asset again." });
+      setResult({ status: "pending", retryable: false, message: "Delivery is still being checked. Check Messages before sending this asset again." });
     } finally { running.current = false; setSending(false); onLockChange(locked); }
   };
   return <section aria-label="Send selected wallet asset" className={styles.panel}>
@@ -46,7 +46,7 @@ export function WildsWalletAssetSend({ selection, publicUsername, onSendAsset, d
         <div><dt>Recipient</dt><dd>@{review.request.recipientHandle.replace(/\.receiz\.id$/, "")}</dd></div>
       </dl>
       {review.detail ? <p>{review.detail}</p> : null}
-      <p>The recipient accepts this gift to receive it. Ownership stays yours until acceptance is confirmed.</p>
+      <p>The recipient accepts it in Messages to receive it.</p>
       {!result || result.status === "failed" ? <div className={styles.actions}>
         <button disabled={sending} onClick={() => { setReview(null); setResult(null); }} type="button">Edit details</button>
         <button disabled={sending || disabled || !onSendAsset} onClick={() => { void send(); }} type="button">{sending ? "Sending…" : "Confirm send"}</button>

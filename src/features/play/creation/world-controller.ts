@@ -9,7 +9,7 @@ import { createCreationCurrentSourcePort, type CreationCurrentSource } from './c
 import { compileCreation, verifyCreationPlan, type CreationCompileContext, type CreationPlan } from './compiler';
 import { combineCreationTechniques, projectCreationWorkers } from './capabilities';
 import { selectCreationResources } from './resources';
-import { assertWorldCreationPlacement, creationWorldAvailability, creationWorldSourceHead, creationWorldWorkers, compileWorldCreationSource, projectWildsCreationPersistence, creationWorldSourceHistory, creationWorldReplacementSafe, type WildsCreationBuildCommand, type WildsCreationSourceRecord, type WildsCreationWorkerSource } from './world-source';
+import { assertWorldCreationPlacement, creationWorldAvailability, creationWorldSourceHead, creationWorldWorkers, compileWorldCreationSource, projectWildsCreationPersistence, creationWorldSourceHistory, creationWorldReplacementSafe, type WildsCreationBuildCommand, type WildsCreationSourceRecord } from './world-source';
 import { creationPlacementMessage } from './placement-message';
 import type { CreationCommitResult, CreationDefinition, CreationInstanceRef } from './types';
 import { creationBuildInReach, CREATION_PHYSICAL_BUILD_REACH_RULE } from './build-reach';
@@ -18,7 +18,6 @@ export type WorldCreationControllerInput = Readonly<{
   environment: () => Readonly<{ ownerId: string; worldId: string; spaceId: string }>;
   world: () => WildsWorldProjection | null;
   crew: () => Readonly<{ cards: readonly PortableCardAsset[]; conditions: PlayState['adventureConditions'] }>;
-  prepareWorkerSource?: (source: WildsCreationWorkerSource) => Promise<WildsCreationWorkerSource>;
   position: () => Readonly<{ x: number; y: number; z: number }>;
   compileContext: (plan: CreationPlan) => CreationCompileContext | null;
   admit: (command: WildsCreationBuildCommand, beforeAdmit: () => Promise<void>) => Promise<Readonly<{ projection: WildsWorldProjection; events: readonly WildsWorldEvent[] }>>;
@@ -108,12 +107,12 @@ export function createWorldCreationController(input: WorldCreationControllerInpu
       let command: WildsCreationBuildCommand;
       try {
         const crew = input.crew(), candidates = projectCreationWorkers(crew.cards, crew.conditions);
-        const workerSources = await Promise.all(workerIds.map(async id => {
+        const workerSources = workerIds.map(id => {
           const worker = candidates.find(candidate => candidate.assetId === id || candidate.subjectId === id), card = crew.cards.find(candidate => candidate.id === worker?.assetId);
           if (!card || !crew.conditions[card.id]) throw Error('creation_world_worker_missing');
           const source = { card, condition: crew.conditions[card.id] };
-          return input.prepareWorkerSource ? input.prepareWorkerSource(source) : source;
-        }));
+          return source;
+        });
         const workers = creationWorldWorkers(workerSources, scope.ownerId), rawContext = input.compileContext(plan);
         if (!rawContext) throw Error('creation_world_context_unavailable');
         const context: CreationCompileContext = { ...withoutSelectedPhysical(rawContext), pose: plan.pose, techniques: combineCreationTechniques(workers) };
@@ -138,7 +137,6 @@ export function createWorldCreationController(input: WorldCreationControllerInpu
           for (const expected of command.workerSources) {
             const card = crew.cards.find(candidate => candidate.id === expected.card.id);
             if (!card || !same(card, expected.card) || !same(crew.conditions[card.id], expected.condition)) throw Error('creation_world_final_worker_changed');
-            if (expected.nativeKeeper && (!input.prepareWorkerSource || !same(await input.prepareWorkerSource({ card, condition: expected.condition }), expected))) throw Error('creation_world_final_keeper_changed');
           }
           creationWorldWorkers(command.workerSources, scope.ownerId);
           if (!creationBuildInReach(plan, input.position(), command.reachRule)) throw Error('Move within 12 metres of your creation preview to build.');

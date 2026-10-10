@@ -1,3 +1,4 @@
+import { admitWildsWalletResourceSourceMessageV128, wildsWalletResourceSourceMessageIdV128 } from "./wallet/wilds-wallet-resource-source-messaging-v128";
 import { validateResourceOfferMessage } from './wilds-resource-messaging';
 import {
   normalizeWildsMessengerParticipant,
@@ -19,7 +20,8 @@ import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate"
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import { decodeWildsPortableClaim } from "./wilds-portable-claim";
 import { validateWildsWalletTradeMessage, wildsWalletTradeMessageId } from "./wallet/wilds-wallet-trade-messaging";
-import { validateWildsWalletNativeTradeMessage, wildsWalletNativeTradeMessageId } from "./wallet/wilds-wallet-native-trade-context";
+import { admitWildsWalletStagedTradeMessage, wildsWalletStagedTradeMessageId } from "./wallet/wilds-wallet-staged-trade-messaging";
+import { admitWildsWalletBearerGiftMessage, wildsWalletBearerGiftMessageId } from "./wallet/wilds-wallet-bearer-gift-messaging";
 
 const messengerLedgerKey = Symbol.for("receiz.wilds.messenger-ledger.v1");
 const groupRoomLedgerKey = Symbol.for("receiz.wilds.group-room-ledger.v1");
@@ -113,7 +115,22 @@ export function appendWildsDirectMessage(input: {
   if (!clientMessageId) throw new Error("wilds_client_message_id_required");
   const body = sanitizeWildsDirectMessage(input.body);
   const context = input.context?.kind === "trade-package"
-    ? validateWildsWalletTradeMessage(input.context, sender.handle, recipient.handle) : input.context;
+    ? validateWildsWalletTradeMessage(input.context, sender.handle, recipient.handle)
+    : input.context?.kind === "trade-staged-approval" || input.context?.kind === "trade-staged-progress"
+      ? admitWildsWalletStagedTradeMessage(input.context, sender.handle, recipient.handle)
+      : input.context?.kind === "trade-bearer-source" || input.context?.kind === "trade-bearer-accepted"
+        ? admitWildsWalletBearerGiftMessage(input.context,sender.handle,recipient.handle)
+        : input.context?.kind === "trade-resource-source" || input.context?.kind === "trade-resource-accepted"
+          ? admitWildsWalletResourceSourceMessageV128(input.context, sender.handle, recipient.handle) : input.context;
+  if (context?.kind === "trade-resource-source" || context?.kind === "trade-resource-accepted") {
+    if (clientMessageId !== wildsWalletResourceSourceMessageIdV128(context)) throw Error("wilds_wallet_resource_message_invalid");
+  }
+  if (context?.kind === "trade-bearer-source" || context?.kind === "trade-bearer-accepted") {
+    if (clientMessageId !== wildsWalletBearerGiftMessageId(context)) throw Error("wilds_wallet_bearer_message_invalid");
+  }
+  if (context?.kind === "trade-staged-approval" || context?.kind === "trade-staged-progress") {
+    if (clientMessageId !== wildsWalletStagedTradeMessageId(context)) throw Error("wilds_wallet_trade_message_invalid");
+  }
   if (context?.kind === "trade-package") {
     if (clientMessageId !== wildsWalletTradeMessageId(sender.handle, context)) throw Error("wilds_wallet_trade_message_invalid");
     if (context.stage === "counteroffer" && !conversation.messages.some(message => !message.deletedAt && !message.editedAt
@@ -124,10 +141,7 @@ export function appendWildsDirectMessage(input: {
       throw Error("wilds_wallet_trade_original_offer_required");
     }
   }
-  if (context?.kind === "trade-native") {
-    validateWildsWalletNativeTradeMessage(context, sender.handle, recipient.handle);
-    if (clientMessageId !== wildsWalletNativeTradeMessageId(sender.handle, context)) throw Error("wilds_wallet_native_trade_message_invalid");
-  }
+
   if (context?.kind === "phi-transfer" && (
     !/^[1-9][0-9]{0,29}$/.test(context.amountPhiMicro)
     || context.rail !== "settlement"

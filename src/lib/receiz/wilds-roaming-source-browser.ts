@@ -57,11 +57,9 @@ export function createWildsRoamingOwnerFilePreparer(dependencies: Readonly<{
           if (isWildsRoamingVaultBackup(source.payloadBytes, asset.id)) continue;
           const checked = await verifyReceizArtifact(new File([bytes.slice().buffer], row.artifact.filename, { type: row.artifact.mimeType }));
           if (checked.status !== "verified-artifact") throw new Error("wilds_roaming_source_verification_failed");
-          const continuity = checked.continuity;
-          const atomic = checked.verification.bundle.nativeRecordSeal as {atomicOwnershipTransition?:{basis?:{predecessorArtifactSha256?:string}}}|undefined;
+          const continuity = checked.verification.assetContinuity as { history?: Array<{ sourceArtifactSha256?: string }> } | undefined;
           candidates.push({ source, ancestors: new Set([...row.predecessors,
-            ...(continuity.history ?? []).flatMap(event => typeof event.sourceArtifactSha256 === "string" ? [event.sourceArtifactSha256] : []),
-            ...(atomic?.atomicOwnershipTransition?.basis?.predecessorArtifactSha256 ? [atomic.atomicOwnershipTransition.basis.predecessorArtifactSha256] : [])]) });
+            ...(continuity?.history ?? []).flatMap(event => event.sourceArtifactSha256 ? [event.sourceArtifactSha256] : [])]) });
         }
         cursor = page.nextCursor ?? undefined;
       } while (cursor);

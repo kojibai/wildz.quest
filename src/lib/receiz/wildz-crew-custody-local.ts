@@ -21,7 +21,7 @@ export async function reopenWildzStoredCrewCustody(owner: { keyId: string; actor
       return admitted;
     } }
   });
-  const custody = await reopenWildzCrewCustody({ owner: owner.actorId, cards,
+  const custody = await reopenWildzCrewCustody({ owner: owner.actorId, keyId:owner.keyId, cards,
     sources: await defaultContinuityDatabase.read("meta", wildzCrewCustodySourceKey(owner.keyId, owner.actorId)),
     history: { async read(sha) {
       const native = await history.read(sha);

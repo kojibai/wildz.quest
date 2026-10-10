@@ -11,6 +11,7 @@ import * as siteRuntime from '../src/features/play/wilds-site-runtime';
 import * as flightCamera from '../src/features/play/wilds-flight-camera';
 import * as underwaterCamera from '../src/features/play/wilds-underwater-camera';
 import * as obstacles from '../src/features/play/wilds-terrain-obstacles';
+import * as playerView from '../src/features/play/wilds-player-view';
 import {admitWildsDiscoveryPhysicalNeighborhood} from '../src/features/play/wilds-discovery-sites';
 import {deriveCreationGeometry} from '../src/features/play/creation/geometry';
 import type {CreationPhysicalProjection} from '../src/features/play/creation/projection';
@@ -44,24 +45,25 @@ function mountCamera(desired:THREE.Vector3,projection?:CreationPhysicalProjectio
   orbit.target.set(0,.9,0);orbit.update();
   const slots:{value:any;deps?:unknown[]}[]=[];
   let cursor=0,indexBuilds=0;
+  let effects:(()=>void)[]=[];
   const frames=new Map<number,(_:unknown,delta:number)=>void>();
   const source=readFileSync('src/features/play/WildsWorldCanvas.tsx','utf8');
   const body=source.slice(source.indexOf('function CameraRig('),source.indexOf('\nfunction frameSeconds('));
   const output=ts.transpileModule(body+'\nexports.CameraRig=CameraRig;', {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
   const exports={CameraRig:null as unknown as (props:any)=>{props:{ref:{current:typeof orbit};camera?:THREE.PerspectiveCamera}}};
-  const environment={exports,THREE,OrbitControls:()=>null,...navigation,...siteRuntime,...flightCamera,...underwaterCamera,...obstacles,
+  const environment={exports,THREE,OrbitControls:()=>null,...navigation,...siteRuntime,...flightCamera,...underwaterCamera,...obstacles,...playerView,
     buildWildsObstacleIndex(input:readonly obstacles.WildsTerrainObstacle[]){indexBuilds++;return obstacles.buildWildsObstacleIndex(input);},
     useThree:()=>({camera}),useRef:(value:unknown)=>(slots[cursor++]??={value:{current:value}}).value,
     useMemo(factory:()=>unknown,deps:unknown[]){const slot=cursor++;if(!slots[slot]?.deps||!deps.every((d,i)=>Object.is(d,slots[slot].deps![i])))slots[slot]={value:factory(),deps};return slots[slot].value;},
-    useEffect:()=>{},useFrame:(callback:(_:unknown,delta:number)=>void,priority=0)=>frames.set(priority,callback),
+    useEffect:()=>{},useLayoutEffect(effect:()=>void,deps:unknown[]){const slot=cursor++;if(!slots[slot]?.deps||!deps.every((d,i)=>Object.is(d,slots[slot].deps![i]))){slots[slot]={value:null,deps};effects.push(effect);}},useFrame:(callback:(_:unknown,delta:number)=>void,priority=0)=>frames.set(priority,callback),
     require:(name:string)=>{if(name==='react/jsx-runtime')return {jsx:(type:unknown,props:unknown)=>({type,props})};throw Error(name);}
   };
   Function(...Object.keys(environment),output)(...Object.values(environment));
   const runtime=emptySiteRuntime(),creationNavigation=projection?navigation.prepareCreationNavigation([projection]):undefined;
-  const props={actualCameraSubmergedRef:{current:false},verticalTraversalRef:{current:{layer:'ground',offset:0,worldY:origin.y,intent:0,safeMin:0,safeMax:0}},
+  const props={firstPerson:false,eyeHeight:1.38,eyePoseRef:{current:{x:0,y:1.38,z:0}},onExitFirstPerson:()=>{},actualCameraSubmergedRef:{current:false},verticalTraversalRef:{current:{layer:'ground',offset:0,worldY:origin.y,intent:0,safeMin:0,safeMax:0}},
     aquaticPresentation:{mode:'land',terrainElevation:origin.y,waterSurfaceY:origin.y-2,waterDepth:0,actorLocalY:0,actorWorldY:origin.y,cameraSubmersionAllowed:false,scubaVisible:false},
     onCameraHeadingChange:()=>{},vistaHeading:null,siteRuntime:runtime,siteSpace:{spaceId:OUTER,position:{x:999,y:-50,z:999}},player:{x:origin.x,z:origin.z},terrainElevation:origin.y,creationNavigation,livingPhysicalObstacles};
-  const render=()=>{cursor=0;const element=exports.CameraRig(props);orbit.object=element.props.camera??camera;element.props.ref.current=orbit;};render();
+  const render=()=>{cursor=0;effects=[];const element=exports.CameraRig(props);orbit.object=element.props.camera??camera;element.props.ref.current=orbit;effects.forEach(effect=>effect());};render();
   const before=siteRuntime.wildsSiteRuntimeDiagnostics();
   return {camera,orbit,props,creationNavigation,render,indexBuilds:()=>indexBuilds,
     frame(){frames.get(-2)?.({},1/60);if(realControls)orbit.update();frames.get(-.25)?.({},1/60);},
@@ -70,6 +72,32 @@ function mountCamera(desired:THREE.Vector3,projection?:CreationPhysicalProjectio
     unchangedAuthority(){assert.equal(siteRuntime.wildsSiteRuntimeDiagnostics().indexBuilds,before.indexBuilds);assert.equal(siteRuntime.wildsSiteRuntimeDiagnostics().authorityBuilds,before.authorityBuilds);}
   };
 }
+
+test('first person uses the existing camera and returns to the prior orbit on real wheel zoom',()=>{
+  const mounted=mountCamera(new THREE.Vector3(0,2.1,5.8),undefined,[],true);
+  mounted.frame();const radius=mounted.orbit.object.position.distanceTo(mounted.orbit.target);
+  let exits=0;mounted.props.onExitFirstPerson=()=>{exits++;};mounted.props.firstPerson=true;mounted.render();mounted.frame();
+  assert.ok(Math.abs(mounted.orbit.object.position.distanceTo(mounted.orbit.target)-playerView.WILDS_FIRST_PERSON_DISTANCE)<1e-8);
+  assert.ok(Math.abs(mounted.camera.position.y-1.38)<1e-8, "the rendered camera must sit at the actual eye anchor");
+  assert.equal(mounted.camera.fov,64);
+  for(let i=0;i<4;i++){mounted.input('wheel',{deltaY:100});mounted.frame();}
+  assert.equal(exits,1);
+  assert.ok(mounted.orbit.object.position.distanceTo(mounted.orbit.target)>=radius);
+  assert.equal(mounted.orbit.minDistance,.45);
+  mounted.props.firstPerson=false;mounted.render();mounted.frame();assert.equal(mounted.camera.fov,40);mounted.unchangedAuthority();
+});
+
+test('the existing outward two-finger pinch also leaves first person',()=>{
+  const mounted=mountCamera(new THREE.Vector3(0,2.1,5.8),undefined,[],true);
+  let exits=0;mounted.props.onExitFirstPerson=()=>{exits++;};mounted.props.firstPerson=true;mounted.render();mounted.frame();
+  mounted.input('pointerdown',{pointerId:1,pointerType:'touch',pageX:100,pageY:300});
+  mounted.input('pointerdown',{pointerId:2,pointerType:'touch',pageX:400,pageY:300});
+  mounted.input('pointermove',{pointerId:1,pointerType:'touch',pageX:190,pageY:300});
+  mounted.input('pointermove',{pointerId:2,pointerType:'touch',pageX:310,pageY:300});
+  mounted.input('pointerup',{pointerId:1,pointerType:'touch'});mounted.input('pointerup',{pointerId:2,pointerType:'touch'});mounted.frame();
+  assert.equal(exits,1);assert.ok(mounted.orbit.object.position.distanceTo(mounted.orbit.target)>.45);
+  mounted.unchangedAuthority();
+});
 
 test('real camera freely zooms outside and inside a moved, rotated prompt building',()=>{
   const desired=turn(Math.sqrt(34.56),2.1,0),mounted=mountCamera(desired,house(),[],true);

@@ -6,7 +6,7 @@ import type { WildsMessengerParticipant } from './wilds-messenger-core';
 import styles from './resource-exchange.module.css';
 
 export type ExchangeItem = Readonly<{ id: string; group: string; label: string; food?: boolean }>;
-export type ExchangeCard = Readonly<{ id: string; title: string; summary: string; status: string; transferable: boolean; unpackable: boolean; cancellable: boolean; recoverable?: boolean }>;
+export type ExchangeCard = Readonly<{ id: string; title: string; summary: string; status: string; transferable: boolean; unpackable: boolean; cancellable: boolean; recoverable?: boolean; resourceUnits?: number; unpackLabel?: "Use contents" | "Refresh contents" }>;
 export type ExchangeClaim = Readonly<{ claimId: string; claimProof: string; claimUrl: string }>;
 export type ExchangeAvailability = Readonly<{ status: 'checking' | 'available' | 'unavailable' | 'locked'; message: string; foodAvailable?: boolean; marketAvailable?: boolean }>;
 export type ResourceExchangeActions = Readonly<{

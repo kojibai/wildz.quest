@@ -1,0 +1,216 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import type {ReceizPortableSealedArtifactV124} from '@receiz/sdk';
+import {wildsNourishmentPlantsForTile,wildsNourishmentSourceAt} from '../src/features/play/wilds-nourishment';
+import {replayWildsResourceGameplayV128,type WildsResourceGameplayCommandV128} from '../src/lib/receiz/wilds-resource-gameplay-v128';
+import {initialWildsResourceJournalV128,reduceWildsResourceJournalV128,replayWildsResourceJournalOwnerV128,wildsResourceUseSpentMemberIdsV128,wildsResourceUseEffectMemberIdsV128,type WildsResourceJournalEventV128} from '../src/lib/receiz/wilds-resource-journal-v128';
+import {projectWildsResourceRegion} from '../src/features/play/wilds-resource-authority';
+import {createWildsSourceAuthorityProjection,planWildsMaterialHarvest} from '../src/features/play/wilds-source-work-authority';
+import {wildsMaterialCustodian} from '../src/features/play/wilds-world-state';
+import {sealCollectedCard,sha256PortableBasis,type PortableCardAsset} from '../src/features/play/portable-card';
+import {emptyAdventureCondition} from '../src/features/play/adventure/card-condition';
+import {createCreationDefinition} from '../src/features/play/creation/definition';
+import {compileCreation,type CreationCompileContext} from '../src/features/play/creation/compiler';
+import {selectCreationResources} from '../src/features/play/creation/resources';
+import {projectCreationWorkers,combineCreationTechniques} from '../src/features/play/creation/capabilities';
+import {creationWorldSourceHead,creationWorldAvailability} from '../src/features/play/creation/world-source';
+import {mergeQualifiedWildsResourceWorldV128} from '../src/features/play/wilds-resource-application-world-v128';
+import {prepareCreationHandAction} from '../src/features/play/creation/hand-action';
+import {creatureFamilies} from '../src/features/play/creature-catalog';
+import {createWildsCreatureMandate,evaluateWildsCreatureConsent} from '../src/features/play/wilds-creature-mandate';
+import {createWildsTrailCache,createWildsStewardStructureOperation,playerStewardBuilder,wildsMaterialContributorReceizIds} from '../src/features/play/wilds-steward-construction';
+import {sampleWildsTerrain} from '../src/features/play/wilds-terrain-authority';
+import {settleWildsBuild} from '../src/features/play/wilds-steward-build-settlement';
+import {wildsWorldSourceEmission} from '../src/features/play/wilds-world-genesis';
+function mandate(card:PortableCardAsset,profession:string,sourceId:string,position:{x:number;z:number},kaiUPulse:number){
+ const creatureSubjectId=`creature:${sha256PortableBasis(card.id).slice(0,32)}`,creatureHead=sha256PortableBasis(card.proof.digest);
+ const consent=evaluateWildsCreatureConsent({creatureSubjectId,creatureHead,condition:{energy:100,fatigue:0,injury:0,stress:0},bond:100,preferences:{professions:[profession],avoidHazards:[]},capabilities:{professions:[profession]},safety:{risk:0,hazards:[],supportAvailable:true},requested:{professions:[profession],maxActions:8},kaiUPulse});
+ return createWildsCreatureMandate({consent,creatureSubjectId,creatureHead,region:{x:Math.floor(position.x/128),z:Math.floor(position.z/128)},professions:[profession],allowedResourceIds:[sourceId],maxActions:8,issuedAtKaiUPulse:kaiUPulse,expiresAtKaiUPulse:kaiUPulse+100});
+}
+const OWNER='alice.receiz.id',GAMEPLAY='explorer',KAI=100_000_000;
+// Boundary-port fixture: it never represents a production verified seal.
+const original:ReceizPortableSealedArtifactV124={schema:'receiz.sealed-artifact-bytes.v124',exactBytesB64u:'eA',artifactSha256:'a'.repeat(64),payloadSha256:'b'.repeat(64),filename:'fixture.receizbundle',mimeType:'application/vnd.receiz.bundle+json'};
+async function fixture(){
+ const plant=Array.from({length:9},(_,i)=>wildsNourishmentPlantsForTile(i-4,-4)).flat()[0]!;
+ const command:WildsResourceGameplayCommandV128={kind:'food.gather',commandId:'gather:one',sourceId:plant.sourceId,expectedSourceHead:wildsNourishmentSourceAt(plant,undefined,KAI).head,kaiUPulse:KAI,player:plant.position,spaceId:'wildz.space.outer.v1'};
+ const replay=await replayWildsResourceGameplayV128({gameplayOwnerId:GAMEPLAY,commands:[command]});
+ const event:WildsResourceJournalEventV128={schema:'wildz.resource-command.v128',kind:'reserve',attemptId:'package:one',ownerReceizId:OWNER,gameplayOwnerId:GAMEPLAY,createdKaiUPulse:KAI,commands:[command],memberIds:Object.keys(replay.members),recipientHandle:'bob'};
+ const state=await reduceWildsResourceJournalV128(initialWildsResourceJournalV128(),event,{ownerReceizId:OWNER});
+ return {command,event,state,packageId:Object.keys(state.packages)[0]!};
+}
+test('exact source reservation prevents duplicate members and another gatherer reusing a finite crop head',async()=>{
+ const {event,state}=await fixture();assert.equal(Object.keys(state.packages).length,1);
+ assert.equal(await reduceWildsResourceJournalV128(state,event,{ownerReceizId:OWNER}),state);
+ await assert.rejects(reduceWildsResourceJournalV128(state,{...event,attemptId:'package:two'},{ownerReceizId:OWNER}),/member_reserved|member_source_missing/);
+ const other=await replayWildsResourceGameplayV128({gameplayOwnerId:'another-player',commands:event.kind==='reserve'?event.commands:[]});
+ await assert.rejects(reduceWildsResourceJournalV128(state,{...event,attemptId:'package:other',ownerReceizId:'charlie.receiz.id',gameplayOwnerId:'another-player',memberIds:Object.keys(other.members)} as WildsResourceJournalEventV128,{ownerReceizId:'charlie.receiz.id'}),/source_stale/);
+ await assert.rejects(reduceWildsResourceJournalV128(initialWildsResourceJournalV128(),{...event,memberIds:['food:invented']},{ownerReceizId:OWNER}),/member_source_missing/);
+});
+test('recipient source consent accepts safe current-custody Original and irreversible unpack cannot replay',async()=>{
+ const {state,packageId}=await fixture();let verifications=0;
+ const admission={ownerReceizId:'bob.receiz.id',verifyPackage:async()=>{verifications++;return {genesisOwnerReceizId:OWNER,artifactSha256:original.artifactSha256};}};
+ const claim={schema:'wildz.resource-command.v128',kind:'claim',attemptId:'receive:one',ownerReceizId:admission.ownerReceizId,packageId,artifact:original} as const;
+ const accepted=await reduceWildsResourceJournalV128(state,claim,admission as never);
+ assert.equal(accepted.packages[packageId]!.ownerReceizId,admission.ownerReceizId);
+ const consumed=await reduceWildsResourceJournalV128(accepted,{...claim,kind:'unpack',attemptId:'unpack:one',kaiUPulse:KAI+3_000_000},admission as never);
+ assert.equal(consumed.packages[packageId]!.status,'unpacked');assert.equal(verifications,2);
+ await assert.rejects(reduceWildsResourceJournalV128(consumed,{...claim,kind:'unpack',attemptId:'unpack:two',kaiUPulse:KAI+4_000_000},admission as never),/package_unavailable/);
+ assert.equal(verifications,2,'spent source rejects before opening another Original');
+});
+test('a mismatched authenticated source author and wrong recipient have no ownership effect',async()=>{
+ const {state,packageId}=await fixture();let verifications=0;
+ const event={schema:'wildz.resource-command.v128',kind:'claim',attemptId:'receive:one',ownerReceizId:'charlie.receiz.id',packageId,artifact:original} as const;
+ const verifyPackage=async()=>{verifications++;return {genesisOwnerReceizId:OWNER,artifactSha256:original.artifactSha256};};
+ await assert.rejects(reduceWildsResourceJournalV128(state,event,{ownerReceizId:'bob.receiz.id',verifyPackage} as never),/event_invalid/);
+ await assert.rejects(reduceWildsResourceJournalV128(state,event,{ownerReceizId:'charlie.receiz.id',verifyPackage} as never),/recipient_mismatch/);
+ assert.equal(verifications,0,'recipient is checked before expensive source opening');assert.equal(state.packages[packageId]!.ownerReceizId,OWNER);
+});
+
+test('received unpacked members repack by exact admitted import, while spent food and former keepers cannot remint them',async()=>{
+ const {state,packageId}=await fixture();
+ const admission={ownerReceizId:'bob.receiz.id',verifyPackage:async()=>({genesisOwnerReceizId:OWNER,artifactSha256:original.artifactSha256})};
+ const claim={schema:'wildz.resource-command.v128',kind:'claim',attemptId:'receive:one',ownerReceizId:admission.ownerReceizId,packageId,artifact:original} as const;
+ const received=await reduceWildsResourceJournalV128(state,claim,admission as never);
+ const unpacked=await reduceWildsResourceJournalV128(received,{...claim,kind:'unpack',attemptId:'unpack:one',kaiUPulse:KAI+3_000_000} as never,admission as never);
+ const member=unpacked.packages[packageId]!.package.members[0]!;
+ const pack={schema:'wildz.resource-command.v128',kind:'reserve',attemptId:'repack:one',ownerReceizId:admission.ownerReceizId,gameplayOwnerId:'bob-gameplay',createdKaiUPulse:KAI+4_000_000,commands:[],memberIds:[member.id],recipientHandle:'charlie'} as const;
+ const repacked=await reduceWildsResourceJournalV128(unpacked,pack,admission as never);
+ const next=Object.values(repacked.packages).find(record=>record.package.commandId===pack.attemptId)!;
+ assert.deepEqual(next.package.members[0],member,'source owner/history is preserved byte-for-byte');
+ await assert.rejects(reduceWildsResourceJournalV128(repacked,{...pack,attemptId:'repack:again'},admission as never),/member_reserved|member_source_missing/);
+ await assert.rejects(reduceWildsResourceJournalV128(unpacked,{...pack,ownerReceizId:OWNER,gameplayOwnerId:GAMEPLAY,commands:state.traces[OWNER]!.commands,recipientHandle:'charlie'}, {ownerReceizId:OWNER}),/member_reserved|member_source_missing/);
+ const eat={kind:'food.consume',commandId:'eat:imported',itemId:member.id,kaiUPulse:KAI+4_000_000,reserveMicroBreaths:0} as const;
+ await assert.rejects(reduceWildsResourceJournalV128(unpacked,{...pack,attemptId:'repack:eaten',commands:[eat]},admission as never),/member_source_missing|member_spent/);
+});
+
+test('received food use spends its admitted exact unit and accepted fuel limit before any later repack',async()=>{
+ const {state,packageId}=await fixture(),ownerReceizId='bob.receiz.id';
+ const admission={ownerReceizId,verifyPackage:async()=>({genesisOwnerReceizId:OWNER,artifactSha256:original.artifactSha256})};
+ const claim={schema:'wildz.resource-command.v128',kind:'claim',attemptId:'receive:one',ownerReceizId,packageId,artifact:original} as const;
+ const received=await reduceWildsResourceJournalV128(state,claim,admission);
+ const unpacked=await reduceWildsResourceJournalV128(received,{...claim,kind:'unpack',attemptId:'unpack:one',kaiUPulse:KAI+3_000_000},admission);
+ const member=unpacked.packages[packageId]!.package.members[0]!;
+ const command={kind:'food.consume',commandId:'eat:qualified',itemId:member.id,kaiUPulse:KAI+4_000_000,reserveMicroBreaths:0,fuelMicroBreathLimit:125_000_000} as const;
+ const use={schema:'wildz.resource-command.v128',kind:'use',attemptId:'use:qualified',ownerReceizId,gameplayOwnerId:'bob-gameplay',commands:[command],useCommandId:command.commandId} as const;
+ const used=await reduceWildsResourceJournalV128(unpacked,use,admission);
+ assert.ok(used.spentMembers[member.id]);assert.equal(used.looseMembers[member.id],undefined);
+ const replay=await replayWildsResourceJournalOwnerV128(used,ownerReceizId,'bob-gameplay',[command]);
+ assert.equal(replay.nourishment.items[member.id]!.consumedFuelMicroBreaths,125_000_000);
+ const crop=Array.from({length:9},(_,i)=>wildsNourishmentPlantsForTile(i-4,-4)).flat()[1]!;
+ const gather={kind:'food.gather',commandId:'gather:after-use',sourceId:crop.sourceId,expectedSourceHead:wildsNourishmentSourceAt(crop,undefined,KAI+5_000_000).head,kaiUPulse:KAI+5_000_000,player:crop.position,spaceId:'wildz.space.outer.v1'} as const;
+ const later=await reduceWildsResourceJournalV128(used,{schema:'wildz.resource-command.v128',kind:'replay',attemptId:'trace:after-use',ownerReceizId,gameplayOwnerId:'bob-gameplay',commands:[command,gather]},admission);
+ assert.deepEqual(wildsResourceUseSpentMemberIdsV128(later,use),[member.id],'later activity cannot erase the original accepted use recovery');
+ assert.deepEqual(wildsResourceUseEffectMemberIdsV128(later,use),[member.id]);
+ const recovered=await replayWildsResourceJournalOwnerV128(later,ownerReceizId,'bob-gameplay',later.traces[ownerReceizId]!.commands);
+ assert.equal(recovered.nourishment.items[member.id]!.consumedFuelMicroBreaths,125_000_000,'recovery keeps the exact first accepted body credit');
+ await assert.rejects(reduceWildsResourceJournalV128(used,{...use,attemptId:'use:again',commands:[command,{...command,commandId:'eat:again',kaiUPulse:KAI+5_000_000}],useCommandId:'eat:again'},admission),/already-consumed/);
+ await assert.rejects(reduceWildsResourceJournalV128(used,{schema:'wildz.resource-command.v128',kind:'reserve',attemptId:'repack:spent',ownerReceizId,gameplayOwnerId:'bob-gameplay',commands:[command],createdKaiUPulse:KAI+5_000_000,memberIds:[member.id],recipientHandle:'charlie'},admission),/member_spent|member_source_missing/);
+});
+
+test('only replay-issued exact material custody permits a received lot to build; serialized or reassigned JSON grants nothing',async()=>{
+ const source=projectWildsResourceRegion(0,0).find(item=>item.kind==='hay')!;
+ const harvest=planWildsMaterialHarvest({projection:createWildsSourceAuthorityProjection(),source,actorId:GAMEPLAY,actorPosition:source.position,kaiUPulse:KAI,commandId:'harvest:hay'});
+ const commands=[{kind:'world',command:harvest,kaiUPulse:KAI}] as const;
+ const born=await replayWildsResourceGameplayV128({gameplayOwnerId:GAMEPLAY,commands});
+ const reservation={schema:'wildz.resource-command.v128',kind:'reserve',attemptId:'package:hay',ownerReceizId:OWNER,gameplayOwnerId:GAMEPLAY,commands,createdKaiUPulse:KAI,memberIds:Object.keys(born.members),recipientHandle:'bob'} as const;
+ const state=await reduceWildsResourceJournalV128(initialWildsResourceJournalV128(),reservation,{ownerReceizId:OWNER}),packageId=Object.keys(state.packages)[0]!;
+ const ownerReceizId='bob.receiz.id',gameplayOwnerId='bob-gameplay',admission={ownerReceizId,verifyPackage:async()=>({genesisOwnerReceizId:OWNER,artifactSha256:original.artifactSha256}),verifyCard:async()=>{}};
+ const claim={schema:'wildz.resource-command.v128',kind:'claim',attemptId:'receive:hay',ownerReceizId,packageId,artifact:original} as const;
+ const received=await reduceWildsResourceJournalV128(state,claim,admission);
+ const unpacked=await reduceWildsResourceJournalV128(received,{...claim,kind:'unpack',attemptId:'unpack:hay',kaiUPulse:KAI+3_000_000},admission);
+ const imported=await replayWildsResourceJournalOwnerV128(unpacked,ownerReceizId,gameplayOwnerId,[]),lot=Object.values(imported.world.materialLots)[0]!;
+ assert.equal(lot.ownerReceizId,GAMEPLAY,'original creator provenance stays intact');
+ assert.equal(wildsMaterialCustodian(imported.world,lot),gameplayOwnerId);
+ assert.equal(wildsMaterialCustodian(structuredClone(imported.world),lot),GAMEPLAY,'saved typed JSON cannot grant keeper');
+ const forged={...imported.world,applicationSourceCustody:{[lot.lotId]:{...imported.world.applicationSourceCustody![lot.lotId]!,ownerReceizId:'mallory'}}};
+ assert.equal(wildsMaterialCustodian(forged,lot),GAMEPLAY);
+ assert.equal(wildsMaterialCustodian(imported.world,{...lot,head:'sha256:'+'f'.repeat(64)}),GAMEPLAY,'admission binds the exact lot head');
+ assert.equal(imported.members[lot.lotId]?.id,lot.lotId,'current imported materials remain available members with immutable genesis owner');
+ const legacy={...createWildsSourceAuthorityProjection(),revision:500,defeatedBossIds:['boss:kept'],consumedMaterialLots:{[lot.lotId]:'legacy:stale'},reservedMaterialLots:{[lot.lotId]:'legacy:stale'}};
+ const merged=mergeQualifiedWildsResourceWorldV128(legacy,imported.world);
+ assert.deepEqual(merged.defeatedBossIds,['boss:kept']);assert.equal(merged.revision,500);assert.equal(merged.consumedMaterialLots[lot.lotId],undefined);assert.equal(merged.reservedMaterialLots[lot.lotId],undefined);
+ assert.equal(wildsMaterialCustodian(merged,lot),gameplayOwnerId,'display merge retains exact runtime-issued custody');
+ assert.throws(()=>mergeQualifiedWildsResourceWorldV128(legacy,structuredClone(imported.world)),/custody_not_admitted/);
+ const card=sealCollectedCard({capturedAt:'2026-10-10T00:00:00.000Z',encounterId:'received-material-worker',formId:'mintcub-1',ownerReceizId:gameplayOwnerId}),condition=emptyAdventureCondition(card.id);
+ const definition=createCreationDefinition({schema:'wildz.creation-definition.v1',grammarVersion:1,seed:'received-hay',creatorId:gameplayOwnerId,assets:[],nodes:[{id:'cushion',parentId:null,pose:{position:{x:0,y:0,z:0},yaw:0},shape:{kind:'box',width:.2,height:.2,depth:.2},material:'hay',attachments:[],supports:[],behaviors:[]}]});
+ const context:CreationCompileContext={worldId:imported.world.worldId,spaceId:'wildz.space.outer.v1',pose:{position:{x:5000,y:100,z:5000},yaw:0},sourceHead:creationWorldSourceHead(imported.world),budget:{hay:1},techniques:combineCreationTechniques(projectCreationWorkers([card],{[card.id]:condition})),physical:[],quality:'low'};
+ const compiled=compileCreation(definition,context);assert.equal(compiled.status,'ready');if(compiled.status!=='ready')throw Error('creation_not_ready');
+ const resources=selectCreationResources([lot],context.budget,compiled.plan.requiredResources,creationWorldAvailability(imported.world,gameplayOwnerId));assert.deepEqual(resources.deficits,{});
+ const command={kind:'world',kaiUPulse:KAI+4_000_000,workerOriginals:{[card.id]:original},command:{type:'creation.construct',commandId:'creation:received-hay',instanceId:'creation:received-hay',definition,context,planDigest:compiled.plan.digest,workerSources:[{card,condition}],resources:resources.lots,actorPosition:context.pose.position}} as const;
+ const use={schema:'wildz.resource-command.v128',kind:'use',attemptId:'use:hay',ownerReceizId,gameplayOwnerId,commands:[command],useCommandId:command.command.commandId} as const;
+ const used=await reduceWildsResourceJournalV128(unpacked,use,admission);assert.ok(used.spentMembers[lot.lotId]);assert.equal(used.looseMembers[lot.lotId],undefined);
+ await assert.rejects(reduceWildsResourceJournalV128(used,{schema:'wildz.resource-command.v128',kind:'reserve',attemptId:'pack:used-hay',ownerReceizId,gameplayOwnerId,commands:[command],createdKaiUPulse:KAI+5_000_000,memberIds:[lot.lotId],recipientHandle:'charlie'},admission),/member_spent|member_source_missing/);
+});
+
+test('a received paid weapon admits owner actions without spending again and display refresh keeps its actual causal successor',async()=>{
+ const source=Array.from({length:25},(_,i)=>projectWildsResourceRegion(i-12,0)).flat().find(item=>item.kind==='timber')!;
+ const originCard=sealCollectedCard({capturedAt:'2026-10-10T00:00:00.000Z',encounterId:'timber-origin-worker',formId:'mintcub-1',ownerReceizId:GAMEPLAY});
+ const harvest=planWildsMaterialHarvest({projection:createWildsSourceAuthorityProjection(),source,actorId:GAMEPLAY,actorPosition:source.position,kaiUPulse:KAI,commandId:'harvest:timber',card:originCard,mandate:mandate(originCard,source.requirements.creature,source.sourceId,source.position,KAI)});
+ const birthCommands=[{kind:'world',command:harvest,kaiUPulse:KAI,card:originCard,cardOriginal:original}] as const;
+ const born=await replayWildsResourceGameplayV128({gameplayOwnerId:GAMEPLAY,commands:birthCommands,verifyCard:async()=>{}});
+ const reserved=await reduceWildsResourceJournalV128(initialWildsResourceJournalV128(),{schema:'wildz.resource-command.v128',kind:'reserve',attemptId:'package:timber',ownerReceizId:OWNER,gameplayOwnerId:GAMEPLAY,commands:birthCommands,createdKaiUPulse:KAI,memberIds:Object.keys(born.members),recipientHandle:'bob'},{ownerReceizId:OWNER,verifyCard:async()=>{}});
+ const packageId=Object.keys(reserved.packages)[0]!,ownerReceizId='bob.receiz.id',gameplayOwnerId='bob-gameplay';
+ const admission={ownerReceizId,verifyPackage:async()=>({genesisOwnerReceizId:OWNER,artifactSha256:original.artifactSha256}),verifyCard:async()=>{}};
+ const claim={schema:'wildz.resource-command.v128',kind:'claim',attemptId:'receive:timber',ownerReceizId,packageId,artifact:original} as const;
+ const received=await reduceWildsResourceJournalV128(reserved,claim,admission),unpacked=await reduceWildsResourceJournalV128(received,{...claim,kind:'unpack',attemptId:'unpack:timber',kaiUPulse:KAI+3_000_000},admission);
+ const imported=await replayWildsResourceJournalOwnerV128(unpacked,ownerReceizId,gameplayOwnerId,[]),lot=Object.values(imported.world.materialLots)[0]!;
+ const card=sealCollectedCard({capturedAt:'2026-10-10T00:00:00.000Z',encounterId:'paid-weapon-worker',formId:creatureFamilies.find(f=>f.element==='Ember')!.formIds[0],ownerReceizId:gameplayOwnerId}),condition=emptyAdventureCondition(card.id),position={x:5000,y:100,z:5000};
+ const definition=createCreationDefinition({schema:'wildz.creation-definition.v1',grammarVersion:1,seed:'received-weapon',creatorId:gameplayOwnerId,assets:[],nodes:[{id:'part',parentId:null,pose:{position:{x:0,y:0,z:0},yaw:0},shape:{kind:'box',width:.2,height:.1,depth:1},material:'timber',attachments:[],supports:[],behaviors:[{id:'weapon',version:1,parameters:{}}]}]});
+ const context:CreationCompileContext={worldId:imported.world.worldId,spaceId:'wildz.space.outer.v1',pose:{position,yaw:0},sourceHead:creationWorldSourceHead(imported.world),budget:{timber:1},techniques:combineCreationTechniques(projectCreationWorkers([card],{[card.id]:condition})),physical:[],quality:'low'};
+ const compiled=compileCreation(definition,context);assert.equal(compiled.status,'ready');if(compiled.status!=='ready')throw Error('fixture');
+ const resources=selectCreationResources([lot],context.budget,compiled.plan.requiredResources,creationWorldAvailability(imported.world,gameplayOwnerId));
+ const construct={kind:'world',kaiUPulse:KAI+4_000_000,workerOriginals:{[card.id]:original},command:{type:'creation.construct',commandId:'construct:paid-weapon',instanceId:'weapon',definition,context,planDigest:compiled.plan.digest,workerSources:[{card,condition}],resources:resources.lots,actorPosition:position}} as const;
+ const birth={schema:'wildz.resource-command.v128',kind:'use',attemptId:'use:paid-weapon',ownerReceizId,gameplayOwnerId,commands:[construct],useCommandId:construct.command.commandId} as const;
+ const paid=await reduceWildsResourceJournalV128(unpacked,birth,admission),before=await replayWildsResourceJournalOwnerV128(paid,ownerReceizId,gameplayOwnerId,[construct]);
+ const equip=prepareCreationHandAction({world:before.world,actorId:gameplayOwnerId,position,spaceId:context.spaceId,heading:0,kaiUPulse:KAI+5_000_000,operationId:'equip:paid-weapon',intent:'grab'});assert.ok(equip);
+ const action={kind:'world',kaiUPulse:KAI+5_000_000,command:equip} as const;
+ const event={schema:'wildz.resource-command.v128',kind:'use',attemptId:'use:equip-paid',ownerReceizId,gameplayOwnerId,commands:[construct,action],useCommandId:equip.commandId} as const;
+ const rotated={...admission,verifyCard:async()=>{throw Error('new-key-must-not-re-admit-historical-export');}};
+ const acted=await reduceWildsResourceJournalV128(paid,event,rotated);
+ assert.deepEqual(wildsResourceUseSpentMemberIdsV128(acted,event),[]);assert.deepEqual(wildsResourceUseEffectMemberIdsV128(acted,event),[]);
+ assert.deepEqual(wildsResourceUseSpentMemberIdsV128(acted,birth),[lot.lotId]);
+ const after=await replayWildsResourceJournalOwnerV128(acted,ownerReceizId,gameplayOwnerId,event.commands,rotated.verifyCard);
+ const node=after.world.creations!.weapon.instance.nodeStates.part;assert.equal(node.kind,'equipment');if(node.kind==='equipment')assert.equal(node.equippedBy,gameplayOwnerId);
+ const composed=mergeQualifiedWildsResourceWorldV128({...after.world,defeatedBossIds:['boss:preserved']},before.world);
+ assert.equal(composed.creations!.weapon.instance.head,after.world.creations!.weapon.instance.head,'an older resource refresh cannot replace the admitted owner action');assert.deepEqual(composed.defeatedBossIds,['boss:preserved']);
+ const fork={...after.world,creations:{weapon:{...after.world.creations!.weapon,instance:{...after.world.creations!.weapon.instance,head:'sha256:'+'f'.repeat(64)}}}};
+ assert.equal(mergeQualifiedWildsResourceWorldV128(fork,before.world).creations!.weapon.instance.head,before.world.creations!.weapon.instance.head,'an arbitrary same-ID fork does not supersede the source');
+ await assert.rejects(replayWildsResourceJournalOwnerV128(paid,ownerReceizId,gameplayOwnerId,[{...construct,workerOriginals:{[card.id]:{...original,artifactSha256:'e'.repeat(64)}}}],rotated.verifyCard),/new-key/,'new proof bytes still require independent SDK admission');
+ await assert.rejects(reduceWildsResourceJournalV128(paid,{...event,attemptId:'use:stale-equip',commands:[construct,{...action,command:{...equip,actionRequest:{...equip.actionRequest,expectedHeads:{}}}}]},admission),/source_unverified|stale|binding/);
+});
+
+test('received material storage and withdrawal are qualified reversible effects; stored units cannot repack',async()=>{
+ const candidates=Array.from({length:25},(_,i)=>projectWildsResourceRegion(i-12,0)).flat();
+ const sources=[...candidates.filter(s=>s.kind==='timber').slice(0,3),...candidates.filter(s=>s.kind==='stone').slice(0,2)];
+ const commands:WildsResourceGameplayCommandV128[]=[];
+ for(const [index,source] of sources.entries()){
+  const kaiUPulse=KAI+index,card=sealCollectedCard({capturedAt:'2026-10-10T00:00:00.000Z',encounterId:`cache-origin-${source.kind}`,formId:source.kind==='timber'?'mintcub-1':'titanseal-1',ownerReceizId:GAMEPLAY});
+  const previous=await replayWildsResourceGameplayV128({gameplayOwnerId:GAMEPLAY,commands,verifyCard:async()=>{}});
+  const command=planWildsMaterialHarvest({projection:previous.world,source,actorId:GAMEPLAY,actorPosition:source.position,kaiUPulse,commandId:`harvest:cache:${index}`,card,mandate:mandate(card,source.requirements.creature,source.sourceId,source.position,kaiUPulse)});
+  commands.push({kind:'world',command,kaiUPulse,card,cardOriginal:original});
+ }
+ const born=await replayWildsResourceGameplayV128({gameplayOwnerId:GAMEPLAY,commands,verifyCard:async()=>{}});
+ const reserved=await reduceWildsResourceJournalV128(initialWildsResourceJournalV128(),{schema:'wildz.resource-command.v128',kind:'reserve',attemptId:'package:storage',ownerReceizId:OWNER,gameplayOwnerId:GAMEPLAY,commands,createdKaiUPulse:KAI+10,memberIds:Object.keys(born.members),recipientHandle:'bob'},{ownerReceizId:OWNER,verifyCard:async()=>{}});
+ const packageId=Object.keys(reserved.packages)[0]!,ownerReceizId='bob.receiz.id',gameplayOwnerId='bob-gameplay',admission={ownerReceizId,verifyPackage:async()=>({genesisOwnerReceizId:OWNER,artifactSha256:original.artifactSha256})};
+ const claim={schema:'wildz.resource-command.v128',kind:'claim',attemptId:'receive:storage',ownerReceizId,packageId,artifact:original} as const;
+ const received=await reduceWildsResourceJournalV128(reserved,claim,admission),unpacked=await reduceWildsResourceJournalV128(received,{...claim,kind:'unpack',attemptId:'unpack:storage',kaiUPulse:KAI+13},admission);
+ const imported=await replayWildsResourceJournalOwnerV128(unpacked,ownerReceizId,gameplayOwnerId,[]),lots=Object.values(imported.world.materialLots);
+ const cacheLots=[...lots.filter(l=>l.kind==='timber').slice(0,2),...lots.filter(l=>l.kind==='stone')],loose=lots.find(l=>!cacheLots.includes(l))!;
+ const position={x:sources[0]!.position.x+2,z:sources[0]!.position.z+2};
+ const cache=createWildsTrailCache({ownerReceizId:gameplayOwnerId,position:{...position,y:sampleWildsTerrain(position.x,position.z).elevation},rotationQuarterTurns:0,lots:cacheLots,builder:playerStewardBuilder(gameplayOwnerId),materialContributorReceizIds:wildsMaterialContributorReceizIds(cacheLots,gameplayOwnerId),existingStructures:[],kaiUPulse:KAI+14});
+ const operation=createWildsStewardStructureOperation({structure:cache,lots:cacheLots,ownerReceizId:gameplayOwnerId,playerHead:sha256PortableBasis(gameplayOwnerId)}),settlement=settleWildsBuild({operation,currentEmission:wildsWorldSourceEmission(imported.world),actorId:gameplayOwnerId});
+ const build={kind:'world',kaiUPulse:KAI+14,command:{type:'structure.trail-cache.build',position,actorPosition:position,rotationQuarterTurns:0,lotIds:cacheLots.map(l=>l.lotId),commandId:'build:source-cache',...settlement}} as const;
+ const paid=await reduceWildsResourceJournalV128(unpacked,{schema:'wildz.resource-command.v128',kind:'use',attemptId:'use:source-cache',ownerReceizId,gameplayOwnerId,commands:[build],useCommandId:build.command.commandId},admission);
+ const deposit={kind:'world',kaiUPulse:KAI+15,command:{type:'storage.material.move',lotId:loose.lotId,cacheId:cache.structureId,direction:'deposit',actorPosition:position,commandId:'store:source-lot'}} as const;
+ const store={schema:'wildz.resource-command.v128',kind:'use',attemptId:'use:store-source',ownerReceizId,gameplayOwnerId,commands:[build,deposit],useCommandId:deposit.command.commandId} as const;
+ const stored=await reduceWildsResourceJournalV128(paid,store,admission);
+ assert.deepEqual(wildsResourceUseEffectMemberIdsV128(stored,store),[loose.lotId]);assert.deepEqual(wildsResourceUseSpentMemberIdsV128(stored,store),[]);assert.ok(stored.looseMembers[loose.lotId]);
+ const pack={schema:'wildz.resource-command.v128',kind:'reserve',attemptId:'pack:stored-unit',ownerReceizId,gameplayOwnerId,commands:store.commands,createdKaiUPulse:KAI+16,memberIds:[loose.lotId],recipientHandle:'charlie'} as const;
+ await assert.rejects(reduceWildsResourceJournalV128(stored,pack,admission),/member_source_missing/);
+ const withdraw={...deposit,kaiUPulse:KAI+16,command:{...deposit.command,direction:'withdraw',commandId:'withdraw:source-lot'}} as const;
+ const withdrawal={...store,attemptId:'use:withdraw-source',commands:[build,deposit,withdraw],useCommandId:withdraw.command.commandId} as const;
+ const withdrawn=await reduceWildsResourceJournalV128(stored,withdrawal,admission);
+ assert.deepEqual(wildsResourceUseEffectMemberIdsV128(withdrawn,withdrawal),[loose.lotId]);assert.deepEqual(wildsResourceUseSpentMemberIdsV128(withdrawn,withdrawal),[]);
+ const repacked=await reduceWildsResourceJournalV128(withdrawn,{...pack,attemptId:'pack:withdrawn-unit',commands:withdrawal.commands,createdKaiUPulse:KAI+17},admission);
+ assert.equal(Object.values(repacked.packages).find(p=>p.package.commandId==='pack:withdrawn-unit')!.package.members[0]!.id,loose.lotId);
+});

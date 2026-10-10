@@ -5,6 +5,8 @@ import { planReceizReserveV122, planReceizSettlementV122 } from "@receiz/sdk";
 import * as executeRoute from "../app/api/wilds/wallet/transfer/execute/route";
 import * as previewRoute from "../app/api/wilds/wallet/transfer/preview/route";
 import * as statusRoute from "../app/api/wilds/wallet/transfer/status/route";
+import * as consentRoute from "../app/api/wilds/wallet/transfer/consent/route";
+import * as observeRoute from "../app/api/wilds/wallet/transfer/observe/route";
 import {
   createWildsWalletRouteHandlers,
   createWildsWalletTransferRouteRuntime,
@@ -335,6 +337,31 @@ describe("Wilds wallet V123 transfer routes", () => {
     assert.equal(preview.status, 400);
     assert.deepEqual(await body(preview), { error: "wilds_wallet_receive_locator_invalid" });
   });
+
+  it("admits v3 Connect preview and fresh challenge while read-only peer observation accepts only the exact leg", async () => {
+    const attempt = ATTEMPT.replace(/^v1\./, "v3.");
+    const calls: unknown[] = [];
+    const live = runtime({
+      recipientLookupAdmission: "connect-chat",
+      preview: async (_authority, input) => ({ status: "staged", rail: "settlement", amountPhiMicro: input.amountPhiMicro, quotedUsdCents: "1", attempt, expiresAtKai: 100 }),
+      consentChallenge: async (_authority, input) => { calls.push(input); return { applicationId: "configured-client", scopes: ["receiz:wallet.read", "receiz:wallet.transfer"], unsigned: { consent: { approved: true } } }; },
+      observe: async (_authority, input) => { calls.push(input); return { status: "committed", rail: "settlement", amountPhiMicro: input.amountPhiMicro, recipientUsername: "friend_2" }; }
+    });
+    const routes = handlers(live, null);
+    const preview = await routes.transferPreview(request("/api/wilds/wallet/transfer/preview", "POST", { recipientUsername: "friend_2", amountPhiMicro: "1", rail: "settlement", operationNonce: "exact-leg-nonce-with-32-characters" }));
+    assert.equal(preview.status, 200); assert.equal((await body(preview)).attempt, attempt);
+    const digest = "a".repeat(64);
+    assert.equal((await routes.transferConsent(request(`/api/wilds/wallet/transfer/consent?attempt=${attempt}&artifactDigest=${digest}`, "GET"))).status, 200);
+    assert.deepEqual(calls[0], { attempt, artifactDigest: digest });
+    const query = new URLSearchParams({ attempt, senderHandle: "kai_01.receiz.id", recipientHandle: "friend_2.receiz.id", amountPhiMicro: "1", operationNonce: "exact-leg-nonce-with-32-characters" });
+    const observed = await routes.transferObserve(request(`/api/wilds/wallet/transfer/observe?${query}`, "GET"));
+    assert.equal(observed.status, 200);
+    assert.deepEqual(await body(observed), { status: "committed", rail: "settlement", amountPhiMicro: "1", recipientUsername: "friend_2" });
+    assert.deepEqual(calls[1], Object.fromEntries(query));
+    query.set("accessToken", "injected");
+    assert.equal((await routes.transferObserve(request(`/api/wilds/wallet/transfer/observe?${query}`, "GET"))).status, 400);
+    assert.equal(calls.length, 2);
+  });
 });
 
 describe("Wilds wallet transfer route exports", () => {
@@ -342,5 +369,7 @@ describe("Wilds wallet transfer route exports", () => {
     assert.deepEqual(Object.keys(previewRoute).sort(), ["POST", "dynamic", "runtime"]);
     assert.deepEqual(Object.keys(executeRoute).sort(), ["POST", "dynamic", "runtime"]);
     assert.deepEqual(Object.keys(statusRoute).sort(), ["GET", "dynamic", "runtime"]);
+    assert.deepEqual(Object.keys(consentRoute).sort(), ["GET", "dynamic", "runtime"]);
+    assert.deepEqual(Object.keys(observeRoute).sort(), ["GET", "dynamic", "runtime"]);
   });
 });

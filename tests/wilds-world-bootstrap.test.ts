@@ -187,10 +187,7 @@ function bootstrap(request: NextRequest) {
   return implementation(request);
 }
 
-test("legacy world commands reject native keeper input before actor resolution or source mutation", async () => {
-  const command = { type: "creation.construct", workerSources: [{ nativeKeeper: { schema: "wildz.creation-native-keeper.v128" } }] };
-  await assert.rejects(worldServer.executeWildsWorldCommand(new NextRequest("https://wildz.quest/api/wilds/world/command", { method: "POST" }), { command }), /wilds_native_world_keeper_source_required/);
-});
+
 
 beforeEach(() => {
   priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;

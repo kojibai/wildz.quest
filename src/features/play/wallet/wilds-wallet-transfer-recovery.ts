@@ -28,7 +28,7 @@ export function admitWildsWalletTransferRecovery(value: unknown, identityKey: st
   if (Object.keys(item).length !== FIELDS.length || FIELDS.some(field => !(field in item))
     || item.schema !== "wildz.wallet.submitted-payment.v1" || item.identityKey !== identityKey
     || typeof item.sourceKey !== "string" || item.sourceKey.length > 512
-    || typeof item.attempt !== "string" || !/^v[12]\.[A-Za-z0-9_.-]{1,16384}$/.test(item.attempt)
+    || typeof item.attempt !== "string" || !/^v[123]\.[A-Za-z0-9_.-]{1,16384}$/.test(item.attempt)
     || typeof item.recipientUsername !== "string"
     || typeof item.amountPhiMicro !== "string" || !/^[1-9][0-9]{0,29}$/.test(item.amountPhiMicro)
     || (item.rail !== "settlement" && item.rail !== "reserve")

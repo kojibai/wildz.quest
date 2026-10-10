@@ -237,6 +237,9 @@ export function WildsExplorer({
   aerialStateRef,
   verticalTraversalRef,
   handActionsRef,
+  facingRef,
+  eyePoseRef,
+  firstPerson = false,
   heldCreationEquipment,
   aerialPalette = { primary: "#c9fff0", accent: "#f5d46c", glow: "#76f3cf" }
 }: {
@@ -253,6 +256,9 @@ export function WildsExplorer({
   aerialStateRef?: MutableRefObject<WildsAerialTraversalState>;
   verticalTraversalRef?: MutableRefObject<WildsVerticalTraversalState>;
   handActionsRef?: MutableRefObject<WildsHandActionState>;
+  facingRef?: MutableRefObject<number>;
+  eyePoseRef?: MutableRefObject<{x:number;y:number;z:number}>;
+  firstPerson?: boolean;
   heldCreationEquipment?: WildsHeldCreationEquipment;
   aerialPalette?: Readonly<{ primary: string; accent: string; glow: string }>;
 }) {
@@ -314,6 +320,7 @@ export function WildsExplorer({
   const previousPosition = useRef(worldPosition);
   const movingUntil = useRef(0);
   const facing = useRef(0);
+  const eyePoint = useMemo(() => new THREE.Vector3(), []);
 
   useLayoutEffect(() => {
     const dx = worldPosition.x - previousPosition.current.x;
@@ -321,9 +328,10 @@ export function WildsExplorer({
     if (Math.hypot(dx, dz) > 0.001) {
       movingUntil.current = performance.now() + 280;
       facing.current = Math.atan2(-dx, -dz);
+      if (facingRef) facingRef.current = facing.current;
     }
     previousPosition.current = worldPosition;
-  }, [worldPosition]);
+  }, [worldPosition, facingRef]);
 
   useFrame((_, delta) => {
     if (!root.current) return;
@@ -339,8 +347,6 @@ export function WildsExplorer({
     const airborne = aerialMode !== "ground";
     const leftAction = handActionsRef?.current.left ?? null, rightAction = handActionsRef?.current.right ?? null;
     const leftPose = sampleWildsHandPose(sleeping ? null : leftAction, elapsed * 1000), rightPose = sampleWildsHandPose(sleeping ? null : rightAction, elapsed * 1000);
-    const activeHand = leftPose.weight > 0 ? leftAction : rightPose.weight > 0 ? rightAction : null;
-    if (activeHand?.heading !== undefined) facing.current = activeHand.heading;
     const verticalVelocity = aerialStateRef?.current.verticalVelocity ?? 0;
     const breath = (playerBodyBreathExpansion(breathClock.current.kaiUPulse, Math.max(0, performance.now() - breathClock.current.observedAt)) - .5) * .036 * (1 + tiredness * .5) * readability.motionScale;
     const bodyPitch = sleepPose ? sleepPose.pitch : locomotion === "swim"
@@ -366,6 +372,11 @@ export function WildsExplorer({
     }
     if (head.current) head.current.rotation.x = grounded ? tiredness * .07 : 0;
     if (head.current) head.current.rotation.y = sleeping ? 0 : Math.sin(elapsed * 0.72) * (moving ? 0.035 : 0.09) * readability.motionScale;
+    if (eyePoseRef && head.current) {
+      eyePoint.set(0,.018,-.205).multiplyScalar(.85).applyEuler(head.current.rotation).add(head.current.position)
+        .multiplyScalar(.82*anatomy.height).applyEuler(root.current.rotation).add(root.current.position);
+      eyePoseRef.current.x=eyePoint.x; eyePoseRef.current.y=eyePoint.y; eyePoseRef.current.z=eyePoint.z;
+    }
     if (leftShoulder.current) leftShoulder.current.rotation.x = locomotion === "swim" ? -0.55 + swimStroke * 0.72 : grounded ? stride * 0.52 : airborne ? -0.42 : 0;
     if (rightShoulder.current) rightShoulder.current.rotation.x = locomotion === "swim" ? -0.55 - swimStroke * 0.72 : grounded ? -stride * 0.52 : airborne ? -0.42 : 0;
     if (leftElbow.current) leftElbow.current.rotation.x = locomotion === "swim" ? -0.22 - swimStroke * 0.34 : grounded ? Math.max(0, -stride) * 0.22 - 0.08 : -0.08;
@@ -438,7 +449,7 @@ export function WildsExplorer({
         <Arm equipment={heldCreationEquipment?.hand==='right'?heldCreationEquipment:undefined} wrist={rightWrist} elbow={rightElbow} shoulder={rightShoulder} side={1} skin={appearance.skin} sleeve={appearance.outfitSecondary} handGeometry={handGeometry.right} handMaterial={handMaterial} />
       </group>
 
-      <group name="head" position={[0, 1.57, -0.01]} ref={head} scale={.85}>
+      <group name="head" visible={!firstPerson} position={[0, 1.57, -0.01]} ref={head} scale={.85}>
         <mesh castShadow geometry={faceGeometry} name="identity-bound-face">
           <primitive attach="material" object={faceSurface.material}/>
         </mesh>

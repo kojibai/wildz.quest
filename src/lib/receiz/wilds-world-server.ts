@@ -342,7 +342,6 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
   return serializeWildsWorldMutation(async () => {
   const value = body && typeof body === "object" ? body as Record<string, unknown> : {};
   const command = value.command as WildsWorldCommand;
-  if ((command?.type === "creation.construct" || command?.type === "creation.evolve") && command.workerSources?.some(source => source.nativeKeeper)) throw Error("wilds_native_world_keeper_source_required");
   if(command?.type?.startsWith("resource.package.market.") && dependencies.resourcePackageMarketCoordinator!==true)throw Error("wilds_resource_package_market_coordinator_required");
   const actor = await resolveWildsMultiplayerActor(request, value.guestId);
   const kai = verifyWildsWorldCommandKai(command);

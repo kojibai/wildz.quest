@@ -4,6 +4,7 @@ import { deriveKaiKlokMoment } from "./kai-klok-moment";
 import { deriveBirthGenome } from "./heartbound-genome";
 import { identityForGenome } from "./heartbound-identity";
 import { currentLivingGenome } from "./living-card-proof";
+import { projectCardCreatureLevelAppearance } from "./wilds-creature-level-appearance";
 import { isLivingCardAsset, type LivingCardGenome } from "./living-card-types";
 import { deriveCardVariantV3 } from "./card-variant";
 import { validateLivingCreatureIdentity, type LivingCreatureIdentityV3 } from "./living-taxonomy";
@@ -159,6 +160,14 @@ export function projectEncounterCreatureVisualIdentity(input: {
 }
 
 export function projectCardCreatureVisualIdentity(asset: PortableCardAsset): CreatureVisualIdentity {
+  const visual=projectBaseCardCreatureVisualIdentity(asset);
+  const growth=projectCardCreatureLevelAppearance(asset);
+  if(growth.level===1)return visual;
+  return {...visual,morphology:{...visual.morphology,head:visual.morphology.head*growth.head,
+    torso:visual.morphology.torso*growth.torso,limb:visual.morphology.limb*growth.limb}};
+}
+
+function projectBaseCardCreatureVisualIdentity(asset: PortableCardAsset): CreatureVisualIdentity {
   const form = creatureForm(asset.manifest.formId);
   if (!form) throw new Error("wilds_creature_visual_form_unknown");
   const variant = asset.manifest.variant;

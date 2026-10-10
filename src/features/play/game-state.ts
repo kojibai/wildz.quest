@@ -42,6 +42,7 @@ import { hotspotsForRegion, nearbyHiddenHotspots, searchHiddenHotspots } from ".
 import { applyKaiAffinityToHotspot } from "./kai-encounter-affinity";
 import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse, kaiUPulseToISOString } from "./kai-klok-moment";
 import { rootWildsInputInKai } from "./wilds-input-temporal-root";
+import { verifyWildsDreamTrial, type WildsDreamTrial, type WildsDreamTap } from "./wilds-dream-trial";
 import { discoverLivingCreature, validateLivingCreatureIdentity, type LivingCreatureIdentityV3 } from "./living-taxonomy";
 import { applyBattleAction, battleGrowthAwards, battleTranscriptDigest, startWildBattle, type BattleAction, type BattleState } from "./battle-engine";
 import type { FusionInheritance } from "./card-fusion";
@@ -165,6 +166,7 @@ export type WildsInput = (
   | { type: "finish-transformation" }
   | { type: "finish-lineage-reveal" }
   | { type: "train"; cardId?: string; at?: string }
+  | { type: "dream-trial"; trial: WildsDreamTrial; taps: readonly WildsDreamTap[] }
   | { type: "use-field-ability"; assetId: string; abilityIndex: number; usedAt: string }
   | { type: "record-steward-work"; assetId: string }
   | { type: "mission" }
@@ -1302,6 +1304,7 @@ function advanceLivingMission(state: PlayState, amount: number): PlayState {
 
 export function applyWildsInput(state: PlayState, input: WildsInput): PlayState {
   if (input.type === "record-world-activity") return { ...state, actionHistory: appendWildsActivity(state.actionHistory, input.activity) };
+  if (input.type === "dream-trial") return reduceWildsInput(state, input);
   const next = reduceWildsInputWithBreaths(state,input);
   const quiet = ["reset", "dismiss-reveal", "finish-transformation", "finish-lineage-reveal", "advance-encounter", "mark-synced", "settle-pending-travel-growth", "energy-tick"];
   if (next === state || quiet.includes(input.type) || !Number.isSafeInteger(input.kaiUPulse)) return next;
@@ -1459,6 +1462,19 @@ function settlePlayerRestFromBreaths(before:PlayState,next:PlayState,kaiUPulse:n
 
 function reduceWildsInput(state: PlayState, input: WildsInput): PlayState {
   if (input.kaiUPulse !== undefined) input = rootWildsInputInKai(input, input.kaiUPulse);
+  if (input.type === "dream-trial") {
+    const asset = state.inventory.find(candidate => candidate.id === input.trial.assetId && isPlayableAsset(state, candidate.id));
+    const pulse = input.kaiUPulse;
+    if (!asset || state.selectedAssetId !== asset.id || !["bed", "sleep"].includes(state.playerBreaths?.mode ?? "")
+      || state.battle || pulse === undefined || !verifyWildsDreamTrial(input.trial, input.taps, pulse)
+      || pulse < (state.playerBreaths?.lastKaiUPulse ?? 0)
+      || state.actionHistory?.some(entry => entry.id === input.trial.id)) return state;
+    const trained = reduceWildsInput(state, rootWildsInputInKai({type: "train", cardId: asset.manifest.familyId}, pulse));
+    if (trained.cardXp === state.cardXp) return trained;
+    return {...trained, activeAction: "explore", lastEvent: `${asset.manifest.name} carried 40 XP home from the dream. Your body is still resting.`,
+      actionHistory: appendWildsActivity(trained.actionHistory, {id: input.trial.id, kind: "activity", title: "Dream echo won",
+        detail: `${asset.manifest.name} completed all three Kai dream patterns and earned a bond training boost.`, uPulse: pulse, authority: "local"})};
+  }
   if (input.type === "reset") {
     const owner = selectedAsset(state)?.manifest.ownerReceizId ?? state.inventory[0]?.manifest.ownerReceizId;
     return owner ? createOwnerBoundInitialPlayState(owner) : initialPlayState;

@@ -7,6 +7,7 @@ export type WorldOverlayOwner =
   | "map"
   | "trainer"
   | "combat"
+  | "dream"
   | "landmark"
   | "settlement"
   | "ecology"

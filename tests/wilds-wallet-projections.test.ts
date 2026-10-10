@@ -56,15 +56,6 @@ describe("Wilds wallet projections", () => {
     }
   });
 
-  it("shows native received and spent purse when the SDK explicitly publishes it", () => {
-    const projection = projectWildsWalletSummary({ ok: true, wallet: { balancePhiMicro: "999999999999999999",
-      nativeSpendablePhiMicro: "9007199254740993", balanceUsd: "999999999.99", quote: { usdPerPhiMicrocents: "1000000" } } });
-    assert.equal(projection.admittedPhiMicro, "9007199254740993");
-    assert.equal(projection.sealedPhiMicro, "999999999999999999");
-    assert.equal(projection.displayUsdCents, "9007199255");
-    for (const invalid of [null, 9007199254740993, "-1", "1.25"]) assert.throws(() => projectWildsWalletSummary({ok:true,wallet:{balancePhiMicro:"1",nativeSpendablePhiMicro:invalid}}));
-  });
-
   it("retains supplied bounded asset counts only when every count is present", () => {
     assert.deepEqual(projectWildsWalletSummary({
       ok: true,

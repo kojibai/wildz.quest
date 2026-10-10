@@ -8,16 +8,16 @@ import {canAccessCreation} from './access';
 import type {CreationPoint} from './types';
 
 /** Action-time qualification from held current sources, never a frame scan or local adoption. */
-export function prepareCreationHandAction(input:Readonly<{world:WildsWorldProjection;actorId:string;position:CreationPoint;spaceId:string;heading:number;kaiUPulse:number;operationId:string;intent:'grab'|'strike'}>):WildsCreationActionCommand|null{
+export function prepareCreationHandAction(input:Readonly<{world:WildsWorldProjection;actorId:string;position:CreationPoint;spaceId:string;heading:number;kaiUPulse:number;operationId:string;intent:'grab'|'strike';excludedInstanceIds?:ReadonlySet<string>}>):WildsCreationActionCommand|null{
  const {world,actorId,position,spaceId,heading,kaiUPulse,operationId,intent}=input;
- const held=Object.values(world.creations??{}).find(source=>currentCreationEquipment(source.instance,actorId));
+ const held=Object.values(world.creations??{}).find(source=>!input.excludedInstanceIds?.has(source.instance.instanceId)&&currentCreationEquipment(source.instance,actorId));
  const equipment=held&&currentCreationEquipment(held.instance,actorId);
  const profile=equipment&&CREATION_EQUIPMENT_PROFILES[equipment.actionProfileId as keyof typeof CREATION_EQUIPMENT_PROFILES];
  if(intent==='strike'&&(!held||!equipment||profile?.kind!=='weapon'))return null;
  const candidates:Array<{id:string;x:number;y:number;z:number;spaceId:string;qualified:boolean;command:WildsCreationActionCommand}>=[];
  for(const source of Object.values(world.creations??{})){
   const instance=source.instance;
-  if(instance.spaceId!==spaceId||instance.stage==='destroyed')continue;
+  if(input.excludedInstanceIds?.has(instance.instanceId)||instance.spaceId!==spaceId||instance.stage==='destroyed')continue;
   const poses=creationNodePoses(source.command.definition,instance.pose);
   let checked=false;
   for(const node of Object.values(instance.nodeStates)){

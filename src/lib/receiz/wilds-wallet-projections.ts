@@ -3,7 +3,7 @@ import {
   RECEIZ_PHI_RESERVE_OIDC_SCOPES,
   RECEIZ_PHI_SETTLEMENT_OIDC_SCOPES
 } from "./oauth-scopes";
-import { RECEIZ_SDK_VERSION, quoteReceizDisplayUsdV122 } from "@receiz/sdk";
+import { RECEIZ_SDK_VERSION } from "@receiz/sdk";
 
 const MAX_CURSOR_LENGTH = 256;
 const MAX_LEDGER_ENTRIES = 50;
@@ -12,7 +12,6 @@ const MAX_PROFILE_MARK_LENGTH = 12;
 export type WalletSummaryProjection = Readonly<{
   status: "verified";
   admittedPhiMicro: string;
-  sealedPhiMicro?: string;
   displayUsdCents: string | null;
   assetCountsStatus: "available" | "unknown";
   transferableResourceCount: number | null;
@@ -61,6 +60,8 @@ export type WalletCapabilityState = Readonly<
 
 export type WalletCapabilityAdmission = Readonly<{
   sdkVersion: string;
+  /** Installed connected-wallet port with an actual same-owner upstream session. Fresh device consent is required by execute. */
+  connectWallet?: boolean;
   rails: Readonly<{
     proofAuthorityExchange: boolean;
     settlementExecution: boolean;
@@ -71,7 +72,6 @@ export type WalletCapabilityAdmission = Readonly<{
     subjectNamespaces: boolean;
   }>;
   grantedScopes: readonly string[];
-  deviceEdge?: Readonly<{ sourceAvailable: boolean; registeredScopes: readonly string[] }>;
 }>;
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -183,23 +183,14 @@ export function projectWildsWalletSummary(value: unknown): WalletSummaryProjecti
   if (envelope.ok !== true) throw new Error("wilds_wallet_summary_invalid");
   // Connect wraps its summary in wallet; portable snapshots may be flat.
   const summary = Object.hasOwn(envelope, "wallet") ? asRecord(envelope.wallet) : envelope;
-  const sealedPhiMicro = parseWildsWalletMicroPhi(summary.balancePhiMicro);
-  const hasNativePurse = Object.hasOwn(summary, "nativeSpendablePhiMicro");
-  const balancePhiMicro = hasNativePurse ? parseWildsWalletMicroPhi(summary.nativeSpendablePhiMicro) : sealedPhiMicro;
-  const originalDisplayUsdCents = summary.balanceUsdCents === undefined || summary.balanceUsdCents === null
+  const balancePhiMicro = parseWildsWalletMicroPhi(summary.balancePhiMicro);
+  const displayUsdCents = summary.balanceUsdCents === undefined || summary.balanceUsdCents === null
     ? (summary.balanceUsd === undefined || summary.balanceUsd === null ? null : exactUsdCents(summary.balanceUsd))
     : parseWildsWalletMicroPhi(summary.balanceUsdCents);
-  const quote = summary.quote && typeof summary.quote === "object" ? asRecord(summary.quote) : null;
-  const rate = quote?.usdPerPhiMicrocents;
-  const displayUsdCents = hasNativePurse
-    ? (typeof rate === "string" && /^[1-9][0-9]{0,29}$/.test(rate)
-      ? (balancePhiMicro === "0" ? "0" : quoteReceizDisplayUsdV122(balancePhiMicro, rate)) : null)
-    : originalDisplayUsdCents;
   const assetCounts = projectAssetCounts(summary);
   return Object.freeze({
     status: "verified" as const,
     admittedPhiMicro: balancePhiMicro,
-    ...(hasNativePurse ? { sealedPhiMicro } : {}),
     displayUsdCents,
     ...assetCounts
   });
@@ -271,6 +262,10 @@ export function projectWildsWalletCapabilities(
   }
 
   const granted = new Set(admission.grantedScopes);
+  if (admission.connectWallet === true) {
+    const available = Object.freeze({ available: true as const });
+    return Object.freeze({ read: "available", receive: "available", recipientLookup: available, send: available, resourceTransfer: unavailable, cardTransfer: unavailable, phiSettlement: available, phiReserve: unavailable });
+  }
   const exactScopeState = (installed: boolean, scopes: readonly string[]): WalletCapabilityState => {
     if (!installed) return unavailable;
     if (!scopes.every((scope) => granted.has(scope))) {
@@ -279,15 +274,11 @@ export function projectWildsWalletCapabilities(
     return Object.freeze({ available: true as const });
   };
   const valueBase = admission.rails.proofAuthorityExchange && admission.rails.valueExecutionRecovery;
-  const railScopeState = (installed: boolean, scopes: readonly string[]) => admission.deviceEdge
-    ? (!installed || !admission.deviceEdge.sourceAvailable ? unavailable
-      : exactScopeState(granted.has("receiz:wallet.read") && scopes.every(s => admission.deviceEdge!.registeredScopes.includes(s)), ["receiz:wallet.read"]))
-    : exactScopeState(installed, scopes);
-  const phiSettlement = railScopeState(
+  const phiSettlement = exactScopeState(
     valueBase && admission.rails.settlementExecution,
     RECEIZ_PHI_SETTLEMENT_OIDC_SCOPES
   );
-  const phiReserve = railScopeState(
+  const phiReserve = exactScopeState(
     valueBase && admission.rails.reserveExecution,
     RECEIZ_PHI_RESERVE_OIDC_SCOPES
   );

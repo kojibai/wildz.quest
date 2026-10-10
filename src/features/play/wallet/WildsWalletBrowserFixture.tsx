@@ -5,8 +5,6 @@ import { useState } from "react";
 import type { WildsResourceLotV1 } from "../wilds-resource-lot";
 import type { WildsMaterialLotV1 } from "../wilds-steward-construction";
 import { WildsWalletTerminal } from "./WildsWalletTerminal";
-import { createWildsWalletGiftAgreement, type WildsWalletTradeExchangeResult } from "./wilds-wallet-trade";
-import { wildsWalletNativeTradeAgreementDigest } from "./wilds-wallet-native-trade-context";
 import { reduceWildsWalletController, createWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPresentationState } from "./wilds-wallet-controller";
 import { createWildsNourishmentState, creditWildsAnimalFood, gatherWildsNourishment, wildsNourishmentPlantsForTile, wildsNourishmentSourceAt } from "../wilds-nourishment";
 import { createWildsAnimalFoodReceipt, wildsWildAnimalsForTile } from "../wilds-animal-ecology";
@@ -43,9 +41,6 @@ const nourishmentFixture = (() => {
   return creditWildsAnimalFood(nourishment, createWildsAnimalFoodReceipt(animal, "hunt", 0, 100)).state;
 })();
 export function WildsWalletEdgeBrowserFixture({ connectionPending = false }: { connectionPending?: boolean } = {}) {
-  const giftAgreement=createWildsWalletGiftAgreement("alice",{attemptId:"gift:browser:fixture",recipientHandle:"explorer",asset:{kind:"inventory",foodItemIds:["fixture:fruit"],materialLotIds:[materialFixtures[0]!.lotId],resourceLotIds:[resourceFixture.lotId]}});
-  const giftId=wildsWalletNativeTradeAgreementDigest(giftAgreement);
-  const [giftResults,setGiftResults]=useState<Readonly<Record<string,WildsWalletTradeExchangeResult>>>({});
   const [state, setState] = useState<WildsWalletPresentationState>({
     ...fixtureState("verified"),
     balanceBasis: "current",
@@ -88,10 +83,7 @@ export function WildsWalletEdgeBrowserFixture({ connectionPending = false }: { c
       setState((current) => ({ ...current, page: "send", transfer: { ...current.transfer, phase: "amount", recipientUsername: username, recipientLocator: locator, amountPhiMicro } }));
     }
   };
-  return <main className="wildz-app" data-testid="wallet-edge-browser-fixture"><WildsWalletTerminal cards={initialPlayState.inventory} inventoryCounts={{ resourceUnits: 244, creatureCards: 46 }} nourishment={nourishmentFixture} materialLots={materialFixtures} resourceCards={[{ id: "resource:fixture:one", title: "Farm supplies", summary: "2 vegetables · 1 timber", status: "packed", transferable: true, unpackable: true, cancellable: false }]} walletGifts={[{id:giftId,agreement:giftAgreement,incoming:true}]} nativeTradeResults={giftResults} onAcceptGift={async()=>{
-    // UI fixture only. No signing, native API, funds, or custody operation exists here.
-    const result={status:"awaiting-peer" as const,message:"Your acceptance is saved. Waiting for the same gift receipt.",tradeId:giftId};setGiftResults({[giftId]:result});return result;
-  }} onRecoverGift={async()=>giftResults[giftId]??{status:"pending",message:"Checking the same gift.",tradeId:giftId}} onSendAsset={async (request) => ({ status: "sent", message: `Sent to @${request.recipientHandle.replace(/\.receiz\.id$/, "")} · awaiting acceptance` })} publicUsername="explorer" resourceLots={[resourceFixture]} state={state} {...fixtureActions} /></main>;
+  return <main className="wildz-app" data-testid="wallet-edge-browser-fixture"><WildsWalletTerminal cards={initialPlayState.inventory} inventoryCounts={{ resourceUnits: 244, creatureCards: 46 }} nourishment={nourishmentFixture} materialLots={materialFixtures} resourceCards={[{ id: "resource:fixture:one", title: "Farm supplies", summary: "2 vegetables · 1 timber", status: "packed", transferable: true, unpackable: true, cancellable: false }]} onSendAsset={async (request) => ({ status: "sent", message: `Sent to @${request.recipientHandle.replace(/\.receiz\.id$/, "")} · awaiting acceptance` })} publicUsername="explorer" resourceLots={[resourceFixture]} state={state} {...fixtureActions} /></main>;
 }
 export function WildsWalletBrowserFixture() {
   return <div id="wilds-wallet-browser-fixture">{[["verified", fixtureState("verified")], ["offline-verified", fixtureState("offline-verified")], ["unknown", fixtureState("verified", "unknown")], ["zero-write", fixtureState("verified", "zero-write")], ["committed", fixtureState("verified", "committed")]].map(([name, state]) => <div data-fixture-state={name as string} key={name as string}><WildsWalletTerminal publicUsername="fixture-explorer" state={state as WildsWalletControllerState} {...actions} /></div>)}</div>;

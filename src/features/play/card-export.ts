@@ -9,7 +9,8 @@ import { wildzSealedDownloadFilename } from "../../lib/receiz/wildz-sealed-docum
 import QRCode from "qrcode";
 import { deriveBirthGenome } from "./heartbound-genome";
 import { renderHeartboundSvg } from "./heartbound-renderer";
-import { currentLivingGenome } from "./living-card-proof";
+import { projectCardCreatureLevelAppearance } from "./wilds-creature-level-appearance";
+import { currentLivingGenome, currentCreatureHistoryProjection } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { projectLivingCardStory } from "./living-card-dossier";
 import { parseWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
@@ -185,7 +186,7 @@ export function renderWildsCardSvg(asset: PortableCardAsset, options: { origin?:
   const genome = isLivingCardAsset(asset)
     ? currentLivingGenome(asset)
     : deriveBirthGenome({ formId: asset.manifest.formId, proofDigest: asset.proof.digest, variant: asset.manifest.variant.traits });
-  const heartboundArt = renderHeartboundSvg(genome, "card", { width: 640, height: 405, title: asset.manifest.name });
+  const heartboundArt = renderHeartboundSvg(genome, "card", { width: 640, height: 405, title: asset.manifest.name, levelAppearance: projectCardCreatureLevelAppearance(asset) });
   const foilOpacity = form.foil === "standard" ? 0.08 : form.foil === "shimmer" ? 0.2 : 0.32;
   const statRows = [
     statRow("HEALTH", stats.health, 0, palette.primary),
@@ -197,9 +198,10 @@ export function renderWildsCardSvg(asset: PortableCardAsset, options: { origin?:
   const abilityOne = form.abilities[0];
   const abilityTwo = form.abilities[1];
   const story = projectLivingCardStory(asset).excerpt;
+  const level = isLivingCardAsset(asset) ? currentCreatureHistoryProjection(asset).level : 1;
   const cardPath = standaloneCardUrl(asset.id, options.origin ?? WILDZ_PRODUCT.origin);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1050" viewBox="0 0 750 1050" role="img" aria-labelledby="title description">
-  <title id="title">${xml(asset.manifest.name)} Wilds card</title><desc id="description">Stage ${asset.manifest.stage} ${xml(asset.manifest.rarity)} portable Receiz card. ${xml(story)}</desc>
+  <title id="title">${xml(asset.manifest.name)} Wilds card</title><desc id="description">Level ${level}, Stage ${asset.manifest.stage} ${xml(asset.manifest.rarity)} portable Receiz card. ${xml(story)}</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#06151e"/><stop offset=".5" stop-color="#103345"/><stop offset="1" stop-color="#07141c"/></linearGradient>
     <linearGradient id="foil" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#ff5ead"/><stop offset=".22" stop-color="#ffd75e"/><stop offset=".45" stop-color="#70ffcc"/><stop offset=".7" stop-color="#71a9ff"/><stop offset="1" stop-color="#c772ff"/></linearGradient>
@@ -211,7 +213,8 @@ export function renderWildsCardSvg(asset: PortableCardAsset, options: { origin?:
   <path d="M55 132h640" stroke="${xml(palette.primary)}" stroke-width="4"/>
   <text x="58" y="94" fill="#fff" font-family="system-ui,sans-serif" font-size="42" font-weight="900">${xml(asset.manifest.name)}</text>
   <text x="692" y="75" text-anchor="end" fill="${xml(palette.accent)}" font-family="system-ui,sans-serif" font-size="18" font-weight="800">STAGE ${asset.manifest.stage}</text>
-  <text x="692" y="104" text-anchor="end" fill="#b9d1da" font-family="system-ui,sans-serif" font-size="16" font-weight="700">${xml(asset.manifest.cardNumber)}</text>
+  <text x="692" y="102" text-anchor="end" fill="${xml(palette.accent)}" font-family="system-ui,sans-serif" font-size="18" font-weight="800">LV. ${level}</text>
+  <text x="692" y="124" text-anchor="end" fill="#b9d1da" font-family="system-ui,sans-serif" font-size="14" font-weight="700">${xml(asset.manifest.cardNumber)}</text>
   <g clip-path="url(#art)"><rect x="55" y="164" width="640" height="405" fill="#0d2632"/><circle cx="358" cy="330" r="230" fill="${xml(palette.glow)}" opacity=".2" filter="url(#glow)"/><g transform="translate(55 164)">${heartboundArt}</g><rect x="55" y="164" width="640" height="405" fill="url(#foil)" opacity="${foilOpacity}"/></g>
   <rect x="55" y="164" width="640" height="405" rx="35" fill="none" stroke="${xml(palette.accent)}" stroke-width="5"/>
   <text x="70" y="604" fill="${xml(palette.accent)}" font-family="system-ui,sans-serif" font-size="17" font-weight="850" letter-spacing="2">${xml(asset.manifest.rarity.toUpperCase())} · ${xml(asset.manifest.foil.toUpperCase())}</text>

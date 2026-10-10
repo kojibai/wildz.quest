@@ -3,7 +3,6 @@ import type {
   ReceizOpenedArtifact,
   ReceizSealedArtifact
 } from "@receiz/sdk";
-import {qualifyWildzNativeTradeArtifactProof, readWildzNativeTradeCustody, type WildzNativeTradeCustody} from "./wildz-native-trade-custody";
 
 export type WildzArtifactPort = Pick<ReceizClient["artifacts"], "verifyAndOpen" | "download">;
 
@@ -33,7 +32,6 @@ export type WildzAdmittedArtifact = Readonly<{
   recordId: string | null;
   compatibility: "current-native" | "verified-legacy-read";
   ownershipWitness?: WildzOwnershipWitness | null;
-  nativeTradeCustody?: WildzNativeTradeCustody | null;
 }>;
 
 function strictArrayBuffer(bytes: Uint8Array): ArrayBuffer {
@@ -187,28 +185,6 @@ export async function openWildzArtifactEvidence(
     throw new Error("wildz_artifact_digest_mismatch");
   }
   const continuity = opened.sealedArtifact.continuity;
-  const bundle = asRecord(opened.sealedArtifact.verification.bundle);
-  const seal = asRecord(bundle?.nativeRecordSeal);
-  let nativeTradeCustody: WildzNativeTradeCustody | null = null;
-  if (seal && (seal.atomicOwnershipTransition !== undefined || seal.atomicValueTransition !== undefined)) {
-    nativeTradeCustody = readWildzNativeTradeCustody(artifactSha256);
-    if (!nativeTradeCustody) {
-      // Persisted status is never custody. Only the actual root-attested group
-      // and every accepted predecessor can qualify this exact successor.
-      const {readWildsWalletNativeAcceptedProof} = await import("../../features/play/wallet/wilds-wallet-native-trade-attempt-store");
-      const proof = await readWildsWalletNativeAcceptedProof(continuity.ownerReceizId, artifactSha256).catch(() => null);
-      if (proof) nativeTradeCustody = await qualifyWildzNativeTradeArtifactProof({proof, bytes: artifactBytes, ownerReceizId: continuity.ownerReceizId});
-    }
-    const native = asRecord(opened.sealedArtifact.verification.assetContinuity);
-    const basis = asRecord(asRecord(seal.atomicOwnershipTransition)?.basis);
-    const plan = asRecord(basis?.operationPlan);
-    if (!nativeTradeCustody || nativeTradeCustody.ownerReceizId !== continuity.ownerReceizId
-      || native?.state !== "verified" || native.artifactId !== nativeTradeCustody.assetId
-      || native.historyDigestSha256 !== nativeTradeCustody.historyDigestSha256
-      || basis?.operationId !== nativeTradeCustody.operationId || plan?.exactPlanDigest !== nativeTradeCustody.exactPlanDigest) {
-      throw new Error("wildz_native_trade_recovery_required");
-    }
-  }
   const admitted: WildzAdmittedArtifact = {
     artifactBytes: artifactBytes.slice(),
     artifactSha256,
@@ -221,8 +197,7 @@ export async function openWildzArtifactEvidence(
     verifyPath: continuity.verifyPath,
     recordId: continuity.carrier === "native-record-seal" ? continuity.recordId : null,
     compatibility: opened.legacyCompatibility,
-    ownershipWitness: ownershipWitness(opened),
-    nativeTradeCustody
+    ownershipWitness: ownershipWitness(opened)
   };
   return { admitted, sealedArtifact: opened.sealedArtifact };
 }

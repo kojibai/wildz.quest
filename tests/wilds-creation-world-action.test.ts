@@ -19,15 +19,20 @@ import {projectCreationPhysical} from '../src/features/play/creation/projection'
 import {verifyWorldCreationActionRecord} from '../src/features/play/creation/world-action';
 import {createWildsWorldEvent} from '../src/features/play/wilds-world-event';
 import {sealCreationInstance,type CreationInstance} from '../src/features/play/creation/instance';
+import {assertWildsWorldCommandCardAuthority} from '../src/features/play/use-wilds-world';
+import {createWildsWorldEdgeAdmissionQueue} from '../src/features/play/wilds-world-outbox';
+import {withWildsWorldCommandKai} from '../src/features/play/wilds-world-authority';
+import {createKaiTemporalRoot} from '../src/features/play/kai-temporal-root';
+import {deriveKaiKlokMomentFromUPulse} from '../src/features/play/kai-klok-moment';
 
 const actor='owner:hand',pulse='2026-10-09T12:00:00.000Z',position={x:5000,y:100,z:5000};
-function fixture(attached=false){
+function fixture(attached=false,targetEquipment=false){
  const sources=Array.from({length:25},(_,i)=>projectWildsResourceRegion(i-12,0)).flat().filter(source=>source.kind==='timber').slice(0,2);
  const lots=sources.map(source=>createWildsMaterialHarvest({source,current:initialWildsHarvestedSourceState(source),ownerReceizId:actor,actorPosition:source.position,kaiUPulse:1}).lot);
  const service=WildsWorldService.fromLocalProjection({...initialWildsWorldProjection(),materialLots:Object.fromEntries(lots.map(lot=>[lot.lotId,lot]))});
  const card=sealCollectedCard({capturedAt:pulse,encounterId:'hands:worker',formId:creatureFamilies.find(f=>f.element==='Ember')!.formIds[0],ownerReceizId:actor}),condition=emptyAdventureCondition(card.id);
  for(const [index,id]of ['weapon','target'].entries()){
-  const definition=createCreationDefinition({schema:'wildz.creation-definition.v1',grammarVersion:1,seed:id,creatorId:actor,assets:[],nodes:[{id:'part',parentId:null,pose:{position:{x:0,y:0,z:0},yaw:0},shape:{kind:'box',width:.2,height:.1,depth:1},material:'timber',attachments:[],supports:[],behaviors:id==='weapon'?[{id:'weapon',version:1,parameters:{}}]:[]},...(attached&&id==='weapon'?[{id:'linked',parentId:'part',pose:{position:{x:1,y:0,z:0},yaw:0},shape:{kind:'box' as const,width:.1,height:.1,depth:.1},material:'timber' as const,attachments:[],supports:[],behaviors:[]}]:[])]});
+  const definition=createCreationDefinition({schema:'wildz.creation-definition.v1',grammarVersion:1,seed:id,creatorId:actor,assets:[],nodes:[{id:'part',parentId:null,pose:{position:{x:0,y:0,z:0},yaw:0},shape:{kind:'box',width:.2,height:.1,depth:1},material:'timber',attachments:[],supports:[],behaviors:id==='weapon'||targetEquipment?[{id:'weapon',version:1,parameters:{}}]:[]},...(attached&&id==='weapon'?[{id:'linked',parentId:'part',pose:{position:{x:1,y:0,z:0},yaw:0},shape:{kind:'box' as const,width:.1,height:.1,depth:.1},material:'timber' as const,attachments:[],supports:[],behaviors:[]}]:[])]});
   const world=service.snapshot(),context={worldId:world.worldId,spaceId:'wildz.space.outer.v1',pose:{position:{...position,z:position.z-index*2},yaw:0},sourceHead:creationWorldSourceHead(world),budget:{timber:2},techniques:combineCreationTechniques(projectCreationWorkers([card],{[card.id]:condition})),physical:[],quality:'low' as const};
   const compiled=compileCreation(definition,context);assert.equal(compiled.status,'ready');if(compiled.status!=='ready')throw Error('fixture');
   const resources=selectCreationResources(Object.values(world.materialLots),context.budget,compiled.plan.requiredResources,creationWorldAvailability(world,actor));
@@ -45,6 +50,29 @@ test('admitted equip and strike change target and weapon once, survive source re
  assert.equal(execute(service,strike).events.length,0);
  const restored=replayWildsWorld([],checkpointWildsWorld(after));assert.equal(restored.creations!.target.instance.head,after.creations!.target.instance.head);
  assert.ok(compileWorldCreationSource(restored.creations!.target));assert.equal(Object.keys(projectWildsCreationPersistence(restored).creations).length,2);
+});
+test('the post owner-action guard admits no-card equip and strike only after the final gameplay fence',async()=>{
+ const service=fixture(),order:string[]=[],events:string[]=[];
+ const queue=createWildsWorldEdgeAdmissionQueue({initialProjection:service.snapshot(),persist:async()=>{order.push('persist');},onAdmitted:(_world,_entry,admitted)=>{events.push(...admitted.map(event=>event.kind));}});
+ for(const command of [equip(service),null]){
+  const current=WildsWorldService.fromLocalProjection(queue.current()),request=command??damage(current);
+  const rooted=withWildsWorldCommandKai(request,createKaiTemporalRoot(deriveKaiKlokMomentFromUPulse({uPulse:request.actionRequest.kaiUPulse,authority:'local'})));
+  assert.doesNotThrow(()=>assertWildsWorldCommandCardAuthority(rooted,null,true));
+  await queue.admit({schema:'receiz.wilds_world_outbox_entry.v1',actorId:actor,guestId:'guest-hands',command:rooted,queuedAt:pulse},{beforeAdmit:async entry=>{
+   assert.equal(entry.card,undefined);assert.equal(entry.command.commandId,rooted.commandId);order.push('fence');
+  }});
+ }
+ assert.deepEqual(order,['fence','persist','fence','persist']);
+ assert.deepEqual(events,['creation.acted','creation.acted']);
+ assert.equal(queue.current().creations!.target.instance.nodeStates.part.condition,96);
+ const blocked=fixture(),before=checkpointWildsWorld(blocked.snapshot()).projectionDigest;
+ const rejectQueue=createWildsWorldEdgeAdmissionQueue({initialProjection:blocked.snapshot(),persist:async()=>assert.fail('a rejected final fence cannot persist')});
+ const rejected=withWildsWorldCommandKai(equip(blocked),createKaiTemporalRoot(deriveKaiKlokMomentFromUPulse({uPulse:20,authority:'local'})));
+ assert.doesNotThrow(()=>assertWildsWorldCommandCardAuthority(rejected,null,true));
+ await assert.rejects(rejectQueue.admit({schema:'receiz.wilds_world_outbox_entry.v1',actorId:actor,guestId:'guest-hands',command:rejected,queuedAt:pulse},{beforeAdmit:async()=>{throw Error('player_moved_before_persistence');}}),/player_moved_before_persistence/);
+ assert.equal(checkpointWildsWorld(rejectQueue.current()).projectionDigest,before);
+ assert.throws(()=>assertWildsWorldCommandCardAuthority({type:'resource.material.harvest'},null,true),/wilds_crew_worker_card_required/);
+ assert.throws(()=>assertWildsWorldCommandCardAuthority({type:'construction.site.work'},null,true),/wilds_crew_worker_card_required/);
 });
 test('unauthorized, stale, unarmed and out-of-reach strikes have zero admitted effects',()=>{
  const service=fixture();execute(service,equip(service));const command=damage(service),before=checkpointWildsWorld(service.snapshot()).projectionDigest;
@@ -74,6 +102,20 @@ test('hand targeting equips only owned reachable equipment and strikes only perm
  const strike=prepare('strike',{kaiUPulse:30});assert.equal(strike?.actionRequest.instanceId,'target');execute(service,strike!);
  assert.equal(prepare('strike',{kaiUPulse:31}),null);
  assert.ok(prepare('strike',{kaiUPulse:1_000_031,operationId:'prepared:next-strike'}));
+});
+test('baseline hand targeting excludes source-owned equipment without changing the actor head or spatial gates',()=>{
+ const service=fixture(false,true),world=service.snapshot(),excludedInstanceIds=new Set(['target']);
+ const base={world,actorId:actor,position:{...position,z:4997},spaceId:'wildz.space.outer.v1',heading:Math.PI,kaiUPulse:20,operationId:'prepared:baseline',intent:'grab' as const};
+ assert.equal(prepareCreationHandAction(base)?.actionRequest.instanceId,'target','the nearer source weapon is actionable before exclusion');
+ const baseline=prepareCreationHandAction({...base,excludedInstanceIds});
+ assert.equal(baseline?.actionRequest.instanceId,'weapon');
+ assert.equal(baseline?.actionRequest.expectedHeads[`actor:${actor}`],creationWorldActorHead(world,actor));
+ assert.equal(prepareCreationHandAction({...base,excludedInstanceIds,position:{...position,z:4999},heading:0}),null,'excluding the front source weapon cannot grab the baseline weapon behind the player');
+ assert.equal(prepareCreationHandAction({...base,excludedInstanceIds,spaceId:'interior'}),null,'excluded source IDs never bypass the space boundary');
+ const nonEquipment=fixture();
+ assert.equal(prepareCreationHandAction({...base,world:nonEquipment.snapshot(),position,heading:0,excludedInstanceIds})?.actionRequest.instanceId,'weapon','a nearby excluded non-equipment creation does not hide baseline equipment');
+ execute(service,baseline!);
+ assert.equal(prepareCreationHandAction({...base,world:service.snapshot(),position,heading:0,intent:'strike',kaiUPulse:30,excludedInstanceIds:new Set(['weapon'])}),null,'excluded held equipment cannot authorize a baseline strike');
 });
 test('authenticated physical restoration removes equipped geometry from the ground and retains exact damage source',async()=>{
  const service=fixture(),controller=createWorldCreationController({environment:()=>({ownerId:actor,worldId:service.snapshot().worldId,spaceId:'wildz.space.outer.v1'}),world:()=>service.snapshot(),crew:()=>({cards:[],conditions:{}}),position:()=>position,compileContext:()=>null,admit:async()=>{throw Error('no new build');},project:async(instance,definition,plan)=>projectCreationPhysical(instance,definition,plan)});

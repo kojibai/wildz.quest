@@ -3,6 +3,7 @@ import { renderHeartboundSvg } from "./heartbound-renderer";
 import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
+import { projectCardCreatureLevelAppearance } from "./wilds-creature-level-appearance";
 
 // Assets are immutable proof revisions. Cache by object so retired revisions can be collected.
 const artwork = new WeakMap<PortableCardAsset, string>();
@@ -13,7 +14,7 @@ export function wildsCardArtwork(asset: PortableCardAsset) {
     isLivingCardAsset(asset) ? currentLivingGenome(asset) : deriveBirthGenome({
       formId: asset.manifest.formId, proofDigest: asset.proof.digest, variant: asset.manifest.variant.traits
     }),
-    "card", { width: 640, height: 405, title: asset.manifest.name, fit: "full-body" }
+    "card", { width: 640, height: 405, title: asset.manifest.name, fit: "full-body", levelAppearance: projectCardCreatureLevelAppearance(asset) }
   );
   artwork.set(asset, svg);
   return svg;

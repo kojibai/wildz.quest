@@ -27,8 +27,7 @@ import { createWildsExactProofCache } from '../wilds-exact-proof-cache';
 import { creationBuildInReach, CREATION_PHYSICAL_BUILD_REACH_RULE, type CreationBuildReachRule } from './build-reach';
 
 export const CREATION_WORLD_RULE = Object.freeze({ id: 'creation.world.construct.v1', componentRuleHead: CREATION_COMPONENT_RULE_HEAD, techniqueRule: CREATURE_CREATION_TECHNIQUE_RULE_V1, maximumWorkers: 32, maximumMaterialLots: 256, maximumTerrainTiles: 256, work: 'source-card-techniques', custody: 'exact-finite-lot-consumption', readiness: 'local-condition-restricts-source-capability', physical: 'canonical-terrain-discovery-burrows-construction-and-admitted-creations' });
-export type WildsCreationNativeKeeper = Readonly<{ schema: 'wildz.creation-native-keeper.v128'; ownerReceizId: string; assetId: string; cardProofDigest: string; artifactSha256: string; nativeHead: string }>;
-export type WildsCreationWorkerSource = Readonly<{ card: PortableCardAsset; condition: AdventureCardCondition; nativeKeeper?: WildsCreationNativeKeeper }>;
+export type WildsCreationWorkerSource = Readonly<{ card: PortableCardAsset; condition: AdventureCardCondition }>;
 export type WildsCreationConstructCommand = Readonly<{
   type: 'creation.construct'; commandId: string; instanceId: string; definition: CreationDefinition;
   context: CreationCompileContext; planDigest: string; workerSources: readonly WildsCreationWorkerSource[];
@@ -50,10 +49,7 @@ export const CREATION_WORLD_PHYSICAL_EVOLUTION_RULE_HEAD = constructionProofDige
   construct: CREATION_WORLD_PHYSICAL_BUILD_RULE_HEAD, evolution: CREATION_EVOLUTION_RULE_HEAD,
   maximumPredecessors: 64, identity: 'owner-current-head-compare-and-swap', history: 'exact-flat-source-and-event-citations' });
 function creationWorldBuildRuleHead(command: WildsCreationBuildCommand): string {
-  if (command.workerSources.some(source => source.nativeKeeper)) {
-    const original = creationWorldBuildRuleHead({ ...command, workerSources: command.workerSources.map(({ nativeKeeper: _keeper, ...source }) => source) });
-    return constructionProofDigest({ id: 'creation.world.native-keeper.v128', original, custody: 'native-root-source-and-complete-accepted-group', binding: 'exact-actor-card-projection-artifact-and-current-native-head' });
-  }
+
   if (command.reachRule === undefined) return command.type === 'creation.construct' ? CREATION_WORLD_RULE_HEAD : CREATION_WORLD_EVOLUTION_RULE_HEAD;
   if (command.reachRule !== CREATION_PHYSICAL_BUILD_REACH_RULE.id) throw Error('creation_world_reach_rule_invalid');
   return command.type === 'creation.construct' ? CREATION_WORLD_PHYSICAL_BUILD_RULE_HEAD : CREATION_WORLD_PHYSICAL_EVOLUTION_RULE_HEAD;
@@ -63,7 +59,7 @@ export type WildsCreationPersistence = Readonly<{
   creationEvents: Record<string, WildsWorldEvent>;
   constructionCommandReceipts: WildsWorldProjection['constructionCommandReceipts'];
 }>;
-type CreationPersistenceInput = Partial<Pick<WildsWorldProjection, 'creations' | 'creationEvents' | 'materialLots' | 'materialCustody' | 'consumedMaterialLots'>>;
+type CreationPersistenceInput = Partial<Pick<WildsWorldProjection, 'creations' | 'creationEvents' | 'materialLots' | 'materialCustody' | 'applicationSourceCustody' | 'consumedMaterialLots'>>;
 export type WildsCreationShelterWorld = CreationPersistenceInput;
 
 /** A husbandry site must be a paid, admitted, functional typed component. */
@@ -95,7 +91,7 @@ export function projectWildsCreationPersistence(input: CreationPersistenceInput,
       if (records.some((record, index) => !creationWorldEventMatches(record, events[index]))) continue;
       if (source.instance.embeddedResources.some(ref => {
         const lot = input.materialLots?.[ref.id];
-        return !lot || !verifyWildsMaterialLot(lot) || lot.head !== ref.head || lot.kind !== ref.kind || lot.quantity !== ref.quantity || (input.materialCustody?.[ref.id]?.ownerReceizId ?? lot.ownerReceizId) !== source.instance.ownerId || input.consumedMaterialLots?.[ref.id] !== id;
+        return !lot || !verifyWildsMaterialLot(lot) || lot.head !== ref.head || lot.kind !== ref.kind || lot.quantity !== ref.quantity || wildsMaterialCustodian({materialCustody:input.materialCustody??{},...(input.applicationSourceCustody?{applicationSourceCustody:input.applicationSourceCustody}:{})},lot) !== source.instance.ownerId || input.consumedMaterialLots?.[ref.id] !== id;
       })) continue;
       if(source.actions?.some((action,index)=>{const event=input.creationEvents?.[source.actions?.[index+1]?.priorEventId??id];return !event||event.kind!=='creation.acted'||event.actorId!==action.record.actorId||constructionProofDigest((event.payload as {record:WildsCreationActionRecord}).record)!==constructionProofDigest(action.record);}))continue;
       creations[id] = source; creationEvents[id] = input.creationEvents?.[id]??events.at(-1)!;
@@ -149,14 +145,7 @@ export function creationWorldAvailability(world: WildsWorldProjection, actorId: 
 export function creationWorldWorkers(sources: readonly WildsCreationWorkerSource[], actorId: string) {
   if (!sources.length || sources.length > CREATION_WORLD_RULE.maximumWorkers || new Set(sources.map(s => s.card.id)).size !== sources.length) throw Error('creation_world_workers_invalid');
   for (const source of sources) {
-    const keeper = source.nativeKeeper;
-    if (keeper && (Object.keys(keeper).sort().join(',') !== 'artifactSha256,assetId,cardProofDigest,nativeHead,ownerReceizId,schema'
-      || keeper.schema !== 'wildz.creation-native-keeper.v128' || keeper.ownerReceizId !== actorId || keeper.assetId !== source.card.id
-      || keeper.cardProofDigest !== source.card.proof.digest || !/^[a-f0-9]{64}$/.test(keeper.artifactSha256) || !/^[a-f0-9]{64}$/.test(keeper.nativeHead))) throw Error('creation_world_worker_keeper_invalid');
-    // This retained binding is replay input. The native source host independently
-    // verifies its complete root receipt, exact bytes/current owner and head;
-    // legacy publication rejects keeper-bearing commands.
-    if (!verifyAnyWildsCard(source.card).ok || (source.card.manifest.ownerReceizId !== actorId && !sameWildzPlayerCoordinate(source.card.manifest.ownerReceizId, actorId) && !keeper) || source.condition.assetId !== source.card.id) throw Error('creation_world_worker_source_invalid');
+    if (!verifyAnyWildsCard(source.card).ok || (source.card.manifest.ownerReceizId !== actorId && !sameWildzPlayerCoordinate(source.card.manifest.ownerReceizId, actorId) ) || source.condition.assetId !== source.card.id) throw Error('creation_world_worker_source_invalid');
     validateAdventureCondition(source.condition);
   }
   const cards = sources.map(source => source.card);

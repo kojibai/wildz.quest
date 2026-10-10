@@ -50,8 +50,8 @@ describe("Receiz v128 application contract", () => {
     assert.equal(generated.compatibleSdkRange, RECEIZ_CURRENT_APP_COMPATIBLE_SDK_RANGE);
     assert.deepEqual(generated.operationAuthorityMatrix, RECEIZ_CURRENT_APPLICATION_OPERATION_MATRIX);
     assert.equal(RECEIZ_PUBLIC_SDK_FUNCTION_INVENTORY.releaseVersion, RECEIZ_RELEASE_VERSION);
-    assert.equal(RECEIZ_PUBLIC_SDK_FUNCTION_INVENTORY.functions.length, 729);
-    assert.equal(RECEIZ_PUBLIC_SDK_FUNCTION_INVENTORY.digest, "72f525ce53883abbbc3ec48361669cc6bc47f4efdfdeb27065399b33b3b1174d");
+    assert.equal(RECEIZ_PUBLIC_SDK_FUNCTION_INVENTORY.functions.length, 680);
+    assert.equal(RECEIZ_PUBLIC_SDK_FUNCTION_INVENTORY.digest, "687bdd064b49bf7df1c32eb4ab3c0f1389c80c8bc90d7cfbec32147db1cc73ad");
     assert.equal(RECEIZ_PUBLIC_SDK_FUNCTION_INVENTORY.authority.inventoryIsProofAuthority, false);
     assert.equal(RECEIZ_PUBLIC_SDK_FUNCTION_INVENTORY.authority.sdkRuntimeCustodyMustBePreserved, true);
   });

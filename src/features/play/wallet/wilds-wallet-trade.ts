@@ -33,7 +33,7 @@ export type WildsWalletTradeExchangeResult = Readonly<{
   status: "awaiting-peer" | "committed" | "pending" | "failed";
   message: string;
   tradeId?: string;
-  /** Local projection repair only; the native group already settled. */
+  /** Projection repair only after every staged native leg is verified. */
   assetRecoveryRequired?: true;
 }>;
 export type WildsWalletApproveTrade = (agreement: WildsWalletTradeAgreement) => Promise<WildsWalletTradeExchangeResult>;
@@ -108,4 +108,9 @@ export function createWildsWalletTradeDraft(input: {
 /** A comparison coordinate only; a self-hash is never ownership or settlement authority. */
 export function wildsWalletTradeDraftDigest(draft: WildsWalletTradeDraft) {
   return sha256PortableBasis(canonicalPortableCardJson(draft));
+}
+
+/** The exact proposal digest identifies coordination only; it grants no custody. */
+export function wildsWalletTradeAgreementDigest(agreement: WildsWalletTradeAgreement) {
+  return sha256PortableBasis(canonicalPortableCardJson(createWildsWalletTradeAgreement(agreement.first, agreement.second, agreement.purpose))).replace(/^sha256:/, "");
 }

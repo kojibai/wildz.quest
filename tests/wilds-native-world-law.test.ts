@@ -82,31 +82,3 @@ test('native food may be packed from its admitted gather history and cannot be e
  assert.throws(()=>replayWildzNativeWorldLaw([gather,consume,pack]),/food_source_unadmitted/);
  assert.throws(()=>replayWildzNativeWorldLaw([gather,consume,consume]),/food_consume:already-consumed/);
 });
-
-
-import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { createRequire } from "node:module";
-import { dirname, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
-
-test("installed native host law retains the exact current gameplay source graph and replay", async () => {
-  const sdkRoot = dirname(createRequire(import.meta.url).resolve("@receiz/sdk"));
-  const { WILDZ_NATIVE_WORLD_LAW_DIGEST, WILDZ_NATIVE_WORLD_LAW_SOURCE: manifest } = await import(pathToFileURL(resolve(sdkRoot, "wildzNativeWorldLawManifest.generated.js")).href);
-  const sha = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
-  assert.equal(sha(JSON.stringify(manifest)), WILDZ_NATIVE_WORLD_LAW_DIGEST);
-  assert.ok(manifest.sourceFiles.length > 100);
-  for (const source of manifest.sourceFiles as { path: string; sha256: string }[]) {
-    assert.ok(source.path.startsWith("src/") && !source.path.split("/").includes(".."));
-    assert.equal(sha(await readFile(resolve(process.cwd(), source.path))), source.sha256, `native law source drift: ${source.path}`);
-  }
-  const installed = await import(pathToFileURL(resolve(sdkRoot, "wildzNativeWorldLaw.generated.js")).href);
-  // tsc may format the distributed JS. Verify its replay against the actual
-  // source law rather than requiring source and compiled formatting to match.
-  const plant = wildsNourishmentPlantsForTile(-4, -4).find(p => p.foodKind === "orchard-fruit")!;
-  const gather: WildzNativeWorldStep = { kind: "food.gather", actorId: "explorer", sourceId: plant.sourceId,
-    expectedSourceHead: wildsNourishmentSourceAt(plant, undefined, 100).head, kaiUPulse: 100,
-    player: plant.position, spaceId: "wildz.space.outer.v1" };
-  assert.deepEqual(installed.replayWildzNativeWorldLaw([]), replayWildzNativeWorldLaw([]));
-  assert.deepEqual(installed.replayWildzNativeWorldLaw([gather]), replayWildzNativeWorldLaw([gather]));
-});

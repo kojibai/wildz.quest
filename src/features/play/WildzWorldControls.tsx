@@ -312,8 +312,7 @@ export function WildzWorldControls({
   return (
     <section className={`wildz-world-controls${panelOpen ? " is-panel-open" : ""}${buildingActive ? " is-building" : ""}`} aria-label="World controls">
       <div aria-hidden={movementHomeBlocked} className="wildz-movement-home" inert={movementHomeBlocked ? true : undefined}>
-        <div className={`wildz-quick-utilities${(1 + (bedSleep ? 1 : 0) + capabilityControls.length) % 2 ? " has-odd-actions" : ""}`} aria-label="Quick utilities">
-          {nourishment ? <WildsNourishmentPill {...nourishment} enabled={worldHomesEnabled} cancelSignal={gestureCancelSignal} /> : null}
+        <div className="wildz-quick-utilities" aria-label="Quick utilities">
           {traversalCapabilities.includes("swim") || traversalCapabilities.includes("climb") ? (
             <div className="wildz-passive-capabilities" aria-label="Active companion passive abilities">
               {traversalCapabilities.includes("swim") ? <span role="img" aria-label="Automatic swimming" title="Your active companion can swim in deep water automatically."><Icons.swim aria-hidden="true" size={13} /></span> : null}
@@ -322,6 +321,7 @@ export function WildzWorldControls({
           ) : null}
           <button aria-label="Open creature crew" className="wildz-crew-control" title="Creature crew" disabled={!worldHomesEnabled} onClick={onOpenCrew} type="button"><Icons.roam aria-hidden="true" size={21} /></button>
           {bedSleep ? <button aria-label={bedSleep.sleeping ? "Wake up" : "Sleep in bed"} title={bedSleep.sleeping ? "Wake up" : "Sleep in bed"} disabled={!worldHomesEnabled} onClick={handleBedSleep} type="button"><Icons.sleep aria-hidden="true" size={20} /></button> : null}
+          {nourishment ? <WildsNourishmentPill {...nourishment} enabled={worldHomesEnabled} cancelSignal={gestureCancelSignal} /> : null}
           <WildsCapabilityControls
             activeAerialMode={aerialMode}
             contexts={capabilityContexts}

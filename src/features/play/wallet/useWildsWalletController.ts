@@ -6,6 +6,7 @@ import { createWildsWalletControllerDriver, type WildsWalletControllerDriver, wi
 
 import { WildsWalletAuthorizationError } from "./wilds-wallet-authorization-error";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
+import { createWildsWalletSendReadiness } from "./wilds-wallet-send-readiness";
 
 type FetchResponse = Readonly<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 export type WildsWalletClientAuthorizationPort = Readonly<{
@@ -14,7 +15,6 @@ export type WildsWalletClientAuthorizationPort = Readonly<{
 export type WildsWalletReadAuthorizationPort = Readonly<{
   authorize(): Promise<boolean>;
   projectSource?(): Promise<WildsWalletReadResponse | null>;
-  initializeNativeSource?(): Promise<void>;
 }>;
 
 export function wildsWalletStatusNeedsIdentityReadAuthority(status: WildsWalletControllerState["status"], transportAuthorityRequired = false) {
@@ -42,6 +42,21 @@ export function useWildsWalletController(
     stateRef.current = driverRef.current.state;
   }
   const driver = driverRef.current;
+  const sendReadinessRef = useRef<ReturnType<typeof createWildsWalletSendReadiness> | null>(null);
+  if (!sendReadinessRef.current) sendReadinessRef.current = createWildsWalletSendReadiness({
+    current: () => ({ ...driver.state, sourceKey: driver.sourceKey }),
+    async continueSession(expected) {
+      // Identity and network work begins only when Send is explicitly entered.
+      const { defaultIdentityRepository, connectWildzProofSession } = await import("@/lib/receiz/wildz-identity-adapter");
+      const active = await defaultIdentityRepository.active();
+      if (!active || active.localAuthority !== "verified" || active.keyId !== expected.sourceKey || active.actorId !== expected.identityKey) return false;
+      const connected = await connectWildzProofSession(active, { forceRemote: true });
+      const current = await defaultIdentityRepository.active();
+      return current?.keyId === active.keyId && current.actorId === active.actorId && connected.status === "connected" && connected.sessionKeyId === active.keyId;
+    },
+    refresh: () => driver.refresh({ replace: true })
+  });
+  const ensureSendReady = useCallback(() => driver.state.capabilities?.send.available ? Promise.resolve(true) : sendReadinessRef.current!(), [driver]);
   const readAuthorityErrorRef = useRef<WildsWalletAuthorizationError | null>(null);
   const readAuthorityPromiseRef = useRef<Promise<boolean> | null>(null);
   const backgroundReady = options.backgroundReady ?? true;
@@ -174,28 +189,20 @@ export function useWildsWalletController(
     timer = setTimeout(retry, 2_000);
     return () => { disposed = true; clearTimeout(timer); };
   }, [backgroundReady, admitSourceThenRefresh, authorityGeneration, driver, options.readAuthorization]);
-  const openTerminal = useCallback(() => {
-    driver.open();
-    const opening = driver.state;
-    const stillCurrent = () => driver.state.identityKey === opening.identityKey && driver.state.authorityGeneration === opening.authorityGeneration;
-    void (async () => {
-      await admitSourceThenRefresh();
-      if (!stillCurrent() || !options.readAuthorization?.initializeNativeSource) return;
-      try { await options.readAuthorization.initializeNativeSource(); if (stillCurrent()) await driver.refresh({ replace: true }); }
-      catch (cause) { if (stillCurrent()) setOperationError(cause instanceof Error ? cause.message : "Wallet initialization could not be completed. Reopen your wallet to retry."); }
-    })();
-  }, [admitSourceThenRefresh, driver, options.readAuthorization]);
+  const openTerminal = useCallback(() => { driver.open(); void admitSourceThenRefresh(); }, [admitSourceThenRefresh, driver]);
   const visible = state.identityKey === identityKey && state.authorityGeneration === authorityGeneration ? state
     : renewWildsWalletControllerState(state, createWildsWalletControllerState(identityKey, authorityGeneration));
   const capabilities = visible.capabilities
     ? gateWildsWalletClientCapabilities(visible.capabilities, { proofAuthorization: Boolean(options.authorization) })
     : null;
-  const lookupRecipient = useCallback((username: string) => {
+  const lookupRecipient = useCallback(async (username: string) => {
+    if (!await ensureSendReady()) return;
     return driver.lookupRecipient(username);
-  }, [driver]);
+  }, [driver, ensureSendReady]);
   const stageTransfer = useCallback(async () => {
     setOperationError(null);
     const before = driver.state;
+    if (!await ensureSendReady()) return;
     // Preview already verifies live balance, heads and scopes. A second full
     // wallet read would add three requests without strengthening that boundary.
     if (wildsWalletStatusNeedsIdentityReadAuthority(before.status, before.transportAuthorityRequired)) await refreshWithIdentityAuthority();
@@ -203,7 +210,7 @@ export function useWildsWalletController(
       || driver.state.transfer.operationNonce !== before.transfer.operationNonce) return;
     if (driver.state.transportAuthorityRequired) { setOperationError(readAuthorityErrorRef.current?.message ?? "Wallet connection could not be renewed. Please retry."); return; }
     await driver.stageTransfer();
-  }, [driver, refreshWithIdentityAuthority]);
+  }, [driver, ensureSendReady, refreshWithIdentityAuthority]);
   const authorizeTransfer = useCallback(async (pointerId: number) => {
     const authorization = options.authorization;
     const transfer = driver.state.transfer;
@@ -240,7 +247,10 @@ export function useWildsWalletController(
     capabilities,
     openTerminal,
     closeTerminal: driver.close,
-    navigate: (page: WildsWalletPage) => driver.navigate(page),
+    navigate: (page: WildsWalletPage) => {
+      driver.navigate(page);
+      if (page === "send" && options.authorization) void ensureSendReady().catch(() => { if (driver.state.open && driver.state.page === "send") setOperationError("Send could not reconnect. Your wallet is unchanged. Please retry."); });
+    },
     refresh: admitSourceThenRefresh,
     lookupRecipient,
     selectTransferRecipient: driver.selectTransferRecipient,

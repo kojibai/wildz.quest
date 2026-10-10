@@ -11,12 +11,14 @@ import { emptyAdventureCondition } from "./adventure/card-condition";
 import { portableCardStatusLabel, type PortableCardAsset } from "./portable-card";
 import { creatureConsciousnessMotion } from "./creature-consciousness";
 import { projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "./creature-capability-identity";
+import { projectLivingCardStory } from "./living-card-dossier";
 
 export const WildsCard = memo(function WildsCard({ asset, compact = false, condition, speaking = false, interactive = true }: { asset: PortableCardAsset; compact?: boolean; condition?: AdventureCardCondition | null; speaking?: boolean; interactive?: boolean }) {
   const card = useRef<HTMLElement>(null);
   const form = creatureForm(asset.manifest.formId);
   const variant = asset.manifest.variant.traits;
   const creatureSvg = useMemo(() => wildsCardArtwork(asset), [asset]);
+  const story = useMemo(() => projectLivingCardStory(asset), [asset]);
   const death = cardDeathRecord(asset, condition);
   const level = isLivingCardAsset(asset) ? currentCreatureHistoryProjection(asset).level : 1;
   const fusionBorn = isLivingCardAsset(asset) && asset.manifest.birth.kind === "fusion";
@@ -88,6 +90,7 @@ export const WildsCard = memo(function WildsCard({ asset, compact = false, condi
       <div aria-label={`${asset.manifest.name} is alive on the card face${speaking ? " and speaking" : ""}`} className="wilds-card-art heartbound-card-art" dangerouslySetInnerHTML={{ __html: creatureSvg }} />
       {death ? <div className="wilds-card-death-mark"><span>Memorial</span><strong>Deceased</strong></div> : null}
       <div className="wilds-card-rarity"><span>{form.rarity}</span><b>{form.foil}</b></div>
+      {!compact ? <p className="wilds-card-front-story" title={story.full}>{story.excerpt}</p> : null}
       <dl className="wilds-card-stats">
         {stats.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
       </dl>

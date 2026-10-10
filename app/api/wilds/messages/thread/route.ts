@@ -1,3 +1,4 @@
+import { admitWildsWalletResourceSourceMessageV128, wildsWalletResourceSourceMessageIdV128 } from "@/features/play/wallet/wilds-wallet-resource-source-messaging-v128";
 import { NextRequest, NextResponse } from "next/server";
 import {
   appendWildsDirectMessage,
@@ -16,8 +17,9 @@ import { decodeWildsPortableClaim } from '@/features/play/wilds-portable-claim';
 import { sameWildzPlayerCoordinate } from '@/lib/receiz/wildz-player-coordinate';
 import { createReceizCommerceAdapter } from '@/lib/receiz/adapter';
 import { validateWildsWalletTradeMessage, wildsWalletTradeMessageId } from "@/features/play/wallet/wilds-wallet-trade-messaging";
+import { admitWildsWalletStagedTradeMessage, wildsWalletStagedTradeMessageId } from "@/features/play/wallet/wilds-wallet-staged-trade-messaging";
 import { canonicalPortableCardJson } from "@/features/play/portable-card";
-import { validateWildsWalletNativeTradeMessage, wildsWalletNativeTradeMessageId } from "@/features/play/wallet/wilds-wallet-native-trade-context";
+import {admitWildsWalletBearerGiftMessage,wildsWalletBearerGiftMessageId} from '@/features/play/wallet/wilds-wallet-bearer-gift-messaging';
 
 function peerFrom(value: unknown) {
   if (!value || typeof value !== "object") throw new Error("wilds_message_peer_required");
@@ -72,17 +74,30 @@ export async function POST(request: NextRequest) {
     await hydrateWildsConversation(request, actor, peer);
     const action = body.action;
     let tradeContext;
+    let stagedTradeContext;
+    let bearerGiftContext;
+    let resourceSourceContext;
+    if (action === "trade-resource-source") {
+      if (!actor.accessToken || actor.practice) throw Error("receiz_wallet_authority_required");
+      resourceSourceContext = admitWildsWalletResourceSourceMessageV128(body.context, actor.handle, peer.handle);
+      if (body.clientMessageId !== wildsWalletResourceSourceMessageIdV128(resourceSourceContext)) throw Error("wilds_wallet_resource_message_invalid");
+    }
+    if(action==='trade-bearer'){
+      if(!actor.accessToken||actor.practice)throw Error('wilds_wallet_bearer_identity_required');
+      bearerGiftContext=admitWildsWalletBearerGiftMessage(body.context,self.handle,peer.handle);
+      if(body.clientMessageId!==wildsWalletBearerGiftMessageId(bearerGiftContext))throw Error('wilds_wallet_bearer_message_invalid');
+    }
+    if (action === "trade-staged") {
+      if (!actor.accessToken || actor.practice) throw Error("receiz_wallet_authority_required");
+      stagedTradeContext = admitWildsWalletStagedTradeMessage(body.context, actor.handle, peer.handle);
+      if (body.clientMessageId !== wildsWalletStagedTradeMessageId(stagedTradeContext)) throw Error("wilds_wallet_trade_message_invalid");
+    }
     if (action === "trade-package") {
       if (!actor.accessToken || actor.practice) throw Error("receiz_wallet_authority_required");
       tradeContext = validateWildsWalletTradeMessage(body.context, actor.handle, peer.handle);
       if (body.clientMessageId !== wildsWalletTradeMessageId(actor.handle, tradeContext)) throw Error("wilds_wallet_trade_message_invalid");
     }
-    let nativeTradeContext;
-    if (action === "trade-native") {
-      if (!actor.accessToken || actor.practice) throw Error("receiz_wallet_authority_required");
-      nativeTradeContext = validateWildsWalletNativeTradeMessage(body.context, actor.handle, peer.handle);
-      if (body.clientMessageId !== wildsWalletNativeTradeMessageId(actor.handle, nativeTradeContext)) throw Error("wilds_wallet_native_trade_message_invalid");
-    }
+
     let resourceContext;
     if (action === 'resource-offer') {
       if (!actor.accessToken || actor.practice) throw Error('receiz_wallet_authority_required');
@@ -94,14 +109,14 @@ export async function POST(request: NextRequest) {
       const inspection = await rail.inspectBearerTransferInstrument(claim.carrier.offer.instrument);
       if (!inspection.valid || !inspection.offlineVerified || inspection.instrument.artifactDigest !== claim.carrier.offer.instrument.artifactDigest) throw Error('wilds_message_resource_claim_invalid');
     }
-    const conversation = action === "send" || action === "phi-transfer" || action === "resource-offer" || action === "trade-package" || action === "trade-native"
+    const conversation = action === "send" || action === "phi-transfer" || action === "resource-offer" || action === "trade-package" || action === "trade-staged" || action === "trade-bearer" || action === "trade-resource-source"
       ? appendWildsDirectMessage({
           sender: self,
           recipient: peer,
           body: String(body.message ?? ""),
           clientMessageId: String(body.clientMessageId ?? ""),
           replyToId: typeof body.replyToId === "string" ? body.replyToId : null,
-          ...(action === "phi-transfer" ? { context: phiTransferContext(body.context) } : resourceContext ? { context: resourceContext } : tradeContext ? {context: tradeContext} : nativeTradeContext ? {context: nativeTradeContext} : {})
+          ...(action === "phi-transfer" ? { context: phiTransferContext(body.context) } : resourceContext ? { context: resourceContext } : resourceSourceContext ? {context:resourceSourceContext} : bearerGiftContext ? {context:bearerGiftContext} : stagedTradeContext ? {context: stagedTradeContext} : tradeContext ? {context: tradeContext} : {})
         }).conversation
       : action === "read"
         ? markWildsConversationRead({ left: self, right: peer, actorId: actor.playerId, through: typeof body.through === "string" ? body.through : undefined })

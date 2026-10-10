@@ -1,6 +1,8 @@
+import type { WildsWalletResourceSourceMessageV128 } from "./wallet/wilds-wallet-resource-source-messaging-v128";
 import type { WildsResourceOfferMessage } from './wilds-resource-messaging';
 import type { WildsWalletTradeMessage } from "./wallet/wilds-wallet-trade-messaging";
-import type { WildsWalletNativeTradeMessage } from "./wallet/wilds-wallet-native-trade-context";
+import type { WildsWalletStagedTradeMessage } from "./wallet/wilds-wallet-staged-trade-types";
+import type { WildsWalletBearerGiftMessage } from "./wallet/wilds-wallet-bearer-gift-messaging";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsCardTransferOffer } from "@/lib/receiz/wilds-card-transfer";
@@ -35,7 +37,7 @@ export type WildsDirectMessage = {
   deletedAt: string | null;
   replyToId: string | null;
   reactions: WildsDirectMessageReaction[];
-  context?: WildsResourceOfferMessage | WildsWalletTradeMessage | WildsWalletNativeTradeMessage | {
+  context?: WildsWalletResourceSourceMessageV128 | WildsResourceOfferMessage | WildsWalletTradeMessage | WildsWalletStagedTradeMessage | WildsWalletBearerGiftMessage | {
     kind: "group-invite";
     roomId: string;
     roomName: string;

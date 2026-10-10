@@ -34,7 +34,9 @@ import type {
   WildsWalletTransferTerminalIntegrityPort
 } from "./wilds-wallet-transfer-journal";
 import { receizOidcScopesForRails, type ReceizValueRailV122 } from "@receiz/sdk";
-import { createWildsWalletNativeTransferRuntime } from "./wilds-wallet-native-runtime";
+import { createWildsWalletConnectTransferRuntime } from "./wilds-wallet-connect-runtime";
+import { readWildzReceizChatSession } from "./wildz-receiz-chat-session";
+import { readWildzProofSessionCookie } from "./wildz-proof-session";
 
 const RECIPIENT_LOOKUP_LIMIT = 6;
 const RECIPIENT_LOOKUP_WINDOW_SECONDS = 60;
@@ -69,21 +71,27 @@ export type WildsWalletStagedTransferProjection = Readonly<{
 }>;
 
 export type WildsWalletTransferConsent = Readonly<{ artifact: unknown; challenge: unknown }>;
+export type WildsWalletConnectObservation = Readonly<{ attempt: string; senderHandle: string; recipientHandle: string; amountPhiMicro: string; operationNonce: string }>;
 
 export interface WildsWalletTransferRouteRuntime {
   readonly durable: true;
-  readonly recipientLookupAdmission?: "distributed-v124" | "external-limiter" | "native-value";
-  capabilityAdmission(authority: WildsWalletReadAuthority): Promise<WalletCapabilityAdmission>;
+  readonly recipientLookupAdmission?: "distributed-v124" | "external-limiter" | "connect-chat";
+  capabilityAdmission(authority: WildsWalletReadAuthority, request?: NextRequest): Promise<WalletCapabilityAdmission>;
+  recipient?(authority: WildsWalletReadAuthority, username: string, request?: NextRequest): Promise<unknown>;
+  consentChallenge?(authority: WildsWalletReadAuthority, input: Readonly<{ attempt: string; artifactDigest: string }>, request?: NextRequest): Promise<unknown>;
   preview(
     authority: WildsWalletReadAuthority,
-    input: WildsWalletTransferPreviewCommand
+    input: WildsWalletTransferPreviewCommand,
+    request?: NextRequest
   ): Promise<unknown>;
   execute(
     authority: WildsWalletReadAuthority,
-    input: Readonly<{ attempt: string; consent: WildsWalletTransferConsent }>
+    input: Readonly<{ attempt: string; consent: WildsWalletTransferConsent }>,
+    request?: NextRequest
   ): Promise<unknown>;
-  status(authority: WildsWalletReadAuthority, attempt: string): Promise<unknown>;
-  receive(authority: WildsWalletReadAuthority, amountPhiMicro: string | null): Promise<unknown>;
+  status(authority: WildsWalletReadAuthority, attempt: string, request?: NextRequest): Promise<unknown>;
+  observe?(authority: WildsWalletReadAuthority, input: WildsWalletConnectObservation, request?: NextRequest): Promise<unknown>;
+  receive(authority: WildsWalletReadAuthority, amountPhiMicro: string | null, request?: NextRequest): Promise<unknown>;
 }
 
 export type WildsWalletReceiveBinding = Readonly<{
@@ -134,7 +142,7 @@ const ATTEMPT_VERSION = "v1";
 const ATTEMPT_REVIEW_KAI = 120;
 // Five canonical days, bounded and enforced by durable journal cleanup.
 const ATTEMPT_RECOVERY_KAI = 86_400;
-const OPAQUE_ATTEMPT = /^v[12]\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{2,8192}\.[A-Za-z0-9_-]{16,}$/;
+const OPAQUE_ATTEMPT = /^v[123]\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{2,8192}\.[A-Za-z0-9_-]{16,}$/;
 const OPERATION_NONCE = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|[A-Za-z0-9_-]{24,128})$/i;
 
 function purposeKey(secret: string, purpose: string) {
@@ -547,17 +555,14 @@ const SAFE_FAILURES = Object.freeze({
   wilds_wallet_transfer_insufficient_value: 409,
   wilds_wallet_transfer_consent_binding_invalid: 400,
   wilds_wallet_v124_source_invalid: 409,
-  wilds_wallet_native_source_insufficient_phi: 409,
-  wilds_wallet_native_source_recipient_not_initialized: 409,
-  wilds_wallet_native_source_recipient_unavailable: 404,
-  wilds_wallet_native_source_source_unavailable: 409,
-  wilds_wallet_native_source_recipient_rate_limited: 429,
   wilds_wallet_transfer_clock_unavailable: 503,
   wilds_wallet_transfer_not_staged: 404,
   wilds_wallet_idempotency_conflict: 409,
   wilds_wallet_proof_authority_challenge_expired: 409,
   wilds_wallet_proof_authority_expired: 409,
-  wilds_wallet_proof_authority_revoked: 401
+  wilds_wallet_proof_authority_revoked: 401,
+  receiz_wallet_connect_session_required: 401,
+  receiz_wallet_connect_session_binding_invalid: 403
 } as const);
 
 type SafeWalletRouteCode = keyof typeof SAFE_FAILURES;
@@ -635,10 +640,13 @@ async function consumeRecipientLookup(limiter: WildsWalletRecipientLookupLimiter
 }
 
 function defaultDependencies(): WildsWalletRouteHandlerDependencies {
-  let transferRuntime: WildsWalletTransferRouteRuntime | null = null;
-  const liveTransferRuntime = () => (transferRuntime ??= createWildsWalletNativeTransferRuntime({
-    createAdapter: (accessToken) => createReceizCommerceAdapter({ accessToken })
-  }));
+  const liveTransferRuntime = (authority: WildsWalletReadAuthority, request?: NextRequest) => {
+    let session = null;
+    if (request) {
+      try { session = readWildzReceizChatSession(request, { ...authority, keyId: readWildzProofSessionCookie(request).keyId }); } catch { /* Additional Send remains closed; existing reads stay available. */ }
+    }
+    return createWildsWalletConnectTransferRuntime({ session, createAdapter: (accessToken) => createReceizCommerceAdapter({ accessToken }) });
+  };
   return {
     resolveAuthority: resolveWildsWalletReadAuthority,
     createAdapter: (accessToken) => createReceizCommerceAdapter({ accessToken }),
@@ -647,12 +655,15 @@ function defaultDependencies(): WildsWalletRouteHandlerDependencies {
     recipientLookupLimiter: undefined,
     transferRuntime: Object.freeze({
       durable: true as const,
-      recipientLookupAdmission: "native-value" as const,
-      capabilityAdmission: (authority: WildsWalletReadAuthority) => liveTransferRuntime().capabilityAdmission(authority),
-      preview: (authority: WildsWalletReadAuthority, command: WildsWalletTransferPreviewCommand) => liveTransferRuntime().preview(authority, command),
-      execute: (authority: WildsWalletReadAuthority, request: Readonly<{ attempt: string; consent: WildsWalletTransferConsent }>) => liveTransferRuntime().execute(authority, request),
-      status: (authority: WildsWalletReadAuthority, attempt: string) => liveTransferRuntime().status(authority, attempt),
-      receive: (authority: WildsWalletReadAuthority, amountPhiMicro: string | null) => liveTransferRuntime().receive(authority, amountPhiMicro)
+      recipientLookupAdmission: "connect-chat" as const,
+      capabilityAdmission: (authority: WildsWalletReadAuthority, request?: NextRequest) => liveTransferRuntime(authority, request).capabilityAdmission(authority),
+      recipient: (authority: WildsWalletReadAuthority, username: string, request?: NextRequest) => liveTransferRuntime(authority, request).recipient!(authority, username),
+      consentChallenge: (authority: WildsWalletReadAuthority, input: Readonly<{ attempt: string; artifactDigest: string }>, request?: NextRequest) => liveTransferRuntime(authority, request).consentChallenge!(authority, input),
+      preview: (authority: WildsWalletReadAuthority, command: WildsWalletTransferPreviewCommand, request?: NextRequest) => liveTransferRuntime(authority, request).preview(authority, command),
+      execute: (authority: WildsWalletReadAuthority, command: Readonly<{ attempt: string; consent: WildsWalletTransferConsent }>, request?: NextRequest) => liveTransferRuntime(authority, request).execute(authority, command),
+      status: (authority: WildsWalletReadAuthority, attempt: string, request?: NextRequest) => liveTransferRuntime(authority, request).status(authority, attempt),
+      observe: (authority: WildsWalletReadAuthority, input: WildsWalletConnectObservation, request?: NextRequest) => liveTransferRuntime(authority, request).observe!(authority, input),
+      receive: (authority: WildsWalletReadAuthority, amountPhiMicro: string | null, request?: NextRequest) => liveTransferRuntime(authority, request).receive(authority, amountPhiMicro)
     })
   };
 }
@@ -688,6 +699,10 @@ export function createWildsWalletRouteHandlers(
         const authority = await dependencies.resolveAuthority(request);
         const body = assertExactFields(await readJsonBody(request), ["username"]);
         const username = normalizeWildsWalletPublicUsername(body.username);
+        if (dependencies.transferRuntime?.recipientLookupAdmission === "connect-chat" && dependencies.transferRuntime.recipient) {
+          assertSameOrigin(request);
+          return json(projectWildsWalletRecipient(await dependencies.transferRuntime.recipient(authority, username, request)));
+        }
         await consumeRecipientLookup(dependencies.recipientLookupLimiter, authority.actorId);
         try {
           const response = await dependencies.createAdapter(authority.accessToken).worldProfile(`${username}.receiz.id`);
@@ -708,7 +723,7 @@ export function createWildsWalletRouteHandlers(
         const body = assertExactFields(await readJsonBody(request), ["amountPhiMicro"], []);
         const amountPhiMicro = body.amountPhiMicro === undefined ? null : parseWildsWalletMicroPhi(body.amountPhiMicro);
         if (dependencies.transferRuntime?.durable === true) {
-          return json(exactReceiveProjection(await dependencies.transferRuntime.receive(authority, amountPhiMicro)));
+          return json(exactReceiveProjection(await dependencies.transferRuntime.receive(authority, amountPhiMicro, request)));
         }
         return json({
           // Proposal-only fallback. Transfer preview does not accept this
@@ -725,9 +740,9 @@ export function createWildsWalletRouteHandlers(
       try {
         const authority = await dependencies.resolveAuthority(request);
         const admission = dependencies.transferRuntime?.durable === true
-          ? await dependencies.transferRuntime.capabilityAdmission(authority)
+          ? await dependencies.transferRuntime.capabilityAdmission(authority, request)
           : undefined;
-        return json(projectWildsWalletCapabilities(admission, dependencies.recipientLookupLimiter?.durable === true));
+        return json(projectWildsWalletCapabilities(admission, dependencies.recipientLookupLimiter?.durable === true || admission?.connectWallet === true));
       } catch (cause) {
         return failure(cause, "receiz_wallet_capabilities_unavailable");
       }
@@ -749,14 +764,13 @@ export function createWildsWalletRouteHandlers(
           || typeof body.operationNonce !== "string" || !OPERATION_NONCE.test(body.operationNonce)) {
           throw new Error("wilds_wallet_transfer_request_invalid");
         }
-        if (recipientUsername && dependencies.transferRuntime?.recipientLookupAdmission !== "distributed-v124"
-          && dependencies.transferRuntime?.recipientLookupAdmission !== "native-value") {
+        if (recipientUsername && dependencies.transferRuntime?.recipientLookupAdmission !== "distributed-v124" && dependencies.transferRuntime?.recipientLookupAdmission !== "connect-chat") {
           await consumeRecipientLookup(dependencies.recipientLookupLimiter, authority.actorId);
         }
         const value = await transferRuntimeOrThrow(dependencies.transferRuntime).preview(authority, {
           ...(recipientUsername ? { recipientUsername } : { recipientLocator: recipientLocator! }),
           amountPhiMicro, rail: body.rail, operationNonce: body.operationNonce
-        });
+        }, request);
         return json(exactStagedProjection(value));
       } catch (cause) {
         const normalized = cause instanceof Error && ["wilds_wallet_request_fields_invalid", "wilds_wallet_username_invalid", "wilds_wallet_micro_phi_invalid"].includes(cause.message)
@@ -765,6 +779,17 @@ export function createWildsWalletRouteHandlers(
       }
     },
 
+    async transferConsent(request: NextRequest) {
+      try {
+        const authority = await dependencies.resolveAuthority(request);
+        if ([...request.nextUrl.searchParams.keys()].some(key => key !== "attempt" && key !== "artifactDigest")) throw new Error("wilds_wallet_transfer_request_invalid");
+        const attempt = request.nextUrl.searchParams.get("attempt");
+        const artifactDigest = request.nextUrl.searchParams.get("artifactDigest");
+        const runtime = transferRuntimeOrThrow(dependencies.transferRuntime);
+        if (!attempt?.startsWith("v3.") || !validAttemptText(attempt) || !artifactDigest || !/^[a-f0-9]{64}$/.test(artifactDigest) || !runtime.consentChallenge) throw new Error("wilds_wallet_transfer_request_invalid");
+        return json(await runtime.consentChallenge(authority, { attempt, artifactDigest }, request));
+      } catch (cause) { return failure(cause, "receiz_wallet_transfer_unavailable"); }
+    },
     async transferExecute(request: NextRequest) {
       try {
         assertSameOrigin(request);
@@ -775,7 +800,7 @@ export function createWildsWalletRouteHandlers(
         const projection = transferProjection(await transferRuntimeOrThrow(dependencies.transferRuntime).execute(authority, {
           attempt: body.attempt as string,
           consent: { artifact: consent.artifact, challenge: consent.challenge }
-        }));
+        }, request));
         return json(projection, projection.status === "unknown" ? 202 : 200);
       } catch (cause) {
         const normalized = cause instanceof Error && cause.message === "wilds_wallet_request_fields_invalid"
@@ -790,11 +815,28 @@ export function createWildsWalletRouteHandlers(
         if ([...request.nextUrl.searchParams.keys()].some((key) => key !== "attempt")) throw new Error("wilds_wallet_transfer_request_invalid");
         const attempt = request.nextUrl.searchParams.get("attempt");
         if (!validAttemptText(attempt)) throw new Error("wilds_wallet_transfer_attempt_invalid");
-        const projection = transferProjection(await transferRuntimeOrThrow(dependencies.transferRuntime).status(authority, attempt as string));
+        const projection = transferProjection(await transferRuntimeOrThrow(dependencies.transferRuntime).status(authority, attempt as string, request));
         return json(projection, projection.status === "unknown" ? 202 : 200);
       } catch (cause) {
         return failure(cause, "receiz_wallet_transfer_unavailable");
       }
+    },
+
+    async transferObserve(request: NextRequest) {
+      try {
+        const authority = await dependencies.resolveAuthority(request);
+        const fields = ["attempt", "senderHandle", "recipientHandle", "amountPhiMicro", "operationNonce"];
+        if ([...request.nextUrl.searchParams.keys()].some(key => !fields.includes(key)) || fields.some(key => request.nextUrl.searchParams.getAll(key).length !== 1)) throw new Error("wilds_wallet_transfer_request_invalid");
+        const attempt = request.nextUrl.searchParams.get("attempt")!;
+        const senderHandle = `${normalizeWildsWalletPublicUsername(request.nextUrl.searchParams.get("senderHandle"))}.receiz.id`;
+        const recipientHandle = `${normalizeWildsWalletPublicUsername(request.nextUrl.searchParams.get("recipientHandle"))}.receiz.id`;
+        const amountPhiMicro = parseWildsWalletMicroPhi(request.nextUrl.searchParams.get("amountPhiMicro"));
+        const operationNonce = request.nextUrl.searchParams.get("operationNonce")!;
+        const runtime = transferRuntimeOrThrow(dependencies.transferRuntime);
+        if (!attempt.startsWith("v3.") || !validAttemptText(attempt) || amountPhiMicro === "0" || !OPERATION_NONCE.test(operationNonce) || !runtime.observe) throw new Error("wilds_wallet_transfer_request_invalid");
+        const projection = transferProjection(await runtime.observe(authority, { attempt, senderHandle, recipientHandle, amountPhiMicro, operationNonce }, request));
+        return json(projection, projection.status === "unknown" ? 202 : 200);
+      } catch (cause) { return failure(cause, "receiz_wallet_transfer_unavailable"); }
     }
   });
 }

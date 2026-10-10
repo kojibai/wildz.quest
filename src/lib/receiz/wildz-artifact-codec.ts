@@ -9,7 +9,9 @@ import { isVerifiedWildzCardDescendant } from "./wildz-card-descendant";
 import {
   projectReceizIdentityAccount,
   readReceizIdentityArtifact,
-  type ReceizKeyFile
+  type ReceizKeyFile,
+  type ReceizClient,
+  type ReceizPortableSealedArtifactV124
 } from "@receiz/sdk";
 import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "../../features/play/portable-card";
 import { readReceizProofObjectFromPng } from "../../features/play/card-export";
@@ -38,7 +40,7 @@ import { openWildzSealedDocument } from "./wildz-sealed-document";
 /** Operational custody is issued only while inspecting an opened native source. */
 export type WildzCrewCustody = Readonly<{ owner: string }>;
 export type WildzCrewCustodySource = Readonly<{ artifactSha256: string; assetIds: readonly string[] }>;
-type CrewCustodyEntry = { card: PortableCardAsset; artifactSha256: string };
+type CrewCustodyEntry = { card: PortableCardAsset; artifactSha256: string; nativeBearer?: true };
 const crewAdmissions = new WeakMap<WildzCrewCustody, readonly CrewCustodyEntry[]>();
 const crewCardChecks = new WeakMap<WildzCrewCustody, WeakMap<PortableCardAsset, boolean>>();
 const inspectionCrewAdmissions = new WeakMap<object, WildzCrewCustody>();
@@ -90,6 +92,89 @@ export function canOperateWildzCrewCard(card: PortableCardAsset, owner: string, 
   return allowed;
 }
 
+type NativeGiftCrewSource = Readonly<{ schema: "wildz.native-bearer-crew-source.v128"; keyId: string; applicationId: string; original: ReceizPortableSealedArtifactV124; originProof: unknown; projectionOriginal: ReceizPortableSealedArtifactV124 }>;
+const nativeGiftCrewSourceKey = (sha: string) => JSON.stringify(["wildz.native-bearer-crew-source.v128", sha]);
+const NATIVE_CREW_MEMORY_KEY = "wildz.native-bearer-crew-admission-key.v128";
+const nativeCrewMemoryKey = (sha: string) => JSON.stringify(["wildz.native-bearer-crew-admission.v128", sha]);
+type NativeCrewMemory = Readonly<{schema:"wildz.native-bearer-crew-admission.v128";keyId:string;applicationId:string;ownerHandle:string;artifactSha256:string;originProofDigest:string;projectionArtifactSha256:string;sourceDigest:string;signature:Uint8Array}>;
+const nativeCrewMemoryBytes = (value:Omit<NativeCrewMemory,"signature">) => new TextEncoder().encode(canonicalPortableCardJson(value)).buffer;
+const nativeCrewSourceDigest = (value:unknown) => sha256PortableBasis(canonicalPortableCardJson(value)).replace(/^sha256:/, "");
+function validNativeCrewMemoryKey(value:unknown):value is CryptoKey {
+  const key=value as CryptoKey|null, algorithm=key?.algorithm as HmacKeyAlgorithm|undefined;
+  return key?.type==="secret" && key.extractable===false && algorithm?.name==="HMAC" && algorithm.hash.name==="SHA-256" && algorithm.length===256
+    && key.usages.length===2 && key.usages.includes("sign") && key.usages.includes("verify");
+}
+async function nativeCrewMemoryBasis(source:NativeGiftCrewSource,ownerHandle:string):Promise<Omit<NativeCrewMemory,"signature">>{
+ return {schema:"wildz.native-bearer-crew-admission.v128",keyId:source.keyId,applicationId:source.applicationId,ownerHandle,
+  artifactSha256:source.original.artifactSha256,originProofDigest:nativeCrewSourceDigest(source.originProof),
+  projectionArtifactSha256:source.projectionOriginal.artifactSha256,sourceDigest:nativeCrewSourceDigest(source)};
+}
+
+/** This private issuer is reached only after live origin admission, actual native
+ * successor ownership and the root-sealed current causal card are verified. */
+async function openNativeGiftCrewSource(source:NativeGiftCrewSource,context:{sdk?:ReceizClient;localAdmission?:NativeCrewMemory;retirementAuthorityVerifier?:CreatureRetirementAuthorityVerifier}) {
+  if (new TextEncoder().encode(canonicalPortableCardJson(source)).length > 2_000_000) throw Error("wildz_restore_artifact_too_large");
+  if (Object.keys(source).sort().join(",") !== "applicationId,keyId,originProof,original,projectionOriginal,schema" || source.schema !== "wildz.native-bearer-crew-source.v128"
+    || typeof source.applicationId!=="string" || !source.applicationId || typeof source.keyId!=="string" || !source.keyId) throw Error("wildz_restore_binding_invalid");
+  const sourceModule=await import("../../features/play/wallet/wilds-wallet-bearer-gift-source-v128");
+  const opened=context.localAdmission ? await sourceModule.readWildsWalletCreaturePayloadV128(source.original)
+    : await sourceModule.readWildsWalletCreatureBearerV128(source.original,source.originProof as Parameters<typeof sourceModule.readWildsWalletCreatureBearerV128>[1],context.sdk!,source.applicationId);
+  if (opened.derived.appendCount < 1) throw Error("wildz_restore_binding_invalid");
+  if(context.localAdmission && canonicalPortableCardJson(await nativeCrewMemoryBasis(source,opened.derived.ownerReceizId))!==canonicalPortableCardJson((({signature:_signature,...basis})=>basis)(context.localAdmission))) throw Error("wildz_restore_binding_invalid");
+  const {readWildsWalletCreatureProjectionV128}=await import("../../features/play/wallet/wilds-wallet-bearer-gift-proof");
+  const projection=await readWildsWalletCreatureProjectionV128({source:opened,projectionOriginal:source.projectionOriginal,accepted:true,...(context.sdk?{artifacts:context.sdk.artifacts}:{})});
+  if (isLivingCardAsset(projection.card) && livingCardHasIrreversibleMortality(projection.card)
+    && !verifyLivingCardRetirementAuthority(projection.card, context.retirementAuthorityVerifier)) throw Error("wildz_restore_retirement_authority_untrusted");
+  const card = structuredClone(projection.card);
+  return { card, ownerHandle: opened.derived.ownerReceizId, artifactSha256: opened.original.artifactSha256, headReference: opened.headReference,
+    sourceOriginal: opened.sourceOriginal,
+    crewCustody: issueCrewCustody(opened.derived.ownerReceizId, [{ card, artifactSha256: opened.original.artifactSha256, nativeBearer: true }]) };
+}
+
+/** Local cache of an actually issued token, never portable title. Recheck the
+ * nonextractable HMAC, exact Original/root owner and exact causal card on restart.
+ * Missing/edited cache grants nothing and needs the explicit live path again. */
+export async function readWildzNativeBearerCrewCustody(database: WildzContinuityDatabase, artifactSha256: string, owner?:{keyId:string;actorId:string}) {
+  const source = await database.read<NativeGiftCrewSource>("artifacts", nativeGiftCrewSourceKey(artifactSha256));
+  if (!source) return null;
+  if (source.original?.artifactSha256 !== artifactSha256 || owner && source.keyId!==owner.keyId) throw Error("wildz_restore_binding_invalid");
+  const memory=await database.read<NativeCrewMemory>("meta",nativeCrewMemoryKey(artifactSha256));
+  const key=await database.read<unknown>("wrappingKeys",NATIVE_CREW_MEMORY_KEY);
+  if(!memory || !validNativeCrewMemoryKey(key) || !(memory.signature instanceof Uint8Array) || memory.signature.length!==32
+    || owner && !sameWildzPlayerCoordinate(memory.ownerHandle,owner.actorId)) return null;
+  const {signature,...basis}=memory;
+  if(!await crypto.subtle.verify("HMAC",key,new Uint8Array(signature).buffer,nativeCrewMemoryBytes(basis))) return null;
+  return openNativeGiftCrewSource(source,{localAdmission:memory});
+}
+
+export async function admitWildzNativeBearerCrewCustody(input: Readonly<{
+  database: WildzContinuityDatabase; sdk:ReceizClient; applicationId:string; keyId:string;
+  original: ReceizPortableSealedArtifactV124; originProof: unknown; projectionOriginal:ReceizPortableSealedArtifactV124;
+  retirementAuthorityVerifier?: CreatureRetirementAuthorityVerifier;
+}>) {
+  const source: NativeGiftCrewSource = { schema: "wildz.native-bearer-crew-source.v128", keyId:input.keyId,applicationId:input.applicationId,
+    original: input.original, originProof: input.originProof,projectionOriginal:input.projectionOriginal };
+  const opened = await openNativeGiftCrewSource(source, input);
+  let memoryKey=await input.database.read<unknown>("wrappingKeys",NATIVE_CREW_MEMORY_KEY);
+  if(memoryKey===null){
+    const generated=await crypto.subtle.generateKey({name:"HMAC",hash:"SHA-256",length:256},false,["sign","verify"]);
+    memoryKey=await input.database.transaction(["wrappingKeys"],"readwrite",async tx=>{const existing=await tx.get<unknown>("wrappingKeys",NATIVE_CREW_MEMORY_KEY);if(existing!==null)return existing;await tx.put("wrappingKeys",generated,NATIVE_CREW_MEMORY_KEY);return generated;});
+  }
+  if(!validNativeCrewMemoryKey(memoryKey))throw Error("wildz_restore_binding_invalid");
+  const basis=await nativeCrewMemoryBasis(source,opened.ownerHandle),memory:NativeCrewMemory={...basis,signature:new Uint8Array(await crypto.subtle.sign("HMAC",memoryKey,nativeCrewMemoryBytes(basis)))};
+  const key = nativeGiftCrewSourceKey(opened.artifactSha256);
+  await input.database.transaction(["artifacts","meta"], "readwrite", async tx => {
+    const existing = await tx.get<NativeGiftCrewSource>("artifacts", key);
+    if (existing && canonicalPortableCardJson(existing) !== canonicalPortableCardJson(source)) throw Error("wildz_restore_binding_invalid");
+    await tx.put("artifacts", source, key);await tx.put("meta",memory,nativeCrewMemoryKey(opened.artifactSha256));
+  });
+  if (canonicalPortableCardJson(await input.database.read("artifacts", key)) !== canonicalPortableCardJson(source)) throw Error("wildz_restore_storage_failed");
+  const saved=await input.database.read<NativeCrewMemory>("meta",nativeCrewMemoryKey(opened.artifactSha256));
+  if(!saved || canonicalPortableCardJson((({signature:_signature,...value})=>value)(saved))!==canonicalPortableCardJson(basis)
+    || !await crypto.subtle.verify("HMAC",memoryKey,new Uint8Array(saved.signature).buffer,nativeCrewMemoryBytes(basis))) throw Error("wildz_restore_storage_failed");
+  return opened;
+}
+
 /** Retain custody only from an actual opened-source token, for exact currently
  * admitted cards. A stored source coordinate or lookalike token grants nothing. */
 export async function retainWildzCrewCustodyMemory(database: WildzContinuityDatabase,
@@ -99,11 +184,11 @@ export async function retainWildzCrewCustodyMemory(database: WildzContinuityData
   const entries = source.flatMap(entry => {
     const card = inventory.find(card => card.id === entry.card.id);
     return card && isAdmittedWildsCard(card) && canOperateWildzCrewCard(card, owner.actorId, token)
-      ? [{ card, artifactSha256: entry.artifactSha256 }] : [];
+      ? [{ card, artifactSha256: entry.artifactSha256, nativeBearer: entry.nativeBearer }] : [];
   });
   if (!entries.length) return;
   await retainWildzInventoryMemory(database, owner, entries.map(entry => entry.card), {
-    kind: "crew-custody", coordinates: entries.map(entry => JSON.stringify([entry.card.id, entry.artifactSha256]))
+    kind: "crew-custody", coordinates: entries.map(entry => JSON.stringify(entry.nativeBearer ? [entry.card.id, entry.artifactSha256, "native-bearer-v128"] : [entry.card.id, entry.artifactSha256]))
   });
 }
 
@@ -116,12 +201,19 @@ export async function restoreWildzCrewCustodyMemory(database: WildzContinuityDat
     const memory = await readWildzInventoryMemoryHead(database, owner, "crew-custody");
     if (!memory?.coordinates.length) return null;
     const byId = new Map(inventory.map(card => [card.id, card]));
-    const entries: CrewCustodyEntry[] = memory.coordinates.map(coordinate => {
-      const [id, sha] = JSON.parse(coordinate) as unknown[];
+    const entries: CrewCustodyEntry[] = [];
+    for (const coordinate of memory.coordinates) {
+      const [id, sha, kind] = JSON.parse(coordinate) as unknown[];
       const card = typeof id === "string" ? byId.get(id) : null;
       if (!card || !isAdmittedWildsCard(card) || typeof sha !== "string" || !/^[a-f0-9]{64}$/.test(sha)) throw Error("wildz_custody_memory_invalid");
-      return { card, artifactSha256: sha };
-    });
+      const restored = await readWildzNativeBearerCrewCustody(database, sha, owner);
+      if (kind !== undefined && kind !== "native-bearer-v128" || kind === "native-bearer-v128" && !restored) throw Error("wildz_custody_memory_invalid");
+      if (restored) {
+        if (!sameWildzPlayerCoordinate(restored.ownerHandle, owner.actorId) || restored.card.id !== card.id
+          || !canOperateWildzCrewCard(card, owner.actorId, restored.crewCustody)) throw Error("wildz_custody_memory_invalid");
+      }
+      entries.push({ card, artifactSha256: sha, ...(restored ? { nativeBearer: true as const } : {}) });
+    }
     if (!await matchesWildzInventoryMemoryHead(memory, entries.map(entry => entry.card))) return null;
     return issueCrewCustody(owner.actorId, entries);
   } catch { return null; }

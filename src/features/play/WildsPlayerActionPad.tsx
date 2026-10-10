@@ -41,7 +41,9 @@ export function WildsPlayerActionPad({enabled, cancelSignal, onJump, onHandActio
     return ()=>window.removeEventListener("keydown",keydown);
   },[enabled,onJump,onHandAction]);
   return <div className="wildz-player-action-pad" role="group" aria-label="Jump and hand controls">
-    <button className="wildz-player-jump" aria-label="Jump" title="Jump · Space" disabled={!enabled || !onJump} onClick={onJump} type="button">
+    <button className="wildz-player-jump" aria-label="Jump" title="Jump · Space" disabled={!enabled || !onJump}
+      onPointerDown={event => {if (event.button === 0) {event.preventDefault(); onJump?.();}}}
+      onClick={event => {if (event.detail === 0) onJump?.();}} type="button">
       <svg aria-hidden="true" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m7 12 5-7 5 7M12 5v14M5 20h14" /></svg>
     </button>
     {(["left", "right"] as const).map(hand => <button key={hand} className={`wildz-player-hand is-${hand}`} aria-label={`${hand === "left" ? "Left" : "Right"} hand. Tap to strike; hold to grab`} title={`${hand === "left" ? "Left" : "Right"} hand · tap to strike, hold to grab`} disabled={!enabled || !onHandAction}

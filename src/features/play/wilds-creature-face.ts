@@ -42,8 +42,14 @@ export function createWildsCreatureFace(face: CreatureVisualFace, primary: strin
   } else {
     add(new THREE.SphereGeometry(1,8,6),(x,y)=>tint.clone().multiplyScalar(.3+Math.max(0,y+.055)*2),[0,-.055,.244],[.035*f.muzzle,.027,.025]);
   }
-  const mouthWidth=.052*f.muzzle,mouthY=-.121;
-  const mouth=new THREE.CatmullRomCurve3([new THREE.Vector3(-mouthWidth,mouthY+.012,.214),new THREE.Vector3(0,mouthY-.008,.23),new THREE.Vector3(mouthWidth,mouthY+.012,.214)]);
+  const beaked=face.mouth==="beak",smiling=face.mouth==="smile";
+  const mouthWidth=(beaked?.034:face.mouth==="muzzle"?.062:.052)*f.muzzle;
+  const mouthY=beaked?-.067:-.121;
+  const mouth=new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-mouthWidth,mouthY+(smiling?.015:.003),beaked?.254:.221),
+    new THREE.Vector3(0,mouthY-(smiling?.009:.002),beaked?.285:.239),
+    new THREE.Vector3(mouthWidth,mouthY+(smiling?.015:.003),beaked?.254:.221)
+  ]);
   add(new THREE.TubeGeometry(mouth,8,.0055,4,false),tint.clone().lerp(new THREE.Color("#682e38"),.65).getStyle());
   if(face.mouth==="fang") for(const side of [-1,1]) {
     const fang=new THREE.ConeGeometry(.008,.023,5);fang.rotateZ(Math.PI);

@@ -2,6 +2,7 @@ import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card"
 import type { LivingCardGenome } from "./living-card-types";
 import { renderAppendages, renderEyes, renderHeadShape, renderLimbs, renderMarkings, renderMouth, renderTorso } from "./heartbound-shapes";
 import { animeHeartboundMarkup } from "./heartbound-anime-shapes";
+import type { WildsCreatureLevelAppearance } from "./wilds-creature-level-appearance";
 
 export type HeartboundPose = "idle" | "card" | "walk" | "run" | "battle" | "damage" | "celebrate" | "bond" | "transform";
 export type HeartboundSlot =
@@ -82,8 +83,15 @@ export function heartboundLayers(genome: LivingCardGenome, pose: HeartboundPose)
   ];
 }
 
-export function renderHeartboundSvg(genome: LivingCardGenome, pose: HeartboundPose, options: { width: number; height: number; title: string; fit?: "native" | "full-body" }) {
-  const body = heartboundLayers(genome, pose).map((item) => item.markup).join("");
+export function renderHeartboundSvg(genome: LivingCardGenome, pose: HeartboundPose, options: { width: number; height: number; title: string; fit?: "native" | "full-body"; levelAppearance?: WildsCreatureLevelAppearance }) {
+  const growth = options.levelAppearance;
+  const grown = growth && growth.level > 1;
+  // The same torso/limb/head proportions drive the 3D model. Keep the face,
+  // markings and appendages intact; scale the complete head assembly together.
+  const headSlots: readonly HeartboundSlot[] = ["head", "face_markings", "eyes", "mouth", "ears_back", "crest_front"];
+  const layers = heartboundLayers(genome, pose).map(item => grown && headSlots.includes(item.slot)
+    ? `<g transform="translate(280 142) scale(${growth.head / growth.torso} ${growth.head / growth.limb}) translate(-280 -142)">${item.markup}</g>` : item.markup).join("");
+  const body = grown ? `<g data-creature-level="${growth.level}" transform="translate(280 220) scale(${growth.torso} ${growth.limb}) translate(-280 -220)">${layers}</g>` : layers;
   const framing = options.fit ?? "native";
   const scale = framing === "full-body" ? Number((genome.variant.bodyScale * 0.82).toFixed(3)) : genome.variant.bodyScale;
   const identity = genome.identity;

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { embedPortableCardInPng } from "../src/features/play/card-export";
 import { sealCollectedCard, evolvePortableCard } from "../src/features/play/portable-card";
 import { createWildzArtifactCodec, readWildzArtifactCrewCustody, canOperateWildzCrewCard, mergeWildzCrewCustody, wildzCrewCustodySources,
-  retainWildzCrewCustodyMemory, restoreWildzCrewCustodyMemory } from "../src/lib/receiz/wildz-artifact-codec";
+  retainWildzCrewCustodyMemory, restoreWildzCrewCustodyMemory, readWildzNativeBearerCrewCustody } from "../src/lib/receiz/wildz-artifact-codec";
 import { prepareWildsIncomingInventory } from "../src/features/play/wilds-incoming-inventory";
 import { retainWildzInventoryMemory, restoreWildzInventoryMemory, wildzInventoryMemoryKey } from "../src/features/identity/wildz-inventory-memory";
 import { reopenWildzCrewCustodyOffThread } from "../src/lib/receiz/wildz-crew-custody-client";
@@ -233,7 +233,7 @@ test("roaming restore verifies before downloading the exact claimed artifact and
   const start = shell.indexOf("const restoreRoamingCapture = useCallback");
   const callback = shell.slice(start, shell.indexOf("const activateIdentitySeal", start));
   assert.ok(callback.indexOf("downloadBlob(") > callback.indexOf("await openWildzArtifactSameOrigin("));
-  assert.match(callback, /opened\.nativeTradeCustody\?\.ownerReceizId \?\? opened\.ownershipWitness\?\.ownerReceizId/);
+  assert.match(callback, /opened\.ownershipWitness\.ownerReceizId/);
   assert.match(callback, /validateWildsRoamingHandoffCard\(opened\.payloadBytes, sidecar\)/);
   assert.match(callback, /defaultWildzProofSourceRepository\.retain/);
   assert.match(callback, /"merge-vault", prepared, sidecar/);
@@ -272,4 +272,28 @@ test("a verified identity snapshot admits received crew without admitting unsign
   mutable.manifest.name = "tampered after first check";
   assert.equal(canOperateWildzCrewCard(mutable, "keeper", custody), false);
   assert.ok(createWildsCrewExpeditionGuard(() => ({ owner: "keeper", cards: [admitted], custody })).begin(admitted.id));
+});
+
+
+test("native crew recovery rejects unsigned memory, another held key, edited admission and forged root Originals",async()=>{
+ const {receizBase64UrlEncode,sha256ReceizBytes}=await import("@receiz/sdk");
+ const {canonicalPortableCardJson}=await import("../src/features/play/portable-card");
+ const database=createMemoryWildzContinuityDatabase(),bytes=new TextEncoder().encode("unsigned forged native gift"),sha=await sha256ReceizBytes(bytes);
+ const original={schema:"receiz.sealed-artifact-bytes.v124",exactBytesB64u:receizBase64UrlEncode(bytes),filename:"forged.receizbundle",mimeType:"application/json",artifactSha256:sha,payloadSha256:sha};
+ const source={schema:"wildz.native-bearer-crew-source.v128",keyId:"held-key",applicationId:"registered-client",original,originProof:{accepted:true},projectionOriginal:original};
+ const sourceKey=JSON.stringify(["wildz.native-bearer-crew-source.v128",sha]),memoryKey=JSON.stringify(["wildz.native-bearer-crew-admission.v128",sha]);
+ await database.transaction(["artifacts"],"readwrite",tx=>tx.put("artifacts",source,sourceKey));
+ assert.equal(await readWildzNativeBearerCrewCustody(database,sha,{keyId:"held-key",actorId:"keeper.receiz.id"}),null);
+ await assert.rejects(readWildzNativeBearerCrewCustody(database,sha,{keyId:"another-key",actorId:"keeper.receiz.id"}),/binding/);
+ const key=await crypto.subtle.generateKey({name:"HMAC",hash:"SHA-256",length:256},false,["sign","verify"]);
+ const digest=async(value:unknown)=>sha256ReceizBytes(new TextEncoder().encode(canonicalPortableCardJson(value)));
+ const basis={schema:"wildz.native-bearer-crew-admission.v128",keyId:source.keyId,applicationId:source.applicationId,ownerHandle:"keeper.receiz.id",artifactSha256:sha,originProofDigest:await digest(source.originProof),projectionArtifactSha256:sha,sourceDigest:await digest(source)};
+ const signature=new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(canonicalPortableCardJson(basis)).buffer));
+ await database.transaction(["wrappingKeys","meta"],"readwrite",async tx=>{await tx.put("wrappingKeys",key,"wildz.native-bearer-crew-admission-key.v128");await tx.put("meta",{...basis,signature},memoryKey);});
+ // Even a correctly authenticated local cache cannot turn fake root bytes into
+ // an SDK-admitted native successor or mint a crew token.
+ await assert.rejects(readWildzNativeBearerCrewCustody(database,sha,{keyId:"held-key",actorId:"keeper.receiz.id"}),/artifact|verif|seal|bundle/i);
+ await database.transaction(["meta"],"readwrite",tx=>tx.put("meta",{...basis,applicationId:"edited-client",signature},memoryKey));
+ assert.equal(await readWildzNativeBearerCrewCustody(database,sha,{keyId:"held-key",actorId:"keeper.receiz.id"}),null);
+ assert.equal(await readWildzNativeBearerCrewCustody(database,sha,{keyId:"held-key",actorId:"another.receiz.id"}),null);
 });

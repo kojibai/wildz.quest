@@ -1,5 +1,12 @@
 # Native wallet and coupled trade executor implementation plan
 
+> Withdrawn proposal. The user explicitly requires Wildz-only composition from the
+> published 128.0.0 packages. The SDK/host additions described below are not
+> released APIs, are not approved, and have been removed from the active
+> implementation. Do not apply their migrations, edit Receiz, or use their names
+> as published capability evidence. This text remains a historical design record.
+
+
 > **Status: source implementation added; production rollout remains unqualified.** The additive v128 SDK, native host, wallet integration and isolated acceptance/recovery tests now exist. See [the implementation and rollout record](../../developers/native-wallet-rollout.md) for actual interfaces, source paths and remaining deployment requirements. The unchecked tasks below preserve the original planning checklist and proposed names; they are not the final API inventory. Local synthetic acceptance does not establish a successful live payment or trade.
 >
 > **For agentic workers:** Use the linked implementation record and exact installed SDK inventory to continue rollout. Do not execute live value operations as release tests.

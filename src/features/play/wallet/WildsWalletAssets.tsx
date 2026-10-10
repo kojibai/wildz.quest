@@ -21,8 +21,27 @@ import type { WildsWalletAssetSend as WildsWalletAssetSendCallback, WildsWalletA
 
 type AssetFilter = "all" | "creatures" | "timber" | "stone" | "resources";
 const PAGE_SIZE = 24;
+type ResourceContentsState = Readonly<{ busyId: string | null; message: string; error: boolean }>;
 
-export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, materialLots, nourishment, resourceLots, resourceCards = [], stewardPhiAwards, publicUsername = null, onOpenVaultCard, onPrepareCard, onListCard, onSendAsset, state }: {
+/** UI continuation only. The supplied action must qualify the real SDK source;
+ * this prevents duplicate clicks without issuing resource custody or receipts. */
+export function createWildsWalletResourceContentsRuntime(input: Readonly<{
+  onUnpackResourceCard?: (packageId: string) => Promise<void>;
+  onChange(state: ResourceContentsState): void;
+}>) {
+  let busy = false;
+  return { async unpack(card: ExchangeCard) {
+    if (busy || !card.unpackable || !input.onUnpackResourceCard) return;
+    busy = true;
+    input.onChange({ busyId: card.id, message: card.unpackLabel === "Refresh contents" ? "Checking the exact remaining contents…" : "Opening the exact package contents…", error: false });
+    let message = "Contents are ready to use.", error = false;
+    try { await input.onUnpackResourceCard(card.id); }
+    catch (cause) { error = true; message = cause instanceof Error ? cause.message : "Contents could not be opened. Retry this same package."; }
+    finally { busy = false; input.onChange({ busyId: null, message, error }); }
+  } };
+}
+
+export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, materialLots, nourishment, resourceLots, resourceCards = [], stewardPhiAwards, publicUsername = null, onOpenVaultCard, onPrepareCard, onListCard, onSendAsset, onUnpackResourceCard, state }: {
   cards: readonly PortableCardAsset[];
   cardConditions: Readonly<Record<string, AdventureCardCondition>>;
   inventoryCounts?: { resourceUnits: number; creatureCards: number };
@@ -31,6 +50,7 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
   resourceCards?: readonly ExchangeCard[];
   publicUsername?: string | null;
   onSendAsset?: WildsWalletAssetSendCallback;
+  onUnpackResourceCard?: (packageId: string) => Promise<void>;
   materialLots: readonly WildsMaterialLotV1[];
   stewardPhiAwards: readonly WildsStewardPhiAwardV1[];
   onOpenVaultCard?: (assetId: string) => void;
@@ -48,6 +68,8 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
   const [priceUsd, setPriceUsd] = useState("");
   const [message, setMessage] = useState("");
   const [sendLocked, setSendLocked] = useState(false);
+  const [contentsState, setContentsState] = useState<ResourceContentsState>({ busyId: null, message: "", error: false });
+  const contentsRuntime = useMemo(() => createWildsWalletResourceContentsRuntime({ onUnpackResourceCard, onChange: setContentsState }), [onUnpackResourceCard]);
   const [sendSelectionVersion, setSendSelectionVersion] = useState(0);
   const [sendSelection, setSendSelection] = useState<WildsWalletAssetSendSelection | null>(cards[0] ? { id: cards[0].id, label: cards[0].manifest.name, quantity: 1, asset: { kind: "creature", assetId: cards[0].id } } : null);
   const sendPanelRef = useRef<HTMLDivElement | null>(null);
@@ -71,13 +93,15 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
   useEffect(() => { setOrigin(window.location.origin); }, []);
   useEffect(() => { setVisibleLimit(PAGE_SIZE); }, [filter, query]);
   const selectSendAsset = (selection: WildsWalletAssetSendSelection) => {
-    if (sendLocked) return;
+    if (sendLocked || contentsState.busyId) return;
     setSendSelection(selection);
     setSendSelectionVersion(version => version + 1);
     window.requestAnimationFrame(() => sendPanelRef.current?.scrollIntoView({ block: "nearest" }));
   };
   const selectedSendCreatureId = sendSelection?.asset.kind === "creature" ? sendSelection.asset.assetId : null;
-  const selectedSendUnavailable = selectedSendCreatureId !== null && !cards.some(card => card.id === selectedSendCreatureId && (card.status === "sealed_local" || card.status === "verified"));
+  const selectedSendPackageId = sendSelection?.asset.kind === "package" ? sendSelection.asset.packageId : null;
+  const selectedSendUnavailable = selectedSendCreatureId !== null && !cards.some(card => card.id === selectedSendCreatureId && (card.status === "sealed_local" || card.status === "verified"))
+    || selectedSendPackageId !== null && !resourceCards.some(card => card.id === selectedSendPackageId && card.transferable);
 
   const exportSelectedCard = async () => {
     if (!selected) return;
@@ -133,7 +157,7 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
       </div>
       <label className="wilds-wallet-asset-search"><span>Find exact custody</span><input aria-label="Search exact wallet assets" onChange={(event) => setQuery(event.target.value)} placeholder="Search name, kind, or proof ID" type="search" value={query} /></label>
     </div>
-    {sendSelection ? <div ref={sendPanelRef}><WildsWalletAssetSend key={`${sendSelection.id}:${sendSelectionVersion}`} selection={sendSelection} publicUsername={publicUsername} onSendAsset={onSendAsset} disabled={Boolean(selectedSendUnavailable)} onLockChange={setSendLocked} /></div> : <p>Select an asset below to send it to another user.</p>}
+    {sendSelection ? <div ref={sendPanelRef}><WildsWalletAssetSend key={`${sendSelection.id}:${sendSelectionVersion}`} selection={sendSelection} publicUsername={publicUsername} onSendAsset={onSendAsset} disabled={Boolean(selectedSendUnavailable || contentsState.busyId)} onLockChange={setSendLocked} /></div> : <p>Select an asset below to send it to another user.</p>}
     {filteredCards.length ? <div className="wilds-wallet-card-vault">
       <div aria-label="Choose a wallet card" className="wilds-wallet-card-selector">{filteredCards.slice(0, visibleLimit).map((card) => <button aria-pressed={selected?.id === card.id} disabled={sendLocked} key={card.id} onClick={() => { setSelectedId(card.id); setMessage(""); selectSendAsset({ id: card.id, label: card.manifest.name, quantity: 1, asset: { kind: "creature", assetId: card.id } }); }} type="button"><span>{card.manifest.name}</span><small>{card.manifest.rarity} · Stage {card.manifest.stage}</small></button>)}</div>
       {selected ? <div className="wilds-wallet-card-detail">
@@ -175,8 +199,10 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
       <div>{filteredResourceCards.map((card) => <article className={sendSelection?.id === card.id ? "is-selected" : undefined} key={card.id}>
         <span aria-hidden="true" className="wilds-wallet-resource-mark">◇</span>
         <div><strong>{card.title}</strong><small>{card.summary}</small><p>{card.status}</p></div>
-        <button aria-label={`Select ${card.title} for wallet send`} aria-pressed={sendSelection?.id === card.id} disabled={sendLocked || !card.transferable} onClick={() => selectSendAsset({ id: card.id, label: card.title, detail: card.summary, quantity: 1, asset: { kind: "package", packageId: card.id } })} type="button">Select to send</button>
+        <button aria-label={`Select ${card.title} for wallet send`} aria-pressed={sendSelection?.id === card.id} disabled={sendLocked || Boolean(contentsState.busyId) || !card.transferable} onClick={() => selectSendAsset({ id: card.id, label: card.title, detail: card.summary, quantity: 1, asset: { kind: "package", packageId: card.id } })} type="button">Select to send</button>
+        {card.unpackable && onUnpackResourceCard ? <button aria-label={`${card.unpackLabel ?? "Use contents"} of ${card.title}`} disabled={sendLocked || Boolean(contentsState.busyId)} onClick={() => { if (!sendLocked) void contentsRuntime.unpack(card); }} type="button">{contentsState.busyId === card.id ? "Opening contents…" : card.unpackLabel ?? "Use contents"}</button> : null}
       </article>)}</div>
+      {contentsState.message ? <p aria-live="polite" role={contentsState.error ? "alert" : "status"}>{contentsState.message}</p> : null}
     </section> : null}
     {filteredCards.length + filteredMaterials.length + filteredResources.length > visibleLimit ? <button className="wilds-wallet-show-more" onClick={() => setVisibleLimit((value) => value + PAGE_SIZE)} type="button">Show {Math.min(PAGE_SIZE, filteredCards.length + filteredMaterials.length + filteredResources.length - visibleLimit)} more exact assets</button> : null}
   </section>;

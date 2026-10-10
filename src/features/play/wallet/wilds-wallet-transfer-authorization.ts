@@ -2,6 +2,9 @@
 
 import {
   createReceizProofAuthorityChallenge,
+  canonicalizeReceizV122,
+  proofAuthorityChallengeBasisV123,
+  receizBase64UrlEncode,
   receizOidcScopesForRails,
   signReceizIdentityLoginProof,
   type ReceizIdentityLoginProof
@@ -28,6 +31,7 @@ type TransferAuthorizationDependencies = Readonly<{
   }>>;
   statementDigest(input: TransferAuthorizationInput): Promise<string>;
   createChallenge: typeof createReceizProofAuthorityChallenge;
+  requestChallenge?(attempt: string, artifactDigest: string): Promise<unknown>;
 }>;
 
 const DEFAULT_DEPENDENCIES: TransferAuthorizationDependencies = {
@@ -41,7 +45,13 @@ const DEFAULT_DEPENDENCIES: TransferAuthorizationDependencies = {
     };
   },
   statementDigest: wildsWalletTransferConsentStatementDigest,
-  createChallenge: createReceizProofAuthorityChallenge
+  createChallenge: createReceizProofAuthorityChallenge,
+  async requestChallenge(attempt, artifactDigest) {
+    const query = new URLSearchParams({ attempt, artifactDigest });
+    const response = await fetch(`/api/wilds/wallet/transfer/consent?${query}`, { credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) throw new Error("wilds_wallet_transfer_consent_unavailable");
+    return response.json();
+  }
 };
 
 export async function authorizeWildsWalletTransferWithIdentity(
@@ -55,6 +65,21 @@ export async function authorizeWildsWalletTransferWithIdentity(
   }
   const identity = await dependencies.loadIdentity(keyId);
   if (identity.keyId !== keyId) throw new Error("wilds_wallet_transfer_authorization_identity_mismatch");
+  if (input.attempt.startsWith("v3.")) {
+    if (input.rail !== "settlement" || !dependencies.requestChallenge) throw new Error("wilds_wallet_transfer_consent_binding_invalid");
+    const value = await dependencies.requestChallenge(input.attempt, identity.artifactDigest) as { applicationId?: unknown; scopes?: unknown; unsigned?: Parameters<typeof proofAuthorityChallengeBasisV123>[0]["challenge"] } | null;
+    const expectedScopes = receizOidcScopesForRails("wallet").sort();
+    const exactFields = (record: unknown, fields: string[]) => !!record && typeof record === "object" && !Array.isArray(record)
+      && Object.keys(record).length === fields.length && fields.every(field => Object.hasOwn(record, field));
+    if (!value || typeof value.applicationId !== "string" || !value.applicationId || !Array.isArray(value.scopes) || JSON.stringify(value.scopes) !== JSON.stringify(expectedScopes)
+      || !exactFields(value, ["applicationId", "scopes", "unsigned"])
+      || !exactFields(value.unsigned, ["schema", "audience", "nonce", "issuedAtKai", "expiresAtKai", "consent"])
+      || !exactFields(value.unsigned?.consent, ["approved", "statementDigest"])
+      || !value.unsigned || value.unsigned.consent.statementDigest !== await dependencies.statementDigest(input)) throw new Error("wilds_wallet_transfer_consent_binding_invalid");
+    const basis = proofAuthorityChallengeBasisV123({ challenge: value.unsigned, applicationId: value.applicationId, artifactDigest: identity.artifactDigest, scopes: expectedScopes });
+    const proof = await identity.sign(receizBase64UrlEncode(new TextEncoder().encode(canonicalizeReceizV122(basis))));
+    return Object.freeze({ artifact: identity.artifact, challenge: Object.freeze({ ...value.unsigned, proof }) });
+  }
   const created = dependencies.createChallenge({
     applicationId: WILDZ_RECEIZ_APPLICATION_ID,
     artifactDigest: identity.artifactDigest,

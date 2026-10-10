@@ -6,6 +6,7 @@ import { renderHeartboundSvg } from "./heartbound-renderer";
 import { currentLivingGenome } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import type { PortableCardAsset } from "./portable-card";
+import { projectCardCreatureLevelAppearance } from "./wilds-creature-level-appearance";
 
 export function renderPortableCreatureThumbnail(asset: PortableCardAsset) {
   const genome = isLivingCardAsset(asset)
@@ -20,7 +21,8 @@ export function renderPortableCreatureThumbnail(asset: PortableCardAsset) {
     width: 180,
     height: 180,
     title: `${asset.manifest.name} deck portrait`,
-    fit: "full-body"
+    fit: "full-body",
+    levelAppearance: projectCardCreatureLevelAppearance(asset)
   });
 }
 

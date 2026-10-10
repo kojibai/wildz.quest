@@ -86,6 +86,8 @@ export type LivingCardStory = Readonly<{
   excerpt: string;
 }>;
 
+const livingStories = new WeakMap<PortableCardAsset, LivingCardStory>();
+
 export function compactProofFingerprint(value: string) {
   if (value.length <= 32) return value;
   return `${value.slice(0, 19)}…${value.slice(-8)}`;
@@ -99,7 +101,7 @@ function battleRole(stats: CreatureStats) {
   return strongest === "guard" || strongest === "health" ? "Guardian" : strongest === "speed" ? "Swift scout" : strongest === "power" ? "Striker" : "Bond keeper";
 }
 
-function storyFor(asset: PortableCardAsset, temperament: string, gesture: string, posture: string): LivingCardStory {
+function birthStoryFor(asset: PortableCardAsset, temperament: string, gesture: string, posture: string): LivingCardStory {
   const habitat = creatureForm(asset.manifest.formId)?.habitat ?? "Wilds";
   const nature = title(temperament).toLowerCase();
   const signal = title(gesture).toLowerCase();
@@ -118,14 +120,43 @@ function storyFor(asset: PortableCardAsset, temperament: string, gesture: string
   };
 }
 
+function storyFor(asset: PortableCardAsset, temperament: string, gesture: string, posture: string): LivingCardStory {
+  const birth = birthStoryFor(asset, temperament, gesture, posture);
+  if (!isLivingCardAsset(asset)) return birth;
+  const lived = currentCreatureHistoryProjection(asset);
+  const chapters: string[] = [];
+  const count = (amount: number, singular: string, plural: string) => `${amount} ${amount === 1 ? singular : plural}`;
+  if (lived.record.bossVictories) chapters.push(count(lived.record.bossVictories, "boss victory", "boss victories"));
+  if (lived.record.wins) chapters.push(count(lived.record.wins, "battle victory", "battle victories"));
+  if (lived.record.rescues) chapters.push(count(lived.record.rescues, "rescue", "rescues"));
+  if (lived.continuity?.discoveries.length) chapters.push(count(lived.continuity.discoveries.length, "discovery", "discoveries"));
+  if (lived.continuity?.relationships.length) chapters.push(count(lived.continuity.relationships.length, "remembered friendship", "remembered friendships"));
+  const latest = lived.continuity?.events.at(-1)?.summary.trim();
+  const history = asset.manifest.history?.events ?? [];
+  const earnedXp = history.reduce((total, event) => total + event.effects.reduce((sum, effect) => sum + (effect.kind === "progress" ? Math.max(0, effect.xpDelta) : 0), 0), 0);
+  const livedChapter = history.some(event => !["birth", "migration"].includes(event.source.mode));
+  if (lived.level === 1 && lived.xp === 0 && !livedChapter && !chapters.length && !latest) return birth;
+  const growth = `${asset.manifest.name} has reached level ${lived.level} ${earnedXp ? `after earning ${earnedXp} XP` : `with ${lived.xp} XP toward its next level`}, with a bond of ${lived.bond}.`;
+  const chapter = chapters.length ? ` Its history holds ${chapters.join(", ")}.` : "";
+  const memory = latest ? ` Its latest memory: ${latest}` : "";
+  return {
+    excerpt: `${growth}${chapters.length ? ` It carries ${chapters[0]}.` : latest ? ` ${latest}` : ` Its ${title(temperament).toLowerCase()} nature and signature ${title(gesture).toLowerCase()} remain its own.`}`,
+    full: `${birth.full} ${growth}${chapter}${memory}`
+  };
+}
+
 export function projectLivingCardStory(asset: PortableCardAsset): LivingCardStory {
+  const cached = livingStories.get(asset);
+  if (cached) return cached;
   const form = creatureForm(asset.manifest.formId);
   if (!form) throw new Error("wilds_dossier_form_unknown");
   const genome = isLivingCardAsset(asset)
     ? currentLivingGenome(asset)
     : deriveBirthGenome({ formId: asset.manifest.formId, proofDigest: asset.proof.digest, variant: asset.manifest.variant.traits });
   const identity = identityForGenome(genome, asset.proof.digest);
-  return storyFor(asset, genome.face.expressionSet, identity.behavior.gesture, identity.behavior.posture);
+  const story = storyFor(asset, genome.face.expressionSet, identity.behavior.gesture, identity.behavior.posture);
+  livingStories.set(asset, story);
+  return story;
 }
 
 export function safePublicProofObject(asset: PortableCardAsset) {
@@ -212,7 +243,7 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
     statShift: []
   };
   return {
-    story: storyFor(asset, temperament, gesture, identity.behavior.posture).full,
+    story: projectLivingCardStory(asset).full,
     birth,
     personality: {
       motivations: [

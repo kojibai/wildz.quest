@@ -13986,6 +13986,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-card-eye.left { left: 43%; }
 .wilds-card-eye.right { right: 43%; }
 .wilds-card-rarity span { color: var(--card-accent); }
+.wilds-card-front-story { display: -webkit-box; margin: 0; overflow: hidden; color: #b9d1da; font-size: 10px; line-height: 1.4; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
 .wilds-card-stats {
   display: grid;
@@ -17667,7 +17668,7 @@ body:has(.wilds-stage.is-creation-placement) .wildz-pwa-notice { visibility: hid
 .wildz-player-action-pad > button:active { transform:translateY(1px); background:#376d5e; box-shadow:inset 0 2px 4px #0006; }
 .wildz-player-action-pad > button:focus-visible { outline:2px solid #b7f2d5;outline-offset:3px; }
 .wildz-player-action-pad > button:disabled { opacity:.45; }
-.wildz-movement-home > .wildz-quick-utilities > .wildz-nourishment-pill { grid-column:1/-1; justify-self:start; }
+.wildz-movement-home > .wildz-quick-utilities > .wildz-nourishment-pill { grid-column:1; grid-row:2; justify-self:start; }
 
 /* One quiet food shortcut in the movement utility stack. */
 .wildz-nourishment-pill {

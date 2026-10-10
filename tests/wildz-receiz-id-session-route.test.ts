@@ -20,6 +20,39 @@ import { deriveWildzVaultCardAdmission } from "../src/lib/receiz/wildz-vault-car
 const SECRET = "wildz-receiz-id-route-secret-at-least-thirty-two-bytes";
 const NONCE = "d2lsZHotc2FtZS1vcmlnaW4tbm9uY2UtMTIzNA";
 
+test("device continuation retains the genuine upstream chat session privately and binds its exact account and key", async () => {
+  const priorSecret = process.env.RECEIZ_OAUTH_STATE_SECRET;
+  const priorBase = process.env.RECEIZ_BASE_URL;
+  const priorFetch = globalThis.fetch;
+  process.env.RECEIZ_OAUTH_STATE_SECRET = SECRET;
+  process.env.RECEIZ_BASE_URL = "https://receiz.example";
+  const owner = "11111111-1111-4111-8111-111111111111";
+  try {
+    const identity = await createReceizIdIdentity({ username: "canonical_owner" });
+    const continuation = await buildReceizIdContinueRequest(identity, { nonceB64Url: NONCE });
+    globalThis.fetch = async () => Response.json({ ok: true, bound: true, session: { uid: owner, username: "canonical_owner", displayName: null } }, { headers: { "set-cookie": "receiz_session=genuine-upstream-fixture; HttpOnly; Secure; Path=/; Max-Age=2592000" } });
+    const response = await POST(new NextRequest("https://wildz.quest/api/auth/wildz/session", { method: "POST", headers: { "content-type": "application/json", cookie: `${WILDZ_PROOF_NONCE_COOKIE}=${NONCE}` }, body: JSON.stringify(continuation) }));
+    assert.equal(response.status, 200);
+    const bridge = response.cookies.get("wildz_receiz_chat_session");
+    assert.ok(bridge, "the genuine upstream credential is retained");
+    assert.equal(bridge.httpOnly, true);
+    assert.equal(bridge.sameSite, "lax");
+    assert.equal(bridge.value.includes("genuine-upstream-fixture"), false);
+    assert.doesNotMatch(JSON.stringify(await response.json()), /genuine-upstream|11111111|chat-session/);
+    const modulePath = "../src/lib/receiz/wildz-receiz-chat-session.js";
+    const chatSessionModule = await import(modulePath);
+    const request = new NextRequest("https://wildz.quest/api/wilds/wallet/transfer/preview", { headers: { cookie: `wildz_receiz_chat_session=${bridge.value}` } });
+    const session = chatSessionModule.readWildzReceizChatSession(request, { ownerReceizId: owner, profileHandle: "canonical_owner.receiz.id", keyId: identity.keyFile.keyId });
+    assert.equal(session.cookie, "genuine-upstream-fixture");
+    assert.throws(() => chatSessionModule.readWildzReceizChatSession(request, { ownerReceizId: "22222222-2222-4222-8222-222222222222", profileHandle: "canonical_owner.receiz.id", keyId: identity.keyFile.keyId }), /binding_invalid/);
+    assert.throws(() => chatSessionModule.readWildzReceizChatSession(request, { ownerReceizId: owner, profileHandle: "canonical_owner.receiz.id", keyId: "f".repeat(64) }), /binding_invalid/);
+  } finally {
+    globalThis.fetch = priorFetch;
+    if (priorSecret === undefined) delete process.env.RECEIZ_OAUTH_STATE_SECRET; else process.env.RECEIZ_OAUTH_STATE_SECRET = priorSecret;
+    if (priorBase === undefined) delete process.env.RECEIZ_BASE_URL; else process.env.RECEIZ_BASE_URL = priorBase;
+  }
+});
+
 test("a passive proof-session probe treats a missing session as an anonymous state", async () => {
   const response = await GET(new NextRequest("https://wildz.quest/api/auth/wildz/session"));
 
