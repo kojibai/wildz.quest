@@ -21,7 +21,6 @@ import {
   unlockCreatureVoice,
   type CreatureVoiceChunk
 } from "./creature-voice-playback";
-import { prepareLocalNeuralVoice } from "./local-neural-voice";
 
 type ObserverResponse = {
   ok?: boolean;
@@ -122,9 +121,9 @@ export function CreatureConsciousnessPanel({
 
   useEffect(() => {
     mounted.current = true;
-    // The acoustic payload initializes in its own worker while the owner reads
-    // the creature panel; response generation and gameplay never await it.
-    prepareLocalNeuralVoice();
+    // Browsing keeps the acoustic model unallocated. An enabled conversation
+    // starts its existing preparation in beginCreatureVoiceStream; the compact
+    // proof instrument still speaks immediately while neural voice prepares.
     return () => {
       mounted.current = false;
       voiceRun.current += 1;
