@@ -15,6 +15,9 @@ import { validateResourceOfferMessage } from '@/features/play/wilds-resource-mes
 import { decodeWildsPortableClaim } from '@/features/play/wilds-portable-claim';
 import { sameWildzPlayerCoordinate } from '@/lib/receiz/wildz-player-coordinate';
 import { createReceizCommerceAdapter } from '@/lib/receiz/adapter';
+import { validateWildsWalletTradeMessage, wildsWalletTradeMessageId } from "@/features/play/wallet/wilds-wallet-trade-messaging";
+import { canonicalPortableCardJson } from "@/features/play/portable-card";
+import { validateWildsWalletNativeTradeMessage, wildsWalletNativeTradeMessageId } from "@/features/play/wallet/wilds-wallet-native-trade-context";
 
 function peerFrom(value: unknown) {
   if (!value || typeof value !== "object") throw new Error("wilds_message_peer_required");
@@ -68,6 +71,18 @@ export async function POST(request: NextRequest) {
     const peer = peerFrom(body.peer);
     await hydrateWildsConversation(request, actor, peer);
     const action = body.action;
+    let tradeContext;
+    if (action === "trade-package") {
+      if (!actor.accessToken || actor.practice) throw Error("receiz_wallet_authority_required");
+      tradeContext = validateWildsWalletTradeMessage(body.context, actor.handle, peer.handle);
+      if (body.clientMessageId !== wildsWalletTradeMessageId(actor.handle, tradeContext)) throw Error("wilds_wallet_trade_message_invalid");
+    }
+    let nativeTradeContext;
+    if (action === "trade-native") {
+      if (!actor.accessToken || actor.practice) throw Error("receiz_wallet_authority_required");
+      nativeTradeContext = validateWildsWalletNativeTradeMessage(body.context, actor.handle, peer.handle);
+      if (body.clientMessageId !== wildsWalletNativeTradeMessageId(actor.handle, nativeTradeContext)) throw Error("wilds_wallet_native_trade_message_invalid");
+    }
     let resourceContext;
     if (action === 'resource-offer') {
       if (!actor.accessToken || actor.practice) throw Error('receiz_wallet_authority_required');
@@ -79,20 +94,22 @@ export async function POST(request: NextRequest) {
       const inspection = await rail.inspectBearerTransferInstrument(claim.carrier.offer.instrument);
       if (!inspection.valid || !inspection.offlineVerified || inspection.instrument.artifactDigest !== claim.carrier.offer.instrument.artifactDigest) throw Error('wilds_message_resource_claim_invalid');
     }
-    const conversation = action === "send" || action === "phi-transfer" || action === "resource-offer"
+    const conversation = action === "send" || action === "phi-transfer" || action === "resource-offer" || action === "trade-package" || action === "trade-native"
       ? appendWildsDirectMessage({
           sender: self,
           recipient: peer,
           body: String(body.message ?? ""),
           clientMessageId: String(body.clientMessageId ?? ""),
           replyToId: typeof body.replyToId === "string" ? body.replyToId : null,
-          ...(action === "phi-transfer" ? { context: phiTransferContext(body.context) } : resourceContext ? { context: resourceContext } : {})
+          ...(action === "phi-transfer" ? { context: phiTransferContext(body.context) } : resourceContext ? { context: resourceContext } : tradeContext ? {context: tradeContext} : nativeTradeContext ? {context: nativeTradeContext} : {})
         }).conversation
       : action === "read"
         ? markWildsConversationRead({ left: self, right: peer, actorId: actor.playerId, through: typeof body.through === "string" ? body.through : undefined })
         : action === "react"
           ? reactToWildsDirectMessage({ left: self, right: peer, actorId: actor.playerId, messageId: String(body.messageId ?? ""), emoji: String(body.emoji ?? "") })
           : (() => { throw new Error("wilds_message_action_invalid"); })();
+    if (tradeContext && !conversation.messages.some(message => message.clientMessageId === body.clientMessageId
+      && canonicalPortableCardJson(message.context) === canonicalPortableCardJson(tradeContext))) throw Error("wilds_wallet_trade_attempt_conflict");
     const publication = await publishWildsConversation(request, actor, conversation);
     return NextResponse.json({ ok: true, conversation, summary: wildsConversationSummary(conversation, actor.playerId), publication }, { headers: { "cache-control": "private, no-store" } });
   } catch (cause) {

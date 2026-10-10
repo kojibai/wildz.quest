@@ -131,7 +131,7 @@ export type WildsInput = (
   | { type: "record-world-activity"; activity: WildsActivityEntry }
   | { type: "energy-tick" }
   | { type: "gather-food"; ownerReceizId: string; sourceId: string; expectedSourceHead: string; kaiUPulse: number; verticalWorldY?: number }
-  | { type: "eat-food"; ownerReceizId: string; itemId: string; kaiUPulse: number }
+  | { type: "eat-food"; ownerReceizId: string; itemId: string; kaiUPulse: number; fuelMicroBreathLimit?: number }
   | { type: "hunt-animal"; ownerReceizId: string; animalId: string; expectedAnimalHead: string; kaiUPulse: number; verticalWorldY?: number; hunter: { kind: 'creature'; assetId: string; abilityIndex: number } | { kind: 'tool' }; toolWorld?: WildsHuntingToolWorld }
   | { type: "capture-livestock"; ownerReceizId: string; animalId: string; expectedAnimalHead: string; kaiUPulse: number; verticalWorldY?: number; shelterId: string; husbandryWorld: WildsHusbandryWorld }
   | { type: "collect-livestock"; ownerReceizId: string; animalId: string; kaiUPulse: number; husbandryWorld: WildsHusbandryWorld }
@@ -1374,7 +1374,7 @@ function reduceWildsNourishmentInput(state: PlayState, input: Extract<WildsInput
     ? gatherWildsNourishment({ state: source, ownerReceizId: owner, sourceId: input.sourceId, expectedSourceHead: input.expectedSourceHead,
       kaiUPulse: input.kaiUPulse, spaceId: state.siteSpace.spaceId,
       player: { x: state.player.x, z: state.player.z, y: input.verticalWorldY ?? state.siteSpace.position.y } })
-    : consumeWildsNourishment({ state: source, ownerReceizId: owner, itemId: input.itemId, kaiUPulse: input.kaiUPulse, reserveMicroBreaths: advanced.reserveMicroBreaths });
+    : consumeWildsNourishment({ state: source, ownerReceizId: owner, itemId: input.itemId, kaiUPulse: input.kaiUPulse, reserveMicroBreaths: advanced.reserveMicroBreaths, fuelMicroBreathLimit: input.fuelMicroBreathLimit });
   // A rejected or replayed food action is entirely inert, including its body checkpoint.
   if (!consequence.ok) return state;
   const settled = settlePlayerRestFromBreaths(state, state, input.kaiUPulse, false);

@@ -14,7 +14,9 @@ test("passive wallet reads wait for the world while direct terminal actions rema
   assert.equal((hook.match(/if \(!backgroundReady/g) ?? []).length, 3,
     "initial preload, resume listeners, and retry timer must all wait for the draw");
   assert.match(hook, /wildzGameplayBackground\.run/);
-  assert.match(hook, /const openTerminal = useCallback\(\(\) => \{ driver\.open\(\); void admitSourceThenRefresh\(\); \}/);
+  const open = hook.slice(hook.indexOf("const openTerminal = useCallback"), hook.indexOf("const visible =", hook.indexOf("const openTerminal = useCallback")));
+  assert.ok(open.indexOf("driver.open()") < open.indexOf("await admitSourceThenRefresh()"));
+  assert.match(open, /stillCurrent\(\).*initializeNativeSource/);
 });
 
 test("browser fixture exposes deterministic verified, offline, recovery, rejection, and committed states", () => {

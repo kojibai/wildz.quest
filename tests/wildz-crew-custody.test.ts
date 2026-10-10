@@ -233,7 +233,7 @@ test("roaming restore verifies before downloading the exact claimed artifact and
   const start = shell.indexOf("const restoreRoamingCapture = useCallback");
   const callback = shell.slice(start, shell.indexOf("const activateIdentitySeal", start));
   assert.ok(callback.indexOf("downloadBlob(") > callback.indexOf("await openWildzArtifactSameOrigin("));
-  assert.match(callback, /opened\.ownershipWitness\.ownerReceizId/);
+  assert.match(callback, /opened\.nativeTradeCustody\?\.ownerReceizId \?\? opened\.ownershipWitness\?\.ownerReceizId/);
   assert.match(callback, /validateWildsRoamingHandoffCard\(opened\.payloadBytes, sidecar\)/);
   assert.match(callback, /defaultWildzProofSourceRepository\.retain/);
   assert.match(callback, /"merge-vault", prepared, sidecar/);

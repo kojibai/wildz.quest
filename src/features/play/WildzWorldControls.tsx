@@ -28,6 +28,7 @@ import type { WildsWorldCapabilityFamily } from "./wilds-world-capability-regist
 import { projectWildsTraversalStatus } from "./wilds-traversal-status";
 import { WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE, type WildsVerticalTraversalIntent, type WildsVerticalTraversalState } from "./wilds-vertical-traversal";
 import { projectWildsFlightObstruction } from "./wilds-flight-obstruction";
+import { WildsPlayerActionPad, type WildsPlayerHand, type WildsPlayerHandIntent } from "./WildsPlayerActionPad";
 
 const ignore = () => {};
 const DEFAULT_VERTICAL_READOUT = { layer: "ground", value: 0, safeMin: 0, safeMax: 0, blockerId: null } as const;
@@ -56,6 +57,8 @@ export function WildzWorldControls({
   commandItems,
   materialCounts = { hay: 0, timber: 0, stone: 0 },
   nourishment,
+  onJump,
+  onHandAction,
   dismissSignal,
   exclusiveOwner,
   overlayState,
@@ -95,6 +98,8 @@ export function WildzWorldControls({
   commandItems: readonly WildsCommandItem[];
   materialCounts?: Readonly<{ hay: number; timber: number; stone: number }>;
   nourishment?: WildsNourishmentPillProps;
+  onJump?: () => void;
+  onHandAction?: (hand: WildsPlayerHand, intent: WildsPlayerHandIntent) => void;
   dismissSignal: number;
   exclusiveOwner: WorldOverlayOwner;
   overlayState: WorldOverlayState;
@@ -308,6 +313,7 @@ export function WildzWorldControls({
     <section className={`wildz-world-controls${panelOpen ? " is-panel-open" : ""}${buildingActive ? " is-building" : ""}`} aria-label="World controls">
       <div aria-hidden={movementHomeBlocked} className="wildz-movement-home" inert={movementHomeBlocked ? true : undefined}>
         <div className={`wildz-quick-utilities${(1 + (bedSleep ? 1 : 0) + capabilityControls.length) % 2 ? " has-odd-actions" : ""}`} aria-label="Quick utilities">
+          {nourishment ? <WildsNourishmentPill {...nourishment} enabled={worldHomesEnabled} cancelSignal={gestureCancelSignal} /> : null}
           {traversalCapabilities.includes("swim") || traversalCapabilities.includes("climb") ? (
             <div className="wildz-passive-capabilities" aria-label="Active companion passive abilities">
               {traversalCapabilities.includes("swim") ? <span role="img" aria-label="Automatic swimming" title="Your active companion can swim in deep water automatically."><Icons.swim aria-hidden="true" size={13} /></span> : null}
@@ -369,7 +375,7 @@ export function WildzWorldControls({
       </div>
 
       <div aria-hidden={movementHomeBlocked} className="wildz-construction-home wildz-quick-utilities" inert={movementHomeBlocked ? true : undefined}>
-          {nourishment ? <WildsNourishmentPill {...nourishment} enabled={worldHomesEnabled} cancelSignal={gestureCancelSignal} /> : null}
+          <WildsPlayerActionPad enabled={worldHomesEnabled} cancelSignal={gestureCancelSignal} onJump={onJump} onHandAction={onHandAction} />
           <button
             aria-label={`${onOpenCreation ? "Create with creatures" : "Open Living Construction"}. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
             className="wildz-construction-control"

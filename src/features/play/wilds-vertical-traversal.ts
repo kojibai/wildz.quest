@@ -12,6 +12,8 @@ export type WildsVerticalTraversalState = {
   safeMax: number;
   /** A tapped dive continues toward this bounded depth across animation frames. */
   targetWorldY?: number;
+  /** Transient ballistic jump; never a companion flight capability. */
+  jumpVelocity?: number;
 };
 
 export type WildsVerticalTraversalStep = {
@@ -64,7 +66,18 @@ export function resetWildsVerticalTraversalState(state: WildsVerticalTraversalSt
   state.safeMin = 0;
   state.safeMax = 0;
   delete state.targetWorldY;
+  delete state.jumpVelocity;
   return state;
+}
+
+export const WILDS_JUMP_SPEED = 6.1;
+export const WILDS_JUMP_GRAVITY = 14;
+export function requestWildsJump(state: WildsVerticalTraversalState, stamina: number) {
+  if (state.layer !== "ground" || state.jumpVelocity !== undefined) return {ok: false as const, reason: "Land before jumping again."};
+  if (!Number.isFinite(stamina) || stamina <= 0) return {ok: false as const, reason: "Rest before jumping."};
+  state.jumpVelocity = WILDS_JUMP_SPEED;
+  state.layer = "air";
+  return {ok: true as const};
 }
 
 export function requestWildsDive(state: WildsVerticalTraversalState) {
@@ -87,6 +100,31 @@ export function writeWildsVerticalTraversalStep(
   const delta = bounded(input.deltaSeconds, 0, .1);
   state.layer = input.layer;
   state.intent = input.intent;
+
+  if (state.jumpVelocity !== undefined && input.layer !== "water" && input.powered !== true && input.assistedGlide !== true) {
+    const floor = input.terrainElevation;
+    const ceiling = Number.isFinite(input.ceilingY) ? Math.max(floor, input.ceilingY! - WILDS_PLAYER_BODY_HEIGHT - .06) : Infinity;
+    let remaining = delta;
+    // Small deterministic substeps bound collision travel even after a stalled frame.
+    while (remaining > .000001) {
+      const dt = Math.min(remaining, 1/120);
+      const nextY = state.worldY + state.jumpVelocity * dt - WILDS_JUMP_GRAVITY * dt * dt / 2;
+      state.jumpVelocity -= WILDS_JUMP_GRAVITY * dt;
+      state.worldY = Math.min(ceiling, Math.max(floor, nextY));
+      if (nextY >= ceiling) state.jumpVelocity = Math.min(0, state.jumpVelocity);
+      if (state.worldY <= floor && state.jumpVelocity <= 0) {
+        resetWildsVerticalTraversalState(state); state.worldY = quantize(floor); return state;
+      }
+      remaining -= dt;
+    }
+    state.layer = "air";
+    state.worldY = quantize(state.worldY);
+    state.offset = quantize(state.worldY - floor);
+    state.safeMin = 0;
+    state.safeMax = quantize(Math.min(WILDS_JUMP_SPEED ** 2 / (2 * WILDS_JUMP_GRAVITY), ceiling - floor));
+    return state;
+  }
+  delete state.jumpVelocity;
 
   if (input.layer === "ground") {
     resetWildsVerticalTraversalState(state);

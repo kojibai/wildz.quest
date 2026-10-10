@@ -12,6 +12,7 @@ import { createWildsFaceMaterial } from '../src/features/play/wilds-face-geometr
 import { projectWildsBlinkProfile, sampleWildsBlink } from '../src/features/play/wilds-face-motion';
 import { writeWildsExplorerOrientation, writeWildsExplorerWingFlightPose } from '../src/features/play/wilds-explorer-flight-pose';
 import { playerBodyBreathExpansion } from '../src/features/play/player-breath-energy';
+import { sampleWildsHandPose } from '../src/features/play/wilds-player-actions';
 import * as aerial from '../src/features/play/wilds-aerial-traversal';
 import * as vertical from '../src/features/play/wilds-vertical-traversal';
 import * as ground from '../src/features/play/wilds-grounded-movement';
@@ -221,7 +222,7 @@ test('local explorer faces the accepted movement on the first frame and keeps th
     projectWildsExplorerAnatomy, createWildsExplorerFace, createWildsExplorerTorso, createWildsExplorerHand,
     createWildsFaceMaterial, projectWildsBlinkProfile, sampleWildsBlink,
     useWildsCharacterTexture: () => null, useWildsNaturalTexture: () => null,
-    writeWildsExplorerOrientation, writeWildsExplorerWingFlightPose, playerBodyBreathExpansion,
+    writeWildsExplorerOrientation, writeWildsExplorerWingFlightPose, playerBodyBreathExpansion, sampleWildsHandPose,
     Leg: 'leg', Arm: 'arm', ExplorerBackpack: 'backpack', ExplorerScubaKit: 'scuba', performance: { now: () => 1000 }
   });
   const props = { style: 'male', worldPosition: { x: 0, z: 0 }, bodyReadiness: 100, aerialStateRef: { current: { mode: 'flight', verticalVelocity: 1 } } };

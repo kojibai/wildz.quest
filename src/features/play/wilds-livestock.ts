@@ -39,7 +39,7 @@ export function createWildsLivestockState(ownerReceizId: string): WildsLivestock
 }
 
 /** The controls and the finite hunting transition use the same readiness rules. */
-function huntingReadiness(input: { state: WildsLivestockState; ownerReceizId: string; kaiUPulse: number; hunter: WildsAnimalHunter }): 'hunter-unready' | 'ability-cooldown' | null {
+function huntingReadiness(input: { state: WildsLivestockState; ownerReceizId: string; kaiUPulse: number; hunter: WildsAnimalHunter; admittedKeeperReceizId?: string }): 'hunter-unready' | 'ability-cooldown' | null {
   const { state, hunter, ownerReceizId, kaiUPulse } = input;
   if (hunter.kind === 'tool') {
     const toolId = hunter.world.equippedStewardTools[ownerReceizId], tool = hunter.world.stewardTools[toolId];
@@ -48,7 +48,7 @@ function huntingReadiness(input: { state: WildsLivestockState; ownerReceizId: st
   }
   const { asset, condition, abilityIndex } = hunter;
   try { if (condition) validateAdventureCondition(condition); } catch { return 'hunter-unready'; }
-  if (!asset || !verifyAnyWildsCard(asset).ok || asset.manifest.ownerReceizId !== ownerReceizId || !condition || condition.assetId !== asset.id
+  if (!asset || !verifyAnyWildsCard(asset).ok || (asset.manifest.ownerReceizId !== ownerReceizId && input.admittedKeeperReceizId !== ownerReceizId) || !condition || condition.assetId !== asset.id
     || condition.life !== 'alive' || condition.retiredAt || condition.fatigue >= 85 || condition.injuries.length >= 4
     || !Number.isInteger(abilityIndex) || !creatureForm(asset.manifest.formId)?.abilities[abilityIndex]?.power) return 'hunter-unready';
   const prior = state.abilityCooldowns[`${asset.id}|${abilityIndex}`];
@@ -56,7 +56,7 @@ function huntingReadiness(input: { state: WildsLivestockState; ownerReceizId: st
 }
 export function selectWildsHuntingSupport(input: {
   state?: WildsLivestockState; ownerReceizId: string; kaiUPulse: number;
-  companion?: PortableCardAsset; condition?: AdventureCardCondition; toolWorld?: WildsHuntingToolWorld;
+  companion?: PortableCardAsset; condition?: AdventureCardCondition; toolWorld?: WildsHuntingToolWorld; admittedKeeperReceizId?: string;
 }): { hunter: { kind: 'creature'; assetId: string; abilityIndex: number } | { kind: 'tool' } | null; blocker: string | null } {
   const unavailable = { hunter: null, blocker: 'Equip an axe or choose a ready companion to hunt.' } as const;
   if (!validOwner(input.ownerReceizId) || !validKai(input.kaiUPulse)) return unavailable;
@@ -185,7 +185,7 @@ function checkAnimal(input: AnimalRequest) {
   if (source || input.state.animals[input.animalId]) return 'already-settled' as const;
   return null;
 }
-export function huntWildsAnimal(input: AnimalRequest & { hunter: WildsAnimalHunter }) {
+export function huntWildsAnimal(input: AnimalRequest & { hunter: WildsAnimalHunter; admittedKeeperReceizId?: string }) {
   const failure = checkAnimal(input); if (failure) return reject(input.state, failure);
   const { state, hunter } = input;
   const hunterFailure = huntingReadiness(input); if (hunterFailure) return reject(state, hunterFailure);

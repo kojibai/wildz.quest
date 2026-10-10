@@ -1,4 +1,6 @@
 import type { WildsResourceOfferMessage } from './wilds-resource-messaging';
+import type { WildsWalletTradeMessage } from "./wallet/wilds-wallet-trade-messaging";
+import type { WildsWalletNativeTradeMessage } from "./wallet/wilds-wallet-native-trade-context";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildsCardTransferOffer } from "@/lib/receiz/wilds-card-transfer";
@@ -33,7 +35,7 @@ export type WildsDirectMessage = {
   deletedAt: string | null;
   replyToId: string | null;
   reactions: WildsDirectMessageReaction[];
-  context?: WildsResourceOfferMessage | {
+  context?: WildsResourceOfferMessage | WildsWalletTradeMessage | WildsWalletNativeTradeMessage | {
     kind: "group-invite";
     roomId: string;
     roomName: string;

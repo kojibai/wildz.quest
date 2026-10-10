@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRe
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Html, MapControls, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
+import {WildsGraphicsLifecycle} from "../pwa/WildsGraphicsLifecycle";
 import { WILDS_REGION_SIZE } from "./multiplayer-core";
 import type { WildsCrewMapMarker } from "./wilds-crew-map";
 import { wildsAtlasMapBounds, type WildsAtlasProjection } from "./wilds-world-atlas";
@@ -128,6 +129,7 @@ export function WildsAtlasCanvas({
         }}
         shadows={false}
       >
+        <WildsGraphicsLifecycle />
         <color attach="background" args={["#061820"]} />
         {/* Atlas terrain must remain readable at every zoom; gameplay fog does not belong here. */}
         <ambientLight intensity={1.12} />

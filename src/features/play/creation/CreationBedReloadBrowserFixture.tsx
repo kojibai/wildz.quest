@@ -48,11 +48,11 @@ export default function CreationBedReloadBrowserFixture(){
   if(error)return <pre role="alert">{error}</pre>;
   if(!data)return <p>Restoring synthetic saved house and sleeping player…</p>;
   const {fixture,state}=data;
-  return <ReloadErrorBoundary><PlayCampaign enabled networkEnabled={false} creationController={fixture.controller}
+  return <main className="wildz-app-shell"><div className="wildz-app"><ReloadErrorBoundary><PlayCampaign enabled networkEnabled={false} creationController={fixture.controller}
     ownerReceizId={fixture.owner} initialState={state} initialWorld={{projection:fixture.queue.current(),mode:'kai_live'}}
     character={generateWildzCharacter({identityRef:fixture.owner,kaiPulse:'1',gender:'female',version:1})}
     playerDisplayName="Saved bed reload fixture" walletAuthorityGeneration="fixture" walletIdentityKey={fixture.owner} walletPublicUsername={null}
     onPlayStateChange={()=>{}} onPrepareCard={async()=>{throw Error('fixture_export_disabled');}}
     onExportCard={async()=>{}} onExportVault={async()=>{}} vaultAdmission={null}
-    onRestoreArtifact={async()=>{throw Error('fixture_import_disabled');}} onRestoreRoamingCapture={async()=>{throw Error('fixture_import_disabled');}} /></ReloadErrorBoundary>;
+    onRestoreArtifact={async()=>{throw Error('fixture_import_disabled');}} onRestoreRoamingCapture={async()=>{throw Error('fixture_import_disabled');}} /></ReloadErrorBoundary></div></main>;
 }

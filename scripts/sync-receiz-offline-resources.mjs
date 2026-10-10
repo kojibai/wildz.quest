@@ -6,7 +6,9 @@ const require = createRequire(import.meta.url);
 const version = JSON.parse(await readFile(require.resolve('@receiz/sdk/package.json'), 'utf8')).version;
 const assets = {
   'sigil_proof.wasm': 'public/zk/document_seal_proof_js/sigil_proof.wasm',
-  'document_seal_proof_final.zkey': 'public/zk/document_seal_proof_final.zkey'
+  'document_seal_proof_final.zkey': 'public/zk/document_seal_proof_final.zkey',
+  'kai_sigil_proof.wasm': 'public/zk/kai_sigil_proof.wasm',
+  'kai_sigil_proof_final.zkey': 'public/zk/kai_sigil_proof_final.zkey'
 };
 const hashes = {};
 for (const [source, target] of Object.entries(assets)) {

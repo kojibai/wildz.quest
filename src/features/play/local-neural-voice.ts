@@ -19,6 +19,7 @@ const pending = new Map<number, {
   resolve: (voice: RenderedVoice) => void;
   reject: () => void;
   timeout: number;
+  cleanup:()=>void;
 }>();
 
 function ensureWorker() {
@@ -44,6 +45,7 @@ function ensureWorker() {
     const request = pending.get(event.data.id);
     if (!request) return;
     window.clearTimeout(request.timeout);
+    request.cleanup();
     pending.delete(event.data.id);
     if (event.data.type === "rendered") {
       request.resolve({
@@ -57,6 +59,7 @@ function ensureWorker() {
     preparing = false;
     for (const request of pending.values()) {
       window.clearTimeout(request.timeout);
+      request.cleanup();
       request.reject();
     }
     pending.clear();
@@ -86,18 +89,28 @@ export function localNeuralVoiceBackend() {
 export function renderLocalNeuralVoice(
   text: string,
   profile: ProofVoiceProfile,
-  speakingUPulse: number
+  speakingUPulse: number,
+  signal?: AbortSignal
 ): Promise<RenderedVoice> {
+  if(signal?.aborted)return Promise.reject(new Error("wildz_local_neural_voice_canceled"));
   const localWorker = ensureWorker();
   if (!localWorker || !ready) return Promise.reject(new Error("wildz_local_neural_voice_not_ready"));
   const id = ++requestId;
   const voice = profile.seed & 1 ? "af_heart" : "am_michael";
   return new Promise<RenderedVoice>((resolve, reject) => {
+    const cancel=()=>{
+      const request=pending.get(id);if(!request)return;
+      pending.delete(id);window.clearTimeout(request.timeout);request.cleanup();
+      localWorker.postMessage({type:"cancel",id});reject(new Error("wildz_local_neural_voice_canceled"));
+    };
     const timeout = window.setTimeout(() => {
+      signal?.removeEventListener("abort",cancel);
       pending.delete(id);
+      localWorker.postMessage({type:"cancel",id});
       reject(new Error("wildz_local_neural_voice_timeout"));
     }, 15_000);
-    pending.set(id, { resolve, reject: () => reject(new Error("wildz_local_neural_voice_failed")), timeout });
+    pending.set(id, { resolve, reject: () => reject(new Error("wildz_local_neural_voice_failed")), timeout, cleanup:()=>signal?.removeEventListener("abort",cancel) });
+    signal?.addEventListener("abort",cancel,{once:true});
     const momentSeed = (Math.trunc(speakingUPulse) ^ Math.imul(profile.seed, 0x9e3779b1)) >>> 0;
     const momentCadence = .992 + ((momentSeed >>> 9) % 17) / 1_000;
     localWorker.postMessage({

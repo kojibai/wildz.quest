@@ -155,7 +155,7 @@ export async function prepareWildsWalletExecutionSourceMemberFromAdmissions(inpu
     verifyReceizArtifactAdmission(input.predecessorAdmission), verifyReceizArtifactAdmission(input.identityAdmission)
   ]);
   if ("code" in predecessor || predecessor.verdict !== "bearer-recovery" || !predecessor.proofHistory) fail("SOURCE_ADMISSION_REQUIRED");
-  if ("code" in identity || identity.verdict !== "canonical-identity" || identity.profile !== "identity") fail("IDENTITY_ADMISSION_REQUIRED");
+  if ("code" in identity || identity.verdict !== "canonical-identity" || identity.profile !== "identity" || !identity.openedArtifact) fail("IDENTITY_ADMISSION_REQUIRED");
   if (predecessor.openedArtifact.sealedArtifact.kind !== "receiz.native-record-seal"
     || identity.openedArtifact.sealedArtifact.kind !== "receiz.native-record-seal") fail("NATIVE_SOURCE_REQUIRED");
   if (predecessor.proofHistory.headDigests[0] !== operationPlan.expectedParticipantHeads[input.participantId]

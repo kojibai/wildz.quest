@@ -6,6 +6,7 @@ import { constitutionalDigest, constitutionalPredicate as predicate, deriveConst
 /** Adding a command requires choosing its bounded source law at compile time. */
 export const WILDS_COMMAND_LAW = {
   "resource.package.create": "sources.reserve",
+  "resource.package.native-adopt": "verified-title.successor",
   "resource.package.begin-transfer": "owner.offer", "resource.package.offer": "owner.offer",
   "resource.package.plan-transfer":"owner.offer","resource.package.abort-transfer":"verified-title.cancel",
   "resource.package.transfer.admit": "verified-title.successor", "resource.package.cancel-transfer": "verified-title.cancel",
@@ -16,6 +17,7 @@ export const WILDS_COMMAND_LAW = {
   "resource.package.market.pay": "buyer.commit", "resource.package.market.release": "verified-title.cancel",
   "creation.construct": "materials.create",
   "creation.evolve": "materials.create",
+  "creation.action": "owner.use",
   "community.transition": "community.adopted-procedures",
   "construction.project.create": "commons.plan", "construction.component.place": "project.plan", "construction.burrow.dig": "project.plan", "construction.component.adjust": "project.plan",
   "construction.component.maintain": "project.work",

@@ -14,10 +14,10 @@ export function creationNodePoses(definition:CreationDefinition,pose:CreationPos
  * A digest seal and functional stage alone do not grant world authority. */
 export function projectCreationPhysical(instance:CreationInstance,input:CreationDefinition,plan:CreationPlan):CreationPhysicalProjection{
  const definition=parseCreationDefinition(input);if(!verifyCreationPlan(plan))throw Error('creation_plan_seal_invalid');
- if(!verifyCreationInstance(instance)||!['functional','finished'].includes(instance.stage))throw Error('creation_functional_source_required');
+ if(!verifyCreationInstance(instance)||!['functional','finished','destroyed'].includes(instance.stage))throw Error('creation_functional_source_required');
  if(instance.definitionDigest!==definition.digest||plan.definitionDigest!==definition.digest||plan.spaceId!==instance.spaceId||plan.worldId!==instance.worldId||JSON.stringify(plan.pose)!==JSON.stringify(instance.pose))throw Error('creation_projection_binding_mismatch');
  const poses=creationNodePoses(definition,instance.pose),live=new Set<string>(),nodes=new Map(definition.nodes.map(n=>[n.id,n]));
- for(const stage of plan.stages)for(const id of stage){const node=nodes.get(id),state=instance.nodeStates[id];if(!node||!state||state.nodeId!==id)throw Error('creation_projection_node_missing');if(state.condition>0&&node.supports.every(s=>live.has(s))&&(!node.parentId||live.has(node.parentId)))live.add(id);}
+ for(const stage of plan.stages)for(const id of stage){const node=nodes.get(id),state=instance.nodeStates[id];if(!node||!state||state.nodeId!==id)throw Error('creation_projection_node_missing');if(state.condition>0&&!(state.kind==='equipment'&&state.equippedBy)&&node.supports.every(s=>live.has(s))&&(!node.parentId||live.has(node.parentId)))live.add(id);}
  const chunks=plan.chunks.map(chunk=>{
   const solids:CreationSolid[]=[],walkable:CreationSurface[]=[],interiors:CreationBounds[]=[],connections:CreationConnection[]=[],positions:number[]=[],normals:number[]=[],materials:CreationChunk['materials'][number][]=[];
   for(const id of chunk.nodeIds){if(!live.has(id))continue;const node=nodes.get(id)!;const geometry=deriveCreationGeometry(node,poses.get(id)!);solids.push(...geometry.solids);walkable.push(...geometry.walkable);interiors.push(...geometry.interiors);connections.push(...geometry.connections);materials.push({start:positions.length/3,count:geometry.positions.length/3,material:node.material});positions.push(...geometry.positions);normals.push(...geometry.normals);}

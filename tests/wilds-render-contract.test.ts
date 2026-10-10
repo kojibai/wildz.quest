@@ -127,7 +127,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(explorer, /locomotion\?:\s*"ground" \| "swim"/);
     assert.match(explorer, /name="wilds-scuba-kit"/);
     assert.match(explorer, /name="wilds-aerial-harness"/);
-    assert.match(explorer, /const grounded = !sleeping && locomotion === "ground" && aerialMode === "ground"/);
+    assert.match(explorer, /const grounded = !sleeping && !jumping && locomotion === "ground" && aerialMode === "ground"/);
     assert.match(explorer, /const stride = grounded && moving/);
     assert.match(explorer, /const swimStroke = locomotion === "swim"/);
     assert.match(explorer, /moving \? -1\.42 : -0\.78/);

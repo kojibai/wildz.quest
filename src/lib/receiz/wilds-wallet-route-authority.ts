@@ -101,11 +101,12 @@ export async function resolveWildsWalletReadAuthority(
   }
   if (proofSession.authority !== "identity-key") throw new Error("receiz_wallet_authority_required");
 
-  const profile = await loadProfileOrThrow(accessToken, dependencies);
+  const [profile,introspection]=await Promise.all([
+    loadProfileOrThrow(accessToken, dependencies),introspectOrThrow(accessToken, dependencies)
+  ]);
   if (!profile?.id || !profile.handle || !sameWildzPlayerCoordinate(profile.handle, proofSession.profileHandle)) {
     throw new Error("receiz_wallet_profile_binding_invalid");
   }
-  const introspection = await introspectOrThrow(accessToken, dependencies);
   if (introspection.active !== true) throw new Error("receiz_wallet_authority_revoked");
   if (typeof introspection.sub !== "string" || introspection.sub !== profile.id) {
     throw new Error("receiz_wallet_token_binding_invalid");

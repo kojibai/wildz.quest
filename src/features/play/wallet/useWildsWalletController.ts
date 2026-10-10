@@ -14,6 +14,7 @@ export type WildsWalletClientAuthorizationPort = Readonly<{
 export type WildsWalletReadAuthorizationPort = Readonly<{
   authorize(): Promise<boolean>;
   projectSource?(): Promise<WildsWalletReadResponse | null>;
+  initializeNativeSource?(): Promise<void>;
 }>;
 
 export function wildsWalletStatusNeedsIdentityReadAuthority(status: WildsWalletControllerState["status"], transportAuthorityRequired = false) {
@@ -173,7 +174,17 @@ export function useWildsWalletController(
     timer = setTimeout(retry, 2_000);
     return () => { disposed = true; clearTimeout(timer); };
   }, [backgroundReady, admitSourceThenRefresh, authorityGeneration, driver, options.readAuthorization]);
-  const openTerminal = useCallback(() => { driver.open(); void admitSourceThenRefresh(); }, [admitSourceThenRefresh, driver]);
+  const openTerminal = useCallback(() => {
+    driver.open();
+    const opening = driver.state;
+    const stillCurrent = () => driver.state.identityKey === opening.identityKey && driver.state.authorityGeneration === opening.authorityGeneration;
+    void (async () => {
+      await admitSourceThenRefresh();
+      if (!stillCurrent() || !options.readAuthorization?.initializeNativeSource) return;
+      try { await options.readAuthorization.initializeNativeSource(); if (stillCurrent()) await driver.refresh({ replace: true }); }
+      catch (cause) { if (stillCurrent()) setOperationError(cause instanceof Error ? cause.message : "Wallet initialization could not be completed. Reopen your wallet to retry."); }
+    })();
+  }, [admitSourceThenRefresh, driver, options.readAuthorization]);
   const visible = state.identityKey === identityKey && state.authorityGeneration === authorityGeneration ? state
     : renewWildsWalletControllerState(state, createWildsWalletControllerState(identityKey, authorityGeneration));
   const capabilities = visible.capabilities

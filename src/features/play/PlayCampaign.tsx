@@ -1,6 +1,6 @@
 "use client";
 import type { WildzPreparedIdentityPlayerVault } from "../../lib/receiz/wildz-prepared-player-vault";
-import { receizBase64UrlEncode, receizBase64UrlDecode } from "@receiz/sdk";
+import { receizBase64UrlEncode, receizBase64UrlDecode,type ReceizCommittedNativeTradeV128 } from "@receiz/sdk";
 import { useWildsRoamingBattle } from "./use-wilds-roaming-battle";
 import { WildsRoamingBattle } from "./WildsRoamingBattle";
 import { WildsRoamingNearby } from "./WildsRoamingNearby";
@@ -16,7 +16,14 @@ import { nearestWildsVisible } from "./wilds-nearest-visible";
 import { composeWildsBurrowPhysical } from "./wilds-burrow";
 import { useWildsBurrowBuilder } from "./use-wilds-burrow-builder";
 import { WildsBurrowBuilderPanel } from "./WildsBurrowBuilderPanel";
-import { requestWildsDive } from "./wilds-vertical-traversal";
+import { requestWildsDive, requestWildsJump } from "./wilds-vertical-traversal";
+import {beginWildsHandAction, createWildsHandActionState, selectWildsHandTarget,readWildsEquipmentHand,rememberWildsEquipmentHand} from './wilds-player-actions';
+import type {WildsPlayerHand, WildsPlayerHandIntent} from './WildsPlayerActionPad';
+import {prepareCreationHandAction} from './creation/hand-action';
+import {creationWorldActorHead} from './creation/world-action';
+import {currentCreationEquipment} from './creation/equipment';
+import {creationNodePoses} from './creation/projection';
+import {withWildsWorldCommandKai} from './wilds-world-authority';
 import { canSleepInWildsBed, selectWildsBedAtPlayer, resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
@@ -37,11 +44,12 @@ import creationPanelClasses from "./creation/creation.module.css";
 import { useWildsResourceExchange } from './use-wilds-resource-exchange';
 import { foodUnavailableForExchange, projectResourceExchangeInventory } from './wilds-resource-exchange-inventory';
 import { verifyWildsResourcePackage } from './wilds-resource-package';
-import { createWildsWalletAssetSendDriver } from './wallet/wilds-wallet-asset-send-driver';
-import { wildsWalletBrowserAssetSendRecoveryStore } from './wallet/wilds-wallet-asset-send-recovery';
-import type { WildsWalletAssetSendRequest } from './wallet/wilds-wallet-asset-send';
+import {useWildsWalletNativeTrade} from './wallet/useWildsWalletNativeTrade';
+import {prepareWildsWalletNativeCreatureSource,adoptWildsWalletNativeTradeAssets} from './wallet/wilds-wallet-native-trade-assets';
+import {prepareWildsNativeResourceSource,adoptWildsNativeResourceRecovery} from './wilds-native-resource-source-client';
+import {mergeWildsNativeLivestockDisplay,wildsFoodConsumptionRoute,wildsNativeFoodIds} from './wilds-native-inventory-display';
 import { reconcileWildsNourishmentCustody, recoverWildsUnpackedPackageFood } from './wilds-nourishment';
-import { hasRecoverableWildsNativeFood, recoverWildsNativeFoodFuel } from './wilds-food-fuel-recovery';
+import { hasRecoverableWildsNativeFood, recoverWildsNativeFoodFuel, hasRecoverableWildsNativeAdmittedFood, prepareWildsNativeFoodFuelRecovery, recoverWildsNativeAdmittedFoodFuel, mergeWildsNativeFoodFuelDisplay, type WildsNativeFoodFuelRecovery } from './wilds-food-fuel-recovery';
 const WildsResourceExchange=dynamic(()=>import('./WildsResourceExchange').then(module=>module.WildsResourceExchange),{ssr:false});
 const CreationSession=dynamic(()=>import("./creation/CreationSession"),{ssr:false});
 import { WildsVisitedSurface } from "./WildsVisitedSurface";
@@ -114,7 +122,7 @@ import type { WildsSettlementDistrictId } from "@/features/play/wilds-settlement
 import { projectWorldProgression } from "@/features/play/world-progression";
 import type { WildsCommandItem, WildsCommandKey } from "@/features/play/WildsCommandDock";
 import { projectWildsCommandCenter, type WildsCommandAction } from "@/features/play/command-center/director";
-import { kaiUPulseToISOString, millisecondsUntilNextKaiPulse } from "@/features/play/kai-klok-moment";
+import { kaiUPulseToISOString, millisecondsUntilNextKaiPulse,deriveKaiKlokMomentFromUPulse } from "@/features/play/kai-klok-moment";
 import { createWildsKaiRuntimeClock, observeWildsKaiUPulse, resolveWildsRuntimeKaiMoment } from "@/features/play/wilds-kai-runtime";
 import { rootWildsInputInKai } from "@/features/play/wilds-input-temporal-root";
 import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
@@ -190,12 +198,15 @@ import { creatureCareNotificationSchedule, WILDZ_CARE_PERIODIC_TAG } from "@/fea
 import { WILDZ_CARE_NOTIFICATIONS_READY, WILDZ_CARE_SCHEDULE_MESSAGE } from "@/features/pwa/pwa-events";
 import { WildsWorldCanvas } from "@/features/play/WildsWorldCanvas";
 import { useWildsWalletController, type WildsWalletClientAuthorizationPort } from "@/features/play/wallet/useWildsWalletController";
+import { initializeWildsWalletNativeSourceWithIdentity } from "@/features/play/wallet/wilds-wallet-native-source-initialization";
 import { authorizeWildsWalletReadWithIdentity, projectWildsWalletSourceAuthority } from "@/features/play/wallet/wilds-wallet-read-authorization";
 import { authorizeWildsWalletTransferWithIdentity } from "@/features/play/wallet/wilds-wallet-transfer-authorization";
 import { authorizeWildsLivingWorldOperationWithIdentity } from "@/features/play/wilds-living-world-authorization";
 import { projectWildsWalletPlayStateSeed, seedWildsWalletFromPlayState } from "@/features/play/wallet/wilds-wallet-play-state";
 import { canCloseWildsWalletTerminal, WildsWalletTerminal } from "@/features/play/wallet/WildsWalletTerminal";
 import { formatWildsPhiExact } from "@/features/play/wallet/wilds-wallet-format";
+import { projectWildsWalletTradeInbox } from "@/features/play/wallet/wilds-wallet-trade-messaging";
+import type { WildsWalletProposeTrade } from "@/features/play/wallet/wilds-wallet-trade";
 import { emptyAdventureCondition } from "@/features/play/adventure/card-condition";
 import { projectWildsTraversalCapabilities } from "@/features/play/wilds-traversal-capabilities";
 import {
@@ -373,7 +384,7 @@ export function PlayCampaign({
   onExportVault: () => Promise<unknown>;
   onPrepareVault?: () => Promise<unknown>;
   vaultAdmission: WildzVaultCardAdmission | null;
-  onRestoreRoamingCapture: (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState) => Promise<WildzCommittedArtifactRestore>;
+  onRestoreRoamingCapture: (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState,nativeTrade?:ReceizCommittedNativeTradeV128) => Promise<WildzCommittedArtifactRestore>;
   onRestoreArtifact: (
     file: File,
     confirmCardOnly: WildzCardOnlyConfirmation,
@@ -388,6 +399,7 @@ export function PlayCampaign({
       environment:()=>creationRuntime.current?.environment()||{ownerId:ownerReceizId,worldId:'wilds:global:v3',spaceId:initialState.siteSpace.spaceId},
       world:()=>creationRuntime.current?.world()||null,
       crew:()=>creationRuntime.current?.crew()||{cards:[],conditions:{}},
+      prepareWorkerSource:source=>creationRuntime.current?.prepareWorkerSource?.(source)??Promise.resolve(source),
       position:()=>creationRuntime.current?.position()||{x:0,y:0,z:0},
       compileContext:plan=>creationRuntime.current?.compileContext(plan)||null,
       admit:(command,fence)=>creationRuntime.current?creationRuntime.current.admit(command,fence):Promise.reject(Error('creation_world_not_ready')),
@@ -583,6 +595,7 @@ export function PlayCampaign({
   const walletReadAuthorization = useMemo(() => walletReadIdentityKey
     ? {
       authorize: () => authorizeWildsWalletReadWithIdentity(walletReadIdentityKey),
+      initializeNativeSource: () => initializeWildsWalletNativeSourceWithIdentity(walletReadIdentityKey),
       projectSource: async () => {
         const source = await projectWildsWalletSourceAuthority(walletReadIdentityKey);
         return source ? seedWildsWalletFromPlayState(source, walletPlayStateSeedRef.current) : null;
@@ -796,6 +809,15 @@ export function PlayCampaign({
     selfHandle: messengerSelfHandle,
     livePeers: multiplayer.remotePlayers.filter((entry) => !entry.practice).map((entry) => ({ id: entry.playerId, handle: entry.handle }))
   });
+  const walletTradeInbox = useMemo(() => walletPublicUsername
+    ? projectWildsWalletTradeInbox(messenger.conversations, walletPublicUsername) : [], [messenger.conversations, walletPublicUsername]);
+  const proposeWalletTrade = useCallback<WildsWalletProposeTrade>(async (draft, inReplyTo) => {
+    try {
+      const tradeId = await messenger.sendTradePackage({kind: "trade-package", stage: inReplyTo ? "counteroffer" : "offer", draft,
+        ...(inReplyTo ? {inReplyTo} : {})});
+      return {status: "offered", tradeId, message: "Offer delivered. Your assets remain yours until both people approve the final exchange."};
+    } catch {return {status: "pending", message: "Checking this same offer. Reopen Trade to recover its delivery."};}
+  }, [messenger]);
   const [walletMessagePeer, setWalletMessagePeer] = useState<{ id: string; handle: string } | null>(null);
   const recordedPhiTransfersRef = useRef(new Set<string>());
   useEffect(() => {
@@ -999,10 +1021,18 @@ export function PlayCampaign({
     setActiveTrainer(null);
     setTrainerEncounter(null);
   }, [multiplayer.activeBattle, state.battle, trainerEncounter?.phase]);
+  const [nativeFoodSourceView, setNativeFoodSourceView] = useState<Readonly<{owner: string; sources: import('./wilds-nourishment').WildsNourishmentSources; animals: import('./wilds-livestock').WildsAnimalSources; foodIds: ReadonlySet<string>; fuelRecovery: WildsNativeFoodFuelRecovery}> | null>(null);
   const livingWorld = useWildsWorld({
     onActivity: (activity) => setState(current => applyWildsInput(current, { type: "record-world-activity", activity })),
     enabled,
     networkEnabled,
+    nativeSourceEnabled: Boolean(walletReadIdentityKey),
+    onNativeReplay: replay => {
+      const foodIds = wildsNativeFoodIds(replay);
+      const fuelRecovery = prepareWildsNativeFoodFuelRecovery(replay as unknown as import('./wildz-native-world-law').WildzNativeWorldReplay, ownerReceizId);
+      setNativeFoodSourceView({ owner: ownerReceizId, sources: replay.foodSources as import('./wilds-nourishment').WildsNourishmentSources, animals: replay.animalSources as import('./wilds-livestock').WildsAnimalSources, foodIds, fuelRecovery });
+      setState(current => mergeWildsNativeFoodFuelDisplay(current, fuelRecovery, ownerReceizId, readActionKaiUPulse(), foodIds));
+    },
     actorId: ownerReceizId,
     guestId: multiplayer.guestId,
     kaiUPulse,
@@ -1014,90 +1044,39 @@ export function PlayCampaign({
   });
   const resourceExchange = useWildsResourceExchange({
     owner: ownerReceizId, nourishment: state.playerNourishment, world: livingWorld, messenger,
+    nativeSourceEnabled: Boolean(walletReadIdentityKey),
     authorize: walletController.secureTransferAuthority, readKai: readActionKaiUPulse, feedback: showWorldFeedback,
     credit: update => setState(current => ({ ...current, playerNourishment: update(current.playerNourishment) }))
   });
-  const [walletAssetSendDriver] = useState(() => createWildsWalletAssetSendDriver({ recoveryStore: wildsWalletBrowserAssetSendRecoveryStore }));
-  const walletAssetSendLive = useRef({ ownerReceizId, state, livingWorld, resourceExchange, messenger, walletController });
-  walletAssetSendLive.current = { ownerReceizId, state, livingWorld, resourceExchange, messenger, walletController };
-  const sendWalletAsset = useCallback((request: WildsWalletAssetSendRequest) => {
-    const owner = walletAssetSendLive.current.ownerReceizId;
-    const current = () => {
-      const live = walletAssetSendLive.current;
-      if (!sameWildzPlayerCoordinate(live.ownerReceizId, owner)) throw Error("The signed-in Explorer changed. Reopen the wallet.");
-      return live;
-    };
-    return walletAssetSendDriver.send(request, {
-      owner,
-      currentOwner: () => walletAssetSendLive.current.ownerReceizId,
-      authorize: () => current().walletController.secureTransferAuthority(),
-      packageMemberIds: id => current().livingWorld.currentSource()?.resourcePackages?.[id]?.package.members.map(member => member.id) ?? [],
-      validateRecoveryPackage: async (exact, packageId) => {
-        await current().livingWorld.refresh();
-        const record = current().livingWorld.currentSource()?.resourcePackages?.[packageId];
-        if (!record || !verifyWildsResourcePackage(record.package) || !sameWildzPlayerCoordinate(record.ownerReceizId, owner)
-          || !["packed", "issuing", "offered"].includes(record.status)) throw Error("The saved resource card cannot be recovered from its canonical custody source yet.");
-        const boundRecipient = record.status === "offered" ? record.offer?.targetHandle : record.status === "issuing" ? record.transferTargetHandle : undefined;
-        if (boundRecipient !== undefined && !sameWildzPlayerCoordinate(boundRecipient ?? "", exact.recipientHandle)) throw Error("The saved resource card belongs to a different recipient offer.");
-        if (exact.asset.kind === "inventory") {
-          const expected = [...exact.asset.foodItemIds.map(id => `food:${id}`), ...exact.asset.materialLotIds.map(id => `material:${id}`), ...exact.asset.resourceLotIds.map(id => `resource:${id}`)].sort();
-          if (record.package.commandId !== exact.attemptId || !sameWildzPlayerCoordinate(record.package.ownerReceizId, owner)
-            || JSON.stringify(record.package.members.map(member => `${member.kind}:${member.id}`).sort()) !== JSON.stringify(expected)) throw Error("The saved resource card does not match the original exact selection.");
-        } else if (exact.asset.kind !== "package" || exact.asset.packageId !== packageId) throw Error("The saved resource card does not match the original package.");
-      },
-      validate: async exact => {
-        if (exact.asset.kind === "creature") {
-          const assetId = exact.asset.assetId;
-          await current().messenger.refreshInbox(true);
-          const card = current().state.inventory.find(asset => asset.id === assetId);
-          if (!card || ["listed", "suspended", "revoked"].includes(card.status)) throw Error("This creature is unavailable to send. Refresh its wallet card.");
-          return;
-        }
-        await current().livingWorld.refresh();
-        const live = current(), world = live.livingWorld.currentSource();
-        if (exact.asset.kind === "package") {
-          const record = world?.resourcePackages?.[exact.asset.packageId];
-          if (!record || !sameWildzPlayerCoordinate(record.ownerReceizId, owner) || !["packed", "issuing", "offered"].includes(record.status)) throw Error("This resource card is unavailable to send. Refresh your wallet.");
-          const boundRecipient = record.status === "offered" ? record.offer?.targetHandle : record.status === "issuing" ? record.transferTargetHandle : undefined;
-          if (boundRecipient !== undefined && !sameWildzPlayerCoordinate(boundRecipient ?? "", exact.recipientHandle)) throw Error("This resource card already has a different pending recipient. Open its original offer.");
-          return;
-        }
-        const available = projectResourceExchangeInventory(world, live.state.playerNourishment, owner).items;
-        const availableIds = new Set(available.map(item => item.id));
-        const foodIds = new Set(available.filter(item => item.food).map(item => item.id));
-        if (exact.asset.foodItemIds.some(id => !foodIds.has(id))
-          || exact.asset.materialLotIds.some(id => !availableIds.has(id) || !world?.materialLots[id])
-          || exact.asset.resourceLotIds.some(id => !availableIds.has(id) || !world?.resourceLots[id])) throw Error("Some selected resources are no longer available. Refresh your wallet and review the quantity again.");
-      },
-      findCreatureDelivery: (assetId, recipient) => current().messenger.hasPublishedCardOffer(assetId, recipient),
-      issueCreatureOffer: async (assetId, recipient) => {
-        const card = current().state.inventory.find(asset => asset.id === assetId);
-        if (!card) throw Error("This creature is no longer in your wallet.");
-        const offer = await current().messenger.sendCardOffer(card, recipient);
-        if (offer.card.id !== card.id || offer.card.proof.digest !== card.proof.digest || !sameWildzPlayerCoordinate(offer.targetHandle, recipient)) throw Error("The creature offer is still syncing. Check Messages for its saved claim.");
-      },
-      createInventoryPackage: async exact => {
-        if (exact.asset.kind !== "inventory") throw Error("Review the exact resource selection again.");
-        const response = await fetch("/api/wilds/resources/packages", {
-          method: "POST", credentials: "same-origin", cache: "no-store", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ commandId: exact.attemptId, foodItemIds: exact.asset.foodItemIds, materialLotIds: exact.asset.materialLotIds, resourceLotIds: exact.asset.resourceLotIds, nourishment: current().state.playerNourishment })
-        });
-        const payload = await response.json().catch(() => null) as { package?: unknown; world?: { projection?: WildsWorldProjection }; error?: string } | null;
-        if (!response.ok || !verifyWildsResourcePackage(payload?.package) || !payload?.world?.projection) throw Error(payload?.error ?? "The resource card is still syncing.");
-        const proof = payload.package;
-        const expected = [...exact.asset.foodItemIds.map(id => `food:${id}`), ...exact.asset.materialLotIds.map(id => `material:${id}`), ...exact.asset.resourceLotIds.map(id => `resource:${id}`)].sort();
-        if (proof.commandId !== exact.attemptId || !sameWildzPlayerCoordinate(proof.ownerReceizId, owner)
-          || JSON.stringify(proof.members.map(member => `${member.kind}:${member.id}`).sort()) !== JSON.stringify(expected)
-          || payload.world.projection.resourcePackages?.[proof.packageId]?.package.head !== proof.head) throw Error("The exact resource card is still syncing.");
-        current().livingWorld.adoptServerWorld(payload.world.projection);
-        return proof.packageId;
-      },
-      transferPackage: (id, recipient) => current().resourceExchange.actions.transfer(id, recipient),
-      deliverResourceClaim: (recipient, claim) => current().resourceExchange.actions.message({ id: recipient, handle: recipient }, claim)
-    });
-  }, [walletAssetSendDriver]);
+  const nativeTradeLive=useRef({ownerReceizId,walletReadIdentityKey,state,crewCustody,messenger,livingWorld,walletController,onRestoreRoamingCapture});
+  nativeTradeLive.current={ownerReceizId,walletReadIdentityKey,state,crewCustody,messenger,livingWorld,walletController,onRestoreRoamingCapture};
+  const nativeTradeMessages=useMemo(()=>messenger.conversations.flatMap(conversation=>conversation.messages),[messenger.conversations]);
+  const nativeWalletTrade=useWildsWalletNativeTrade({owner:ownerReceizId,keyId:walletReadIdentityKey,
+    messages:nativeTradeMessages,
+    publish:async(recipient,message)=>{await nativeTradeLive.current.messenger.sendNativeTradeMessage(recipient,message);return true;},
+    ownershipSource:async(asset,digest,index,context)=>{
+      const live=nativeTradeLive.current,owner=live.ownerReceizId;
+      if(asset.kind==="creature"){
+        const assetId=asset.assetId,card=live.state.inventory.find(card=>card.id===assetId);
+        if(!card||!["verified","sealed_local"].includes(card.status)||!canOperateWildzCrewCard(card,owner,live.crewCustody))throw Error("This creature is no longer available in your wallet.");
+        return prepareWildsWalletNativeCreatureSource(card,owner);
+      }
+      const source=await prepareWildsNativeResourceSource({asset,commandId:`trade:${digest}:${index}`,context});
+      await nativeTradeLive.current.livingWorld.refresh();
+      return source;
+    },
+    adopt:async(committed,attempt,context)=>{
+      const owner=nativeTradeLive.current.ownerReceizId;
+      await adoptWildsWalletNativeTradeAssets({committed,attempt,owner,currentOwner:()=>nativeTradeLive.current.ownerReceizId,
+        restoreCreature:async(file,card,nativeTrade)=>{const live=nativeTradeLive.current;const restored=await live.onRestoreRoamingCapture(file,card,live.state,nativeTrade);if(nativeTradeLive.current.ownerReceizId!==owner)throw Error("Reopen the accepting account to restore this creature.");setState(current=>retainWildsLocalPosition(restored.playState,current));},
+        removeCreature:assetId=>setState(current=>applyWildsInput(current,{type:"transfer-card-out",assetId})),
+        adoptResources:async accepted=>{await adoptWildsNativeResourceRecovery(accepted,context);await nativeTradeLive.current.livingWorld.refresh();},
+        refreshWallet:()=>nativeTradeLive.current.walletController.refresh({replace:true})});
+    }
+  });
   const [foodSavePending,setFoodSavePending]=useState(false);
   const foodSaveInFlight=useRef(false);
+  const nativeFoodActionPending=useRef(false);
   useEffect(() => {
     const world = livingWorld.snapshot;
     if (!world?.resourcePackages || !state.playerNourishment) return;
@@ -1115,6 +1094,14 @@ export function PlayCampaign({
     if (!pendingNativeFoodFuel || !world || !['receiz_live', 'kai_live'].includes(livingWorld.mode)) return;
     setState(current => recoverWildsNativeFoodFuel(current, world, ownerReceizId, readActionKaiUPulse()));
   }, [pendingNativeFoodFuel, livingWorld.snapshot, livingWorld.mode, state.playerBreaths, ownerReceizId, readActionKaiUPulse]);
+  const nativeFoodFuelSource = nativeFoodSourceView?.owner === ownerReceizId ? nativeFoodSourceView.fuelRecovery : undefined;
+  const pendingAdmittedNativeFoodFuel = useMemo(() => nativeFoodFuelSource
+    ? hasRecoverableWildsNativeAdmittedFood({playerNourishment: state.playerNourishment}, nativeFoodFuelSource, ownerReceizId) : false,
+  [state.playerNourishment, nativeFoodFuelSource, ownerReceizId]);
+  useEffect(() => {
+    if (!pendingAdmittedNativeFoodFuel || !nativeFoodFuelSource) return;
+    setState(current => recoverWildsNativeAdmittedFoodFuel(current, nativeFoodFuelSource, ownerReceizId, readActionKaiUPulse()));
+  }, [pendingAdmittedNativeFoodFuel, nativeFoodFuelSource, state.playerBreaths, ownerReceizId, readActionKaiUPulse]);
   useEffect(() => {
     if (!livingWorld.snapshot) return;
     const ownedWorldAdditions = projectWildsOwnedWorldAdditions(livingWorld.snapshot, ownerReceizId);
@@ -1185,6 +1172,21 @@ export function PlayCampaign({
   ));
   const aerialStateRef = useRef<WildsAerialTraversalState>(initialAerialState);
   const verticalTraversalRef = useRef<WildsVerticalTraversalState>(createWildsVerticalTraversalState());
+  const handActionsRef = useRef(createWildsHandActionState());
+  const [equipmentHand,setEquipmentHand]=useState<WildsPlayerHand>('right');
+  useEffect(()=>setEquipmentHand(readWildsEquipmentHand(ownerReceizId)),[ownerReceizId]);
+  const pendingCreationHand=useRef<{operationId:string;ownerId:string}|null>(null);
+  const heldCreationEquipment=useMemo(()=>{
+    const instance=Object.values(creationPhysical.instances).find(instance=>currentCreationEquipment(instance,ownerReceizId));
+    const node=instance&&currentCreationEquipment(instance,ownerReceizId);
+    const definition=instance&&creationPhysical.definitions[instance.definitionDigest];
+    return instance&&node&&definition?{instance,definition,nodeId:node.nodeId,hand:equipmentHand}:undefined;
+  },[creationPhysical,equipmentHand,ownerReceizId]);
+  useEffect(() => {
+    handActionsRef.current.left=null;handActionsRef.current.right=null;
+    const vertical=verticalTraversalRef.current;
+    if(vertical.jumpVelocity!==undefined){const floor=vertical.worldY-vertical.offset;resetWildsVerticalTraversalState(vertical);vertical.worldY=floor;}
+  },[gestureCancelSignal, ownerReceizId]);
   const verticalIntentRef = useRef<WildsVerticalTraversalIntent>(0);
   const horizontalAllowedRef = useRef(true);
   const worldInputDispatcherRef = useRef<((input: WildsInput) => void) | null>(null);
@@ -1228,7 +1230,8 @@ export function PlayCampaign({
     environment:()=>({ownerId:ownerReceizId,worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId}),
     world:livingWorld.currentSource,
     crew:()=>({cards:crewCards,conditions:state.adventureConditions}),
-    position:()=>({x:state.player.x,y:state.siteSpace.position.y,z:state.player.z}),
+    prepareWorkerSource:async source=>(await import('./wilds-native-world-source-client')).prepareWildsNativeCreationWorkerSource(source,ownerReceizId),
+    position:()=>({x:state.player.x,y:verticalTraversalRef.current.layer==='ground'?state.siteSpace.position.y:verticalTraversalRef.current.worldY,z:state.player.z}),
     compileContext:plan=>liveCreationContext&&creationCommitContext.current?{...liveCreationContext,...(creationCommitContext.current.evolution?{evolution:creationCommitContext.current.evolution}:{}),pose:plan.pose,budget:creationCommitContext.current.budget,techniques:creationCommitContext.current.techniques}:null,
     admit:livingWorld.admitCreation
   };
@@ -1315,8 +1318,11 @@ export function PlayCampaign({
   // not appear invalid/depleted while the displayed pulse catches up.
   const nourishmentKaiUPulse = Math.max(kaiUPulse, state.playerNourishment?.lastKaiUPulse ?? 0, state.playerLivestock?.lastKaiUPulse ?? 0);
   const nourishmentPlayer = useMemo(() => ({ ...state.player, y: verticalReadout.layer === 'ground' ? state.siteSpace.position.y : verticalTraversalRef.current.worldY }), [state.player, state.siteSpace.position.y, verticalReadout]);
-  const nourishmentPlants = useMemo(() => projectWildsNourishmentPlants({ player: nourishmentPlayer, radius: 28, kaiUPulse:nourishmentKaiUPulse, sourceStates: state.playerNourishment?.sources, spaceId: state.siteSpace.spaceId }), [nourishmentPlayer, nourishmentKaiUPulse, state.playerNourishment?.sources, state.siteSpace.spaceId]);
-  const wildAnimals = useMemo(() => projectWildsWildAnimals({ player: nourishmentPlayer, radius: 28, kaiUPulse:nourishmentKaiUPulse, sourceStates: state.playerLivestock?.animals, spaceId: state.siteSpace.spaceId }), [nourishmentPlayer, nourishmentKaiUPulse, state.playerLivestock?.animals, state.siteSpace.spaceId]);
+  const visibleFoodSources = nativeFoodSourceView?.owner === ownerReceizId ? nativeFoodSourceView.sources : state.playerNourishment?.sources;
+  const nourishmentPlants = useMemo(() => projectWildsNourishmentPlants({ player: nourishmentPlayer, radius: 28, kaiUPulse:nourishmentKaiUPulse, sourceStates: visibleFoodSources, spaceId: state.siteSpace.spaceId }), [nourishmentPlayer, nourishmentKaiUPulse, visibleFoodSources, state.siteSpace.spaceId]);
+  const nativeFoodReady = Boolean(walletReadIdentityKey && nativeFoodSourceView?.owner === ownerReceizId);
+  const visibleAnimalSources = nativeFoodReady ? nativeFoodSourceView!.animals : state.playerLivestock?.animals;
+  const wildAnimals = useMemo(() => projectWildsWildAnimals({ player: nourishmentPlayer, radius: 28, kaiUPulse:nourishmentKaiUPulse, sourceStates: visibleAnimalSources, spaceId: state.siteSpace.spaceId }), [nourishmentPlayer, nourishmentKaiUPulse, visibleAnimalSources, state.siteSpace.spaceId]);
   const ownedLivestock = useMemo(() => livingWorld.snapshot ? projectWildsOwnedLivestock(state.playerLivestock, livingWorld.snapshot, nourishmentKaiUPulse) : [], [state.playerLivestock, livingWorld.snapshot, nourishmentKaiUPulse]);
   const nourishmentActionSource = nourishmentActionId ? nourishmentPlants.find(plant => plant.sourceId === nourishmentActionId)
     ?? wildAnimals.find(animal => animal.animalId === nourishmentActionId && animal.status === 'wild')
@@ -1333,8 +1339,9 @@ export function PlayCampaign({
   const huntingSupport = useMemo(() => worldOverlayState.panelKey === 'satchel' || wildAnimalActionsOpen ? selectWildsHuntingSupport({
     state: state.playerLivestock, ownerReceizId, kaiUPulse: nourishmentKaiUPulse,
     companion: activeAsset ?? undefined, condition: huntingCondition,
+    admittedKeeperReceizId: nativeFoodReady && activeAsset && canOperateWildzCrewCard(activeAsset, ownerReceizId, crewCustody) ? ownerReceizId : undefined,
     toolWorld: livingWorld.snapshot ?? undefined
-  }) : { hunter: null, blocker: null }, [worldOverlayState.panelKey, wildAnimalActionsOpen, state.playerLivestock, ownerReceizId, nourishmentKaiUPulse, activeAsset, huntingCondition, livingWorld.snapshot]);
+  }) : { hunter: null, blocker: null }, [worldOverlayState.panelKey, wildAnimalActionsOpen, state.playerLivestock, ownerReceizId, nourishmentKaiUPulse, activeAsset, huntingCondition, livingWorld.snapshot, nativeFoodReady, crewCustody]);
   useEffect(() => {
     setNourishmentActionId(null); pendingHunt.current = null; setHuntPresentation(null);
   }, [ownerReceizId, state.siteSpace.spaceId]);
@@ -1763,7 +1770,7 @@ export function PlayCampaign({
   }, [activeAsset, activeCondition, activeGrove, kaiMoment.uPulse, multiplayer.remotePlayers.length]);
   const activeGrovePreviews = useMemo(() => {
     if (!activeGrove) return [];
-    const emission = wildsWorldSourceEmission(livingWorld.snapshot);
+    const emission = livingWorld.emissionForGrove(activeGrove.groveId);
     return activeGrove.availableActions.map((action) => previewWildsGroveAction({
       grove: activeGrove,
       action,
@@ -1773,7 +1780,7 @@ export function PlayCampaign({
       moment: kaiMoment,
       emission
     }));
-  }, [activeGrove, activeGroveMandate, kaiMoment, livingWorld.snapshot, ownerReceizId]);
+  }, [activeGrove, activeGroveMandate, kaiMoment, livingWorld, ownerReceizId]);
   const activeGroveActions = useMemo<WildsGroveExperienceAction[]>(() => activeGrovePreviews.map((preview) => ({
     action: preview.action,
     valid: preview.valid,
@@ -2253,11 +2260,34 @@ export function PlayCampaign({
   const canForage = () => interactionEnabled && !state.battle && modalOwner === 'none' && (canUseWorldStage() || worldOverlayState.panelKey === 'satchel');
   const eatFood = (item: WildsFoodItem) => {
     if (!canForage()||foodSaveInFlight.current||foodUnavailableForExchange(livingWorld.currentSource(),ownerReceizId,item.itemId)) return;
+    const route = wildsFoodConsumptionRoute({owner: ownerReceizId, itemId: item.itemId, nourishment: state.playerNourishment,
+      nativeSource: nativeFoodSourceView, world: livingWorld.currentSource(), hasNativeIdentity: Boolean(walletReadIdentityKey)});
+    if (route === 'wait') {
+      if (state.playerNourishment?.nativePendingFuelItemIds?.includes(item.itemId)) {
+        if (nativeFoodFuelSource) setState(current => recoverWildsNativeAdmittedFoodFuel(current, nativeFoodFuelSource, ownerReceizId, readActionKaiUPulse()));
+        else void livingWorld.refresh();
+        showWorldFeedback('Meal accepted. Its fuel will settle when your body is ready.');
+      } else { showWorldFeedback('This native meal is waiting for your account’s identity.'); void livingWorld.refresh(); }
+      return;
+    }
     const pulse=readActionKaiUPulse();
     const attempt=rootWildsInputInKai({type:'eat-food',ownerReceizId,itemId:item.itemId,kaiUPulse:pulse},pulse);
     if(applyWildsInput(state,attempt)===state)return;
     beginWorldActionFeedback();
-    if(!livingWorld.currentSource()?.foodItems?.[item.itemId]){dispatch(attempt);return;}
+    if (route === 'native') {
+      foodSaveInFlight.current = true; setFoodSavePending(true);
+      const reserveMicroBreaths = projectPlayerBreathState(state, pulse).playerBreaths.reserveMicroBreaths;
+      void import('./wilds-native-world-source-client').then(({ consumeWildsNativeWorldFood }) => consumeWildsNativeWorldFood({ kind: 'food.consume', actorId: ownerReceizId, itemId: item.itemId, commandId: `native-eat:${item.itemId}`, kaiUPulse: pulse, reserveMicroBreaths })).then(result => {
+        if (nativeTradeLive.current.ownerReceizId !== ownerReceizId) throw Error('Reopen the eating account to recover this meal.');
+        const foodIds = wildsNativeFoodIds(result.replay), fuelRecovery = prepareWildsNativeFoodFuelRecovery(result.replay as unknown as import('./wildz-native-world-law').WildzNativeWorldReplay, ownerReceizId);
+        setNativeFoodSourceView({owner: ownerReceizId, sources: result.replay.foodSources as import('./wilds-nourishment').WildsNourishmentSources, animals: result.replay.animalSources as import('./wilds-livestock').WildsAnimalSources, foodIds, fuelRecovery});
+        setState(current => mergeWildsNativeFoodFuelDisplay(current, fuelRecovery, ownerReceizId, readActionKaiUPulse(), foodIds));
+        return nativeTradeLive.current.livingWorld.refresh();
+      }).catch(error => { showWorldFeedback(error instanceof Error ? error.message.replaceAll('_', ' ') : 'This meal could not be admitted.'); void livingWorld.refresh(); })
+        .finally(() => { foodSaveInFlight.current = false; setFoodSavePending(false); });
+      return;
+    }
+    if(route === 'local'){dispatch(attempt);return;}
     foodSaveInFlight.current=true;setFoodSavePending(true);
     void resourceExchange.consume(item.itemId).then(world=>{
       setState(current=>recoverWildsNativeFoodFuel(current,world,ownerReceizId,readActionKaiUPulse()));
@@ -2278,9 +2308,36 @@ export function PlayCampaign({
     setInspectedNourishmentId('sourceId' in source ? source.sourceId : source.animalId);
     setNourishmentActionId('sourceId' in source ? source.sourceId : source.animalId);
   };
+  const admitNativeFoodAction = async (step: Extract<import('./wildz-native-world-law').WildzNativeWorldStep, { kind: 'food.gather' | 'animal.hunt' | 'animal.capture' | 'animal.collect' }>) => {
+    if (nativeFoodActionPending.current) { showWorldFeedback('Your collection is being admitted.'); return; }
+    nativeFoodActionPending.current = true;
+    const expectedOwner = ownerReceizId, expectedKey = walletReadIdentityKey;
+    try {
+      const { createActiveWildsNativeWorldContext, gatherWildsNativeWorldFood, prepareWildsNativeWorldCardSource } = await import('./wilds-native-world-source-client');
+      const context = await createActiveWildsNativeWorldContext(step), cardSources = [], cardRecoveryProofs = [];
+      if (step.kind === 'animal.hunt' && step.hunter.kind === 'creature') {
+        const source = await prepareWildsNativeWorldCardSource(step.hunter.asset, expectedOwner);
+        cardSources.push(source.predecessor);
+        if (source.recovery) cardRecoveryProofs.push(source.recovery);
+      }
+      const result = await gatherWildsNativeWorldFood(step, context, cardSources, cardRecoveryProofs);
+      if (nativeTradeLive.current.ownerReceizId !== expectedOwner || nativeTradeLive.current.walletReadIdentityKey !== expectedKey) throw Error('Reopen the collecting account to recover this collection.');
+      const livestock = result.replay.livestock as Record<string, import('./wilds-livestock').WildsLivestockState>;
+      const foodIds = wildsNativeFoodIds(result.replay), fuelRecovery = prepareWildsNativeFoodFuelRecovery(result.replay as unknown as import('./wildz-native-world-law').WildzNativeWorldReplay, expectedOwner);
+      setNativeFoodSourceView({ owner: expectedOwner, sources: result.replay.foodSources as import('./wilds-nourishment').WildsNourishmentSources, animals: result.replay.animalSources as import('./wilds-livestock').WildsAnimalSources, foodIds, fuelRecovery });
+      setState(current => { const projected = mergeWildsNativeFoodFuelDisplay(current, fuelRecovery, expectedOwner, readActionKaiUPulse(), foodIds); return { ...projected,
+        playerNourishment: reconcileWildsNourishmentCustody(projected.playerNourishment, result.record.checkpoint.projection, expectedOwner),
+        ...(livestock[expectedOwner] ? { playerLivestock: mergeWildsNativeLivestockDisplay(projected.playerLivestock, livestock[expectedOwner]) } : {}) }; });
+      await nativeTradeLive.current.livingWorld.refresh();
+      showWorldFeedback('Collected · your native source and wallet inventory are updated.');
+    } catch (error) {
+      pendingHunt.current = null;
+      showWorldFeedback(error instanceof Error ? error.message : 'Collection could not be admitted.');
+    } finally { nativeFoodActionPending.current = false; }
+  };
   const gatherFood = (plant: WildsNourishmentPlantProjection) => {
     if (!canForage()) return;
-    const actionKai = readActionKaiUPulse(), crop = wildsNourishmentSourceAt(plant, state.playerNourishment?.sources[plant.sourceId], actionKai);
+    const actionKai = readActionKaiUPulse(), crop = wildsNourishmentSourceAt(plant, visibleFoodSources?.[plant.sourceId], actionKai);
     if (foodPackFull) { inspectNourishment(plant); showWorldFeedback('Your food pack is full. Eat a portion before gathering more.'); return; }
     if (!crop.remaining || Math.hypot(state.player.x - plant.position.x, state.player.z - plant.position.z) > WILDS_NOURISHMENT_GATHER_REACH
       || Math.abs(verticalTraversalRef.current.worldY - plant.position.y) > WILDS_NOURISHMENT_VERTICAL_REACH) {
@@ -2292,14 +2349,17 @@ export function PlayCampaign({
       const nourishment = reconcileWildsNourishmentCustody(current.playerNourishment, livingWorld.currentSource(), ownerReceizId);
       return nourishment === current.playerNourishment ? current : { ...current, playerNourishment: nourishment };
     });
-    dispatch({ type: 'gather-food', ownerReceizId, sourceId: plant.sourceId, expectedSourceHead: crop.head, kaiUPulse: actionKai, verticalWorldY: verticalTraversalRef.current.worldY });
+    if (nativeFoodReady) {
+      void admitNativeFoodAction({ kind: 'food.gather', actorId: ownerReceizId, sourceId: plant.sourceId, expectedSourceHead: crop.head, kaiUPulse: actionKai, player: { ...state.player, y: verticalTraversalRef.current.worldY }, spaceId: state.siteSpace.spaceId });
+    } else dispatch({ type: 'gather-food', ownerReceizId, sourceId: plant.sourceId, expectedSourceHead: crop.head, kaiUPulse: actionKai, verticalWorldY: verticalTraversalRef.current.worldY });
   };
-  const huntAnimal = (animal: WildsWildAnimalProjection) => {
+  const huntAnimal = (animal: WildsWildAnimalProjection,toolOnly=false) => {
     if (!canForage()) return;
     if (foodPackFull) { showWorldFeedback('Your food pack is full. Eat a portion before hunting.'); return; }
     const actionKai = readActionKaiUPulse();
     const support = selectWildsHuntingSupport({ state: state.playerLivestock, ownerReceizId, kaiUPulse: actionKai,
-      companion: activeAsset ?? undefined, condition: activeAsset ? projectWildsRestedCompanionCondition(state, actionKai, activeAsset.id) : undefined, toolWorld: livingWorld.snapshot ?? undefined });
+      companion: toolOnly?undefined:activeAsset ?? undefined, condition: !toolOnly&&activeAsset ? projectWildsRestedCompanionCondition(state, actionKai, activeAsset.id) : undefined,
+      admittedKeeperReceizId: nativeFoodReady && activeAsset && canOperateWildzCrewCard(activeAsset, ownerReceizId, crewCustody) ? ownerReceizId : undefined, toolWorld: livingWorld.snapshot ?? undefined });
     if (!support.hunter) { showWorldFeedback(support.blocker ?? 'Choose a ready companion or equip an axe.'); return; }
     const motion = projectWildsWildAnimalPosition(animal, actionKai), position = motion.position;
     if (Math.hypot(state.player.x - position.x, state.player.z - position.z) > WILDS_ANIMAL_INTERACTION_REACH
@@ -2310,7 +2370,12 @@ export function PlayCampaign({
       from: { x: state.player.x + (support.hunter.kind === 'creature' ? -1.08 : 0), y: verticalTraversalRef.current.worldY + .7, z: state.player.z + (support.hunter.kind === 'creature' ? .42 : 0) },
       position, heading: motion.heading, gait: motion.gait, pose: motion.pose };
     setNourishmentActionId(null);
-    dispatch({ type: 'hunt-animal', ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: actionKai, verticalWorldY: verticalTraversalRef.current.worldY,
+    if (nativeFoodReady) {
+      const hunter = support.hunter.kind === 'tool' ? { kind: 'tool' as const, world: livingWorld.currentSource() }
+        : activeAsset ? { kind: 'creature' as const, asset: activeAsset, condition: projectWildsRestedCompanionCondition(state, actionKai, activeAsset.id), abilityIndex: support.hunter.abilityIndex } : null;
+      if (!hunter) { pendingHunt.current = null; showWorldFeedback('Choose a ready companion or equip an axe.'); return; }
+      void admitNativeFoodAction({ kind: 'animal.hunt', actorId: ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: actionKai, hunter, player: { ...state.player, y: verticalTraversalRef.current.worldY }, spaceId: state.siteSpace.spaceId });
+    } else dispatch({ type: 'hunt-animal', ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: actionKai, verticalWorldY: verticalTraversalRef.current.worldY,
       hunter: support.hunter, toolWorld: livingWorld.snapshot ?? undefined });
   };
   const captureLivestock = (animal: WildsWildAnimalProjection) => {
@@ -2321,7 +2386,8 @@ export function PlayCampaign({
       || Math.abs(verticalTraversalRef.current.worldY - position.y) > 1.8) { showWorldFeedback('Move within reach on the same ground to capture livestock.'); return; }
     beginWorldActionFeedback();
     setNourishmentActionId(null);
-    dispatch({ type: 'capture-livestock', ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: actionKai, verticalWorldY: verticalTraversalRef.current.worldY, shelterId: livestockShelter.shelterId, husbandryWorld: livingWorld.snapshot });
+    if (nativeFoodReady) void admitNativeFoodAction({ kind: 'animal.capture', actorId: ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: actionKai, shelterId: livestockShelter.shelterId, player: { ...state.player, y: verticalTraversalRef.current.worldY }, spaceId: state.siteSpace.spaceId });
+    else dispatch({ type: 'capture-livestock', ownerReceizId, animalId: animal.animalId, expectedAnimalHead: animal.head, kaiUPulse: actionKai, verticalWorldY: verticalTraversalRef.current.worldY, shelterId: livestockShelter.shelterId, husbandryWorld: livingWorld.snapshot });
   };
   const collectLivestockFood = (animal: WildsOwnedLivestockProjection) => {
     if (!canForage() || !livingWorld.snapshot) return;
@@ -2330,7 +2396,71 @@ export function PlayCampaign({
       || Math.abs(verticalTraversalRef.current.worldY - animal.position.y) > 1.8) { showWorldFeedback('Approach your farm to collect its produce.'); return; }
     beginWorldActionFeedback();
     setNourishmentActionId(null);
-    dispatch({ type: 'collect-livestock', ownerReceizId, animalId: animal.animalId, kaiUPulse: readActionKaiUPulse(), husbandryWorld: livingWorld.snapshot });
+    if (nativeFoodReady) void admitNativeFoodAction({ kind: 'animal.collect', actorId: ownerReceizId, animalId: animal.animalId, kaiUPulse: readActionKaiUPulse(), player: { ...state.player, y: verticalTraversalRef.current.worldY }, spaceId: state.siteSpace.spaceId });
+    else dispatch({ type: 'collect-livestock', ownerReceizId, animalId: animal.animalId, kaiUPulse: readActionKaiUPulse(), husbandryWorld: livingWorld.snapshot });
+  };
+
+  const jumpPlayer = () => {
+    if(!canUseWorldStage()||state.battle||state.playerBreaths?.mode==='bed'||state.playerBreaths?.mode==='sleep')return;
+    if(aerialStateRef.current.mode!=='ground'||aquaticPresentation.mode==='swim'){showWorldFeedback('Land on a dry surface to jump.');return;}
+    const vertical=verticalTraversalRef.current;
+    if(vertical.layer==='ground')vertical.worldY=state.siteSpace.position.y;
+    const result=requestWildsJump(vertical,projectPlayerBreathState(state,readActionKaiUPulse()).energy);
+    if(!result.ok)showWorldFeedback(result.reason);
+  };
+  const usePlayerHand = (hand:WildsPlayerHand,intent:WildsPlayerHandIntent) => {
+    if(!canUseWorldStage()||state.battle||state.playerBreaths?.mode==='bed'||state.playerBreaths?.mode==='sleep')return;
+    const now=performance.now();
+    if(!beginWildsHandAction(handActionsRef.current,hand,intent,now))return;
+    handActionsRef.current[hand]!.heading=cameraHeadingRef.current;
+    const actionKai=readActionKaiUPulse(), position={x:state.player.x,y:verticalTraversalRef.current.worldY,z:state.player.z};
+    const actor={...position,spaceId:state.siteSpace.spaceId,heading:cameraHeadingRef.current};
+    const candidates:Array<{id:string;x:number;y:number;z:number;spaceId:string;qualified:boolean;run:()=>void}>=[];
+    const actionWorld=livingWorld.currentSource();
+    const creationCommand=actionWorld&&(intent==='grab'||!heldCreationEquipment||heldCreationEquipment.hand===hand)?prepareCreationHandAction({world:actionWorld,actorId:ownerReceizId,position,spaceId:actor.spaceId,heading:actor.heading,kaiUPulse:actionKai,operationId:`creation:hand:${crypto.randomUUID()}`,intent}):null;
+    if(creationCommand&&actionWorld){
+      const source=actionWorld.creations![creationCommand.actionRequest.instanceId],nodePosition=creationNodePoses(source.command.definition,source.instance.pose).get(creationCommand.actionRequest.nodeId)!.position;
+      candidates.push({...nodePosition,id:creationCommand.commandId,spaceId:actor.spaceId,qualified:true,run:()=>{
+        const pending=pendingCreationHand.current;
+        if(pending&&pending.ownerId===ownerReceizId&&!livingWorld.currentSource()?.constructionCommandReceipts[pending.operationId]){showWorldFeedback('Your last hand action is still being saved. Wait for confirmation before trying again.');return;}
+        const exact=withWildsWorldCommandKai(creationCommand,createKaiTemporalRoot(deriveKaiKlokMomentFromUPulse({uPulse:actionKai,authority:livingWorld.mode==='receiz_live'||livingWorld.mode==='kai_live'?'world':'local'})));
+        pendingCreationHand.current={operationId:exact.commandId,ownerId:ownerReceizId};
+        let prepared=false;
+        void livingWorld.admitCreationAction(exact,async()=>{
+          const current=livingWorld.currentSource(),scope=creationRuntime.current?.environment(),currentPosition=creationRuntime.current?.position();
+          if(!current||scope?.ownerId!==ownerReceizId||scope.spaceId!==exact.spaceId||!currentPosition||Math.hypot(currentPosition.x-position.x,currentPosition.y-position.y,currentPosition.z-position.z)>.2||creationWorldActorHead(current,ownerReceizId)!==exact.actionRequest.expectedHeads[`actor:${ownerReceizId}`])throw Error('Your position or the target changed. Face it and try again.');
+          prepared=true;
+        }).then(async()=>{
+          if(creationRuntime.current?.environment().ownerId!==ownerReceizId)return;
+          await localCreation.controller.restore();
+          if(intent==='grab'){setEquipmentHand(hand);rememberWildsEquipmentHand(ownerReceizId,hand);}
+          pendingCreationHand.current=null;
+          showWorldFeedback(intent==='grab'?'Weapon equipped. Tap this hand to strike.':'Weapon strike landed.');
+        }).catch(error=>{
+          const admitted=Boolean(livingWorld.currentSource()?.constructionCommandReceipts[exact.commandId]);
+          if(!prepared||admitted)pendingCreationHand.current=null;
+          showWorldFeedback(admitted?'Your hand action was saved. The view is catching up.':prepared?'Your hand action could not be confirmed yet. It is held to prevent a duplicate.':error instanceof Error?error.message.replaceAll('_',' '):'The target changed. Try again.');
+        });
+      }});
+    }
+    if(intent==='grab'){
+      for(const plant of nourishmentPlants){const crop=wildsNourishmentSourceAt(plant,visibleFoodSources?.[plant.sourceId],actionKai);candidates.push({...plant.position,id:plant.sourceId,spaceId:'wildz.space.outer.v1',qualified:crop.valid&&crop.remaining>0&&!foodPackFull,run:()=>gatherFood(plant)});}
+      for(const animal of ownedLivestock)candidates.push({...animal.position,id:animal.animalId,spaceId:animal.spaceId,qualified:animal.canProduce&&!foodPackFull,run:()=>collectLivestockFood(animal)});
+      if(state.siteSpace.spaceId==='wildz.space.outer.v1'){
+        const region=wildsResourceRegionForPosition(state.player);
+        for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)for(const source of projectWildsResourceRegion(region.x+dx,region.z+dz)){
+          const harvested=livingWorld.snapshot?.harvestedSources[source.sourceId],available=projectWildsResourceAvailability(source,{admittedHarvestedCapacity:harvested?.harvestedCapacity??0,lastHarvestKaiPulse:harvested?.lastHarvestKaiPulse??'0',currentKaiPulse:String(actionKai)});
+          const partner=source.kind==='hay'||Boolean(selectWildsResourceWorkPartner(state.inventory,state.adventureConditions,source.requirements.creature,activeAsset?.id));
+          candidates.push({x:source.position.x,y:wildsTerrainElevation(source.position.x,source.position.z),z:source.position.z,id:source.sourceId,spaceId:'wildz.space.outer.v1',qualified:available.availableCapacity>0&&!available.clockPending&&partner&&!livingWorld.pendingCommand,run:()=>{void gatherStewardResource(source);}});
+        }
+      }
+    }else{
+      const support=selectWildsHuntingSupport({state:state.playerLivestock,ownerReceizId,kaiUPulse:actionKai,toolWorld:livingWorld.snapshot??undefined});
+      for(const animal of wildAnimals){const motion=projectWildsWildAnimalPosition(animal,actionKai);candidates.push({...motion.position,id:animal.animalId,spaceId:'wildz.space.outer.v1',qualified:animal.status==='wild'&&support.hunter?.kind==='tool'&&!foodPackFull,run:()=>huntAnimal(animal,true)});}
+    }
+    const target=selectWildsHandTarget(actor,candidates,3);
+    if(target){target.run();return;}
+    showWorldFeedback(intent==='grab'?'Reach toward your weapon, ripe food, ready farm produce, or a resource your crew can gather.':'Strike ready. Hold a hand near your weapon to equip it, then face an allowed target within reach.');
   };
 
   const dispatchLayeredSearch = (point: { x: number; z: number; surfaceWorldY?: number }, fromJourney = false) => {
@@ -3340,6 +3470,8 @@ export function PlayCampaign({
               aerialCapabilities={activeTraversalCapabilities}
               aerialStateRef={aerialStateRef}
               verticalTraversalRef={verticalTraversalRef}
+              handActionsRef={handActionsRef}
+              heldCreationEquipment={heldCreationEquipment}
               verticalIntentRef={verticalIntentRef}
               horizontalAllowedRef={horizontalAllowedRef}
               flightEndurancePotential={traversalPotentials.flightEndurance}
@@ -3525,7 +3657,15 @@ export function PlayCampaign({
               stewardPhiAwards={stewardPhiAwards}
               resourceLots={availableWalletResourceLots}
               resourceCards={resourceExchange.cards}
-              onSendAsset={sendWalletAsset}
+              onSendAsset={nativeWalletTrade.sendGift}
+              walletGifts={nativeWalletTrade.gifts}
+              onAcceptGift={nativeWalletTrade.approveAgreement}
+              onRecoverGift={nativeWalletTrade.recoverAgreement}
+              onProposeTrade={proposeWalletTrade}
+              incomingTrades={walletTradeInbox}
+              onApproveTrade={nativeWalletTrade.approveAgreement}
+              onRecoverTrade={nativeWalletTrade.recoverAgreement}
+              nativeTradeResults={nativeWalletTrade.exchangeResults}
               publicUsername={walletPublicUsername}
               state={walletController}
               onPrepareCard={(asset) => onPrepareCard(asset, createWildsPlayerVault({
@@ -3616,6 +3756,8 @@ export function PlayCampaign({
               onGatherHay={() => gatherNearestStewardResource("gather")}
             /> : null}
             <WildzWorldControls
+              onJump={state.playerBreaths?.mode==='bed'||state.playerBreaths?.mode==='sleep'?undefined:jumpPlayer}
+              onHandAction={state.playerBreaths?.mode==='bed'||state.playerBreaths?.mode==='sleep'?undefined:usePlayerHand}
               onOpenCreation={()=>{
                 continuousBuilder.close();burrowBuilder.close();dispatchStageOverlay({type:'dismiss'});
                 setCreationContext({worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId,pose:{position:{x:state.player.x+3,y:state.siteSpace.position.y,z:state.player.z},yaw:0},budget:{...stewardMaterials},techniques:[],quality:qualityProfile.tier==='low'?'low':'high'});
@@ -3875,7 +4017,7 @@ export function PlayCampaign({
         onAction={(action) => {
           const preview = activeGrovePreviews.find((candidate) => candidate.action === action);
           if (!preview?.valid || groveBusyAction) return;
-          const emission = wildsWorldSourceEmission(livingWorld.snapshot);
+          const emission = livingWorld.emissionForGrove(activeGrove.groveId);
           const nextGrove = admitWildsGroveAction({ grove: activeGrove, preview });
           const nextEmission = admitWildsEmissionOutcome({
             emission,

@@ -467,7 +467,8 @@ export function beginCreatureVoiceStream(
       if (settled || signal.aborted) return;
       const graph = await ensureGraph();
       try {
-        const rendered = await renderLocalNeuralVoice(phrase, neural, speakingMoment.uPulse);
+        const rendered = await renderLocalNeuralVoice(phrase, neural, speakingMoment.uPulse,signal);
+        if(settled||signal.aborted)return;
         const samples = Float32Array.from(conditionNeuralVoice(
           rendered.samples,
           rendered.sampleRate,
@@ -478,6 +479,7 @@ export function beginCreatureVoiceStream(
         buffer.copyToChannel(samples, 0);
         scheduleBuffer(buffer, graph, "receiz-proof-neural-offline");
       } catch {
+        if(settled||signal.aborted)return;
         // The proof instrument is an always-local acoustic floor. This affects
         // neither authored text nor memory and is never surfaced as a failure.
         const buffer = synthesizeProofVoice(graph.context, phrase, neural, speakingMoment, performanceEnrichment);

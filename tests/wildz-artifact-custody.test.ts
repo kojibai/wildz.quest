@@ -85,6 +85,15 @@ test("rejects a one-byte substitution before exposing payload", async () => {
   assert.equal(exposed, true);
 });
 
+test("a signed conditional trade candidate cannot expose operational payload without the complete accepted group", async () => {
+  const value = await fixture();
+  const bundle = value.sealedArtifact.verification.bundle as Record<string,unknown>;
+  bundle.nativeRecordSeal = {atomicOwnershipTransition:{schema:"receiz.native-ownership-atomic-handoff.v128",basis:{}}};
+  await assert.rejects(openWildzArtifact(new Blob([value.artifactBytes.slice().buffer]),"candidate.receiz", {
+    async verifyAndOpen(){return value.opened;}, async download(){throw Error("unused");}
+  }), /wildz_native_trade_recovery_required/);
+});
+
 test("rejects truncated and concatenated enclosing artifacts", async () => {
   const value = await fixture();
   const port: WildzArtifactPort = {

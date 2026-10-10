@@ -57,6 +57,12 @@ export type WildsNourishmentState = Readonly<{
   importedItems?: Readonly<Record<string, WildsImportedFood>>;
   /** Derived from admitted custody; source items remain intact for replay/history. */
   unavailableItemIds?: readonly string[];
+  /** Owner-bound saved routing only: these exact items may never use local
+   * consumption. This marker supplies no native source or custody authority. */
+  nativeItemIds?: readonly string[];
+  /** Accepted native consumption awaiting local body credit. These portions
+   * cannot be eaten or packaged again; a saved ID never authorizes fuel. */
+  nativePendingFuelItemIds?: readonly string[];
 }>;
 export const WILDS_NOURISHMENT_GATHER_REACH = 2.6;
 export const WILDS_NOURISHMENT_VERTICAL_REACH = 1.8;
@@ -205,8 +211,10 @@ function validImportedFood(value:unknown):value is WildsImportedFood {
 
 /** Restores local evidence structurally; it provides no Native admission or cross-player authenticity. */
 export function restoreWildsNourishmentState(value: unknown, ownerReceizId: string | undefined): WildsNourishmentState | undefined {
-  if (!validOwner(ownerReceizId) || !record(value) || !exactKeys(value, ['schema', 'ownerReceizId', 'lastKaiUPulse', 'sources', 'items', ...(value.animalFoodSources === undefined ? [] : ['animalFoodSources']), ...(value.importedItems === undefined ? [] : ['importedItems']), ...(value.unavailableItemIds===undefined?[]:['unavailableItemIds'])])
-    || value.schema !== 'wildz.player-nourishment.v1' || value.ownerReceizId !== ownerReceizId || !integer(value.lastKaiUPulse) || !record(value.sources) || !record(value.items)) return undefined;
+  if (!validOwner(ownerReceizId) || !record(value) || !exactKeys(value, ['schema', 'ownerReceizId', 'lastKaiUPulse', 'sources', 'items', ...(value.animalFoodSources === undefined ? [] : ['animalFoodSources']), ...(value.importedItems === undefined ? [] : ['importedItems']), ...(value.unavailableItemIds===undefined?[]:['unavailableItemIds']), ...(value.nativeItemIds===undefined?[]:['nativeItemIds']), ...(value.nativePendingFuelItemIds===undefined?[]:['nativePendingFuelItemIds'])])
+    || value.schema !== 'wildz.player-nourishment.v1' || value.ownerReceizId !== ownerReceizId || !integer(value.lastKaiUPulse) || !record(value.sources) || !record(value.items)
+    || value.nativeItemIds !== undefined && !Array.isArray(value.nativeItemIds)
+    || value.nativePendingFuelItemIds !== undefined && !Array.isArray(value.nativePendingFuelItemIds)) return undefined;
   const sources: Record<string, WildsNourishmentSourceState> = {}, items: Record<string, WildsFoodItem> = {};
   const animalFoodSources: Record<string, WildsAnimalFoodReceipt> = {};
   const importedItems: Record<string, WildsImportedFood> = {};
@@ -225,7 +233,9 @@ export function restoreWildsNourishmentState(value: unknown, ownerReceizId: stri
     if (validItem(item, ownerReceizId, sources, value.lastKaiUPulse, animalFoodSources, importedItems) && key === item.itemId) items[key] = { ...item };
   }
   const unavailableItemIds=Array.isArray(value.unavailableItemIds)?[...new Set(value.unavailableItemIds.filter((id):id is string=>typeof id==='string' && Boolean(items[id])))].sort():[];
-  return { schema: 'wildz.player-nourishment.v1', ownerReceizId, lastKaiUPulse: value.lastKaiUPulse, sources, items, animalFoodSources, ...(value.importedItems===undefined?{}:{importedItems}),...(value.unavailableItemIds===undefined?{}:{unavailableItemIds}) };
+  const nativeItemIds=Array.isArray(value.nativeItemIds)?[...new Set(value.nativeItemIds.filter((id):id is string=>typeof id==='string' && Boolean(items[id])))].sort():[];
+  const nativePendingFuelItemIds=Array.isArray(value.nativePendingFuelItemIds)?[...new Set(value.nativePendingFuelItemIds.filter((id):id is string=>typeof id==='string' && nativeItemIds.includes(id) && Boolean(items[id]) && items[id].consumedKaiUPulse===undefined))].sort():[];
+  return { schema: 'wildz.player-nourishment.v1', ownerReceizId, lastKaiUPulse: value.lastKaiUPulse, sources, items, animalFoodSources, ...(value.importedItems===undefined?{}:{importedItems}),...(value.unavailableItemIds===undefined?{}:{unavailableItemIds}),...(value.nativeItemIds===undefined?{}:{nativeItemIds}),...(value.nativePendingFuelItemIds===undefined?{}:{nativePendingFuelItemIds}) };
 }
 export type WildsNourishmentRejection = 'owner-mismatch' | 'stale-time' | 'unknown-source' | 'invalid-source' | 'out-of-reach' | 'wrong-space' | 'stale-source' | 'depleted' | 'pack-full' | 'already-gathered' | 'missing-item' | 'already-consumed' | 'fuel-full' | 'digesting';
 function reject(state: WildsNourishmentState, reason: WildsNourishmentRejection) {
@@ -270,7 +280,7 @@ export function gatherWildsNourishment(input: {
   return { ok: true as const, reason: undefined, plant, item, sourceState, previousSourceHead: crop.head,
     state: { ...state, lastKaiUPulse: input.kaiUPulse, sources: { ...state.sources, [plant.sourceId]: sourceState }, items: { ...state.items, [itemId]: item } } };
 }
-export function consumeWildsNourishment(input: { state: WildsNourishmentState; ownerReceizId: string; itemId: string; kaiUPulse: number; reserveMicroBreaths: number }) {
+export function consumeWildsNourishment(input: { state: WildsNourishmentState; ownerReceizId: string; itemId: string; kaiUPulse: number; reserveMicroBreaths: number; fuelMicroBreathLimit?: number }) {
   const { state } = input;
   if (!validOwner(input.ownerReceizId) || state.ownerReceizId !== input.ownerReceizId) return reject(state, 'owner-mismatch');
   if (!integer(input.kaiUPulse) || input.kaiUPulse < state.lastKaiUPulse) return reject(state, 'stale-time');
@@ -278,8 +288,8 @@ export function consumeWildsNourishment(input: { state: WildsNourishmentState; o
   if (!item || state.unavailableItemIds?.includes(input.itemId) || !validItem(item, input.ownerReceizId, state.sources, state.lastKaiUPulse, state.animalFoodSources, state.importedItems)) return reject(state, 'missing-item');
   if (item.consumedKaiUPulse !== undefined) return reject(state, 'already-consumed');
   const plant = describeWildsFoodItem(item, state)!;
-  if (!integer(input.reserveMicroBreaths, PLAYER_BREATH_CAPACITY_MICRO)) return reject(state, 'invalid-source');
-  const amount = Math.min(PLAYER_BREATH_CAPACITY_MICRO - input.reserveMicroBreaths, Math.round(plant.fuelBreaths * 1_000_000));
+  if (!integer(input.reserveMicroBreaths, PLAYER_BREATH_CAPACITY_MICRO) || input.fuelMicroBreathLimit!==undefined && !integer(input.fuelMicroBreathLimit, PLAYER_BREATH_CAPACITY_MICRO)) return reject(state, 'invalid-source');
+  const amount = Math.min(PLAYER_BREATH_CAPACITY_MICRO - input.reserveMicroBreaths, Math.round(plant.fuelBreaths * 1_000_000), input.fuelMicroBreathLimit ?? PLAYER_BREATH_CAPACITY_MICRO);
   if (!amount) return reject(state, 'fuel-full');
   if (wildsNourishmentDigestionAt(state, input.kaiUPulse).consumedFuelMicroBreaths + amount > WILDS_NOURISHMENT_DIGESTION_FUEL_MICRO) return reject(state, 'digesting');
   return { ok: true as const, reason: undefined, item, plant, fuelBreaths: amount / 1_000_000,
@@ -326,7 +336,7 @@ export function retainWildsAnimalFoodSources(state: WildsNourishmentState | unde
   return { ...state, animalFoodSources, items };
 }
 export function availableWildsFood(state: WildsNourishmentState | undefined) {
-  const excluded=new Set(state?.unavailableItemIds);
+  const excluded=new Set([...(state?.unavailableItemIds??[]),...(state?.nativePendingFuelItemIds??[])]);
   return state ? Object.values(state.items).filter(item => item.consumedKaiUPulse === undefined && !excluded.has(item.itemId))
     .sort((a, b) => a.gatheredKaiUPulse - b.gatheredKaiUPulse || a.itemId.localeCompare(b.itemId)) : [];
 }
@@ -396,7 +406,21 @@ export function mergeWildsImportedNourishment(preferred:WildsNourishmentState|un
         && (current.consumedKaiUPulse===undefined || alternate.consumedKaiUPulse>current.consumedKaiUPulse))items[id]=alternate;
     }
   }
-  if(!Object.keys(importedItems).length)return preferred;
+  const nativeItemIds=[...new Set([...(preferred.nativeItemIds??[]),...(other.nativeItemIds??[])])].filter(id=>Boolean(items[id])).sort();
+  let nativeConsumptionChanged=false;
+  for(const id of nativeItemIds){
+    const current=items[id],alternate=other.items[id];
+    if(!current || alternate?.consumedKaiUPulse===undefined)continue;
+    const original=(item:WildsFoodItem)=>{const value={...item};delete value.consumedKaiUPulse;delete value.consumedFuelMicroBreaths;return value;};
+    if(canonicalPortableCardJson(original(current))===canonicalPortableCardJson(original(alternate))
+      && (current.consumedKaiUPulse===undefined || alternate.consumedKaiUPulse>current.consumedKaiUPulse)){
+      items[id]=alternate;nativeConsumptionChanged=true;
+    }
+  }
+  const nativeClassification=nativeItemIds.length || preferred.nativeItemIds!==undefined || other.nativeItemIds!==undefined ? {nativeItemIds}:{};
+  const nativePendingFuelItemIds=[...new Set([...(preferred.nativePendingFuelItemIds??[]),...(other.nativePendingFuelItemIds??[])])].filter(id=>nativeItemIds.includes(id) && Boolean(items[id]) && items[id].consumedKaiUPulse===undefined).sort();
+  const nativePending=nativePendingFuelItemIds.length || preferred.nativePendingFuelItemIds!==undefined || other.nativePendingFuelItemIds!==undefined ? {nativePendingFuelItemIds}:{};
+  if(!Object.keys(importedItems).length)return !nativeConsumptionChanged && canonicalPortableCardJson(nativeItemIds)===canonicalPortableCardJson(preferred.nativeItemIds??[]) && canonicalPortableCardJson(nativePendingFuelItemIds)===canonicalPortableCardJson(preferred.nativePendingFuelItemIds??[]) ? preferred : {...preferred,lastKaiUPulse:nativeConsumptionChanged?Math.max(preferred.lastKaiUPulse,other.lastKaiUPulse):preferred.lastKaiUPulse,items,...nativeClassification,...nativePending};
   return {...preferred,lastKaiUPulse:Math.max(preferred.lastKaiUPulse,other.lastKaiUPulse),items,importedItems,
-    unavailableItemIds:[...new Set([...(preferred.unavailableItemIds??[]),...(other.unavailableItemIds??[])])].sort()};
+    unavailableItemIds:[...new Set([...(preferred.unavailableItemIds??[]),...(other.unavailableItemIds??[])])].sort(),...nativeClassification,...nativePending};
 }

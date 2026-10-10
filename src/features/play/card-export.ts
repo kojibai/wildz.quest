@@ -1,3 +1,5 @@
+import { PNG_SIGNATURE, PROOF_CHUNK_TYPE, parsePng, uint32Bytes, concatBytes, imageDigest, type PortableCardPngProof } from "./portable-card-png-proof";
+export { readPortableCardFromPng, verifyPortableCardPng } from "./portable-card-png-proof";
 import type { WildzGameImageKind } from "../../lib/receiz/wildz-game-image-export";
 import { verifyAndAdmitWildsCard, retainAdmittedWildsInventory } from "./admitted-inventory";
 import { createRetainedProofJson, freezeProofValue } from "./retained-proof-json";
@@ -31,11 +33,7 @@ import {
 } from "./prepared-card-artifact";
 import { normalizeWildsPlayerVaultInput, verifyWildsPlayerVault, type createWildsPlayerVault, type WildsPlayerVaultPayload } from "./wilds-player-vault";
 
-export type PortableCardPngProof = {
-  schema: "receiz.wilds_png_proof.v1" | "receiz.wilds_png_proof.v2";
-  imageDigest: string;
-  asset: PortableCardAsset;
-};
+export type { PortableCardPngProof } from "./portable-card-png-proof";
 
 export type PortableVaultPngProof = {
   schema: "receiz.wilds_vault_png_proof.v1" | "receiz.wilds_vault_png_proof.v2" | "receiz.wilds_vault_png_proof.v3";
@@ -58,8 +56,6 @@ export type WildsCardSendDraft = {
   filename: string;
 };
 
-const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
-const PROOF_CHUNK_TYPE = "rzCd";
 const VAULT_CHUNK_TYPE = "rzVt";
 const PROOF_OBJECT_CHUNK_TYPE = "rzPo";
 const WILDZ_PROOF_APPEND_CHUNK_TYPE = "rzWx";
@@ -249,54 +245,6 @@ export function renderWildsVaultSvg(assets: PortableCardAsset[]) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="vault-title vault-description"><title id="vault-title">Receiz Wilds Vault</title><desc id="vault-description">A portable showcase containing ${verified.length} offline-verifiable creature cards.</desc><defs><radialGradient id="vault-bg"><stop stop-color="#153f4f"/><stop offset="1" stop-color="#06141d"/></radialGradient><linearGradient id="vault-line"><stop stop-color="#71e8c3"/><stop offset=".5" stop-color="#f7c948"/><stop offset="1" stop-color="#ff72bf"/></linearGradient></defs><rect width="1200" height="900" rx="54" fill="url(#vault-bg)"/><rect x="22" y="22" width="1156" height="856" rx="40" fill="none" stroke="url(#vault-line)" stroke-width="5"/><text x="62" y="86" fill="#71e8c3" font-family="system-ui,sans-serif" font-size="17" font-weight="850" letter-spacing="5">RECEIZ · PROOF-SEALED COLLECTION</text><text x="62" y="150" fill="#fff" font-family="system-ui,sans-serif" font-size="54" font-weight="900">WILDS VAULT</text><text x="1138" y="146" text-anchor="end" fill="#f7c948" font-family="system-ui,sans-serif" font-size="42" font-weight="900">${verified.length}</text><text x="1138" y="175" text-anchor="end" fill="#94b2bc" font-family="system-ui,sans-serif" font-size="14">SEALED CARDS</text>${tiles}${verified.length > featured.length ? `<text x="600" y="824" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="18" font-weight="750">+ ${verified.length - featured.length} more cards sealed inside this image</text>` : ""}<text x="62" y="856" fill="#7896a1" font-family="ui-monospace,monospace" font-size="12">${xml(vaultDigest)}</text><text x="1138" y="856" text-anchor="end" fill="#71e8c3" font-family="system-ui,sans-serif" font-size="13" font-weight="800">OFFLINE RECOVERABLE · ONE IMAGE</text></svg>`;
 }
 
-type PngChunk = { type: string; data: Uint8Array };
-
-function uint32(bytes: Uint8Array, offset: number) {
-  return (((bytes[offset]! << 24) | (bytes[offset + 1]! << 16) | (bytes[offset + 2]! << 8) | bytes[offset + 3]!) >>> 0);
-}
-
-function uint32Bytes(value: number) {
-  return new Uint8Array([(value >>> 24) & 0xff, (value >>> 16) & 0xff, (value >>> 8) & 0xff, value & 0xff]);
-}
-
-function concatBytes(parts: readonly Uint8Array[]) {
-  const result = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
-  let offset = 0;
-  for (const part of parts) {
-    result.set(part, offset);
-    offset += part.length;
-  }
-  return result;
-}
-
-function parsePng(bytes: Uint8Array): PngChunk[] {
-  if (bytes.length < PNG_SIGNATURE.length || PNG_SIGNATURE.some((byte, index) => bytes[index] !== byte)) throw new Error("png_signature_invalid");
-  const chunks: PngChunk[] = [];
-  let offset = PNG_SIGNATURE.length;
-  let ended = false;
-  while (offset < bytes.length) {
-    if (offset + 12 > bytes.length) throw new Error("png_chunk_truncated");
-    const length = uint32(bytes, offset);
-    const end = offset + 12 + length;
-    if (end > bytes.length) throw new Error("png_chunk_truncated");
-    const typeBytes = bytes.slice(offset + 4, offset + 8);
-    const type = new TextDecoder().decode(typeBytes);
-    if (!/^[A-Za-z]{4}$/.test(type)) throw new Error("png_chunk_type_invalid");
-    const data = bytes.slice(offset + 8, offset + 8 + length);
-    const expectedCrc = uint32(bytes, offset + 8 + length);
-    if (crc32(typeBytes, data) !== expectedCrc) throw new Error(`png_crc_invalid:${type}`);
-    chunks.push({ type, data });
-    offset = end;
-    if (type === "IEND") {
-      ended = true;
-      break;
-    }
-  }
-  if (!ended || offset !== bytes.length) throw new Error("png_end_invalid");
-  if (!chunks.some((chunk) => chunk.type === "IHDR") || !chunks.some((chunk) => chunk.type === "IDAT")) throw new Error("png_critical_chunks_missing");
-  return chunks;
-}
-
 function makeChunk(type: string, data: Uint8Array) {
   const typeBytes = new TextEncoder().encode(type);
   return concatBytes([uint32Bytes(data.length), typeBytes, data, uint32Bytes(crc32(typeBytes, data))]);
@@ -316,14 +264,6 @@ export function readWildzPngPayloadChunks(source: Uint8Array, keyword: string) {
   return parsePng(source).filter(chunk => chunk.type === "tEXt")
     .map(chunk => new TextDecoder().decode(chunk.data)).filter(text => text.startsWith(prefix))
     .map(text => text.slice(prefix.length));
-}
-
-function imageDigest(chunks: readonly PngChunk[]) {
-  const basis = chunks
-    .filter((chunk) => chunk.type === "IHDR" || chunk.type === "PLTE" || chunk.type === "IDAT")
-    .map((chunk) => `${chunk.type}:${Array.from(chunk.data, (byte) => byte.toString(16).padStart(2, "0")).join("")}`)
-    .join("|");
-  return sha256PortableBasis(basis);
 }
 
 export type EmbeddedReceizProofObject = {
@@ -435,27 +375,6 @@ export function embedRoamingCardInPng(rendered: Uint8Array, asset: PortableCardA
     .filter(chunk => publicImageChunks.has(chunk.type))
     .map(chunk => makeChunk(chunk.type, chunk.data))]);
   return embedPortableCardInPng(pixels, asset);
-}
-
-export function readPortableCardFromPng(source: Uint8Array): PortableCardPngProof {
-  const chunks = parsePng(source);
-  const proofs = chunks.filter((chunk) => chunk.type === PROOF_CHUNK_TYPE);
-  if (proofs.length !== 1) throw new Error(proofs.length ? "wilds_png_proof_duplicate" : "wilds_png_proof_missing");
-  const decoded = JSON.parse(new TextDecoder().decode(proofs[0]!.data)) as Partial<PortableCardPngProof>;
-  if ((decoded.schema !== "receiz.wilds_png_proof.v1" && decoded.schema !== "receiz.wilds_png_proof.v2") || typeof decoded.imageDigest !== "string" || !decoded.asset || typeof decoded.asset !== "object") throw new Error("wilds_png_proof_invalid");
-  return decoded as PortableCardPngProof;
-}
-
-export function verifyPortableCardPng(source: Uint8Array): { ok: boolean; errors: string[]; asset: PortableCardAsset | null } {
-  try {
-    const chunks = parsePng(source);
-    const proof = readPortableCardFromPng(source);
-    const errors = [...verifyAnyWildsCard(proof.asset).errors];
-    if (proof.imageDigest !== imageDigest(chunks)) errors.push("png_image_digest_mismatch");
-    return { ok: errors.length === 0, errors, asset: errors.length ? null : proof.asset };
-  } catch (error) {
-    return { ok: false, errors: [error instanceof Error ? error.message : "wilds_png_proof_invalid"], asset: null };
-  }
 }
 
 export function embedPortableVaultInPng(source: Uint8Array, assets: PortableCardAsset[], player?: WildsPlayerVaultPayload) {

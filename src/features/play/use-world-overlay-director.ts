@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
+import {recordWildzBrowserLifecycle} from "../pwa/pwa-lifecycle";
 import {
   initialWorldOverlayState,
   reduceWorldOverlay,
@@ -20,6 +21,15 @@ export function useWorldOverlayDirector({
   const priorDismissSignal = useRef(dismissSignal);
   const panelOwnershipRef = useRef(false);
   const exclusiveOriginRef = useRef<HTMLElement | null>(null);
+  const priorPanel = useRef<string | null>(null);
+  const activePanel = state.exclusiveOwner !== "none" ? state.exclusiveOwner
+    : state.panelKey ?? (state.toolsOpen ? "tools" : state.drawerSnap !== "closed" ? "creature" : null);
+  useEffect(() => {
+    if (priorPanel.current === activePanel) return;
+    if (priorPanel.current) recordWildzBrowserLifecycle({event:"panel-close"});
+    if (activePanel) recordWildzBrowserLifecycle({event:"panel-open"});
+    priorPanel.current = activePanel;
+  }, [activePanel]);
   const dispatch = useCallback((event: WorldOverlayEvent) => {
     if (event.type === "panel") panelOwnershipRef.current = event.key !== null;
     else if (event.type === "dismiss" || event.type === "viewport-change" || event.type === "exclusive") panelOwnershipRef.current = false;

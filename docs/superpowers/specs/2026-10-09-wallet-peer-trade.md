@@ -1,5 +1,7 @@
 # Wallet peer trade implementation boundary
 
+> This audit records the stock 128 boundary before implementation. The coordinated additive v128 implementation now exists in source; see [the implementation and rollout record](../../developers/native-wallet-rollout.md). Production rollout and live qualification remain outstanding.
+
 Date: 2026-10-09. Source inspected: installed `@receiz/sdk` 128.0.0 and the Wildz adapters. This is a source audit; no live trade, funds movement, or custody transition was executed.
 
 ## Outcome
@@ -51,4 +53,4 @@ The returned member must have one exact `artifact.append` resource capability an
 
 Acceptance evidence must include successful Φ + creature + resource exchange, either peer's failed consent, stale heads, replay/concurrent confirmation, expiry, cancellation, and lost-response recovery. Every rejected case must prove unchanged native balances and ownership, not only unchanged UI state. Until this support exists, report trading as unavailable and keep direct gifts clearly marked as awaiting recipient acceptance.
 
-The remaining SDK and host changes are specified in the [native wallet and coupled trade executor implementation plan](./2026-10-09-native-wallet-executor.md). That plan is **not implemented**; safely returning `SOURCE_UNAVAILABLE` does not complete native Send or Trade support.
+The remaining SDK and host changes are specified in the [native wallet and coupled trade executor implementation plan](./2026-10-09-native-wallet-executor.md). That original plan has now been implemented in source through additive v128 APIs; see [the implementation and rollout record](../../developers/native-wallet-rollout.md). Production deployment and live qualification remain separate. Safely returning `SOURCE_UNAVAILABLE` does not establish working live Send or Trade support.

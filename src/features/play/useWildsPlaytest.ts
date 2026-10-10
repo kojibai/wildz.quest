@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createWildsPlaytestRecording, exportWildsPlaytest, markWildsPlaytest, recordWildsPlaytestFrame, recordWildsPlaytestLongTask, summarizeWildsPlaytest, summarizeWildsPlaytestActions, type WildsPlaytestAction, type WildsPlaytestOutcome } from "./wilds-playtest";
 
 import { listenWildsPlaytestEvents } from "./wilds-playtest-events";
+import {readWildzLifecycle} from "../pwa/pwa-lifecycle";
 
 const STORAGE_KEY = "wildz:local-playtest-enabled:v1";
 export function useWildsPlaytest() {
@@ -65,7 +66,9 @@ export function useWildsPlaytest() {
   }, [enabled]);
   const download = useCallback(() => {
     if (!enabled) return;
-    const blob = new Blob([JSON.stringify(exportWildsPlaytest(recording.current, longTasksSupported), null, 2)], { type: "application/json" });
+    let lifecycle:ReturnType<typeof readWildzLifecycle>=[];
+    try{lifecycle=readWildzLifecycle(localStorage);}catch{/* A diagnostic export never depends on storage. */}
+    const blob = new Blob([JSON.stringify({...exportWildsPlaytest(recording.current, longTasksSupported),lifecycle}, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;

@@ -276,7 +276,9 @@ export function createWildsWalletControllerDriver(input: {
         publish({ type: "transfer-stage-resolved", requestId: request.id, identityKey, authorityGeneration, projection });
       } catch (cause) {
         const code = cause && typeof cause === "object" && "code" in cause ? cause.code : null;
-        const message = code === "wilds_wallet_transfer_insufficient_value" ? "Your available PHI is lower than this amount. Edit the amount and try again."
+        const message = code === "wilds_wallet_transfer_insufficient_value" || code === "wilds_wallet_native_source_insufficient_phi" ? "Your available PHI is lower than this amount. Edit the amount and try again."
+          : code === "wilds_wallet_native_source_recipient_not_initialized" ? "Ask the recipient to open their Wildz wallet once, then review this send again."
+          : code === "wilds_wallet_native_source_source_unavailable" ? "Open your wallet again to finish initializing it, then retry this send."
           : code === "receiz_wallet_phi_scope_required" ? "This Receiz session cannot send PHI yet. Reconnect your Receiz ID and retry."
           : code === "wilds_wallet_receive_locator_expired" ? "This receiving QR has expired. Ask for a new QR or enter the recipient’s username."
           : undefined;

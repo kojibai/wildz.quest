@@ -61,7 +61,9 @@ test("first entry has no gender or explorer selection gate", () => {
 
 test("a Vault without a display name keeps its restored Receiz username visible in the game HUD", () => {
   const source = read("src/features/shell/WildzApp.tsx");
-  assert.match(source, /playerDisplayName=\{identity\.displayName \?\? `@\$\{ownerUsername\}`\}/);
+  assert.match(source, /playerDisplayName=\{ownerDisplayName \?\? `@\$\{ownerUsername\}`\}/);
+  assert.match(source, /savedProfileName && savedProfileName\.keyId === identity\?\.keyId/);
+  assert.match(source, /: identity\?\.displayName/);
 });
 
 test("every admitted identity stays in Wildz when delegated world authority is unavailable", () => {

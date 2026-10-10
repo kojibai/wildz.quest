@@ -163,6 +163,31 @@ test("wallet stored food omits consumed and unavailable portions", () => {
   assert.doesNotMatch(markup, /<strong>Wild vegetables<\/strong>/);
 });
 
+test("Ledger Resources uses the same available food, Honey units and packages as Assets", () => {
+  const { nourishment: gathered, meatLabel } = walletFoodFixture();
+  const fruit = Object.values(gathered.items).find(item => item.foodKind === "orchard-fruit")!;
+  const vegetables = Object.values(gathered.items).filter(item => item.foodKind === "wild-vegetable");
+  const nourishment = { ...gathered, items: { ...gathered.items, [fruit.itemId]: { ...fruit, consumedKaiUPulse: 101 } }, unavailableItemIds: vegetables.map(item => item.itemId) };
+  const resourceLot = {
+    schema: "wildz.resource-lot.v1", lotId: `wildz:resource:living-honey:${"a".repeat(64)}`, kind: "living-honey", quantity: 2, quality: 4,
+    ownerReceizId: "explorer", source: { groveId: "grove:one", groveSourceHead: `sha256:${"b".repeat(64)}`, groveAdmittedHead: `sha256:${"c".repeat(64)}`, operationId: "grove:one:harvest-honey:1", operationPlanDigest: `sha256:${"d".repeat(64)}`, kaiUPulse: 1 },
+    revision: 0, parentHead: null, transferable: true, authority: "source-proof-objects", head: `sha256:${"e".repeat(64)}`
+  } as const;
+  const resourceCards = [{ id: "package:one", title: "Farm supplies", summary: "2 vegetables · 1 timber", status: "packed" as const, transferable: true, unpackable: true, cancellable: false }];
+  const props = { publicUsername: "explorer", nourishment, resourceLots: [resourceLot], resourceCards, ...actions };
+  const assets = renderToStaticMarkup(createElement(WildsWalletTerminal, { ...props, state: state({ page: "assets" }) }));
+  const ledger = renderToStaticMarkup(createElement(WildsWalletTerminal, { ...props, state: state({ page: "ledger" }) }));
+  for (const markup of [assets, ledger]) assert.match(markup, /<span>Resources<\/span><b>6<\/b>/);
+  assert.match(ledger, /Wild fruit gathered/);
+  assert.match(ledger, /Wild berries gathered/);
+  assert.ok(ledger.includes(`${meatLabel} gathered`));
+  assert.match(ledger, /Living Honey gathered/);
+  assert.match(ledger, /2 exact units/);
+  assert.match(ledger, /Farm supplies/);
+  assert.doesNotMatch(ledger, /Wild vegetables gathered/);
+  assert.equal(ledger.includes(fruit.itemId), false);
+});
+
 test("wallet groups large exact custody by asset kind and never substitutes aggregate projection counts", () => {
   const card = initialPlayState.inventory[0]!;
   const materialLots = ["timber", "stone"].map((kind, index) => ({
@@ -220,13 +245,13 @@ test("terminal is one modal dialog with five named surfaces and fail-closed send
   assert.match(markup, /role="dialog"/);
   assert.match(markup, /aria-modal="true"/);
   assert.match(markup, />Wallet<\/h1>/);
-  for (const label of ["Overview", "Send", "Receive", "Assets", "Ledger"]) assert.match(markup, new RegExp(`>${label}<`));
+  for (const label of ["Overview", "Send", "Receive", "Assets", "Trade", "Ledger"]) assert.match(markup, new RegExp(`>${label}<`));
   assert.match(markup, /Sending is unavailable/);
   assert.doesNotMatch(markup, /Transfer complete/);
   assert.doesNotMatch(markup, /proofDigest|subjectId|ownerReceizId|accessToken/);
   assert.doesNotMatch(markup, /explorer-with-an-intentionally-long-coordinate/);
   assert.match(markup, /PUBLIC HANDLE NOT AVAILABLE/);
-  assert.match(markup, /RECEIZ V127 · PROOF-NATIVE CUSTODY/);
+  assert.match(markup, /RECEIZ V128 · PROOF-NATIVE CUSTODY/);
   assert.doesNotMatch(markup, /RECEIZ V123/);
 });
 

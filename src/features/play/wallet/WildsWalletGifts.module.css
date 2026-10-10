@@ -1,0 +1,8 @@
+.panel { display: grid; gap: 12px; max-width: 760px; margin: 0 auto 24px; color: #edf9f4; }
+.panel h3 { margin: 0; font-size: 18px; }
+.panel article { display: grid; gap: 10px; padding: 18px; background: #12212a; border: 1px solid #8de5ca26; border-radius: 14px; min-width: 0; }
+.panel h4 { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.panel p, .panel li { margin: 0; color: #afc4bb; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.panel ul { margin: 0; padding-left: 18px; }
+.panel button { min-height: 46px; padding: 12px 16px; border-radius: 10px; border: 1px solid #8de5ca33; color: #d9f6ed; background: #1d5146; font-weight: 600; }
+.panel button:disabled { opacity: .5; }

@@ -1,8 +1,8 @@
 # Native wallet and coupled trade executor implementation plan
 
-> **Status: NOT IMPLEMENTED.** This document specifies the remaining SDK and native host work. It is not execution support, a qualified deployment, or evidence of a successful payment or trade. Returning `SOURCE_UNAVAILABLE` safely prevents a mutation; it does not complete the requested native Send or Trade behavior.
+> **Status: source implementation added; production rollout remains unqualified.** The additive v128 SDK, native host, wallet integration and isolated acceptance/recovery tests now exist. See [the implementation and rollout record](../../developers/native-wallet-rollout.md) for actual interfaces, source paths and remaining deployment requirements. The unchecked tasks below preserve the original planning checklist and proposed names; they are not the final API inventory. Local synthetic acceptance does not establish a successful live payment or trade.
 >
-> **For agentic workers:** Implement task by task using `superpowers:executing-plans` or an explicitly authorized delegation method. The unchecked steps below remain outstanding.
+> **For agentic workers:** Use the linked implementation record and exact installed SDK inventory to continue rollout. Do not execute live value operations as release tests.
 
 **Date:** 2026-10-09.
 
@@ -27,7 +27,7 @@
 - Keep cryptographic preparation off gameplay and wallet first-paint paths. Reuse exact admitted source custody without weakening freshness, head or expiry checks.
 - This document authorizes no live value action and makes no claim that existing source or a test-root fixture is live-qualified.
 
-## Evidence and current limits
+## Evidence and limits observed before implementation
 
 Upstream paths below are relative to `/Users/bjklock/Kai-Turah/receiz`. Line numbers identify the source inspected on this date; recheck them when preparing the upstream diff. No upstream file was changed for this plan.
 

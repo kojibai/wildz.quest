@@ -3,7 +3,7 @@ import type { WalletCapabilityProjection, WalletLedgerEntryProjection, WalletLed
 import { normalizeWildsWalletPublicUsername } from "@/lib/receiz/wilds-wallet-projections";
 
 export type WildsWalletControllerStatus = "idle" | "loading" | "source-verified" | "verified" | "offline-verified" | "authority-required" | "failed" | "revoked";
-export type WildsWalletPage = "overview" | "send" | "receive" | "assets" | "ledger";
+export type WildsWalletPage = "overview" | "send" | "receive" | "assets" | "trade" | "ledger";
 export type WildsWalletFailureReason = "network" | "failed" | "authority-required" | "revoked";
 export type WildsWalletReadResponse = Readonly<{ summary: WalletSummaryProjection; capabilities: WalletCapabilityProjection; ledger: WalletLedgerPageProjection | null }>;
 export type WildsWalletRecipientState = Readonly<{ status: "idle" | "loading" | "verified" | "unavailable" | "failed"; requestId: number | null; username: string | null; projection: WalletRecipientProjection | null }>;
@@ -333,7 +333,7 @@ function canonicalUsername(value: unknown): value is string {
 }
 function isSummary(value: unknown): value is WalletSummaryProjection {
   const item = record(value);
-  return Boolean(item && exact(item, ["status", "admittedPhiMicro", "displayUsdCents", "assetCountsStatus", "transferableResourceCount", "transferableCardCount", "reservedCardCount", "pendingCount"]) && item.status === "verified" && micro(item.admittedPhiMicro) && (item.displayUsdCents === null || micro(item.displayUsdCents)) && ((item.assetCountsStatus === "unknown" && item.transferableResourceCount === null && item.transferableCardCount === null && item.reservedCardCount === null && item.pendingCount === null) || (item.assetCountsStatus === "available" && count(item.transferableResourceCount) && count(item.transferableCardCount) && count(item.reservedCardCount) && count(item.pendingCount))));
+  return Boolean(item && exact(item, ["status", "admittedPhiMicro", "displayUsdCents", "assetCountsStatus", "transferableResourceCount", "transferableCardCount", "reservedCardCount", "pendingCount"], ["sealedPhiMicro"]) && (!Object.hasOwn(item, "sealedPhiMicro") || micro(item.sealedPhiMicro)) && item.status === "verified" && micro(item.admittedPhiMicro) && (item.displayUsdCents === null || micro(item.displayUsdCents)) && ((item.assetCountsStatus === "unknown" && item.transferableResourceCount === null && item.transferableCardCount === null && item.reservedCardCount === null && item.pendingCount === null) || (item.assetCountsStatus === "available" && count(item.transferableResourceCount) && count(item.transferableCardCount) && count(item.reservedCardCount) && count(item.pendingCount))));
 }
 function capability(value: unknown) { const item = record(value); return Boolean(item && ((exact(item, ["available"]) && item.available === true) || (exact(item, ["available", "reason"]) && item.available === false && (item.reason === V123_UNAVAILABLE || item.reason === "receiz_v123_scope_required")))); }
 function isCapabilities(value: unknown): value is WalletCapabilityProjection {

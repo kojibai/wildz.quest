@@ -35,6 +35,7 @@ import { validateCreationImage } from '../src/features/play/creation/image';
 import { createWildzContinuityDatabase } from '../src/lib/storage/wildz-indexed-db';
 import { createFakeIndexedDb } from './support/fake-indexed-db';
 import type { ReceizOfflineProofQueueSnapshot } from '@receiz/sdk';
+import { publishWildsConstructionEntry } from '../src/features/play/wilds-construction-publication';
 
 const actorId = 'owner:creation-world', pulse = '2026-10-06T12:00:00.000Z';
 const authority = { actorId, canonical: true, pulse, occurredAt: pulse, uPulse: 20 };
@@ -52,6 +53,16 @@ function fixture(ownerId = actorId, captureOwnerId = ownerId) {
   return { world, card, condition, definition, context, plan: compiled.plan, command, lotId: harvested.lot.lotId };
 }
 const entry = (command: WildsCreationBuildCommand): WildsWorldOutboxEntry => ({ schema: 'receiz.wilds_world_outbox_entry.v1', actorId, guestId: 'guest:creation-source', command, queuedAt: pulse });
+
+test('a native received keeper command cannot publish through the legacy construction rail', async () => {
+  const f = fixture(actorId, 'original:keeper');
+  const command = { ...f.command, workerSources: [{ ...f.command.workerSources[0], nativeKeeper: {
+    schema: 'wildz.creation-native-keeper.v128' as const, ownerReceizId: actorId, assetId: f.card.id, cardProofDigest: f.card.proof.digest, artifactSha256: 'a'.repeat(64), nativeHead: 'b'.repeat(64)
+  } }] };
+  let reads = 0, writes = 0;
+  await assert.rejects(publishWildsConstructionEntry(entry(command), 'https://wildz.quest/source', { read: async () => { reads++; return null; }, publish: async () => { writes++; } }), /native_world_keeper_source_required/);
+  assert.equal(reads, 0); assert.equal(writes, 0);
+});
 
 function admittedMovementCreation(shape: CreationShape, pose: CreationPose, instanceId: string) {
   const f = fixture();

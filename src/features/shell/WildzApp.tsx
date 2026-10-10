@@ -7,6 +7,9 @@ import { hasLaterWildsPlayerLedger } from "@/features/play/wilds-play-state-sour
 import { isCurrentWildzGameplaySource } from "../identity/wildz-gameplay-source";
 import { validateWildsRoamingHandoffCard } from "../../lib/receiz/wilds-roaming-handoff";
 import { pruneWildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
+import {readWildzProfileDisplayName,saveWildzProfileDisplayName} from "../profile/profile-display-name";
+import {qualifyWildzNativeTradeArtifact} from "@/lib/receiz/wildz-native-trade-custody";
+import type {ReceizCommittedNativeTradeV128} from "@receiz/sdk";
 
 import { emitWildsPlaytestEvent } from "@/features/play/wilds-playtest-events";
 import { WildzMarketSheet } from "@/features/market/WildzMarketSheet";
@@ -244,6 +247,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const [remoteProfile, setRemoteProfile] = useState<ReturnType<typeof sanitizePublicWildzProfile> | null>(null);
   const [profileStatus, setProfileStatus] = useState<"idle" | "loading" | "publishing" | "ready" | "unpublished" | "missing" | "error">("idle");
   const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
+  const [savedProfileName,setSavedProfileName]=useState<{keyId:string;name:string}|null>(null);
   const publishedProfileRef = useRef("");
   const [ownerPublicationStatus, setOwnerPublicationStatus] = useState<ProfilePublicationStatus>("unpublished");
   const [ownerPublicationFailure, setOwnerPublicationFailure] = useState<ProfilePublicationFailure | null>(null);
@@ -292,6 +296,14 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     return ownerPlayState.inventory.filter((asset) => !locallyClaimed.has(asset.id));
   }, [identity, ownerPlayState.inventory]);
   const ownerUsername = identity?.username ?? identity?.actorId ?? "explorer";
+  const ownerDisplayName=savedProfileName && savedProfileName.keyId === identity?.keyId
+    ? savedProfileName.name
+    : identity?.displayName;
+  useEffect(()=>{
+    let name:string|null=null;
+    if(identity?.keyId)try{name=readWildzProfileDisplayName(window.localStorage,identity.keyId);}catch{/* The canonical name remains available when browser storage is denied. */}
+    setSavedProfileName(identity?.keyId&&name?{keyId:identity.keyId,name}:null);
+  },[identity?.keyId]);
   const ownerActorId = identity?.actorId;
   const creationLibrary = useMemo(()=>createWildzCreationLibrary({database:defaultContinuityDatabase,sources:defaultWildzProofSourceRepository}),[]);
   const creationAccountLibrary = useMemo(()=>identity?{scope:{keyId:identity.keyId,actorId:ownerUsername},port:creationLibrary}:undefined,[identity,ownerUsername,creationLibrary]);
@@ -314,11 +326,11 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   // distribution encoding waits for the world draw and background scheduling.
   const ownerSourceProfile = useMemo(() => createOwnerPublicWildzProfile({
     username: ownerUsername,
-    displayName: identity?.displayName ?? undefined,
+    displayName: ownerDisplayName ?? undefined,
     avatarImageUrl,
     explorer: character ?? campaignCharacter,
     assets: ownerPlayState.inventory
-  }), [avatarImageUrl, character, campaignCharacter, identity?.displayName, ownerPlayState.inventory, ownerUsername]);
+  }), [avatarImageUrl, character, campaignCharacter, ownerDisplayName, ownerPlayState.inventory, ownerUsername]);
   const profileOwnerKeyId = identity?.keyId ?? "";
   const [preparedProfilePublication, setPreparedProfilePublication] = useState<{
     keyId: string;
@@ -760,6 +772,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_identity_missing");
     const snapshot = await claimWildzProfileIdentity(current, input);
+    const savedName=saveWildzProfileDisplayName(window.localStorage,snapshot.session.keyId,input.displayName);
+    setSavedProfileName({keyId:snapshot.session.keyId,name:savedName});
     if (input.avatarImageUrl) window.localStorage.setItem(`wildz:profile-avatar:${snapshot.session.keyId}`, input.avatarImageUrl);
     else window.localStorage.removeItem(`wildz:profile-avatar:${snapshot.session.keyId}`);
     setAvatarImageUrl(input.avatarImageUrl);
@@ -918,15 +932,17 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     return outcome;
   }, [acceptSnapshot, runtimeCheckpointStore]);
 
-  const restoreRoamingCapture = useCallback(async (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState) => {
+  const restoreRoamingCapture = useCallback(async (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState, nativeTrade?: ReceizCommittedNativeTradeV128) => {
     const current = continuityRef.current;
     const bytes = new Uint8Array(await file.arrayBuffer());
     const sidecar = structuredClone(currentCard);
     if (!current) throw new Error("wildz_restore_identity_missing");
+    if (nativeTrade) await qualifyWildzNativeTradeArtifact({committed:nativeTrade,bytes,ownerReceizId:current.session.actorId});
     const opened = await openWildzArtifactSameOrigin({ bytes, mimeType: file.type, name: file.name });
-    if (opened.compatibility !== "current-native" || !opened.ownershipWitness
+    const custodyOwner = opened.nativeTradeCustody?.ownerReceizId ?? opened.ownershipWitness?.ownerReceizId;
+    if (opened.compatibility !== "current-native" || !custodyOwner
       || !sameWildzPlayerCoordinate(opened.ownerReceizId, current.session.actorId)
-      || !sameWildzPlayerCoordinate(opened.ownershipWitness.ownerReceizId, current.session.actorId))
+      || !sameWildzPlayerCoordinate(custodyOwner, current.session.actorId))
       throw new Error("The captured artifact did not verify for this keeper.");
     validateWildsRoamingHandoffCard(opened.payloadBytes, sidecar);
     // Preserve the exact verified successor before retention or local restore.
@@ -1402,7 +1418,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           crewCustody={continuity.crewCustody}
           initialWorld={worldBootstrap}
           ownerReceizId={ownerUsername}
-          playerDisplayName={identity.displayName ?? `@${ownerUsername}`}
+          playerDisplayName={ownerDisplayName ?? `@${ownerUsername}`}
           shellOverlayOwner={shellOverlayOwner}
           onPlayStateChange={(playState, playerContinuity) => persistPlayState(playState, playerContinuity, continuity)}
           onPrepareCard={(asset, player) => prepareWildzIdentityOwnedCard(identity, asset, player, { allowPrompt: false })}

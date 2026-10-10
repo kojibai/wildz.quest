@@ -5,6 +5,7 @@ import { createRetainedPortableVaultWriter } from "../../features/play/card-expo
 import { verifyAndAdmitWildsCard, retainAdmittedWildsInventory } from "../../features/play/admitted-inventory";
 import { createVaultWorkerDeltaReader, type VaultWorkerDelta } from "./wildz-vault-worker-state";
 import type { createWildsPlayerVault, WildsPlayerVaultPayload } from "../../features/play/wilds-player-vault";
+import {createWorkerWorkQueue} from "../../features/play/worker-work-queue";
 import { createWildzIdentityBoundPreparedVault } from "./wildz-identity-vault-binding";
 
 type ExportWorkerRequest = {
@@ -21,10 +22,11 @@ const workerScope = self as unknown as DedicatedWorkerGlobalScope;
 
 const applyDelta = createVaultWorkerDeltaReader();
 const vaultWriter = createRetainedPortableVaultWriter();
+const enqueue=createWorkerWorkQueue();
 
 workerScope.addEventListener("message", (event: MessageEvent<ExportWorkerRequest>) => {
   const input = event.data;
-  void (async () => {
+  void enqueue(async () => {
     try {
       for (const card of input.delta.cards?.changed ?? []) {
         if (!verifyAndAdmitWildsCard(card)) throw new Error("wilds_vault_cards_invalid");
@@ -52,5 +54,5 @@ workerScope.addEventListener("message", (event: MessageEvent<ExportWorkerRequest
         error: cause instanceof Error ? cause.message : "wildz_identity_export_worker_failed"
       });
     }
-  })();
+  });
 });

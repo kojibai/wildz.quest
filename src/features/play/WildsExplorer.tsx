@@ -24,6 +24,9 @@ import {
 } from "@/features/play/wilds-explorer-flight-pose";
 
 import type { WildsBedSleepPose } from "./wilds-construction-function";
+import {sampleWildsHandPose, type WildsHandActionState} from './wilds-player-actions';
+import type {WildsVerticalTraversalState} from './wilds-vertical-traversal';
+import {WildsHeldCreationEquipmentMesh,type WildsHeldCreationEquipment} from './WildsHeldCreationEquipment';
 
 type ExplorerStyle = "female" | "male";
 
@@ -232,6 +235,9 @@ export function WildsExplorer({
   kaiUPulse,
   bodyReadiness = 100,
   aerialStateRef,
+  verticalTraversalRef,
+  handActionsRef,
+  heldCreationEquipment,
   aerialPalette = { primary: "#c9fff0", accent: "#f5d46c", glow: "#76f3cf" }
 }: {
   character?: WildzCharacterGenesis;
@@ -245,6 +251,9 @@ export function WildsExplorer({
   kaiUPulse?: number;
   bodyReadiness?: number;
   aerialStateRef?: MutableRefObject<WildsAerialTraversalState>;
+  verticalTraversalRef?: MutableRefObject<WildsVerticalTraversalState>;
+  handActionsRef?: MutableRefObject<WildsHandActionState>;
+  heldCreationEquipment?: WildsHeldCreationEquipment;
   aerialPalette?: Readonly<{ primary: string; accent: string; glow: string }>;
 }) {
   const readability = useWildsReadability();
@@ -294,6 +303,7 @@ export function WildsExplorer({
   const rightShoulder = useRef<THREE.Group>(null);
   const leftElbow = useRef<THREE.Group>(null);
   const rightElbow = useRef<THREE.Group>(null);
+  const leftWrist = useRef<THREE.Mesh>(null), rightWrist = useRef<THREE.Mesh>(null);
   const leftKnee = useRef<THREE.Group>(null);
   const rightKnee = useRef<THREE.Group>(null);
   const satchel = useRef<THREE.Group>(null);
@@ -321,11 +331,16 @@ export function WildsExplorer({
     faceSurface.blink.value = sampleWildsBlink(blinkProfile, elapsed * 1000, sleeping, readability.motionScale);
     const moving = performance.now() < movingUntil.current;
     const aerialMode = aerialStateRef?.current.mode ?? "ground";
-    const grounded = !sleeping && locomotion === "ground" && aerialMode === "ground";
+    const jumping = verticalTraversalRef?.current.jumpVelocity !== undefined;
+    const grounded = !sleeping && !jumping && locomotion === "ground" && aerialMode === "ground";
     const stride = grounded && moving ? Math.sin(elapsed * 11.5) * readability.motionScale : 0;
     const footPlant = grounded && moving ? Math.max(0, Math.cos(elapsed * 23)) : grounded ? 1 : 0;
     const swimStroke = locomotion === "swim" ? Math.sin(elapsed * 3.8) * readability.motionScale : 0;
     const airborne = aerialMode !== "ground";
+    const leftAction = handActionsRef?.current.left ?? null, rightAction = handActionsRef?.current.right ?? null;
+    const leftPose = sampleWildsHandPose(sleeping ? null : leftAction, elapsed * 1000), rightPose = sampleWildsHandPose(sleeping ? null : rightAction, elapsed * 1000);
+    const activeHand = leftPose.weight > 0 ? leftAction : rightPose.weight > 0 ? rightAction : null;
+    if (activeHand?.heading !== undefined) facing.current = activeHand.heading;
     const verticalVelocity = aerialStateRef?.current.verticalVelocity ?? 0;
     const breath = (playerBodyBreathExpansion(breathClock.current.kaiUPulse, Math.max(0, performance.now() - breathClock.current.observedAt)) - .5) * .036 * (1 + tiredness * .5) * readability.motionScale;
     const bodyPitch = sleepPose ? sleepPose.pitch : locomotion === "swim"
@@ -357,6 +372,19 @@ export function WildsExplorer({
     if (rightElbow.current) rightElbow.current.rotation.x = locomotion === "swim" ? -0.22 + swimStroke * 0.34 : grounded ? Math.max(0, stride) * 0.22 - 0.08 : -0.08;
     if (leftKnee.current) leftKnee.current.rotation.x = locomotion === "swim" ? 0.18 + swimStroke * 0.28 : grounded ? -stride * 0.7 : airborne && moving ? 0.46 : 0.08;
     if (rightKnee.current) rightKnee.current.rotation.x = locomotion === "swim" ? 0.18 - swimStroke * 0.28 : grounded ? stride * 0.7 : airborne && moving ? 0.46 : 0.08;
+    if (jumping) {
+      if(leftKnee.current)leftKnee.current.rotation.x=.3;
+      if(rightKnee.current)rightKnee.current.rotation.x=.3;
+    }
+    if (!sleeping) {
+      if(leftShoulder.current)leftShoulder.current.rotation.x=THREE.MathUtils.lerp(leftShoulder.current.rotation.x,leftPose.shoulderX,leftPose.weight);
+      if(rightShoulder.current)rightShoulder.current.rotation.x=THREE.MathUtils.lerp(rightShoulder.current.rotation.x,rightPose.shoulderX,rightPose.weight);
+      if(leftElbow.current)leftElbow.current.rotation.x+=leftPose.elbowX;
+      if(rightElbow.current)rightElbow.current.rotation.x+=rightPose.elbowX;
+    }
+    // Preserve inward palms at rest; each active wrist turns independently.
+    if(leftWrist.current)leftWrist.current.rotation.y=Math.PI/2-leftPose.wristY;
+    if(rightWrist.current)rightWrist.current.rotation.y=-Math.PI/2+rightPose.wristY;
     if (satchel.current) { satchel.current.rotation.z = grounded ? stride * -0.09 : 0; satchel.current.visible = !sleeping; }
     if (scarf.current) scarf.current.rotation.x = 0.18 + Math.sin(elapsed * 5.5) * (moving ? 0.12 : 0.035) * readability.motionScale;
     if (aerialHarness.current) aerialHarness.current.visible = airborne && !remote;
@@ -406,8 +434,8 @@ export function WildsExplorer({
             </mesh>
           </>
         ) : null}
-        <Arm elbow={leftElbow} shoulder={leftShoulder} side={-1} skin={appearance.skin} sleeve={appearance.outfitSecondary} handGeometry={handGeometry.left} handMaterial={handMaterial} />
-        <Arm elbow={rightElbow} shoulder={rightShoulder} side={1} skin={appearance.skin} sleeve={appearance.outfitSecondary} handGeometry={handGeometry.right} handMaterial={handMaterial} />
+        <Arm equipment={heldCreationEquipment?.hand==='left'?heldCreationEquipment:undefined} wrist={leftWrist} elbow={leftElbow} shoulder={leftShoulder} side={-1} skin={appearance.skin} sleeve={appearance.outfitSecondary} handGeometry={handGeometry.left} handMaterial={handMaterial} />
+        <Arm equipment={heldCreationEquipment?.hand==='right'?heldCreationEquipment:undefined} wrist={rightWrist} elbow={rightElbow} shoulder={rightShoulder} side={1} skin={appearance.skin} sleeve={appearance.outfitSecondary} handGeometry={handGeometry.right} handMaterial={handMaterial} />
       </group>
 
       <group name="head" position={[0, 1.57, -0.01]} ref={head} scale={.85}>
@@ -441,6 +469,8 @@ export function WildsExplorer({
 }
 
 function Arm({
+  equipment,
+  wrist,
   elbow,
   shoulder,
   side,
@@ -449,6 +479,8 @@ function Arm({
   handGeometry,
   handMaterial
 }: {
+  equipment?:WildsHeldCreationEquipment;
+  wrist: React.RefObject<THREE.Mesh | null>;
   elbow: React.RefObject<THREE.Group | null>;
   shoulder: React.RefObject<THREE.Group | null>;
   side: -1 | 1;
@@ -462,7 +494,8 @@ function Arm({
       <LimbSegment color={sleeve} length={0.35} radius={0.09} />
       <group name={side < 0 ? "leftElbow" : "rightElbow"} position={[0, -0.29, 0]} ref={elbow}>
         <LimbSegment skin color={skin} length={0.32} radius={0.068} />
-        <mesh castShadow name={side < 0 ? "leftHand" : "rightHand"} position={[0, -0.3, 0]} geometry={handGeometry} material={handMaterial} />
+        <mesh ref={wrist} castShadow name={side < 0 ? "leftHand" : "rightHand"} position={[0, -0.3, 0]} rotation={[0, -side * Math.PI / 2, 0]} geometry={handGeometry} material={handMaterial} />
+        {equipment?<group position={[0,-.3,0]}><WildsHeldCreationEquipmentMesh equipment={equipment}/></group>:null}
       </group>
     </group>
   );

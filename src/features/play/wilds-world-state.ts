@@ -1,3 +1,4 @@
+import {resolveWorldCreationAction,type WildsCreationActionRecord} from './creation/world-action';
 import { applyWildsResourcePackageCommand, type WildsResourcePackageRecord, type WildsResourcePackageCommand, type WildsFoodCustody,type WildsFoodConsumptionReceipt } from "./wilds-resource-package-world";
 import type { WildsResourcePackageMember } from "./wilds-resource-package";
 import { projectWildsConstructionWeather, resolveWildsMaintenance, type WildsMaintenanceCommand, type WildsConstructionCondition } from "./wilds-construction-weather";
@@ -413,6 +414,16 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
   const payload = recordPayload(event.payload);
 
   switch (event.kind) {
+    case 'creation.acted': {
+      if(!('uPulse' in event))throw Error('creation_action_temporal_source_required');
+      const action=payload.record as WildsCreationActionRecord;
+      if(!action||action.command.commandId!==event.causeId||payload.commandDigest!==constructionProofDigest(action.command))throw Error('creation_action_event_binding_invalid');
+      const expected=resolveWorldCreationAction(state,action.command,event.actorId,event.uPulse);
+      if(constructionProofDigest(expected.record)!==constructionProofDigest(action)||constructionProofDigest(expected.records)!==constructionProofDigest(payload.records))throw Error('creation_action_event_successor_invalid');
+      const priorEvents=Object.fromEntries(Object.keys(expected.records).flatMap(id=>state.creationEvents?.[id]?[[state.creationEvents[id].eventId,state.creationEvents[id]]]:[]));
+      return appendEvent(state,event,{creations:{...state.creations,...expected.records},creationEvents:{...state.creationEvents,...priorEvents,...Object.fromEntries(Object.keys(expected.records).map(id=>[id,event])),[event.eventId]:event},constructionCommandReceipts:{...state.constructionCommandReceipts,[event.causeId]:{commandDigest:payload.commandDigest as string,eventPayloadDigest:constructionProofDigest(event.payload),actorId:event.actorId,kind:event.kind}}});
+    }
+
     case "creation.constructed":
     case "creation.evolved": {
       if (!("uPulse" in event)) throw new Error("creation_world_temporal_source_required");
@@ -1016,7 +1027,7 @@ export function hydrateWildsWorldProjection(projection?: WildsWorldProjection): 
 }
 
 function isContinuousConstructionEvent(kind: string) {
-  return ["creation.constructed", "creation.evolved", "construction.component_maintained", "construction.burrow_dug", "construction.project_created", "construction.component_adjusted", "construction.component_placed", "construction.material_contributed", "construction.work_contributed"].includes(kind);
+  return ["creation.constructed", "creation.evolved", "creation.acted", "construction.component_maintained", "construction.burrow_dug", "construction.project_created", "construction.component_adjusted", "construction.component_placed", "construction.material_contributed", "construction.work_contributed"].includes(kind);
 }
 
 export function projectWildsConstructionProgressFromWorld(world: WildsWorldProjection, componentId: string) {

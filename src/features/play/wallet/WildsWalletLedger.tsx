@@ -9,6 +9,9 @@ import { formatWildsPhiExact } from "./wilds-wallet-format";
 import type { WildsLivingOperationPlanV1 } from "../wilds-living-operation";
 import { ledgerKaiTime, type WildsActivityEntry } from "./wilds-activity-history";
 import { PhiNetworkAmount } from "./PhiNetworkMark";
+import { availableWildsFood, type WildsNourishmentState } from "../wilds-nourishment";
+import type { ExchangeCard } from "../WildsResourceExchange";
+import { countWildsWalletResourceInventory, projectWildsWalletFoodInventory } from "./wilds-wallet-inventory";
 
 type LedgerFilter = "all" | "value" | "creatures" | "materials" | "resources" | "activity";
 type LocalEntry = Readonly<{ id: string; kind: Exclude<LedgerFilter, "all">; title: string; detail: string; value: string; timing: string; uPulse: number | null; status?: string; constitution?: WildsActivityEntry["constitution"] }>;
@@ -19,21 +22,26 @@ export type WildsWalletLedgerProps = {
   cards?: readonly PortableCardAsset[];
   materialLots?: readonly WildsMaterialLotV1[];
   resourceLots?: readonly WildsResourceLotV1[];
+  nourishment?: WildsNourishmentState;
+  resourceCards?: readonly ExchangeCard[];
   state: WildsWalletControllerState;
   stewardPhiAwards?: readonly WildsStewardPhiAwardV1[];
   preview?: boolean;
   onOpenLedger?(): void;
 };
 
-export function WildsWalletLedger({ actionHistory = [], livingOperations = {}, cards = [], materialLots = [], resourceLots = [], state, stewardPhiAwards = [], preview = false, onOpenLedger }: WildsWalletLedgerProps) {
+export function WildsWalletLedger({ actionHistory = [], livingOperations = {}, cards = [], materialLots = [], resourceLots = [], nourishment, resourceCards = [], state, stewardPhiAwards = [], preview = false, onOpenLedger }: WildsWalletLedgerProps) {
   const [filter, setFilter] = useState<LedgerFilter>("all");
+  const foodLabels = useMemo(() => new Map(projectWildsWalletFoodInventory(nourishment).flatMap(group => group.itemIds.map(id => [id, group.label] as const))), [nourishment]);
   const localEntries = useMemo<readonly LocalEntry[]>(() => [
     ...stewardPhiAwards.map((award): LocalEntry => ({ id: award.awardId, kind: "value", title: "Stewardship award", detail: `Source proof · ${award.operationId}`, value: formatWildsPhiExact(award.amountPhiMicro), ...ledgerKaiTime({ uPulse: livingOperations[award.operationId]?.kaiUPulse }) })),
     ...cards.map((card): LocalEntry => ({ id: card.id, kind: "creatures", title: "Creature admitted", detail: `${card.manifest.name} · ${card.manifest.rarity}`, value: `Stage ${card.manifest.stage}`, ...ledgerKaiTime({ occurredAt: card.manifest.capturedAt }) })),
     ...materialLots.map((lot): LocalEntry => ({ id: lot.lotId, kind: "materials", title: lot.kind === "timber" ? "Timber gathered" : lot.kind === "hay" ? "Hay gathered" : "Stone gathered", detail: `Source proof · ${lot.source.sourceId}`, value: "1 exact unit", ...ledgerKaiTime({ uPulse: lot.source.kaiUPulse }) })),
+    ...availableWildsFood(nourishment).map((item): LocalEntry => ({ id: item.itemId, kind: "resources", title: `${foodLabels.get(item.itemId)} gathered`, detail: `Gather source · ${item.sourceId}`, value: "1 stored portion", status: "stored", ...ledgerKaiTime({ uPulse: item.gatheredKaiUPulse }) })),
+    ...resourceCards.map((card): LocalEntry => ({ id: card.id, kind: "resources", title: card.title, detail: card.summary, value: "1 resource package", status: card.status, ...ledgerKaiTime({}) })),
     ...resourceLots.map((lot): LocalEntry => ({ id: lot.lotId, kind: "resources", title: "Living Honey gathered", detail: `Grove · ${lot.source.groveId}`, value: `${lot.quantity} exact unit${lot.quantity === 1 ? "" : "s"}`, ...ledgerKaiTime({ uPulse: lot.source.kaiUPulse }) }))
     ,...actionHistory.map((entry): LocalEntry => ({ ...entry, value: entry.authority === "local" ? "Local activity" : "World activity", ...ledgerKaiTime({ uPulse: entry.uPulse }), status: "local" }))
-  ], [actionHistory, cards, livingOperations, materialLots, resourceLots, stewardPhiAwards]);
+  ], [actionHistory, cards, livingOperations, materialLots, nourishment, foodLabels, resourceLots, resourceCards, stewardPhiAwards]);
   const remoteEntries: LocalEntry[] = (state.ledger?.entries ?? []).map((entry, index) => ({
     id: `transfer:${entry.createdAt}:${index}`, kind: "value",
     title: entry.direction === "sent" ? "Sent" : entry.direction === "received" ? "Received" : "Transfer",
@@ -44,7 +52,7 @@ export function WildsWalletLedger({ actionHistory = [], livingOperations = {}, c
   const entries = [...localEntries, ...remoteEntries].reverse().sort((a, b) => (b.uPulse ?? -Infinity) - (a.uPulse ?? -Infinity));
   const filtered = filter === "all" ? entries : entries.filter((entry) => entry.kind === filter);
   const shownLocal = preview ? entries.slice(0, 3) : filtered;
-  const counts = { all: entries.length, value: entries.filter((entry) => entry.kind === "value").length, creatures: cards.length, materials: materialLots.length, resources: resourceLots.length, activity: actionHistory.length };
+  const counts = { all: entries.length, value: entries.filter((entry) => entry.kind === "value").length, creatures: cards.length, materials: materialLots.length, resources: countWildsWalletResourceInventory({ nourishment, resourceLots, resourceCards }), activity: actionHistory.length };
   return <section aria-labelledby="wilds-wallet-ledger-title" className={`wilds-wallet-surface${preview ? " wilds-wallet-activity-preview" : ""}`}>
     {preview ? <header><h2 id="wilds-wallet-ledger-title">Recent activity</h2><button type="button" onClick={onOpenLedger}>View all ↗</button></header> : <header><small>ACTIVITY & RECEIPTS</small><h2 id="wilds-wallet-ledger-title">Ledger</h2><a href="/laws" target="_blank" rel="noreferrer">World law ↗</a></header>}
     {!preview && <div aria-label="Ledger activity filters" className="wilds-wallet-ledger-filters" role="group">{([[

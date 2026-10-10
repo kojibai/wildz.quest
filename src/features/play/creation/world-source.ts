@@ -1,3 +1,4 @@
+import {verifyWorldCreationActionRecord,type WildsCreationActionRecord} from './world-action';
 import { emptyAdventureCondition, validateAdventureCondition, type AdventureCardCondition } from '../adventure/card-condition';
 import { verifyAnyWildsCard, type PortableCardAsset } from '../portable-card';
 import { constructionProofDigest, freezeConstructionProof, validConstructionHead, validConstructionId, validConstructionKai } from '../wilds-construction-project';
@@ -26,7 +27,8 @@ import { createWildsExactProofCache } from '../wilds-exact-proof-cache';
 import { creationBuildInReach, CREATION_PHYSICAL_BUILD_REACH_RULE, type CreationBuildReachRule } from './build-reach';
 
 export const CREATION_WORLD_RULE = Object.freeze({ id: 'creation.world.construct.v1', componentRuleHead: CREATION_COMPONENT_RULE_HEAD, techniqueRule: CREATURE_CREATION_TECHNIQUE_RULE_V1, maximumWorkers: 32, maximumMaterialLots: 256, maximumTerrainTiles: 256, work: 'source-card-techniques', custody: 'exact-finite-lot-consumption', readiness: 'local-condition-restricts-source-capability', physical: 'canonical-terrain-discovery-burrows-construction-and-admitted-creations' });
-export type WildsCreationWorkerSource = Readonly<{ card: PortableCardAsset; condition: AdventureCardCondition }>;
+export type WildsCreationNativeKeeper = Readonly<{ schema: 'wildz.creation-native-keeper.v128'; ownerReceizId: string; assetId: string; cardProofDigest: string; artifactSha256: string; nativeHead: string }>;
+export type WildsCreationWorkerSource = Readonly<{ card: PortableCardAsset; condition: AdventureCardCondition; nativeKeeper?: WildsCreationNativeKeeper }>;
 export type WildsCreationConstructCommand = Readonly<{
   type: 'creation.construct'; commandId: string; instanceId: string; definition: CreationDefinition;
   context: CreationCompileContext; planDigest: string; workerSources: readonly WildsCreationWorkerSource[];
@@ -39,7 +41,7 @@ export type WildsCreationSourceCore = Readonly<{
   schema: 'wildz.creation-world-source.v1'; command: WildsCreationBuildCommand; commandDigest: string;
   instance: CreationInstance; ruleHead: string; kaiUPulse: number;
 }>;
-export type WildsCreationSourceRecord = WildsCreationSourceCore & Readonly<{ history?: readonly (WildsCreationSourceCore & Readonly<{ eventId: string }>)[] }>;
+export type WildsCreationSourceRecord = WildsCreationSourceCore & Readonly<{ history?: readonly (WildsCreationSourceCore & Readonly<{ eventId: string }>)[]; constructionInstance?:CreationInstance; actions?:readonly Readonly<{record:WildsCreationActionRecord;priorEventId:string}>[] }>;
 export const CREATION_WORLD_RULE_HEAD = constructionProofDigest(CREATION_WORLD_RULE);
 export const CREATION_WORLD_EVOLUTION_RULE_HEAD = constructionProofDigest({ id: 'creation.world.evolve.v1', construct: CREATION_WORLD_RULE_HEAD, evolution: CREATION_EVOLUTION_RULE_HEAD, maximumPredecessors: 64, identity: 'owner-current-head-compare-and-swap', history: 'exact-flat-source-and-event-citations' });
 export const CREATION_WORLD_PHYSICAL_BUILD_RULE_HEAD = constructionProofDigest({ ...CREATION_WORLD_RULE,
@@ -48,6 +50,10 @@ export const CREATION_WORLD_PHYSICAL_EVOLUTION_RULE_HEAD = constructionProofDige
   construct: CREATION_WORLD_PHYSICAL_BUILD_RULE_HEAD, evolution: CREATION_EVOLUTION_RULE_HEAD,
   maximumPredecessors: 64, identity: 'owner-current-head-compare-and-swap', history: 'exact-flat-source-and-event-citations' });
 function creationWorldBuildRuleHead(command: WildsCreationBuildCommand): string {
+  if (command.workerSources.some(source => source.nativeKeeper)) {
+    const original = creationWorldBuildRuleHead({ ...command, workerSources: command.workerSources.map(({ nativeKeeper: _keeper, ...source }) => source) });
+    return constructionProofDigest({ id: 'creation.world.native-keeper.v128', original, custody: 'native-root-source-and-complete-accepted-group', binding: 'exact-actor-card-projection-artifact-and-current-native-head' });
+  }
   if (command.reachRule === undefined) return command.type === 'creation.construct' ? CREATION_WORLD_RULE_HEAD : CREATION_WORLD_EVOLUTION_RULE_HEAD;
   if (command.reachRule !== CREATION_PHYSICAL_BUILD_REACH_RULE.id) throw Error('creation_world_reach_rule_invalid');
   return command.type === 'creation.construct' ? CREATION_WORLD_PHYSICAL_BUILD_RULE_HEAD : CREATION_WORLD_PHYSICAL_EVOLUTION_RULE_HEAD;
@@ -84,13 +90,16 @@ export function projectWildsCreationPersistence(input: CreationPersistenceInput,
     try {
       if (source.instance.instanceId !== id || ownerId && source.instance.ownerId !== ownerId && !sameWildzPlayerCoordinate(source.instance.ownerId, ownerId)) continue;
       compileWorldCreationSource(source);
-      const records = creationWorldSourceHistory(source), events = records.map((record, index) => index < records.length - 1 ? input.creationEvents?.[source.history![index].eventId] : input.creationEvents?.[id]);
+      const base=source.actions?.length?{...source,instance:source.constructionInstance!,actions:undefined,constructionInstance:undefined}:source;
+      const records = creationWorldSourceHistory(base), events = records.map((record, index) => index < records.length - 1 ? input.creationEvents?.[source.history![index].eventId] : input.creationEvents?.[source.actions?.[0]?.priorEventId??id]);
       if (records.some((record, index) => !creationWorldEventMatches(record, events[index]))) continue;
       if (source.instance.embeddedResources.some(ref => {
         const lot = input.materialLots?.[ref.id];
         return !lot || !verifyWildsMaterialLot(lot) || lot.head !== ref.head || lot.kind !== ref.kind || lot.quantity !== ref.quantity || (input.materialCustody?.[ref.id]?.ownerReceizId ?? lot.ownerReceizId) !== source.instance.ownerId || input.consumedMaterialLots?.[ref.id] !== id;
       })) continue;
-      creations[id] = source; creationEvents[id] = events.at(-1)!;
+      if(source.actions?.some((action,index)=>{const event=input.creationEvents?.[source.actions?.[index+1]?.priorEventId??id];return !event||event.kind!=='creation.acted'||event.actorId!==action.record.actorId||constructionProofDigest((event.payload as {record:WildsCreationActionRecord}).record)!==constructionProofDigest(action.record);}))continue;
+      creations[id] = source; creationEvents[id] = input.creationEvents?.[id]??events.at(-1)!;
+      for(const action of source.actions??[]){const event=Object.values(input.creationEvents??{}).find(event=>event.causeId===action.record.command.commandId&&event.kind==='creation.acted');if(event){creationEvents[event.eventId]=event;constructionCommandReceipts[event.causeId]={commandDigest:constructionProofDigest(action.record.command),eventPayloadDigest:constructionProofDigest(event.payload),actorId:event.actorId,kind:event.kind};}}
       for (const [index, record] of records.entries()) { const event = events[index]!; creationEvents[event.eventId] = event; constructionCommandReceipts[record.command.commandId] = { commandDigest: record.commandDigest, eventPayloadDigest: constructionProofDigest(event.payload), actorId: event.actorId, kind: event.kind }; }
     } catch { /* Unsupported/altered fragments cannot become active owned source. */ }
   }
@@ -101,6 +110,7 @@ export function creationWorldSourceHistory(source: WildsCreationSourceRecord): r
   return [...(source.history ?? []).map(({ eventId: _eventId, ...core }, index) => ({ ...core, ...(index ? { history: source.history!.slice(0, index) } : {}) })), source];
 }
 export function creationWorldEventMatches(source: WildsCreationSourceRecord, event: WildsWorldEvent | undefined): boolean {
+  if(source.actions?.length){const action=source.actions.at(-1)!.record;return Boolean(event&&verifyWildsWorldEvent(event).ok&&event.kind==='creation.acted'&&event.actorId===action.actorId&&event.causeId===action.command.commandId&&constructionProofDigest((event.payload as {records?:Record<string,unknown>}).records?.[source.instance.instanceId])===constructionProofDigest(source));}
   if (!event || !verifyWildsWorldEvent(event).ok || event.kind !== (source.command.type === 'creation.construct' ? 'creation.constructed' : 'creation.evolved') || event.actorId !== source.instance.ownerId || event.causeId !== source.command.commandId || event.uPulse !== source.kaiUPulse) return false;
   const payload = event.payload as { record?: unknown; commandDigest?: unknown; constitutionalCommand?: { digest?: unknown; type?: unknown } };
   return constructionProofDigest(payload.record) === constructionProofDigest(source) && payload.commandDigest === source.commandDigest && payload.constitutionalCommand?.digest === source.commandDigest && payload.constitutionalCommand.type === source.command.type;
@@ -108,6 +118,7 @@ export function creationWorldEventMatches(source: WildsCreationSourceRecord, eve
 
 /** Exact ancestry, never a claimed revision count or an arbitrary same-ID replacement. */
 export function isWorldCreationSuccessor(before: WildsCreationSourceRecord, after: WildsCreationSourceRecord): boolean {
+  if(after.actions?.length){try{compileWorldCreationSource(after);const index=before.actions?.length??0;return after.actions.length>index&&constructionProofDigest(after.actions.slice(0,index))===constructionProofDigest(before.actions??[])&&after.actions[index].record.predecessors[before.instance.instanceId]?.head===before.instance.head;}catch{return false;}}
   try { compileWorldCreationSource(before); compileWorldCreationSource(after); return creationWorldSourceHistory(after).some(prior => constructionProofDigest(prior) === constructionProofDigest(before)); } catch { return false; }
 }
 export function mergeWorldCreationSourceRows(left: CreationPersistenceInput, right: CreationPersistenceInput): Pick<WildsCreationPersistence, 'creations' | 'creationEvents'> {
@@ -138,7 +149,14 @@ export function creationWorldAvailability(world: WildsWorldProjection, actorId: 
 export function creationWorldWorkers(sources: readonly WildsCreationWorkerSource[], actorId: string) {
   if (!sources.length || sources.length > CREATION_WORLD_RULE.maximumWorkers || new Set(sources.map(s => s.card.id)).size !== sources.length) throw Error('creation_world_workers_invalid');
   for (const source of sources) {
-    if (!verifyAnyWildsCard(source.card).ok || (source.card.manifest.ownerReceizId !== actorId && !sameWildzPlayerCoordinate(source.card.manifest.ownerReceizId, actorId)) || source.condition.assetId !== source.card.id) throw Error('creation_world_worker_source_invalid');
+    const keeper = source.nativeKeeper;
+    if (keeper && (Object.keys(keeper).sort().join(',') !== 'artifactSha256,assetId,cardProofDigest,nativeHead,ownerReceizId,schema'
+      || keeper.schema !== 'wildz.creation-native-keeper.v128' || keeper.ownerReceizId !== actorId || keeper.assetId !== source.card.id
+      || keeper.cardProofDigest !== source.card.proof.digest || !/^[a-f0-9]{64}$/.test(keeper.artifactSha256) || !/^[a-f0-9]{64}$/.test(keeper.nativeHead))) throw Error('creation_world_worker_keeper_invalid');
+    // This retained binding is replay input. The native source host independently
+    // verifies its complete root receipt, exact bytes/current owner and head;
+    // legacy publication rejects keeper-bearing commands.
+    if (!verifyAnyWildsCard(source.card).ok || (source.card.manifest.ownerReceizId !== actorId && !sameWildzPlayerCoordinate(source.card.manifest.ownerReceizId, actorId) && !keeper) || source.condition.assetId !== source.card.id) throw Error('creation_world_worker_source_invalid');
     validateAdventureCondition(source.condition);
   }
   const cards = sources.map(source => source.card);
@@ -282,11 +300,19 @@ export function compileWorldCreationSource(source: WildsCreationSourceRecord): C
 }
 
 function compileWorldCreationSourceUncached(source: WildsCreationSourceRecord): CreationPlan {
+  if(source.actions?.length){
+    if(source.actions.length>64||!source.constructionInstance)throw Error('creation_action_history_invalid');
+    const {actions,constructionInstance,...fields}=source,base={...fields,instance:constructionInstance};
+    const plan=compileWorldCreationSourceUncached(base);let current=constructionInstance;
+    for(const action of actions){if(action.record.predecessors[current.instanceId]?.head!==current.head)throw Error('creation_action_ancestry_invalid');current=verifyWorldCreationActionRecord(action.record)[current.instanceId];if(!current)throw Error('creation_action_source_missing');}
+    if(current.head!==source.instance.head)throw Error('creation_action_current_head_invalid');return plan;
+  }
   assertCreationData(source);
   if ((source.history?.length ?? 0) > 64) throw Error('creation_world_history_budget');
   let prior: WildsCreationSourceRecord | null = null, lastPlan: CreationPlan | null = null;
   const commandIds = new Set<string>();
   for (const record of creationWorldSourceHistory(source)) {
+    if(record.actions?.length){lastPlan=compileWorldCreationSourceUncached(record);prior=record;continue;}
     if (record.schema !== 'wildz.creation-world-source.v1' || record.ruleHead !== creationWorldBuildRuleHead(record.command) || record.commandDigest !== constructionProofDigest(record.command) || !verifyCreationInstance(record.instance) || record.instance.instanceId !== source.instance.instanceId || record.instance.instanceId !== record.command.instanceId || record.instance.definitionDigest !== record.command.definition.digest || record.instance.stage !== 'functional' || record.instance.ownerId !== record.command.definition.creatorId || record.instance.kaiUPulse !== record.kaiUPulse || commandIds.has(record.command.commandId)) throw Error('creation_world_record_invalid');
     commandIds.add(record.command.commandId);
     lastPlan = compileWorldCreationCore(record, prior);

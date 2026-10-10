@@ -1,5 +1,6 @@
 import type { WildsStewardPhiAwardV1 } from "../wilds-steward-construction";
 import { availableWildsFood, describeWildsFoodItem, type WildsFoodKind, type WildsNourishmentState } from "../wilds-nourishment";
+import type { WildsResourceLotV1 } from "../wilds-resource-lot";
 
 const foodLabels: Readonly<Record<WildsFoodKind, string>> = {
   "orchard-fruit": "Wild fruit", "wild-berries": "Wild berries", "wild-vegetable": "Wild vegetables",
@@ -18,6 +19,17 @@ export function projectWildsWalletFoodInventory(nourishment: WildsNourishmentSta
     groups.set(id, group);
   }
   return [...groups.values()];
+}
+
+/** A display projection of the same exact available holdings on every wallet page. */
+export function countWildsWalletResourceInventory(input: Readonly<{
+  nourishment?: WildsNourishmentState;
+  resourceLots: readonly Pick<WildsResourceLotV1, "quantity">[];
+  resourceCards: readonly unknown[];
+}>) {
+  return availableWildsFood(input.nourishment).length
+    + input.resourceLots.reduce((total, lot) => total + lot.quantity, 0)
+    + input.resourceCards.length;
 }
 
 export function totalWildsStewardPhiMicro(

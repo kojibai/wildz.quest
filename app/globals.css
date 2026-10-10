@@ -788,7 +788,7 @@ body {
   .wilds-wallet-terminal-header { grid-row: 1; grid-column: 1; grid-template-columns: 38px minmax(0,1fr) 44px; min-height: calc(68px + env(safe-area-inset-top)); padding: calc(8px + env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 8px max(10px, env(safe-area-inset-left)); gap: 8px; }
   .wilds-wallet-phi-seal { width: 36px; height: 36px; }.wilds-wallet-terminal-header h1 { font-size: 12px; }.wilds-wallet-identity { grid-column: 2; justify-items: start; }.wilds-wallet-identity b { display: none; }.wilds-wallet-terminal-header > button { grid-row: 1 / 3; grid-column: 3; }
   .wilds-wallet-terminal-content { grid-row: 2; grid-column: 1; padding: 20px max(14px, env(safe-area-inset-right)) 22px max(14px, env(safe-area-inset-left)); }
-  .wilds-wallet-navigation { grid-row: 4; grid-column: 1; grid-template-columns: repeat(5,minmax(0,1fr)); padding: 6px max(5px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left)); border-top: 1px solid rgba(177,208,193,.18); border-right: 0; }
+  .wilds-wallet-navigation { grid-row: 4; grid-column: 1; grid-template-columns: repeat(6,minmax(0,1fr)); padding: 6px max(5px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(5px, env(safe-area-inset-left)); border-top: 1px solid rgba(177,208,193,.18); border-right: 0; }
   .wilds-wallet-navigation button { grid-template-columns: 1fr; grid-template-rows: 18px auto; justify-items: center; gap: 1px; min-height: 50px; padding: 4px 2px; text-align: center; }.wilds-wallet-navigation span { font-size: 8px; }
   .wilds-wallet-terminal > footer { grid-row: 3; grid-column: 1; min-height: 26px; padding: 7px max(10px, env(safe-area-inset-right)) 7px max(10px, env(safe-area-inset-left)); }.wilds-wallet-terminal > footer span:last-child { display: none; }
   .wilds-wallet-balance-band { align-items: start; flex-direction: column; }.wilds-wallet-display-quote { flex: none; justify-items: start; text-align: left; }
@@ -17652,12 +17652,24 @@ html, body, body * {
 .wilds-stage.is-creation-placement > :not(.wilds-canvas-wrap) { visibility: hidden; pointer-events: none; }
 body:has(.wilds-stage.is-creation-placement) .wildz-pwa-notice { visibility: hidden; pointer-events: none; }
 
-.wildz-construction-home.wildz-quick-utilities { left:auto;inset-inline-start:auto;right:max(var(--wildz-bottom-home-gap),env(safe-area-inset-right));bottom:calc(max(var(--wildz-bottom-home-gap),env(safe-area-inset-bottom)) + clamp(72px,22vw,94px) + 8px);width:clamp(72px,22vw,94px);grid-template-columns:minmax(0,1fr);transform-origin:bottom right; }
-@media(max-height:560px) and (orientation:landscape){.wildz-construction-home.wildz-quick-utilities{bottom:calc(max(var(--wildz-bottom-home-gap),env(safe-area-inset-bottom)) + 78px + 8px);width:78px;}}
+.wildz-construction-home.wildz-quick-utilities { left:auto;inset-inline-start:auto;right:max(var(--wildz-bottom-home-gap,14px),env(safe-area-inset-right));bottom:calc(max(var(--wildz-bottom-home-gap,14px),env(safe-area-inset-bottom)) + clamp(72px,22vw,94px) + 8px);width:clamp(72px,22vw,94px);grid-template-columns:minmax(0,1fr);transform-origin:bottom right; }
+@media(max-height:560px) and (orientation:landscape){.wildz-construction-home.wildz-quick-utilities{bottom:calc(max(var(--wildz-bottom-home-gap,14px),env(safe-area-inset-bottom)) + 78px + 8px);width:78px;}}
 @media(display-mode:standalone) and (pointer:coarse){@supports not (-webkit-touch-callout:none){.wildz-construction-home.wildz-quick-utilities{bottom:calc(max(56px,calc(env(safe-area-inset-bottom) + 12px)) + clamp(72px,22vw,94px) + 8px);}}}
 .wildz-construction-home.wildz-quick-utilities > button:not(.wildz-construction-control){width:44px;justify-self:center;}
+.wildz-construction-home > .wildz-construction-control { min-height:54px; gap:5px; padding:7px 6px; border-radius:15px; }
+.wildz-construction-home .wildz-construction-counts { gap:2px; }
+.wildz-construction-home .wildz-construction-counts b { display:flex; justify-content:center; min-height:17px; padding:0 1px; gap:3px; border:0; background:transparent; }
+.wildz-construction-home .wildz-construction-label { gap:4px; font-size:10px; }
+.wildz-player-action-pad { display: grid; grid-template-columns: repeat(2,44px); gap: 4px 6px; width: 112px; padding: 8px; justify-self: end; border: 1px solid #8ed8bd55; border-radius: 32px 32px 26px 26px; background: linear-gradient(155deg,#1b3739e8,#0a1c23f2); box-shadow: inset 0 1px #ffffff12,0 7px 20px #0005; pointer-events: auto; touch-action: none; }
+.wildz-player-action-pad > button { position: relative; display: grid; place-items: center; width:44px; height:44px; min-height:44px; padding:0; border:1px solid #a2e7ce40; border-radius:50%; color:#d6f7e9; background:linear-gradient(145deg,#2f5754,#162e34); box-shadow:inset 0 1px #ffffff1f,0 2px 3px #0007; touch-action:none; -webkit-tap-highlight-color:transparent; }
+.wildz-player-action-pad > .wildz-player-jump { grid-column:1/-1; justify-self:center; color:#f7dfad; border-color:#dfc18155; }
+.wildz-player-action-pad .wildz-player-hand > small { position:absolute; bottom:3px; right:8px; font-size:7px; font-weight:800; line-height:1; color:#a6cabb; }
+.wildz-player-action-pad > button:active { transform:translateY(1px); background:#376d5e; box-shadow:inset 0 2px 4px #0006; }
+.wildz-player-action-pad > button:focus-visible { outline:2px solid #b7f2d5;outline-offset:3px; }
+.wildz-player-action-pad > button:disabled { opacity:.45; }
+.wildz-movement-home > .wildz-quick-utilities > .wildz-nourishment-pill { grid-column:1/-1; justify-self:start; }
 
-/* One quiet food shortcut, anchored above Build in the same safe-area stack. */
+/* One quiet food shortcut in the movement utility stack. */
 .wildz-nourishment-pill {
   display: flex;
   justify-self: end;

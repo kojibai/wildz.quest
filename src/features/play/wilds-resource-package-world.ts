@@ -31,6 +31,7 @@ export type WildsFoodCustody = Readonly<{ ownerReceizId: string; packageId: stri
 export type WildsFoodConsumptionReceipt = Readonly<{ownerReceizId:string;commandId:string;kaiUPulse:number;sourceReceiptId:string}>;
 export type WildsResourcePackageCommand =
   | { type: "resource.package.create"; package: WildsResourcePackageV1; commandId: string }
+  | { type: "resource.package.native-adopt"; packageId: string; fromOwnerReceizId: string; toOwnerReceizId: string; worldPackageHead: string; artifactId: string; nativeHead: string; receiptId: string; operationId: string; commandId: string }
   | { type: "resource.package.begin-transfer"; packageId: string; targetHandle?:string|null; commandId: string }
   | { type: "resource.package.plan-transfer"; packageId: string; plan:ReceizBearerTransferPlanV1; targetHandle:string|null; commandId: string }
   | { type: "resource.package.abort-transfer"; packageId:string; transferId:string|null; commandId:string }
@@ -89,6 +90,26 @@ export function applyWildsResourcePackageCommand(world: WildsWorldProjection,com
   if (!current) throw Error("wilds_resource_package_missing");
   const record={...current,revision:(current.revision??0)+1,sourceRevision:world.revision+1,updatedKaiUPulse:Math.max(current.updatedKaiUPulse??0,currentKaiUPulse)};
   resourcePackages[command.packageId]=record;
+  if (command.type === "resource.package.native-adopt") {
+    // The native source boundary admits the complete receipt before this pure
+    // projection. Legacy offered/claim state is never manufactured here.
+    if (!sameOwner(command.toOwnerReceizId, actorId) || record.package.head !== command.worldPackageHead
+      || !/^[a-f0-9]{64}$/.test(command.artifactId) || !/^[a-f0-9]{64}$/.test(command.nativeHead)
+      || !/^[a-f0-9]{64}$/.test(command.receiptId) || !command.operationId) throw Error("wilds_resource_native_receipt_invalid");
+    if (record.receiptId === command.receiptId && record.transferId === command.operationId && sameOwner(record.ownerReceizId, actorId)) return {};
+    if (record.status !== "packed" || !sameOwner(record.ownerReceizId, command.fromOwnerReceizId)) throw Error("wilds_resource_native_source_stale");
+    record.custodyOwners = [...new Set([...record.custodyOwners, record.ownerReceizId, actorId])];
+    record.ownerReceizId = actorId; record.subjectId = command.artifactId; record.subjectHead = command.nativeHead;
+    record.receiptId = command.receiptId; record.transferId = command.operationId;
+    const materialCustody = { ...world.materialCustody }, resourceCustody = { ...world.resourceCustody }, foodCustody = { ...world.foodCustody };
+    for (const member of record.package.members) {
+      const custody = { ownerReceizId: actorId, subjectId: command.artifactId, subjectHead: command.nativeHead, receiptId: command.receiptId, transferId: command.operationId };
+      if (member.kind === "material") materialCustody[member.id] = custody;
+      else if (member.kind === "resource") resourceCustody[member.id] = custody;
+      else foodCustody[member.id] = { ownerReceizId: actorId, packageId: command.packageId, receiptId: command.receiptId };
+    }
+    return { resourcePackages, materialCustody, resourceCustody, foodCustody };
+  }
   if (command.type === "resource.package.transfer.admit") {
     if (record.status === "unpacked" || !/^[a-f0-9]{64}$/.test(command.subjectHead) || !command.subjectId || !command.receiptId || !command.transferId) throw Error("wilds_resource_package_transfer_invalid");
     if (record.transferId===command.transferId) {

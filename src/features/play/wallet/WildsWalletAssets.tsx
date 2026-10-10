@@ -13,7 +13,7 @@ import { PhiNetworkAmount } from "./PhiNetworkMark";
 import type { WildsResourceLotV1 } from "@/features/play/wilds-resource-lot";
 import type { WildsMaterialLotV1 } from "@/features/play/wilds-steward-construction";
 import type { WildsStewardPhiAwardV1 } from "@/features/play/wilds-steward-construction";
-import { projectWildsWalletFoodInventory, totalWildsStewardPhiMicro } from "./wilds-wallet-inventory";
+import { countWildsWalletResourceInventory, projectWildsWalletFoodInventory, totalWildsStewardPhiMicro } from "./wilds-wallet-inventory";
 import type { WildsNourishmentState } from "@/features/play/wilds-nourishment";
 import type { ExchangeCard } from "@/features/play/WildsResourceExchange";
 import { WildsWalletAssetSend } from "./WildsWalletAssetSend";
@@ -61,8 +61,7 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
   const filteredMaterials = materialLots.filter((lot) => (filter === "all" || filter === lot.kind) && matches(`${lot.kind} ${lot.lotId} ${lot.source.sourceId}`));
   const filteredResources = resourceLots.filter((lot) => (filter === "all" || filter === "resources") && matches(`living honey ${lot.lotId} ${lot.source.groveId}`));
   const foodGroups = useMemo(() => projectWildsWalletFoodInventory(nourishment), [nourishment]);
-  const foodCount = foodGroups.reduce((total, food) => total + food.quantity, 0);
-  const resourceCount = foodCount + resourceLots.reduce((total, lot) => total + lot.quantity, 0) + resourceCards.length;
+  const resourceCount = countWildsWalletResourceInventory({ nourishment, resourceLots, resourceCards });
   const filteredFood = foodGroups.filter((food) => (filter === "all" || filter === "resources") && matches(`${food.label} ${food.foodKind} ${food.itemIds.join(" ")} ${food.sourceIds.join(" ")}`));
   const filteredResourceCards = resourceCards.filter((card) => (filter === "all" || filter === "resources") && matches(`${card.title} ${card.summary} ${card.id}`));
   const visibleMaterials = filteredMaterials.slice(0, visibleLimit);

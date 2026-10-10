@@ -19,6 +19,7 @@ async function request(url: string, body?: unknown, idempotencyKey?: string, met
 export function useWildsResourceExchange(input: {
   owner: string; nourishment?: WildsNourishmentState; world: ReturnType<typeof useWildsWorld>; messenger: ReturnType<typeof useWildsMessenger>;
   authorize: () => Promise<void>; readKai: () => number;
+  nativeSourceEnabled?: boolean;
   credit: (update: (state: WildsNourishmentState | undefined) => WildsNourishmentState) => void;
   feedback: (message: string) => void;
 }) {
@@ -31,10 +32,17 @@ export function useWildsResourceExchange(input: {
     const promise = (async () => {
       let value: ExchangeAvailability;
       try {
+        if (live.current.nativeSourceEnabled) {
+          const { createWildsWalletNativeSdkClient } = await import('./wallet/wilds-wallet-native-sdk-client');
+          const source = await createWildsWalletNativeSdkClient().nativeWorld.readLatest();
+          value = source ? { status: 'available', foodAvailable: true, marketAvailable: false, message: 'Pack and unpack admitted resources here. Send them from Wallet · Assets.' }
+            : { status: 'unavailable', message: 'Your native world source is connecting. Your saved inventory remains visible.' };
+        } else {
         const result = await request('/api/wilds/resources/packages');
         value = result.resourceTransfer === 'available'
           ? { status: 'available', foodAvailable: result.foodSource === 'available', marketAvailable: result.resourceMarket === 'available', message: result.foodSource === 'available' ? '' : 'Food cards are waiting for the food exchange service. You can still pack materials and other gathered resources.' }
           : { status: 'unavailable', message: 'Resource exchange is waiting for the shared inventory service. Your gathered items remain usable in your Satchel.' };
+        }
       } catch (error) {
         const reason = error instanceof Error ? error.message : '';
         value = /authority_required|unauthorized|sign_in|session_required|guest_identity_required/.test(reason)
@@ -62,6 +70,18 @@ export function useWildsResourceExchange(input: {
     if (result.world?.projection) return live.current.world.adoptServerWorld(result.world.projection);
   }, []);
   const unpack = useCallback(async (id: string) => {
+    if (live.current.nativeSourceEnabled) {
+      await live.current.authorize();
+      const owner = live.current.owner;
+      const { createActiveWildsNativeWorldContext } = await import('./wilds-native-world-source-client');
+      const { unpackWildsNativeResourcePackage } = await import('./wilds-native-resource-source-client');
+      const context = await createActiveWildsNativeWorldContext({ action: 'unpack-native-resource', packageId: id });
+      const accepted = await unpackWildsNativeResourcePackage(id, context, `native-unpack:${id}`);
+      if (live.current.owner !== owner) throw Error('Reopen the unpacking account to recover this package.');
+      const world = live.current.world.adoptServerWorld(accepted.record.checkpoint.projection);
+      live.current.credit(current => recoverWildsUnpackedPackageFood(reconcileWildsNourishmentCustody(current, world, owner) ?? createWildsNourishmentState(owner), world, live.current.readKai()));
+      return;
+    }
     await requireAvailability();
     const owner = live.current.owner;
     const record = live.current.world.currentSource()?.resourcePackages?.[id];
@@ -99,6 +119,15 @@ export function useWildsResourceExchange(input: {
       for (let index = 0; index < groups.length; index++) {
         const world = live.current.world.snapshot;
         const selected = groups[index];
+        if (live.current.nativeSourceEnabled) {
+          const { createActiveWildsNativeWorldContext } = await import('./wilds-native-world-source-client');
+          const { prepareWildsNativeResourceSource } = await import('./wilds-native-resource-source-client');
+          const asset = { kind: 'inventory' as const, materialLotIds: selected.filter(id => Boolean(world?.materialLots[id])), resourceLotIds: selected.filter(id => Boolean(world?.resourceLots[id])), foodItemIds: selected.filter(id => !world?.materialLots[id] && !world?.resourceLots[id]) };
+          const context = await createActiveWildsNativeWorldContext({ action: 'pack-native-resource', asset, commandId: createAttempt.current.commands[index] });
+          await prepareWildsNativeResourceSource({ asset, commandId: createAttempt.current.commands[index], context });
+          await live.current.world.refresh();
+          continue;
+        }
         const result = await request('/api/wilds/resources/packages', {
           commandId: createAttempt.current.commands[index],
           materialLotIds: selected.filter(id => Boolean(world?.materialLots[id])),
@@ -164,6 +193,7 @@ export function useWildsResourceExchange(input: {
     return () => window.removeEventListener('wildz:resource-package-settled', settled);
   }, [unpack]);
   const inventory = useMemo(() => projectResourceExchangeInventory(input.world.snapshot, input.nourishment, input.owner), [input.world.snapshot, input.nourishment, input.owner]);
+  const cards = input.nativeSourceEnabled ? inventory.cards.map(card => ({ ...card, transferable: false })) : inventory.cards;
   const nourishment = useMemo(() => visibleExchangeNourishment(input.nourishment, input.world.snapshot, input.owner), [input.nourishment, input.world.snapshot, input.owner]);
   const consume = useCallback(async (itemId: string) => {
     const result = await request('/api/wilds/resources/food/consume', { itemId });
@@ -172,5 +202,5 @@ export function useWildsResourceExchange(input: {
     return world;
   }, [admitWorld]);
   const availability: ExchangeAvailability = capability?.owner === input.owner ? capability.value : { status: 'checking', message: 'Checking resource exchange…' };
-  return { ...inventory, nourishment, actions, consume, availability, checkAvailability };
+  return { ...inventory, cards, nourishment, actions, consume, availability, checkAvailability };
 }

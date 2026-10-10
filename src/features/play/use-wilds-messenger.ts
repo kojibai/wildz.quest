@@ -22,6 +22,8 @@ import type {
 import { resourceOfferMessage } from './wilds-resource-messaging';
 import { formatWildsPhiExact } from "./wallet/wilds-wallet-format";
 import { assertWildsPrivateMessagePublished, wildsMessageRequestFailure } from "./wilds-messenger-delivery";
+import { validateWildsWalletTradeMessage, wildsWalletTradeMessageId, type WildsWalletTradeMessage } from "./wallet/wilds-wallet-trade-messaging";
+import { validateWildsWalletNativeTradeMessage, wildsWalletNativeTradeMessageId, type WildsWalletNativeTradeMessage } from "./wallet/wilds-wallet-native-trade-context";
 
 type MessengerCache = {
   peers: WildsMessengerParticipant[];
@@ -401,6 +403,38 @@ export function useWildsMessenger(input: {
     assertWildsPrivateMessagePublished(result.publication);
   }, [input.guestId, input.selfId, rememberPeer]);
 
+  const sendTradePackage = useCallback(async (context: WildsWalletTradeMessage) => {
+    if (!input.selfId || input.selfId.startsWith("guest:")) throw Error("Sign in to propose a trade.");
+    const peer = {id: context.draft.recipientHandle, handle: context.draft.recipientHandle};
+    const admitted = validateWildsWalletTradeMessage(context, input.selfHandle, peer.handle);
+    const result = await messengerRequest<{conversation: WildsConversation; publication?: unknown}>("/api/wilds/messages/thread", {
+      method: "POST", credentials: "same-origin", headers: {"content-type": "application/json"},
+      body: JSON.stringify({action: "trade-package", guestId: input.guestId, peer,
+        message: admitted.stage === "counteroffer" ? "Trade counteroffer — review the package in Wallet." : "Trade offer — review the package in Wallet.",
+        clientMessageId: wildsWalletTradeMessageId(input.selfHandle, admitted), context: admitted})
+    });
+    assertWildsPrivateMessagePublished(result.publication);
+    rememberPeer(peer); setConversations(current => admitConversationState(current, result.conversation));
+    return admitted.draft.attemptId;
+  }, [input.guestId, input.selfHandle, input.selfId, rememberPeer]);
+
+  const sendNativeTradeMessage = useCallback(async (recipientHandle: string, context: WildsWalletNativeTradeMessage) => {
+    if (!input.selfId || input.selfId.startsWith("guest:")) throw Error("Sign in to exchange a trade approval.");
+    const peer = {id: recipientHandle, handle: recipientHandle};
+    const admitted = validateWildsWalletNativeTradeMessage(context, input.selfHandle, recipientHandle);
+    const result = await messengerRequest<{conversation: WildsConversation; publication?: unknown}>("/api/wilds/messages/thread", {
+      method: "POST", credentials: "same-origin", headers: {"content-type": "application/json"},
+      body: JSON.stringify({action: "trade-native", guestId: input.guestId, peer,
+        message: admitted.agreement.purpose === "gift"
+          ? admitted.phase === "receipt" ? "Gift accepted — recovering its receipt in Wallet." : admitted.phase === "approval" ? "Gift acceptance — check the gift in Wallet." : `Gift from @${input.selfHandle.replace(/^@/, "").replace(/\.receiz\.id$/, "")} — receive it in Wallet.`
+          : admitted.phase === "receipt" ? "Exchange settled — recovering the complete receipt in Wallet." : admitted.phase === "approval" ? "Trade approval — check the exchange in Wallet." : "Trade package prepared — review the exchange in Wallet.",
+        clientMessageId: wildsWalletNativeTradeMessageId(input.selfHandle, admitted), context: admitted})
+    });
+    assertWildsPrivateMessagePublished(result.publication);
+    rememberPeer(peer); setConversations(current => admitConversationState(current, result.conversation));
+    return wildsWalletNativeTradeMessageId(input.selfHandle, admitted);
+  }, [input.guestId, input.selfHandle, input.selfId, rememberPeer]);
+
   const recordPhiTransfer = useCallback(async (
     peer: WildsMessengerParticipant,
     amountPhiMicro: string,
@@ -519,6 +553,8 @@ export function useWildsMessenger(input: {
     sendCardOffer,
     hasPublishedCardOffer,
     sendResourceClaim,
+    sendTradePackage,
+    sendNativeTradeMessage,
     claimCardOffer,
     markRead,
     react,

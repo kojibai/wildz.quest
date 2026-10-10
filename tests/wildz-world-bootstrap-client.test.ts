@@ -48,7 +48,7 @@ test("the admitted bootstrap projection reaches the living HUD instead of being 
   const durableAdoption = hook.indexOf("input.publish(input.current())", restore);
   assert.ok(publish >= 0 && restore > publish && durableAdoption > restore);
   assert.match(hook, /canonicalSnapshot\.current = admitted/);
-  assert.match(hook, /setSnapshot\(\(current\) => acceptWildsWorldSnapshot\(current, admitted, ownedWorldAdditions\.current\)\)/);
+  assert.match(hook, /setSnapshot\(\(current\) => nativeAuthorityActive\.current \? displayWildsNativeWorldSnapshot\(current, admitted, ownedWorldAdditions\.current\) : acceptWildsWorldSnapshot\(current, admitted, ownedWorldAdditions\.current\)\)/);
   assert.match(hook, /input\.networkEnabled \? \{ refresh \}/);
   assert.match(hook, /networkAvailable: shouldAttemptWildsNetwork/);
 });

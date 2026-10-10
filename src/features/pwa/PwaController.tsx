@@ -9,6 +9,9 @@ import {
   pwaLaunchNavigationTarget
 } from "@/features/pwa/pwa-events";
 import { activateWaitingUpdate } from "@/features/pwa/pwa-update";
+import { recordWildzBrowserLifecycle } from "./pwa-lifecycle";
+
+let lifecycleBootRecorded = false;
 
 type BeforeInstallPromptEvent = Event & {
   prompt(): Promise<void>;
@@ -29,13 +32,25 @@ export function PwaController() {
     let cancelled = false;
     let registration: ServiceWorkerRegistration | null = null;
     const stateListeners = new Map<ServiceWorker, () => void>();
+    if (!lifecycleBootRecorded) {
+      lifecycleBootRecorded = true;
+      const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+      recordWildzBrowserLifecycle({event:"boot", navigation:navigation?.type === "reload" || navigation?.type === "back_forward" ? navigation.type : "navigate", wasDiscarded:(document as Document & {wasDiscarded?:boolean}).wasDiscarded === true});
+    }
+    const lifecycleVisibility = () => recordWildzBrowserLifecycle({event:document.hidden ? "hidden" : "visible"});
+    const lifecyclePageHide = (event:PageTransitionEvent) => recordWildzBrowserLifecycle({event:"pagehide",persisted:event.persisted});
+    const lifecyclePageShow = (event:PageTransitionEvent) => {if(event.persisted)recordWildzBrowserLifecycle({event:"pageshow",persisted:true});};
+    document.addEventListener("visibilitychange",lifecycleVisibility);
+    window.addEventListener("pagehide",lifecyclePageHide);
+    window.addEventListener("pageshow",lifecyclePageShow);
+    const cleanupLifecycle = () => {document.removeEventListener("visibilitychange",lifecycleVisibility);window.removeEventListener("pagehide",lifecyclePageHide);window.removeEventListener("pageshow",lifecyclePageShow);};
     const launchQueue = (window as Window & { launchQueue?: {
       setConsumer(consumer: (launch: { targetURL?: string }) => void): void;
     } }).launchQueue;
     launchQueue?.setConsumer(({ targetURL }) => {
       if (cancelled || !targetURL) return;
       const target = pwaLaunchNavigationTarget(targetURL, window.location.href);
-      if (target) window.location.assign(target);
+      if (target) {recordWildzBrowserLifecycle({event:"requested-reload",reason:"launch-link"});window.location.assign(target);}
     });
     const updateOnlineStatus = () => setOnline(navigator.onLine);
     const captureInstallPrompt = (event: Event) => {
@@ -57,6 +72,7 @@ export function PwaController() {
 
     if (!("serviceWorker" in navigator)) {
       return () => {
+        cleanupLifecycle();
         window.removeEventListener("online", updateOnlineStatus);
         window.removeEventListener("offline", updateOnlineStatus);
         window.removeEventListener("beforeinstallprompt", captureInstallPrompt);
@@ -113,6 +129,7 @@ export function PwaController() {
       : window.setTimeout(register, 1200);
 
     return () => {
+      cleanupLifecycle();
       cancelled = true;
       applyingUpdateRef.current = false;
       registrationRef.current = null;
@@ -162,7 +179,7 @@ export function PwaController() {
     }
     setWaiting(null);
     setUpdateStatus("applied");
-    window.requestAnimationFrame(() => window.location.reload());
+    window.requestAnimationFrame(() => {recordWildzBrowserLifecycle({event:"requested-reload",reason:"apply-update"});window.location.reload();});
   };
 
   const applying = updateStatus === "applying";

@@ -1,3 +1,4 @@
+import {resolveWorldCreationAction,type WildsCreationActionCommand} from './creation/world-action';
 import type { WildsResourcePackageCommand } from "./wilds-resource-package-world";
 import { projectWildsConstructionWeather, resolveWildsMaintenance, type WildsMaintenanceCommand } from "./wilds-construction-weather";
 import { resolveWorldCreationBuild, type WildsCreationBuildCommand } from "./creation/world-source";
@@ -90,6 +91,7 @@ import type { WildsBlueprintPlacement } from "./wilds-world-construction";
 export type WildsWorldCommand = (
   | WildsResourcePackageCommand
   | WildsCreationBuildCommand
+  | WildsCreationActionCommand
   | { type: "community.transition"; request: CommunityRequest; commandId: string }
   | { type: "construction.project.create"; name: string; region: { x: number; z: number }; commandId: string }
   | { type: "construction.component.place"; projectId: string; placement: WildsBlueprintPlacement; request: WildsConstructionPlacementRequest; actorPosition: { x: number; z: number }; commandId: string }
@@ -547,6 +549,11 @@ export class WildsWorldService {
     const kaiUPulse = authorityMoment(authority).uPulse;
     if (command.type.startsWith("resource.package.") || command.type === "resource.food.consume") {
       events.push(this.append("resource.package_transitioned", { command }, authority, command.commandId));
+    } else if(command.type==='creation.action'){
+      const action=resolveWorldCreationAction(this.projection,command,authority.actorId,kaiUPulse);
+      // Each event carries an independent JSON snapshot; the action journal repeats
+      // the same logical sources but must not share mutable object references.
+      events.push(this.append('creation.acted',JSON.parse(JSON.stringify({...action,commandDigest})),authority,command.commandId));
     } else if (command.type === "creation.construct" || command.type === "creation.evolve") {
       const { record } = resolveWorldCreationBuild(this.projection, command, authority.actorId, kaiUPulse);
       events.push(this.append(command.type === "creation.construct" ? "creation.constructed" : "creation.evolved", { record, commandDigest }, authority, command.commandId));

@@ -7,6 +7,17 @@ settings:
 overrides:
   postcss: '>=8.5.10'
 
+patchedDependencies:
+  '@receiz/ai-skills@128.0.0':
+    hash: 3ecdefddb0284d3eaaac7782de5ed3f664a7e7fc850f616a8fdadcd1858153b5
+    path: patches/@receiz__ai-skills@128.0.0.patch
+  '@receiz/mcp-server@128.0.0':
+    hash: 3ebf4b9faa6dcea75bc4a26f1f1854c45937e68bdc3f263f0fb6ceaf2cec68a0
+    path: patches/@receiz__mcp-server@128.0.0.patch
+  '@receiz/sdk@128.0.0':
+    hash: 744f9a3b4e4e6f1f7c2a12a88a458fc3711d7be62c3c2e9a61fa741c8bebaa27
+    path: patches/@receiz__sdk@128.0.0.patch
+
 importers:
 
   .:
@@ -22,7 +33,7 @@ importers:
         version: 9.6.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(three@0.182.0)
       '@receiz/sdk':
         specifier: 128.0.0
-        version: 128.0.0(react@19.2.7)
+        version: 128.0.0(patch_hash=744f9a3b4e4e6f1f7c2a12a88a458fc3711d7be62c3c2e9a61fa741c8bebaa27)(react@19.2.7)
       fflate:
         specifier: 0.8.3
         version: 0.8.3
@@ -62,10 +73,10 @@ importers:
         version: 3.3.5
       '@receiz/ai-skills':
         specifier: 128.0.0
-        version: 128.0.0
+        version: 128.0.0(patch_hash=3ecdefddb0284d3eaaac7782de5ed3f664a7e7fc850f616a8fdadcd1858153b5)
       '@receiz/mcp-server':
         specifier: 128.0.0
-        version: 128.0.0(react@19.2.7)
+        version: 128.0.0(patch_hash=3ebf4b9faa6dcea75bc4a26f1f1854c45937e68bdc3f263f0fb6ceaf2cec68a0)(react@19.2.7)
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.0
@@ -3014,19 +3025,19 @@ snapshots:
       - '@types/react'
       - immer
 
-  '@receiz/ai-skills@128.0.0': {}
+  '@receiz/ai-skills@128.0.0(patch_hash=3ecdefddb0284d3eaaac7782de5ed3f664a7e7fc850f616a8fdadcd1858153b5)': {}
 
-  '@receiz/mcp-server@128.0.0(react@19.2.7)':
+  '@receiz/mcp-server@128.0.0(patch_hash=3ebf4b9faa6dcea75bc4a26f1f1854c45937e68bdc3f263f0fb6ceaf2cec68a0)(react@19.2.7)':
     dependencies:
-      '@receiz/ai-skills': 128.0.0
-      '@receiz/sdk': 128.0.0(react@19.2.7)
+      '@receiz/ai-skills': 128.0.0(patch_hash=3ecdefddb0284d3eaaac7782de5ed3f664a7e7fc850f616a8fdadcd1858153b5)
+      '@receiz/sdk': 128.0.0(patch_hash=744f9a3b4e4e6f1f7c2a12a88a458fc3711d7be62c3c2e9a61fa741c8bebaa27)(react@19.2.7)
     transitivePeerDependencies:
       - react
 
-  '@receiz/sdk@128.0.0(react@19.2.7)':
+  '@receiz/sdk@128.0.0(patch_hash=744f9a3b4e4e6f1f7c2a12a88a458fc3711d7be62c3c2e9a61fa741c8bebaa27)(react@19.2.7)':
     dependencies:
       '@noble/hashes': 2.3.0
-      '@receiz/ai-skills': 128.0.0
+      '@receiz/ai-skills': 128.0.0(patch_hash=3ecdefddb0284d3eaaac7782de5ed3f664a7e7fc850f616a8fdadcd1858153b5)
       fflate: 0.8.3
       hash-wasm: 4.12.0
       snarkjs: 0.7.6

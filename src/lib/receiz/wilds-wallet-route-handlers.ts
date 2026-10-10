@@ -34,7 +34,7 @@ import type {
   WildsWalletTransferTerminalIntegrityPort
 } from "./wilds-wallet-transfer-journal";
 import { receizOidcScopesForRails, type ReceizValueRailV122 } from "@receiz/sdk";
-import { createWildsWalletV124TransferRuntime } from "./wilds-wallet-v124-runtime";
+import { createWildsWalletNativeTransferRuntime } from "./wilds-wallet-native-runtime";
 
 const RECIPIENT_LOOKUP_LIMIT = 6;
 const RECIPIENT_LOOKUP_WINDOW_SECONDS = 60;
@@ -72,7 +72,7 @@ export type WildsWalletTransferConsent = Readonly<{ artifact: unknown; challenge
 
 export interface WildsWalletTransferRouteRuntime {
   readonly durable: true;
-  readonly recipientLookupAdmission?: "distributed-v124" | "external-limiter";
+  readonly recipientLookupAdmission?: "distributed-v124" | "external-limiter" | "native-value";
   capabilityAdmission(authority: WildsWalletReadAuthority): Promise<WalletCapabilityAdmission>;
   preview(
     authority: WildsWalletReadAuthority,
@@ -547,6 +547,11 @@ const SAFE_FAILURES = Object.freeze({
   wilds_wallet_transfer_insufficient_value: 409,
   wilds_wallet_transfer_consent_binding_invalid: 400,
   wilds_wallet_v124_source_invalid: 409,
+  wilds_wallet_native_source_insufficient_phi: 409,
+  wilds_wallet_native_source_recipient_not_initialized: 409,
+  wilds_wallet_native_source_recipient_unavailable: 404,
+  wilds_wallet_native_source_source_unavailable: 409,
+  wilds_wallet_native_source_recipient_rate_limited: 429,
   wilds_wallet_transfer_clock_unavailable: 503,
   wilds_wallet_transfer_not_staged: 404,
   wilds_wallet_idempotency_conflict: 409,
@@ -631,7 +636,7 @@ async function consumeRecipientLookup(limiter: WildsWalletRecipientLookupLimiter
 
 function defaultDependencies(): WildsWalletRouteHandlerDependencies {
   let transferRuntime: WildsWalletTransferRouteRuntime | null = null;
-  const liveTransferRuntime = () => (transferRuntime ??= createWildsWalletV124TransferRuntime({
+  const liveTransferRuntime = () => (transferRuntime ??= createWildsWalletNativeTransferRuntime({
     createAdapter: (accessToken) => createReceizCommerceAdapter({ accessToken })
   }));
   return {
@@ -642,7 +647,7 @@ function defaultDependencies(): WildsWalletRouteHandlerDependencies {
     recipientLookupLimiter: undefined,
     transferRuntime: Object.freeze({
       durable: true as const,
-      recipientLookupAdmission: "distributed-v124" as const,
+      recipientLookupAdmission: "native-value" as const,
       capabilityAdmission: (authority: WildsWalletReadAuthority) => liveTransferRuntime().capabilityAdmission(authority),
       preview: (authority: WildsWalletReadAuthority, command: WildsWalletTransferPreviewCommand) => liveTransferRuntime().preview(authority, command),
       execute: (authority: WildsWalletReadAuthority, request: Readonly<{ attempt: string; consent: WildsWalletTransferConsent }>) => liveTransferRuntime().execute(authority, request),
@@ -744,7 +749,8 @@ export function createWildsWalletRouteHandlers(
           || typeof body.operationNonce !== "string" || !OPERATION_NONCE.test(body.operationNonce)) {
           throw new Error("wilds_wallet_transfer_request_invalid");
         }
-        if (recipientUsername && dependencies.transferRuntime?.recipientLookupAdmission !== "distributed-v124") {
+        if (recipientUsername && dependencies.transferRuntime?.recipientLookupAdmission !== "distributed-v124"
+          && dependencies.transferRuntime?.recipientLookupAdmission !== "native-value") {
           await consumeRecipientLookup(dependencies.recipientLookupLimiter, authority.actorId);
         }
         const value = await transferRuntimeOrThrow(dependencies.transferRuntime).preview(authority, {

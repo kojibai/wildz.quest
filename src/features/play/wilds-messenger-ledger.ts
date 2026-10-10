@@ -18,6 +18,8 @@ import { validateWildsCardTransferOffer } from "@/lib/receiz/wilds-card-transfer
 import { sameWildzPlayerCoordinate } from "@/lib/receiz/wildz-player-coordinate";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import { decodeWildsPortableClaim } from "./wilds-portable-claim";
+import { validateWildsWalletTradeMessage, wildsWalletTradeMessageId } from "./wallet/wilds-wallet-trade-messaging";
+import { validateWildsWalletNativeTradeMessage, wildsWalletNativeTradeMessageId } from "./wallet/wilds-wallet-native-trade-context";
 
 const messengerLedgerKey = Symbol.for("receiz.wilds.messenger-ledger.v1");
 const groupRoomLedgerKey = Symbol.for("receiz.wilds.group-room-ledger.v1");
@@ -110,7 +112,22 @@ export function appendWildsDirectMessage(input: {
   const clientMessageId = input.clientMessageId.trim().slice(0, 160);
   if (!clientMessageId) throw new Error("wilds_client_message_id_required");
   const body = sanitizeWildsDirectMessage(input.body);
-  const context = input.context;
+  const context = input.context?.kind === "trade-package"
+    ? validateWildsWalletTradeMessage(input.context, sender.handle, recipient.handle) : input.context;
+  if (context?.kind === "trade-package") {
+    if (clientMessageId !== wildsWalletTradeMessageId(sender.handle, context)) throw Error("wilds_wallet_trade_message_invalid");
+    if (context.stage === "counteroffer" && !conversation.messages.some(message => !message.deletedAt && !message.editedAt
+      && message.senderId === recipient.id && message.recipientId === sender.id
+      && sameWildzPlayerCoordinate(message.senderHandle, recipient.handle)
+      && message.context?.kind === "trade-package" && message.context.stage === "offer"
+      && canonicalPortableCardJson(message.context.draft) === canonicalPortableCardJson(context.inReplyTo?.draft))) {
+      throw Error("wilds_wallet_trade_original_offer_required");
+    }
+  }
+  if (context?.kind === "trade-native") {
+    validateWildsWalletNativeTradeMessage(context, sender.handle, recipient.handle);
+    if (clientMessageId !== wildsWalletNativeTradeMessageId(sender.handle, context)) throw Error("wilds_wallet_native_trade_message_invalid");
+  }
   if (context?.kind === "phi-transfer" && (
     !/^[1-9][0-9]{0,29}$/.test(context.amountPhiMicro)
     || context.rail !== "settlement"

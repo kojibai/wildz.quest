@@ -3,6 +3,10 @@ import { test } from 'node:test';
 import { applyWildsInput, createOwnerBoundInitialPlayState } from '../src/features/play/game-state';
 import { KAI_N_DAY_MICRO } from '../src/features/play/kai-klok-moment';
 import { wildsNourishmentPlantsForTile, wildsNourishmentSourceAt } from '../src/features/play/wilds-nourishment';
+import { createPlayerBreaths, PLAYER_BREATH_CAPACITY_MICRO } from '../src/features/play/player-breath-energy';
+import { mergeWildsNativeFoodFuelDisplay, prepareWildsNativeFoodFuelRecovery, recoverWildsNativeAdmittedFoodFuel } from '../src/features/play/wilds-food-fuel-recovery';
+import { mergeWildsNativeNourishmentDisplay, wildsNativeFoodIds } from '../src/features/play/wilds-native-inventory-display';
+import { replayWildzNativeWorldLaw } from '../src/features/play/wildz-native-world-law';
 import { createWildzRuntimeCheckpointStore } from '../src/features/play/wildz-runtime-checkpoint-store';
 import { prepareWildzRuntimeCheckpoint, wildzRuntimeCheckpointKey } from '../src/features/play/wildz-runtime-checkpoint';
 import { createWildzContinuityDatabase } from '../src/lib/storage/wildz-indexed-db';
@@ -50,6 +54,28 @@ test('a full local-storage quota preserves food and sleep across cold reopening 
   assert.equal(restored.inventory, base.inventory);
   await reopened.write({ ...scope, playState: restored });
   assert.equal(f.writes(), 2);
+});
+
+test('quota fallback preserves accepted native meal pending credit through cold reopening and credits once',async()=>{
+ const f=fixture(),base=createOwnerBoundInitialPlayState(scope.actorId);
+ const plant=wildsNourishmentPlantsForTile(-4,-4).find(plant=>plant.foodKind==='orchard-fruit')!;
+ const gather={kind:'food.gather' as const,actorId:scope.actorId,sourceId:plant.sourceId,expectedSourceHead:wildsNourishmentSourceAt(plant,undefined,pulse).head,kaiUPulse:pulse,player:plant.position,spaceId:'wildz.space.outer.v1'};
+ const gathered=replayWildzNativeWorldLaw([gather]),item=Object.values(gathered.nourishment[scope.actorId].items)[0]!;
+ const accepted=replayWildzNativeWorldLaw([gather,{kind:'food.consume',actorId:scope.actorId,itemId:item.itemId,commandId:`native-eat:${item.itemId}`,kaiUPulse:pulse+1,reserveMicroBreaths:PLAYER_BREATH_CAPACITY_MICRO-7}]);
+ const source=prepareWildsNativeFoodFuelRecovery(accepted,scope.actorId),full={...base,playerNourishment:mergeWildsNativeNourishmentDisplay(undefined,gathered.nourishment[scope.actorId])!,playerBreaths:createPlayerBreaths(pulse+1,100),energy:100};
+ const pending=mergeWildsNativeFoodFuelDisplay(full,source,scope.actorId,pulse+1,wildsNativeFoodIds(accepted));
+ f.full();await f.store().write({...scope,playState:pending});
+ const restored=await f.store().read({...scope,playState:base});
+ assert.deepEqual(restored.playerNourishment!.nativeItemIds,[item.itemId]);
+ assert.deepEqual(restored.playerNourishment!.nativePendingFuelItemIds,[item.itemId]);
+ assert.equal(restored.playerBreaths!.restoredMicroBreaths,0);
+ const hungry={...restored,playerBreaths:createPlayerBreaths(pulse+2,20),energy:20};
+ const credited=recoverWildsNativeAdmittedFoodFuel(hungry,source,scope.actorId,pulse+2);
+ assert.equal(credited.playerBreaths!.restoredMicroBreaths,7);
+ await f.store().write({...scope,playState:credited});
+ const reopened=await f.store().read({...scope,playState:base});
+ assert.equal(reopened.playerBreaths!.restoredMicroBreaths,7);
+ assert.equal(recoverWildsNativeAdmittedFoodFuel(reopened,source,scope.actorId,pulse+3),reopened);
 });
 
 test('an older fallback cannot rewind a newer admitted player ledger or attach to another owner', async () => {
