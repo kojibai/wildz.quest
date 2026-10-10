@@ -61,7 +61,7 @@ async function fixture() {
     return { client, walletSummary: () => client.connect.wallet(), connectTransfer: (body: any, idempotencyKey?: string) => client.connect.transfer(body, { idempotencyKey }), exchangeProofAuthorityV123: (body: any) => client.identity.exchangeProofAuthority(body), introspectAccessToken: async () => ({ active: true, sub: OWNER, scope: "receiz:wallet.read receiz:wallet.transfer", actor_label: keyFile.keyId }) };
   };
   const connectRuntimeModule = await import(modulePath);
-  const create = (admittedSession: unknown = session) => connectRuntimeModule.createWildsWalletConnectTransferRuntime({ session: admittedSession, createAdapter, fetchImpl, secret: SECRET, applicationId: WILDZ_RECEIZ_APPLICATION_ID, currentKai: () => now });
+  const create = (admittedSession: unknown = session) => connectRuntimeModule.createWildsWalletConnectTransferRuntime({ session: admittedSession, createAdapter, fetchImpl, secret: SECRET, currentKai: () => now });
   const consent = async (attempt: string, scopes = receizOidcScopesForRails("wallet")) => {
     // Use the SDK's exact artifact digest, never the fixture's display account.
     const { sha256ReceizBytes } = await import("@receiz/sdk");

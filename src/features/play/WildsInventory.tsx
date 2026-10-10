@@ -23,7 +23,7 @@ import {
   downloadPreparedCardArtifact,
   preparePortableCardArtifact
 } from "./card-export";
-import { cardArtifactFingerprint, createPreparedCardArtifactCache } from "./prepared-card-artifact";
+import { createPreparedCardArtifactCache } from "./prepared-card-artifact";
 import { exactCompanionProgress, type PlayState, type WildsInput } from "./game-state";
 import type { KaiKlokMoment } from "./kai-klok-moment";
 import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
@@ -69,10 +69,8 @@ export function WildsInventory({
   onCardOrderChange,
   playerVault,
   vaultAdmission,
-  onPrepareCard,
   onExportCard,
   onExportVault,
-  onPrepareVault,
   onInput,
   onListAsset,
   marketListedAssetIds = [],
@@ -101,10 +99,6 @@ export function WildsInventory({
     currentPlayState: PlayState
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
-  useEffect(() => {
-    if (!onPrepareVault) return;
-    return scheduleAfterPaint(() => { void onPrepareVault().catch(() => undefined); });
-  }, [onPrepareVault]);
   const [query, setQuery] = useState("");
   const [rarity, setRarity] = useState("all");
   const [page, setPage] = useState(0);
@@ -137,13 +131,8 @@ export function WildsInventory({
   const suppressCardClick = useRef(false);
   const saveResetTimer = useRef<number | null>(null);
   const cardSaveInFlight = useRef(false);
-  const preparedIdentityCard = useRef<WildzPreparedIdentityOwnedCard | null>(null);
   const previousFocusedAssetId = useRef(focusedAssetId);
-  const playerVaultRef = useRef(playerVault);
   const selectedCardRef = useRef<PlayState["inventory"][number] | undefined>(undefined);
-  // The shell prepares exports in a worker independently of this overlay.
-  const prepareCardRef = useRef(onPrepareCard);
-  prepareCardRef.current = onPrepareCard;
   const preparedCardArtifacts = useMemo(
     () => createPreparedCardArtifactCache(preparePortableCardArtifact),
     []
@@ -160,8 +149,6 @@ export function WildsInventory({
   const safePage = clampInventoryPage(page, matches.length, pageSize);
   const visible = matches.slice(safePage * pageSize, safePage * pageSize + pageSize);
   const selected = state.inventory.find((asset) => asset.id === selectedId) ?? visible[0] ?? state.inventory[0];
-  const selectedArtifactFingerprint = useMemo(() => selected ? cardArtifactFingerprint(selected) : "", [selected]);
-  playerVaultRef.current = playerVault;
   selectedCardRef.current = selected;
   const selectedForm = selected ? creatureForm(selected.manifest.formId) : null;
   const selectedRetired = Boolean(selected && (
@@ -282,29 +269,6 @@ export function WildsInventory({
     return cancelPreparation;
   }, [selected, vaultAdmission]);
 
-  useEffect(() => {
-    preparedIdentityCard.current = null;
-    const selectedCard = selectedCardRef.current;
-    if (!selectedCard || selectedRetired) {
-      return;
-    }
-    let active = true;
-    const cancelPreparation = scheduleAfterPaint(() => {
-      // Snapshot construction hashes the player snapshot synchronously.
-      // Keep it, and the export warmup, outside the overlay's opening frame.
-      void Promise.resolve().then(() => prepareCardRef.current(selectedCard, playerVaultRef.current(selectedCard)))
-        .then((artifact) => {
-          if (!active || artifact.assetId !== selectedCard.id) return;
-          preparedIdentityCard.current = artifact;
-        })
-        .catch(() => {
-          // Encrypted identities and transient preparation failures retain the
-          // original click-time export rail.
-        });
-    });
-    return () => { cancelPreparation(); active = false; };
-  }, [ownerReceizId, selected?.id, selectedArtifactFingerprint, selectedRetired]);
-
   useEffect(() => () => {
     if (saveResetTimer.current !== null) window.clearTimeout(saveResetTimer.current);
   }, []);
@@ -386,14 +350,10 @@ export function WildsInventory({
         setCardSaveState("saving");
         setDownloadMessage(cardSavePresentation("saving").message);
       });
-      const prepared = preparedIdentityCard.current?.assetId === asset.id
-        && preparedIdentityCard.current.cardFingerprint === (asset === selected ? selectedArtifactFingerprint : cardArtifactFingerprint(asset))
-        ? preparedIdentityCard.current
-        : undefined;
-      // Cold preparation can hash a large player snapshot. Paint the first tap's
-      // feedback before that work; ready files retain synchronous user activation.
-      if (!prepared) await new Promise<void>(resolve => { scheduleAfterPaint(resolve); });
-      await onExportCard(asset, playerVault, prepared);
+      // Prepare only after an explicit Save. Paint feedback before snapshot work;
+      // the export adapter still reuses independently verified saved artifacts.
+      await new Promise<void>(resolve => { scheduleAfterPaint(resolve); });
+      await onExportCard(asset, playerVault);
       emitWildsPlaytestEvent("card-save", "success");
       setCardSaveState("success");
       setDownloadMessage(cardSavePresentation("success").message);

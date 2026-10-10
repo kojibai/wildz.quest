@@ -24,7 +24,7 @@ function closeWorker() {
   pending.clear();
 }
 
-/** Retain admitted cards in one worker; only new/replaced cards cross again. */
+/** Share admitted cards across active exports, then release the duplicate Vault. */
 export async function createWildzIdentityPlayerCardBundleOffThread(input: Input): Promise<Bundle | null> {
   if (typeof window === "undefined" || typeof Worker === "undefined") return null;
   if (active?.keyId !== input.keyFile.keyId) closeWorker();
@@ -33,13 +33,18 @@ export async function createWildzIdentityPlayerCardBundleOffThread(input: Input)
       const worker = new Worker(new URL("./wildz-identity-export.worker.ts", import.meta.url), { type: "module" });
       active = { worker, keyId: input.keyFile.keyId, delta: createVaultWorkerDeltaWriter() };
       worker.onmessage = (event: MessageEvent<ExportWorkerReply>) => {
+        if (active?.worker !== worker) return;
         const request = pending.get(event.data.id);
         if (!request) return;
         pending.delete(event.data.id);
         if (!event.data.ok) { request.reject(new Error(event.data.error)); closeWorker(); }
-        else request.resolve({ bytes: new Uint8Array(event.data.bytes), playerPayloadDigest: event.data.playerPayloadDigest });
+        else {
+          request.resolve({ bytes: new Uint8Array(event.data.bytes), playerPayloadDigest: event.data.playerPayloadDigest });
+          if (!pending.size) closeWorker();
+        }
       };
-      worker.onerror = event => { event.preventDefault(); closeWorker(); };
+      worker.onerror = event => { event.preventDefault(); if (active?.worker === worker) closeWorker(); };
+      worker.onmessageerror = () => { if (active?.worker === worker) closeWorker(); };
     } catch { return null; }
   }
   const session = active;

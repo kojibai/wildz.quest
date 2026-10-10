@@ -8,6 +8,7 @@ import { normalizeWildsWalletPublicUsername } from "./wilds-wallet-projections";
 import { wildsWalletTransferConsentStatementDigest } from "./wilds-wallet-transfer-consent";
 import { createWildzReceizChatClient, type WildzReceizChatSession } from "./wildz-receiz-chat-session";
 import { receizOAuthSecret } from "./oauth-state";
+import { WILDZ_RECEIZ_APPLICATION_ID } from "./wildz-application";
 
 type Rail = Pick<ReceizCommerceAdapter, "walletSummary" | "connectTransfer" | "exchangeProofAuthorityV123" | "introspectAccessToken">;
 const PURPOSE = "wildz.wallet.connect-attempt.v1";
@@ -45,7 +46,7 @@ function phiAmount(micro: string) { const amount = BigInt(micro); return `${amou
 /** Compose the released connected-wallet transaction, preserving its actual wallet and chat sources. */
 export function createWildsWalletConnectTransferRuntime(input: { session: WildzReceizChatSession | null; createAdapter(accessToken: string): Rail; fetchImpl?: typeof fetch; secret?: string; applicationId?: string; currentKai?: () => number }): WildsWalletTransferRouteRuntime {
   const secret = input.secret ?? receizOAuthSecret(); const currentKai = input.currentKai ?? (() => receizKaiNow().pulse);
-  const applicationId = input.applicationId ?? process.env.RECEIZ_CLIENT_ID?.trim() ?? "";
+  const applicationId = input.applicationId ?? WILDZ_RECEIZ_APPLICATION_ID;
   const sessionFor = (authority: WildsWalletReadAuthority) => {
     const session = input.session;
     if (!session) throw new Error("receiz_wallet_connect_session_required");

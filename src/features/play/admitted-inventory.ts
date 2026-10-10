@@ -3,6 +3,7 @@ import {
   verifyAnyWildsCard,
   type PortableCardAsset
 } from "./portable-card";
+import { freezeProofData, isDeeplyFrozenPlainProofData } from "./immutable-proof-data";
 
 declare const admittedInventoryBrand: unique symbol;
 
@@ -19,16 +20,10 @@ const admittedHandles = new WeakMap<object, AdmittedInventoryRecord>();
 let verifierCalls = 0;
 let checkpointRestores = 0;
 
-function freezeAdmittedProofObject(value: unknown, seen = new WeakSet<object>()) {
-  if (!value || typeof value !== "object" || seen.has(value)) return;
-  seen.add(value);
-  for (const child of Object.values(value)) freezeAdmittedProofObject(child, seen);
-  Object.freeze(value);
-}
-
 function rememberAdmittedCard(asset: PortableCardAsset) {
   if (admittedCards.has(asset)) return;
-  freezeAdmittedProofObject(asset);
+  freezeProofData(asset);
+  if (!isDeeplyFrozenPlainProofData(asset)) return;
   admittedCards.add(asset);
   rememberAdmittedWildsCardVerification(asset);
 }
@@ -36,6 +31,10 @@ function rememberAdmittedCard(asset: PortableCardAsset) {
 /** The one explicit proof boundary for externally supplied cards. */
 export function verifyAndAdmitWildsCard(asset: PortableCardAsset) {
   verifierCalls += 1;
+  // Verify the final immutable candidate once, so private verifier provenance
+  // belongs to the same object that admission retains.
+  freezeProofData(asset);
+  if (!isDeeplyFrozenPlainProofData(asset)) return false;
   const verified = verifyAnyWildsCard(asset, { useContentCache: false }).ok;
   if (verified) rememberAdmittedCard(asset);
   return verified;

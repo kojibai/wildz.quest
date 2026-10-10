@@ -10,21 +10,16 @@ import {openWildsResourceSourceAuthorityV128} from './wilds-resource-source-clie
 import {WILDS_RESOURCE_SOURCE_WRITE_SCOPES_V128} from './wilds-resource-source-v128';
 import {createWildsResourcePackageExchangeV128,createWildsResourcePublicStoreLocatorV128} from './wilds-resource-exchange-v128';
 import {WILDS_RESOURCE_DOMAIN_V128,WILDS_RESOURCE_REDUCER_DIGEST_V128} from './wilds-resource-journal-v128';
+import {loadWildsResourceSourceConfigurationV128} from './wilds-resource-source-configuration-v128';
 
 export type WildsResourceExchangeBrowserDependenciesV128=Readonly<{
- configuration():Promise<Readonly<{applicationId:string;baseUrl:string}>>;
+ configuration(keyId:string):Promise<Readonly<{applicationId:string;baseUrl:string}>>;
  loadIdentity(keyId:string):Promise<ReceizKeyFile>;
  database():Promise<WildzContinuityDatabase>;
  createSdk:typeof createWildsWalletSourceSdkClientV128;
 }>;
 const defaults:WildsResourceExchangeBrowserDependenciesV128={
- async configuration(){
-  const response=await fetch('/api/wilds/wallet/source-sdk',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(10_000)});
-  const value=await response.json();
-  if(!response.ok||!value||Object.keys(value).sort().join()!=='applicationId,baseUrl'||typeof value.applicationId!=='string'||!value.applicationId.trim()
-   ||typeof value.baseUrl!=='string'||new URL(value.baseUrl).protocol!=='https:')throw Error('wilds_resource_source_configuration_unavailable');
-  return value;
- },
+ configuration:loadWildsResourceSourceConfigurationV128,
  async loadIdentity(keyId){return (await import('./wildz-identity-signing-read')).readWildzIdentityForSigning(keyId);},
  async database(){return (await import('./wildz-active-identity')).defaultContinuityDatabase;},
  createSdk:createWildsWalletSourceSdkClientV128,
@@ -37,7 +32,8 @@ export async function openWildsResourcePackageExchangeBrowserV128(input:Readonly
  keyId:string;gameplayOwnerId:string;
  resolveOriginal?:(card:PortableCardAsset)=>Promise<ReceizPortableSealedArtifactV124|null>;
 }>,dependencies:WildsResourceExchangeBrowserDependenciesV128=defaults){
- const [keyFile,configuration,database]=await Promise.all([dependencies.loadIdentity(input.keyId),dependencies.configuration(),dependencies.database()]);
+ const configuration=await dependencies.configuration(input.keyId);
+ const [keyFile,database]=await Promise.all([dependencies.loadIdentity(input.keyId),dependencies.database()]);
  if(keyFile.keyId!==input.keyId||!keyFile.owner.username)throw Error('wilds_resource_source_identity_mismatch');
  const transport=await createWildzIdentityAuthorizationArtifact(keyFile);
  const statementDigest=await digestReceizCanonicalV122({schema:'wildz.resource-source-consent.v128',applicationId:configuration.applicationId,keyId:input.keyId,

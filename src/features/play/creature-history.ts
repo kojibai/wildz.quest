@@ -1,6 +1,7 @@
 import { applyAdventureConditionDelta, validateAdventureCondition } from "./adventure/card-condition";
 import { applyGrowthEvent } from "./growth-engine";
 import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse } from "./kai-klok-moment";
+import { freezeProofData, isDeeplyFrozenPlainProofData } from "./immutable-proof-data";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
 import {
   CREATURE_HISTORY_NAMESPACE,
@@ -717,13 +718,21 @@ export function appendCreatureHistoryEvent(chain: CreatureHistoryChain, draft: C
     resultingProjectionDigest
   };
   const event = { ...unsigned, digest: digest(eventUnsigned(unsigned)) };
-  return {
+  const successor: CreatureHistoryChain = {
     ...chain,
     events: [...chain.events, event],
     headDigest: event.digest,
     projection: structuredClone(projection),
     projectionDigest: resultingProjectionDigest
   };
+  if (verifiedImmutableHistories.has(chain)) {
+    freezeProofData(successor);
+    // The same canonical checks validate the new suffix; its exact immutable
+    // predecessor already passed every check and cannot change beneath it.
+    for (const step of creatureHistoryVerificationSteps(successor, chain)) void step;
+    if (isDeeplyFrozenPlainProofData(successor)) verifiedImmutableHistories.add(successor);
+  }
+  return successor;
 }
 
 export function createCreatureHistory(input: CreateCreatureHistoryInput): CreatureHistoryChain {
@@ -780,10 +789,10 @@ export function createCreatureHistory(input: CreateCreatureHistoryInput): Creatu
   };
 }
 
-const cooperativelyVerifiedHistories = new WeakSet<CreatureHistoryChain>();
+const verifiedImmutableHistories = new WeakSet<CreatureHistoryChain>();
 
 /** Both restore and synchronous admission consume these same exact checks. */
-function* creatureHistoryVerificationSteps(chain: CreatureHistoryChain) {
+function* creatureHistoryVerificationSteps(chain: CreatureHistoryChain, predecessor?: CreatureHistoryChain) {
   if (chain.schema !== "receiz.wildz.creature_history.v1"
     || chain.namespace !== CREATURE_HISTORY_NAMESPACE
     || !IDENTITY.test(chain.assetId)
@@ -792,11 +801,20 @@ function* creatureHistoryVerificationSteps(chain: CreatureHistoryChain) {
     || (chain.completeness !== "complete" && chain.completeness !== "legacy-checkpoint")
     || !chain.events.length
     || chain.events.length > MAX_EVENTS) throw new Error("creature_history_root_invalid");
-  let projection: CreatureHistoryProjection | null = null;
-  let parentDigest = chain.rootDigest;
-  let priorUPulse: number | null = null;
-  const eventIds = new Set<string>();
-  for (const [index, event] of chain.events.entries()) {
+  if (predecessor && (!verifiedImmutableHistories.has(predecessor)
+    || chain.schema !== predecessor.schema || chain.namespace !== predecessor.namespace
+    || chain.assetId !== predecessor.assetId || chain.rootProofDigest !== predecessor.rootProofDigest
+    || chain.rootDigest !== predecessor.rootDigest || chain.completeness !== predecessor.completeness
+    || chain.events.length !== predecessor.events.length + 1
+    || predecessor.events.some((event, index) => chain.events[index] !== event))) {
+    throw new Error("creature_history_previous_invalid");
+  }
+  let projection: CreatureHistoryProjection | null = predecessor?.projection ?? null;
+  let parentDigest = predecessor?.headDigest ?? chain.rootDigest;
+  let priorUPulse: number | null = predecessor?.events.at(-1)?.kai.uPulse ?? null;
+  const eventIds = new Set(predecessor?.events.map((event) => event.eventId));
+  for (let index = predecessor?.events.length ?? 0; index < chain.events.length; index++) {
+    const event = chain.events[index]!;
     validateDraft({
       eventId: event.eventId,
       rulesetVersion: event.rulesetVersion,
@@ -842,8 +860,9 @@ function* creatureHistoryVerificationSteps(chain: CreatureHistoryChain) {
 export function verifyCreatureHistory(chain: CreatureHistoryChain): { ok: boolean; errors: string[] } {
   const errors: string[] = [];
   try {
-    if (!cooperativelyVerifiedHistories.has(chain)) {
+    if (!verifiedImmutableHistories.has(chain)) {
       for (const step of creatureHistoryVerificationSteps(chain)) void step;
+      if (isDeeplyFrozenPlainProofData(chain)) verifiedImmutableHistories.add(chain);
     }
   } catch (error) {
     errors.push(error instanceof Error ? error.message : "creature_history_invalid");
@@ -851,22 +870,15 @@ export function verifyCreatureHistory(chain: CreatureHistoryChain): { ok: boolea
   return { ok: errors.length === 0, errors };
 }
 
-function freezeHistoryProof(value: unknown, seen = new WeakSet<object>()) {
-  if (!value || typeof value !== "object" || seen.has(value)) return;
-  seen.add(value);
-  for (const child of Object.values(value)) freezeHistoryProof(child, seen);
-  Object.freeze(value);
-}
-
 /** Replay every history event in short slices. Only this exact deeply frozen
  * history may reuse the result; persisted digests and verified flags cannot. */
 export async function verifyCreatureHistoryCooperatively(chain: CreatureHistoryChain, environment: {
   now: () => number; yield: () => Promise<void>;
 }): Promise<{ ok: boolean; errors: string[] }> {
-  if (cooperativelyVerifiedHistories.has(chain)) return { ok: true, errors: [] };
+  if (verifiedImmutableHistories.has(chain)) return { ok: true, errors: [] };
   try {
     // Prevent another task from changing source bytes between verification slices.
-    freezeHistoryProof(chain);
+    freezeProofData(chain);
     let started = environment.now();
     for (const step of creatureHistoryVerificationSteps(chain)) {
       void step;
@@ -875,7 +887,7 @@ export async function verifyCreatureHistoryCooperatively(chain: CreatureHistoryC
         started = environment.now();
       }
     }
-    cooperativelyVerifiedHistories.add(chain);
+    if (isDeeplyFrozenPlainProofData(chain)) verifiedImmutableHistories.add(chain);
     return { ok: true, errors: [] };
   } catch (error) {
     return { ok: false, errors: [error instanceof Error ? error.message : "creature_history_invalid"] };

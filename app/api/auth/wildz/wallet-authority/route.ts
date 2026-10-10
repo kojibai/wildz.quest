@@ -6,6 +6,7 @@ import { loadReceizConnectProfile } from "@/lib/receiz/connect-profile";
 import { receizHttpFailureCode } from "@/lib/receiz/receiz-http-failure";
 import { receizOAuthSecret } from "@/lib/receiz/oauth-state";
 import { WILDZ_RECEIZ_SESSION_SCOPE } from "@/lib/receiz/wildz-auth-url";
+import { WILDZ_RECEIZ_APPLICATION_ID } from "@/lib/receiz/wildz-application";
 import {
   WILDZ_PROOF_SESSION_COOKIE,
   createWildzReceizIdProofSession,
@@ -22,12 +23,6 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function registeredApplicationId() {
-  const id = process.env.RECEIZ_CLIENT_ID?.trim();
-  if (!id) throw new Error("receiz_wallet_application_required");
-  return id;
-}
 
 function authorityPurpose(request: NextRequest) {
   const purpose = request.nextUrl.searchParams.get("purpose");
@@ -68,7 +63,7 @@ function failure(cause: unknown) {
 export async function GET(request: NextRequest) {
   try {
     const issued = issueWildsWalletIdentityAuthorityChallenge({
-      applicationId: registeredApplicationId(),
+      applicationId: WILDZ_RECEIZ_APPLICATION_ID,
       purpose: authorityPurpose(request),
       session: edgeIdentity(request),
       artifactDigest: request.nextUrl.searchParams.get("artifactDigest") ?? ""
@@ -92,7 +87,7 @@ export async function POST(request: NextRequest) {
       body: await request.json()
     }, {
       secret: receizOAuthSecret(),
-      applicationId: registeredApplicationId(),
+      applicationId: WILDZ_RECEIZ_APPLICATION_ID,
       exchange: (input) => receizCommerceAdapter.exchangeProofAuthorityV123(input),
       validate: validateReceizProofAuthorityV123,
       loadProfile: loadReceizConnectProfile,

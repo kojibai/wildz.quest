@@ -3,7 +3,8 @@ import type { NextRequest } from "next/server";
 import { createReceizCommerceAdapter } from "./adapter";
 import { resolveWildsWalletReadAuthority } from "./wilds-wallet-route-authority";
 import { readWildzProofSessionCookie } from "./wildz-proof-session";
-import { readWildzReceizChatSession } from "./wildz-receiz-chat-session";
+import { readWildzReceizChatSession, type WildzReceizChatSession } from "./wildz-receiz-chat-session";
+import { WILDZ_RECEIZ_APPLICATION_ID } from "./wildz-application";
 import { isWildsWalletSourceSdkPathV128, isWildsWalletMarketSourcePageUrlV128, isWildsWalletResourceSourcePageUrlV128, WILDS_WALLET_RESOURCE_SOURCE_URL_V128, WILDS_WALLET_MARKET_SOURCE_URL_V128 } from "../../features/play/wallet/wilds-wallet-source-sdk-v128";
 import { describeWildzMarketSourceArchivePageV128, type WildzMarketSourceArchivePageV128 } from "./wildz-market-source-archive-v128";
 import {describeWildzMarketSourceBytesPageV128} from "./wildz-market-source-original-locator-v128";
@@ -12,7 +13,6 @@ import { normalizeWildsWalletPublicUsername } from "./wilds-wallet-projections";
 
 const MAX_BYTES = 2_000_000;
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
-const configuredApplication = () => { const id = process.env.RECEIZ_CLIENT_ID?.trim(); if (!id) throw Error("The registered Receiz application is required for source authority."); return id; };
 /** Content-addressed transport only; each source still needs native admission. */
 export function assertWildsWalletSourceArchivePageV128(namespace: string, url: string, page: unknown): void {
   if (!object(page)) throw Error("The exact source archive page is required.");
@@ -32,9 +32,10 @@ async function context(request: NextRequest) {
   const authority = await resolveWildsWalletReadAuthority(request), proof = readWildzProofSessionCookie(request);
   return { authority, proof, session: readWildzReceizChatSession(request, { ...authority, keyId: proof.keyId }) };
 }
-export async function wildsWalletSourceSdkConfigV128(request: NextRequest) {
-  const { session } = await context(request);
-  return { applicationId: configuredApplication(), baseUrl: session.origin };
+export async function wildsWalletSourceSdkConfigV128(request: NextRequest,
+  resolveSession: (request: NextRequest) => Promise<WildzReceizChatSession> = async request => (await context(request)).session) {
+  const session = await resolveSession(request);
+  return { applicationId: WILDZ_RECEIZ_APPLICATION_ID, baseUrl: session.origin };
 }
 
 /** A bounded transport for actual published source APIs. Current account/key
@@ -57,7 +58,7 @@ export async function proxyWildsWalletSourceSdkV128(request: NextRequest): Promi
     ({ path, query, method, body } = wire as { path: string; query: string; method: string; body: unknown });
   }
   if (!isWildsWalletSourceSdkPathV128(path, method, query) || path.length > 400 || query.length > 800) throw Error("wildz_resource_sdk_path_invalid");
-  const applicationId = configuredApplication(), params = new URLSearchParams(query);
+  const applicationId = WILDZ_RECEIZ_APPLICATION_ID, params = new URLSearchParams(query);
   if (params.has("applicationId") && params.get("applicationId") !== applicationId || object(body) && typeof body.applicationId === "string" && body.applicationId !== applicationId) throw Error("The native source request names another application.");
   const headers = new Headers({ accept: request.headers.get("accept") ?? "application/json" });
   for (const name of ["x-idempotency-key", "idempotency-key"]) {

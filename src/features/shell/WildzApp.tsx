@@ -2,7 +2,6 @@
 import {createWildzCreationLibrary} from "@/lib/receiz/wildz-creation-library";
 import {defaultContinuityDatabase} from "@/lib/receiz/wildz-active-identity";
 import { scheduleAfterPaint } from "../play/schedule-after-paint";
-import { readWildzLocalSealerReadiness } from "../../lib/receiz/local-seal/browser";
 import { hasLaterWildsPlayerLedger } from "@/features/play/wilds-play-state-source";
 import { isCurrentWildzGameplaySource } from "../identity/wildz-gameplay-source";
 import { validateWildsRoamingHandoffCard } from "../../lib/receiz/wilds-roaming-handoff";
@@ -262,8 +261,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     if (!worldPainted) return;
     let active = true;
     void (async () => {
-      for (const load of [cleanupWildzPendingVaultRestores, loadWildzProfileSheet, loadWildzVaultSheet,
-        () => import("../../lib/receiz/local-seal/browser").then(runtime => runtime.prewarmWildzLocalSealer())]) {
+      for (const load of [cleanupWildzPendingVaultRestores, loadWildzProfileSheet, loadWildzVaultSheet]) {
         await wildzGameplayBackground.run(async () => {
           if (active) await load();
         }, { timeoutMs: 2_500 }).catch(() => undefined);
@@ -842,19 +840,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       build: buildCombinedVault
     });
   }
-  const prewarmCombinedVault = useCallback(async () => {
-    const current = continuityRef.current;
-    if (!current || current.session.localAuthority !== "verified") return;
-    // Warm only an opened save surface. Do not enroll or prompt in the background.
-    if (!await readWildzLocalSealerReadiness()) return;
-    if (continuityRef.current?.session.keyId !== current.session.keyId) return;
-    await combinedVaultCoordinator.current!.prepare(current, false);
-  }, []);
-  useEffect(() => {
-    if (overlay?.kind !== "vault" && overlay?.kind !== "profile") return;
-    return scheduleAfterPaint(() => { void prewarmCombinedVault().catch(() => undefined); });
-  }, [overlay?.kind, prewarmCombinedVault]);
-  // Seal and Vault reuse the exact prepared snapshot; movement never queues backups.
+  // Seal and Vault prepare only on Save and reuse the exact prepared snapshot.
   const prepareCombinedVaultForSave = async (current: WildzContinuitySnapshot) => {
     try { return await combinedVaultCoordinator.current!.prepare(current, false); }
     catch (error) {
@@ -1398,7 +1384,6 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             ? savePreparedWildzIdentityOwnedCard(prepared)
             : downloadWildzIdentityOwnedCard(identity, asset, player(asset))}
           onExportVault={() => saveCombinedVault()}
-          onPrepareVault={prewarmCombinedVault}
           vaultAdmission={vaultAdmission}
           onRestoreArtifact={claimAndRestoreVaultArtifact}
           onRestoreRoamingCapture={restoreRoamingCapture}

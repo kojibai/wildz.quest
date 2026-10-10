@@ -5,6 +5,7 @@ import { deriveKaiKlokMoment, deriveKaiKlokMomentFromUPulse } from "./kai-klok-m
 import { validateLivingCreatureIdentity } from "./living-taxonomy";
 import { deriveBirthGenome, genomeDigest, mergeLivingGenome, validateGenome } from "./heartbound-genome";
 import { emptyAdventureCondition } from "./adventure/card-condition";
+import { freezeProofData, isDeeplyFrozenPlainProofData } from "./immutable-proof-data";
 import {
   appendCreatureHistoryEvent,
   compareCreatureHistoryHeads,
@@ -38,6 +39,7 @@ import {
 } from "./living-card-types";
 
 const DIGEST = /^sha256:[a-f0-9]{64}$/;
+const verifiedImmutableLivingCards = new WeakSet<LivingCardAsset>();
 
 export function emptyLivingGrowth(bond = 0): LivingGrowthSnapshot {
   return {
@@ -246,6 +248,25 @@ export function currentCreatureHistoryProjection(asset: LivingCardAsset) {
     ?? historyProjectionForRevision(asset.id, currentRevision(asset));
 }
 
+function livingCardHistoryErrors(asset: LivingCardAsset, current: LivingCardRevision | undefined) {
+  const errors: string[] = [];
+  const { manifest } = asset;
+  if (!manifest.history) return errors;
+  const history = verifyCreatureHistory(manifest.history);
+  history.errors.forEach((error) => errors.push(`history_${error}`));
+  if (manifest.history.assetId !== asset.id
+    || (manifest.birth.legacyDigest && manifest.history.rootProofDigest !== manifest.birth.legacyDigest)) {
+    errors.push("history_root_invalid");
+  }
+  if (current && (manifest.history.projection.formId !== current.formId
+    || manifest.history.projection.stage !== current.stage
+    || manifest.history.projection.ascensionRank !== current.ascensionRank
+    || manifest.history.projection.livingRevisionDigest !== current.digest)) {
+    errors.push("history_revision_projection_invalid");
+  }
+  return errors;
+}
+
 export function appendLivingCardHistory(input: { asset: LivingCardAsset; event: CreatureHistoryEventDraft }): LivingCardAsset {
   const checked = verifyLivingCard(input.asset);
   if (!checked.ok) throw new Error("wilds_living_previous_invalid");
@@ -262,11 +283,20 @@ export function appendLivingCardHistory(input: { asset: LivingCardAsset; event: 
   const appended = appendCreatureHistoryEvent(history, input.event);
   if (appended === history) return input.asset;
   const manifest = { ...input.asset.manifest, history: appended };
-  return {
+  const successor: LivingCardAsset = {
     ...input.asset,
     manifest,
     proof: { ...input.asset.proof, digest: manifestDigest(manifest), sealedAt: input.event.occurredAt }
   };
+  if (verifiedImmutableLivingCards.has(input.asset)) {
+    // Only the history and its enclosing manifest digest changed. The history
+    // append independently validated its new event from this verified prefix.
+    freezeProofData(successor);
+    if (isDeeplyFrozenPlainProofData(successor) && !livingCardHistoryErrors(successor, prior).length) {
+      verifiedImmutableLivingCards.add(successor);
+    }
+  }
+  return successor;
 }
 
 export function isLivingCardHistoryDescendant(ancestor: LivingCardAsset, descendant: LivingCardAsset) {
@@ -395,6 +425,7 @@ export function appendLivingCardRevision(input: { asset: LivingCardAsset; revisi
 }
 
 export function verifyLivingCard(asset: LivingCardAsset): PortableCardVerification {
+  if (verifiedImmutableLivingCards.has(asset)) return { ok: true, errors: [] };
   const errors: string[] = [];
   if (!isLivingCardAsset(asset)) return { ok: false, errors: ["schema_invalid"] };
   const manifest = asset.manifest;
@@ -486,20 +517,8 @@ export function verifyLivingCard(asset: LivingCardAsset): PortableCardVerificati
     if (canonicalPortableCardJson(manifest.stats) !== canonicalPortableCardJson(current.stats)) errors.push("current_projection_stats_invalid");
     if (canonicalPortableCardJson(manifest.abilityNames) !== canonicalPortableCardJson(current.abilityNames)) errors.push("current_projection_abilities_invalid");
   }
-  if (manifest.history) {
-    const history = verifyCreatureHistory(manifest.history);
-    history.errors.forEach((error) => errors.push(`history_${error}`));
-    if (manifest.history.assetId !== asset.id
-      || (manifest.birth.legacyDigest && manifest.history.rootProofDigest !== manifest.birth.legacyDigest)) {
-      errors.push("history_root_invalid");
-    }
-    if (current && (manifest.history.projection.formId !== current.formId
-      || manifest.history.projection.stage !== current.stage
-      || manifest.history.projection.ascensionRank !== current.ascensionRank
-      || manifest.history.projection.livingRevisionDigest !== current.digest)) {
-      errors.push("history_revision_projection_invalid");
-    }
-  }
+  errors.push(...livingCardHistoryErrors(asset, current));
   if (asset.proof.kind !== "receiz.wilds_living_seal.v2" || asset.proof.digest !== manifestDigest(manifest)) errors.push("digest_mismatch");
+  if (!errors.length && isDeeplyFrozenPlainProofData(asset)) verifiedImmutableLivingCards.add(asset);
   return { ok: errors.length === 0, errors };
 }
