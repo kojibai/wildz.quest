@@ -10,16 +10,38 @@
 .panel button { min-height: 46px; padding: 12px 16px; border-radius: 10px; border: 1px solid #8de5ca33; color: #d9f6ed; background: #1d5146; font-weight: 600; }
 .panel button:disabled { opacity: .5; }
 .columns, .actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
-.assets { display: grid; gap: 8px; }
+.selector { display: grid; gap: 10px; min-width: 0; padding: 14px; border: 1px solid #91c3b42b; border-radius: 14px; background: #0d1a2270; }
+.selectorHeading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.selectorHeading h3 { margin: 0; font-size: 15px; }
+.selectorHeading > span { flex: none; color: #97b3a9; font-size: 12px; }
+.searchLabel { color: #afc4bb; }
+.categories { display: flex; flex-wrap: wrap; gap: 6px; }
+.panel .categories button { min-height: 36px; padding: 7px 10px; background: #12212a; font-size: 11px; }
+.categories button[aria-pressed="true"] { color: #eafff6; border-color: #8de5ca9c; background: #265b4e; }
+.categories button span { margin-left: 4px; color: #aac5ba; font-variant-numeric: tabular-nums; }
+.selectedFilter { margin-left: auto; }
+.selectedSummary { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; max-height: 124px; overflow-y: auto; }
+.panel .selectedSummary button { display: flex; align-items: center; gap: 7px; min-height: 36px; max-width: 100%; padding: 7px 10px; background: #17392f; font-size: 11px; }
+.selectedSummary button > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selectedSummary b { flex: none; color: #a5edce; font-variant-numeric: tabular-nums; }
+.assetList { display: grid; align-content: flex-start; gap: 14px; max-height: min(340px, 45vh); overflow-y: auto; min-width: 0; padding: 2px 4px 2px 0; scrollbar-width: thin; scrollbar-color: #8de5ca70 #0d1a22; }
+.assetGroup { display: grid; gap: 6px; min-width: 0; }
+.assetGroup h4 { display: flex; justify-content: space-between; margin: 0; padding: 3px 2px; font-size: 11px; color: #a9c5b9; }
+.assetGroup h4 span { font-variant-numeric: tabular-nums; }
 .asset { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; align-items: center; padding: 14px; border-radius: 12px; background: #12212a; border: 1px solid #ffffff0b; }
+.asset[data-selected="true"] { border-color: #8de5ca55; background: #17372f; }
 .asset label { grid-template-columns: 20px minmax(0,1fr); align-items: center; gap: 12px; cursor: pointer; }
 .asset label span { display: grid; gap: 4px; overflow-wrap: anywhere; }
 .asset input[type="checkbox"] { width: 20px; height: 20px; accent-color: #8de5ca; }
 .asset > input { width: 72px; padding: 10px; }
+.fixedQuantity { font-size: 13px; color: #a5edce; font-variant-numeric: tabular-nums; }
+.panel .emptyAssets { padding: 14px 4px; }
+.requestPreview { display: grid; gap: 5px; padding: 12px; border-radius: 10px; background: #12212a; }
+.panel input:focus-visible, .panel button:focus-visible, .assetList:focus-visible { outline: 2px solid #8de5ca; outline-offset: 2px; }
 .review { display: grid; gap: 12px; margin: 0; }
 .review div { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; }
 .review dt { color: #97b3a9; font-size: 12px; }
 .review dd { margin: 0; text-align: right; overflow-wrap: anywhere; font-size: 16px; }
 .package { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
 .package li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 10px; background: #12212a; }
-@media (max-width: 420px) { .columns { gap: 8px; }.panel { gap: 15px; }.panel input { padding: 11px; } }
+@media (max-width: 420px) { .columns { gap: 8px; }.panel { gap: 15px; }.panel input { padding: 11px; }.selector { padding: 10px; }.asset { padding: 10px; gap: 8px; }.asset label { gap: 8px; }.asset > input { width: 64px; }.selectedFilter { margin-left: 0; } }

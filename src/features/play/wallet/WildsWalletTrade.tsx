@@ -6,8 +6,8 @@ import type { WildsNourishmentState } from "../wilds-nourishment";
 import type { WildsMaterialLotV1 } from "../wilds-steward-construction";
 import type { WildsResourceLotV1 } from "../wilds-resource-lot";
 import type { ExchangeCard } from "../WildsResourceExchange";
-import type { WildsWalletAssetSendSelection } from "./wilds-wallet-asset-send";
-import { projectWildsWalletFoodInventory } from "./wilds-wallet-inventory";
+import { WildsWalletTradeAssetSelector } from "./WildsWalletTradeAssetSelector";
+import { createWildsWalletTradeRequestNote, projectWildsWalletTradeSelections, projectWildsWalletTradeWishlist } from "./wilds-wallet-trade-selection";
 import { formatWildsPhiExact, parseWildsPhiInput } from "./wilds-wallet-format";
 import { createWildsWalletTradeDraft, createWildsWalletTradeAgreement, type WildsWalletTradeAgreement, type WildsWalletTradeExchangeResult, type WildsWalletApproveTrade, type WildsWalletTradeDraft, type WildsWalletTradeResult, type WildsWalletProposeTrade } from "./wilds-wallet-trade";
 import { admitWildsWalletTradeReview, sendSavedWildsWalletTradeReview, wildsWalletBrowserTradeRecoveryStore, type WildsWalletTradeRecoveryStore, type WildsWalletTradeReview } from "./wilds-wallet-trade-recovery";
@@ -52,8 +52,8 @@ export function WildsWalletTrade({ publicUsername, cards = [], nourishment, mate
   const [phi, setPhi] = useState("");
   const [requestedPhi, setRequestedPhi] = useState("");
   const [note, setNote] = useState("");
-  const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Readonly<Record<string, number>>>({});
+  const [requestedAssets, setRequestedAssets] = useState<Readonly<Record<string, number>>>({});
   const [review, setReview] = useState<WildsWalletTradeDraft | null>(restored.review?.draft ?? null);
   const [savedReview, setSavedReview] = useState<WildsWalletTradeReview | null>(restored.review);
   const [result, setResult] = useState<WildsWalletTradeResult | null>(restored.review?.result ?? (restored.review?.status === "pending" ? { status: "pending", message: "Recover this same trade offer." } : null));
@@ -67,13 +67,9 @@ export function WildsWalletTrade({ publicUsername, cards = [], nourishment, mate
   const agreementDigest=useMemo(()=>agreement?wildsWalletTradeAgreementDigest(agreement):null,[agreement]);
   const nativeResult=agreementDigest?nativeTradeResults[agreementDigest]:undefined;
   useEffect(()=>{if(nativeResult)setExchange(nativeResult);},[nativeResult]);
-  const selections = useMemo<WildsWalletAssetSendSelection[]>(() => [
-    ...cards.filter(card => card.status === "sealed_local" || card.status === "verified").map(card => ({ id: `creature:${card.id}`, label: card.manifest.name, quantity: 1, asset: { kind: "creature" as const, assetId: card.id } })),
-    ...projectWildsWalletFoodInventory(nourishment).map(food => ({ id: `food:${food.id}`, label: food.label, quantity: food.quantity, adjustableQuantity: true, asset: { kind: "inventory" as const, foodItemIds: food.itemIds, materialLotIds: [], resourceLotIds: [] } })),
-    ...materialLots.map(lot => ({ id: `material:${lot.lotId}`, label: lot.kind === "timber" ? "Living Timber" : lot.kind === "stone" ? "Foundation Stone" : "Hay", quantity: 1, asset: { kind: "inventory" as const, foodItemIds: [], materialLotIds: [lot.lotId], resourceLotIds: [] } })),
-    ...resourceLots.map(lot => ({ id: `resource:${lot.lotId}`, label: "Living Honey", quantity: lot.quantity, detail: "Whole sealed lot", asset: { kind: "inventory" as const, foodItemIds: [], materialLotIds: [], resourceLotIds: [lot.lotId] } })),
-    ...resourceCards.filter(card => card.transferable).map(card => ({ id: `package:${card.id}`, label: card.title, detail: card.summary, quantity: 1, asset: { kind: "package" as const, packageId: card.id } }))
-  ], [cards, nourishment, materialLots, resourceLots, resourceCards]);
+  const selections = useMemo(() => projectWildsWalletTradeSelections({ cards, nourishment, materialLots, resourceLots, resourceCards }), [cards, nourishment, materialLots, resourceLots, resourceCards]);
+  const wishlist = useMemo(() => projectWildsWalletTradeWishlist(selections), [selections]);
+  const requestNote = createWildsWalletTradeRequestNote(wishlist, requestedAssets, note);
   const chosen = selections.filter(item => selected[item.id] !== undefined).map(selection => ({ selection, quantity: selected[selection.id]! }));
   const prepare = () => {
     try {
@@ -83,7 +79,7 @@ export function WildsWalletTrade({ publicUsername, cards = [], nourishment, mate
       const requested = requestedPhi.trim() ? parseWildsPhiInput(requestedPhi) : "0";
       if (amount === null || requested === null) throw Error("Enter an exact PHI amount with up to six decimal places.");
       const draft = createWildsWalletTradeDraft({ attemptId: `wallet:trade:${crypto.randomUUID()}`, recipient, selfHandle: publicUsername,
-        phiMicro: amount, requestedPhiMicro: requested, requestNote: note, selections: chosen });
+        phiMicro: amount, requestedPhiMicro: requested, requestNote, selections: chosen });
       const saved: WildsWalletTradeReview = { schema: "wildz.wallet.trade-review.v1", owner: publicUsername, draft,
         labels: chosen.map(({selection, quantity}) => ({id: selection.id, label: selection.label, quantity})), status: "reviewed", ...(inReplyTo ? {inReplyTo} : {}) };
       recoveryStore.write(publicUsername, saved);
@@ -146,19 +142,16 @@ export function WildsWalletTrade({ publicUsername, cards = [], nourishment, mate
         catch (cause) {setError(cause instanceof Error ? cause.message : "Check the trade agreement.");}
       }}>Review final trade</button> : null}
       {result?.status === "offered" ? <button type="button" onClick={() => {
-        try {if (publicUsername) recoveryStore.clear(publicUsername); setReview(null); setSavedReview(null); setResult(null); setSelected({}); setInReplyTo(undefined);}
+        try {if (publicUsername) recoveryStore.clear(publicUsername); setReview(null); setSavedReview(null); setResult(null); setSelected({}); setRequestedAssets({}); setInReplyTo(undefined);}
         catch (cause) {setError(cause instanceof Error ? cause.message : "Trade recovery is unavailable.");}
       }}>Build another offer</button> : null}
     </> : <>
       <label><span>Trade with</span><input aria-label="Trade recipient" autoCapitalize="none" autoCorrect="off" placeholder="@username" value={recipient} onChange={event => setRecipient(event.target.value)} /></label>
       <div className={styles.columns}><label><span>PHI you offer</span><input aria-label="PHI offered in trade" inputMode="decimal" placeholder="0.00" value={phi} onChange={event => setPhi(event.target.value)} /></label><label><span>PHI you request</span><input aria-label="PHI requested in trade" inputMode="decimal" placeholder="0.00" value={requestedPhi} onChange={event => setRequestedPhi(event.target.value)} /></label></div>
-      <label><span>What would you like in exchange?</span><textarea aria-label="Assets requested in trade" maxLength={500} placeholder="For example, Living Honey and Foundation Stone" value={note} onChange={event => setNote(event.target.value)} /></label>
-      <label><span>Add assets to your package</span><input aria-label="Search trade assets" type="search" placeholder="Fruit, creatures, materials…" value={query} onChange={event => setQuery(event.target.value)} /></label>
-      <div className={styles.assets}>{selections.filter(item => !query.trim() || `${item.label} ${item.id}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 32).map(item => {
-        const quantity = selected[item.id];
-        return <div className={styles.asset} key={item.id}><label><input aria-label={`Add ${item.label} to trade`} type="checkbox" checked={quantity !== undefined} onChange={event => setSelected(current => { const next = { ...current }; if (event.target.checked) next[item.id] = item.adjustableQuantity ? 1 : item.quantity; else delete next[item.id]; return next; })} /><span><b>{item.label}</b><small>{item.detail ?? `${item.quantity} available`}</small></span></label>{quantity !== undefined && item.adjustableQuantity ? <input aria-label={`${item.label} trade quantity`} type="number" min={1} max={Math.min(item.quantity, 64)} value={quantity} onChange={event => setSelected(current => ({ ...current, [item.id]: Number(event.target.value) }))} /> : null}</div>;
-      })}</div>
-      {chosen.length ? <p>{chosen.length} asset selection{chosen.length === 1 ? "" : "s"} in your package</p> : null}
+      <WildsWalletTradeAssetSelector mode="offer" choices={selections} selected={selected} onChange={setSelected} />
+      <WildsWalletTradeAssetSelector mode="request" choices={wishlist} selected={requestedAssets} onChange={setRequestedAssets} />
+      <label><span>Request note or other items</span><textarea aria-label="Assets requested in trade" maxLength={500} placeholder="Other items, quality or a note for your peer…" value={note} onChange={event => setNote(event.target.value)} /></label>
+      {requestNote ? <p className={styles.requestPreview}>{requestNote}<small>{requestNote.length}/500 characters</small></p> : null}
       <button onClick={prepare} type="button">Review package</button>
     </>}
     {!agreement && incomingAgreements.length ? <div><h3>Agreements to review</h3>{incomingAgreements.map(item => <article key={item.id}>
