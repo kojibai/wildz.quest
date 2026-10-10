@@ -751,6 +751,7 @@ function AerialPlayerFrame({ creationNavigation, kaiUPulse, aquaticPresentation,
 
     const activeGroundElevation = typeof siteCollision.floorY === "number" && Number.isFinite(siteCollision.floorY) ? siteCollision.floorY : groundElevation;
     const activeWaterSurfaceY = typeof siteCollision.waterSurfaceY === "number" && Number.isFinite(siteCollision.waterSurfaceY) ? siteCollision.waterSurfaceY : aquaticPresentation.waterSurfaceY;
+    const siteFlooded = siteCollision.flooded && activeGroundElevation <= activeWaterSurfaceY + .05;
     const aerialInput = runtimeStep.current;
     aerialInput.weatherLoad = 0;
     if (!siteInterior && runtime.current.mode !== "ground") {
@@ -774,14 +775,14 @@ function AerialPlayerFrame({ creationNavigation, kaiUPulse, aquaticPresentation,
     const advanced = writeWildsAerialRuntimeStep(runtime.current, aerialInput, runtimeResult.current);
     let layer = runtime.current.mode !== "ground"
       ? "air" as const
-      : (siteCollision.flooded || aquaticPresentation.mode === "swim") && hasSwim
+      : (siteFlooded || aquaticPresentation.mode === "swim") && hasSwim
         ? "water" as const
         : "ground" as const;
     const verticalInput = verticalStep.current;
     verticalInput.deltaSeconds = delta;
     verticalInput.initialOffset = layer === "air"
         ? Math.max(.35, runtime.current.altitude - activeGroundElevation)
-        : siteCollision.flooded
+        : siteFlooded
           ? Math.max(.35, activeWaterSurfaceY - activeGroundElevation - .8)
           : aquaticPresentation.actorLocalY;
     verticalInput.intent = verticalIntentRef.current;

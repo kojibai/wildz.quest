@@ -248,7 +248,7 @@ import { wildsTerrainElevation, WILDS_TERRAIN_TILE_SIZE } from "@/features/play/
 import { projectWildsRenderedLivingObstacles, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
 import { projectWildsStructureSupports, wildsStructureSupportAt } from "@/features/play/wilds-structure-support";
 import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition } from "@/features/play/wilds-discovery-sites";
-import { prepareWildsSiteRuntime, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "@/features/play/wilds-site-runtime";
+import { prepareWildsSiteRuntime, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "@/features/play/wilds-site-runtime";
 import { mergeWildsMapDiscovery } from "@/features/play/wilds-map-image";
 import { discoverWildsExplorationSite } from "@/features/play/wilds-exploration-atlas";
 import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, selectWildsTrailBridgeRotation } from "@/features/play/wilds-steward-construction";
@@ -1451,6 +1451,12 @@ export function PlayCampaign({
     () => structures ? projectWildsStructureSupports({ structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions }) : [],
     [structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions]
   );
+  const siteRegion = wildsDiscoverySiteRegionForPosition(state.player);
+  const sitePhysical = useMemo(
+    () => composeWildsInteriorConstruction(composeWildsBurrowPhysical(appendWildsDiscoveryVisualSolids(admitWildsDiscoveryPhysicalNeighborhood(siteRegion.x, siteRegion.z)),worldGeometry?.burrows),worldGeometry),
+    [siteRegion.x, siteRegion.z, worldGeometry]
+  );
+  const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
   const playerStructureSupport = useMemo(() => {
     const manual=wildsStructureSupportAt(state.player,livingStructureSupports,0,state.siteSpace.position.y);
     const created=creationNavigation?creationFloorSupportAt(creationNavigation,state.siteSpace.spaceId,state.siteSpace.position):null;
@@ -1462,8 +1468,10 @@ export function PlayCampaign({
     z: state.player.z,
     canSwim,
     airborne: aerialMode !== "ground",
+    groundElevation: state.siteSpace.spaceId === "wildz.space.outer.v1"
+      ? wildsSiteRuntimeGroundY(siteRuntime, state.siteSpace.spaceId, state.player.x, state.player.z, Number.NaN) : null,
     supportElevation: playerStructureSupport?.deckY ?? null
-  }), [aerialMode, canSwim, playerStructureSupport?.deckY, state.player.x, state.player.z]);
+  }), [aerialMode, canSwim, playerStructureSupport?.deckY, siteRuntime, state.player.x, state.player.z, state.siteSpace.spaceId]);
   const [initialAerialState] = useState(() => createGroundedWildsAerialState(
     state.player,
     aquaticPresentation.terrainElevation
@@ -1507,12 +1515,6 @@ export function PlayCampaign({
     setAerialEnergy(100);
     setTraversalReadout({ layer: "ground", value: 0, safeMin: 0, safeMax: 0, blockerId: null });
   }, [aquaticPresentation.terrainElevation, state.player]);
-  const siteRegion = wildsDiscoverySiteRegionForPosition(state.player);
-  const sitePhysical = useMemo(
-    () => composeWildsInteriorConstruction(composeWildsBurrowPhysical(appendWildsDiscoveryVisualSolids(admitWildsDiscoveryPhysicalNeighborhood(siteRegion.x, siteRegion.z)),worldGeometry?.burrows),worldGeometry),
-    [siteRegion.x, siteRegion.z, worldGeometry]
-  );
-  const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
   const monuments=useMemo(()=>projectWildsMonuments(siteRuntime.sites),[siteRuntime]);
   const nearbyMonument=useMemo(()=>state.siteSpace.spaceId==='wildz.space.outer.v1'?monuments.find(monument=>
     Math.hypot(monument.position.x-state.player.x,monument.position.z-state.player.z)<=WILDS_MONUMENT_INTERACTION_RADIUS
@@ -2848,7 +2850,7 @@ export function PlayCampaign({
     horizontalAllowedRef.current = true;
     setAerialMode("ground");
     const landedInDeepWater = outer && projectWildsAquaticPresentationAtPosition({
-      x: siteLanding.x, z: siteLanding.z, canSwim: activeTraversalCapabilities.includes("swim"), airborne: false
+      x: siteLanding.x, z: siteLanding.z, groundElevation: siteSurface.floorY, canSwim: activeTraversalCapabilities.includes("swim"), airborne: false
     }).mode === "blocked";
     setState((current) => {
       const siteKey = writeWildsSiteRuntimeDiscovery(siteDiscoveryOutputRef.current, siteRuntime, current.siteSpace.spaceId, siteLanding.x, siteSurface.floorY, siteLanding.z).siteKey;

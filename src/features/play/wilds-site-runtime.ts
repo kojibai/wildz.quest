@@ -194,7 +194,7 @@ function floorAndCeiling(output: { floorY: number; ceilingY: number; flooded: bo
   const surface = surfaceAt(runtime, spaceId, x, y, z); if ("surfaceId" in output) output.surfaceId = surface?.id ?? null;
   output.floorY = surface?.center.y ?? fallback; output.ceilingY = Number.POSITIVE_INFINITY; output.flooded = surface?.flooded ?? false;
   const mountain = mountainFieldAt(runtime, spaceId, x, z);
-  if (mountain) { output.floorY = wildsMountainFieldValue(mountain, x, z, "topY"); if ("surfaceId" in output) output.surfaceId = mountain.id; }
+  if (mountain) { output.floorY = wildsMountainFieldValue(mountain, x, z, "topY"); output.flooded = false; if ("surfaceId" in output) output.surfaceId = mountain.id; }
   for (const ceiling of at(indexFor(runtime).ceilings, spaceId, x, z)) { if (Math.abs(x - ceiling.center.x) > ceiling.halfExtents.x || Math.abs(z - ceiling.center.z) > ceiling.halfExtents.z) continue; const underside = ceiling.center.y - ceiling.halfExtents.y; if (underside >= output.floorY && underside < output.ceilingY) output.ceilingY = underside; }
   if ("waterSurfaceY" in output) output.waterSurfaceY = Number.NaN;
   for (const water of at(indexFor(runtime).waters, spaceId, x, z)) {
@@ -202,6 +202,7 @@ function floorAndCeiling(output: { floorY: number; ceilingY: number; flooded: bo
     // pool supplies buoyancy; using the stream's source height lifts swimmers.
     if (water.kind === "waterfall") continue;
     if (!contains(water, x, Math.min(Math.max(y, water.center.y - water.halfExtents.y), water.center.y + water.halfExtents.y), z)) continue;
+    if (output.floorY > water.center.y + water.halfExtents.y + .05) continue;
     output.flooded = true;
     if ("waterSurfaceY" in output) { const priorWaterSurface = typeof output.waterSurfaceY === "number" && Number.isFinite(output.waterSurfaceY) ? output.waterSurfaceY : Number.NEGATIVE_INFINITY; output.waterSurfaceY = Math.max(priorWaterSurface, water.center.y + water.halfExtents.y); }
   }
@@ -213,18 +214,20 @@ function mountainObstruction(runtime: WildsSiteRuntimeProjection, spaceId: strin
   const rise = mountainCircleValue(runtime, spaceId, x, z, radius, "rise");
   return Number.isFinite(top) && rise > 2.2 ? Math.max(0, top - y) : 0;
 }
-function movementBlocked(runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, y: number, z: number, radius: number, canClimb: boolean, sourceObstruction: number, airborneWorldY?: number) {
+function movementBlocked(runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, y: number, z: number, radius: number, canClimb: boolean, sourceObstruction: number, airborneWorldY?: number, mountainReferenceY = y) {
   if (isBlocked(runtime, spaceId, x, y, z, radius)) return true;
   if (Number.isFinite(airborneWorldY)) {
     const top = mountainCircleValue(runtime, spaceId, x, z, radius, "topY");
     return Number.isFinite(top) && top + .35 > airborneWorldY!;
   }
-  const obstruction = mountainObstruction(runtime, spaceId, x, y, z, radius, canClimb);
+  // Compare both ends of a slope from the same standing height. Comparing the
+  // destination to its seabed can turn a downhill step into an uphill obstacle.
+  const obstruction = mountainObstruction(runtime, spaceId, x, mountainReferenceY, z, radius, canClimb);
   return obstruction > .05 && obstruction >= sourceObstruction - .000001;
 }
 export function writeWildsSiteRuntimeMovement(output: WildsSiteMovementOutput, runtime: WildsSiteRuntimeProjection, spaceId: string, sx: number, sy: number, sz: number, tx: number, tz: number, radius: number, fallback = sy, canClimb = false, airborneWorldY?: number) {
-  movementWrites += 1; output.blockedByClimb = false; const interior = spaceId !== OUTER; const targetY = Number.isFinite(airborneWorldY) ? airborneWorldY! : interior ? sy : fallback; const sourceObstruction = mountainObstruction(runtime, spaceId, sx, sy, sz, radius, canClimb); const targetClimbObstruction = Number.isFinite(airborneWorldY) ? 0 : mountainObstruction(runtime, spaceId, tx, targetY, tz, radius, canClimb); let x = tx, z = tz, surface = surfaceAt(runtime, spaceId, x, targetY, z); const blocked = movementBlocked(runtime, spaceId, x, targetY, z, radius, canClimb, sourceObstruction, airborneWorldY) || (interior && !surface);
-  if (blocked) { const xSurface = surfaceAt(runtime, spaceId, tx, targetY, sz); if ((!interior || xSurface) && !movementBlocked(runtime, spaceId, tx, targetY, sz, radius, canClimb, sourceObstruction, airborneWorldY)) { z = sz; surface = xSurface; } else { const zSurface = surfaceAt(runtime, spaceId, sx, targetY, tz); if ((!interior || zSurface) && !movementBlocked(runtime, spaceId, sx, targetY, tz, radius, canClimb, sourceObstruction, airborneWorldY)) { x = sx; surface = zSurface; } else { x = sx; z = sz; surface = surfaceAt(runtime, spaceId, x, sy, z); } } }
+  movementWrites += 1; output.blockedByClimb = false; const interior = spaceId !== OUTER; const targetY = Number.isFinite(airborneWorldY) ? airborneWorldY! : interior ? sy : fallback; const sourceObstruction = mountainObstruction(runtime, spaceId, sx, sy, sz, radius, canClimb); const targetClimbObstruction = Number.isFinite(airborneWorldY) ? 0 : mountainObstruction(runtime, spaceId, tx, sy, tz, radius, canClimb); let x = tx, z = tz, surface = surfaceAt(runtime, spaceId, x, targetY, z); const blocked = movementBlocked(runtime, spaceId, x, targetY, z, radius, canClimb, sourceObstruction, airborneWorldY, sy) || (interior && !surface);
+  if (blocked) { const xSurface = surfaceAt(runtime, spaceId, tx, targetY, sz); if ((!interior || xSurface) && !movementBlocked(runtime, spaceId, tx, targetY, sz, radius, canClimb, sourceObstruction, airborneWorldY, sy)) { z = sz; surface = xSurface; } else { const zSurface = surfaceAt(runtime, spaceId, sx, targetY, tz); if ((!interior || zSurface) && !movementBlocked(runtime, spaceId, sx, targetY, tz, radius, canClimb, sourceObstruction, airborneWorldY, sy)) { x = sx; surface = zSurface; } else { x = sx; z = sz; surface = surfaceAt(runtime, spaceId, x, sy, z); } } }
   output.x = q(x); output.z = q(z); output.blocked = blocked && x === sx && z === sz; output.blockedByClimb = output.blocked && targetClimbObstruction > .05;
   // Air height is a collision query, never the persistent ground/frame origin.
   // Without an authored surface, keep the caller's terrain floor underneath flight.

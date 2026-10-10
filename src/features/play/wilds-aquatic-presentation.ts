@@ -1,4 +1,4 @@
-import { sampleWildsTerrain, type WildsTerrainSample } from "./wilds-terrain-authority";
+import { sampleWildsTerrainAtGroundElevation, type WildsTerrainSample } from "./wilds-terrain-authority";
 import { WILDS_WATERLINE_ELEVATION } from "./wilds-terrain-rendering";
 
 export { WILDS_WATERLINE_ELEVATION } from "./wilds-terrain-rendering";
@@ -25,6 +25,7 @@ export type WildsAquaticPositionInput = Readonly<{
   z: number;
   canSwim: boolean;
   airborne: boolean;
+  groundElevation?: number | null;
   supportElevation?: number | null;
 }>;
 
@@ -64,7 +65,7 @@ export function projectWildsAquaticPresentation(input: WildsAquaticPresentationI
 export function projectWildsAquaticPresentationAtPosition(input: WildsAquaticPositionInput) {
   terrainProjections += 1;
   const projected = projectWildsAquaticPresentation({
-    terrain: sampleWildsTerrain(input.x, input.z),
+    terrain: sampleWildsTerrainAtGroundElevation(input.x, input.z, input.groundElevation),
     canSwim: input.canSwim,
     airborne: input.airborne
   });

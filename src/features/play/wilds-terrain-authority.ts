@@ -239,3 +239,17 @@ export function sampleWildsTerrain(x: number, z: number): WildsTerrainSample {
     traversal
   };
 }
+
+/** Water follows an authored mountain's floor; its climb limits remain in the site runtime. */
+export function sampleWildsTerrainAtGroundElevation(x: number, z: number, groundElevation?: number | null): WildsTerrainSample {
+  const terrain = sampleWildsTerrain(x, z);
+  if (typeof groundElevation !== "number" || !Number.isFinite(groundElevation) || groundElevation <= terrain.elevation) return terrain;
+  const elevation = quantize(groundElevation);
+  const surface = wildsTerrainWaterSurface(elevation) ?? "rock";
+  terrain.elevation = elevation;
+  terrain.surface = surface;
+  terrain.waterDepth = quantize(Math.max(0, -1.1 - elevation));
+  terrain.materialId = `wildz.terrain.material.${surface}.v1`;
+  if (surface !== "deep-water") terrain.traversal = [];
+  return terrain;
+}
