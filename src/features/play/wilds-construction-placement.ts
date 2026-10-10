@@ -6,7 +6,15 @@ import { verifyWildsConstructionComponent } from "./wilds-construction-component
 import { verifyWildsConstructionProject, wildsConstructionRegionId } from "./wilds-construction-project";
 import { type WildsWorldProjection } from "./wilds-world-state";
 import { nearbyWildsConstruction, constructionGeometryForCollections } from "./wilds-construction-neighborhood";
-import { sampleWildsTerrain } from "./wilds-terrain-authority";
+import { sampleWildsTerrain, sampleWildsTerrainAtGroundElevation, WILDS_TERRAIN_WATER_SURFACE_ELEVATION } from "./wilds-terrain-authority";
+import { projectWildsConstructionTerrain, composeWildsConstructionTerrain, type WildsConstructionTerrainPad } from './wilds-construction-terrain';
+
+const terrainByWorld = new WeakMap<WildsWorldProjection, readonly WildsConstructionTerrainPad[]>();
+function terrainForWorld(world: WildsWorldProjection) {
+  let pads = terrainByWorld.get(world);
+  if (!pads) { pads = projectWildsConstructionTerrain(world); terrainByWorld.set(world, pads); }
+  return pads;
+}
 
 export type WildsConstructionPlacementRequest = Pick<WildsProductionPlacementEvidence, "spaceId" | "pointer" | "rotationQuarterTurns" | "heightStep" | "surfaceSnap" | "snapVersion">;
 
@@ -25,11 +33,14 @@ export function projectWildsProductionPlacementEvidence(world: WildsWorldProject
   const terrain = sampleWildsTerrain(Math.round(request.pointer.x * 2) / 2, Math.round(request.pointer.z * 2) / 2);
   const region = wildsDiscoverySiteRegionForPosition(request.pointer);
   const spaceId=request.spaceId ?? "wildz.space.outer.v1";
-  const physical=composeWildsBurrowPhysical(admitWildsDiscoveryPhysicalNeighborhood(region.x,region.z),world.burrows);
+  const physical=composeWildsConstructionTerrain(composeWildsBurrowPhysical(admitWildsDiscoveryPhysicalNeighborhood(region.x,region.z),world.burrows), terrainForWorld(world));
   const interior=spaceId!=="wildz.space.outer.v1";
   const floor=interior?physical.surfaces.find(f=>f.spaceId===spaceId&&Math.abs(f.center.x-request.pointer.x)<=f.halfExtents.x&&Math.abs(f.center.z-request.pointer.z)<=f.halfExtents.z&&Math.abs(f.center.y-request.pointer.y)<=.75):null;
   if(interior&&!floor)throw new Error("wilds_construction_underground_floor_required");
-  const terrainY = floor?.center.y ?? (request.surfaceSnap ? wildsSiteRuntimeGroundY(prepareWildsSiteRuntime(physical), spaceId, request.pointer.x, request.pointer.z, terrain.elevation) : terrain.elevation);
+  const actualTerrainY = floor?.center.y ?? (request.surfaceSnap ? wildsSiteRuntimeGroundY(prepareWildsSiteRuntime(physical), spaceId, request.pointer.x, request.pointer.z, terrain.elevation) : terrain.elevation);
+  const groundSupport = !interior && request.surfaceSnap && request.snapVersion === 2;
+  const terrainY = groundSupport ? Math.max(actualTerrainY, WILDS_TERRAIN_WATER_SURFACE_ELEVATION + .2) : actualTerrainY;
+  const supportedTerrain = sampleWildsTerrainAtGroundElevation(request.pointer.x, request.pointer.z, actualTerrainY);
   return {
     ...request,
     sourceBlueprint: {
@@ -39,8 +50,9 @@ export function projectWildsProductionPlacementEvidence(world: WildsWorldProject
       pieces: nearby.map((component) => component.placement)
     },
     physical: {
+      ...(groundSupport ? {groundSupport: 'wildz.build-ground.v1' as const} : {}),
       terrainY,
-      waterline: !interior && terrain.waterDepth > 0 ? terrain.elevation + terrain.waterDepth : null,
+      waterline: !interior && supportedTerrain.waterDepth > 0 ? supportedTerrain.elevation + supportedTerrain.waterDepth : null,
       anchors: geometry.flatMap((entry) => [...entry.anchors]),
       solids: [...geometry.flatMap((entry) => [...entry.solids]), ...physical.solids.filter(c=>c.spaceId===spaceId && c.id.startsWith("burrow-wall:")).map(c=>({id:c.id,center:c.center,halfExtents:c.halfExtents})), ...physical.ceilings.filter(c=>c.spaceId===spaceId).map(c=>({id:c.id,center:c.center,halfExtents:c.halfExtents}))]
     }

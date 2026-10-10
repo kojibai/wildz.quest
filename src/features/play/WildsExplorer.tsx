@@ -1,4 +1,5 @@
 "use client";
+import type {WildsEquipmentControlState} from './wilds-equipment-controls';
 
 import { playerBodyBreathExpansion } from "./player-breath-energy";
 
@@ -237,6 +238,7 @@ export function WildsExplorer({
   aerialStateRef,
   verticalTraversalRef,
   handActionsRef,
+  equipmentControlsRef,
   facingRef,
   eyePoseRef,
   firstPerson = false,
@@ -256,6 +258,7 @@ export function WildsExplorer({
   aerialStateRef?: MutableRefObject<WildsAerialTraversalState>;
   verticalTraversalRef?: MutableRefObject<WildsVerticalTraversalState>;
   handActionsRef?: MutableRefObject<WildsHandActionState>;
+  equipmentControlsRef?:MutableRefObject<WildsEquipmentControlState>;
   facingRef?: MutableRefObject<number>;
   eyePoseRef?: MutableRefObject<{x:number;y:number;z:number}>;
   firstPerson?: boolean;
@@ -345,6 +348,9 @@ export function WildsExplorer({
     const footPlant = grounded && moving ? Math.max(0, Math.cos(elapsed * 23)) : grounded ? 1 : 0;
     const swimStroke = locomotion === "swim" ? Math.sin(elapsed * 3.8) * readability.motionScale : 0;
     const airborne = aerialMode !== "ground";
+    const equipmentControl=equipmentControlsRef?.current;
+    const aiming=!sleeping&&!!heldCreationEquipment&&Boolean(equipmentControl&&(equipmentControl.aiming||performance.now()-equipmentControl.shotAt<180)||equipmentControl?.drawingAt!==null&&equipmentControl?.drawingAt!==undefined);
+    if(aiming&&equipmentControl){facing.current=Math.atan2(-equipmentControl.aimDirection.x,-equipmentControl.aimDirection.z);if(facingRef)facingRef.current=facing.current;}
     const leftAction = handActionsRef?.current.left ?? null, rightAction = handActionsRef?.current.right ?? null;
     const leftPose = sampleWildsHandPose(sleeping ? null : leftAction, elapsed * 1000), rightPose = sampleWildsHandPose(sleeping ? null : rightAction, elapsed * 1000);
     const verticalVelocity = aerialStateRef?.current.verticalVelocity ?? 0;
@@ -393,9 +399,19 @@ export function WildsExplorer({
       if(leftElbow.current)leftElbow.current.rotation.x+=leftPose.elbowX;
       if(rightElbow.current)rightElbow.current.rotation.x+=rightPose.elbowX;
     }
+    if(aiming){
+      // Bring the real hands into a narrow portrait eye view, without a second rig.
+      if(leftShoulder.current)leftShoulder.current.position.x=firstPerson?-.12:-.25;
+      if(rightShoulder.current)rightShoulder.current.position.x=firstPerson?.12:.25;
+      const recoil=equipmentControl?Math.max(0,1-(performance.now()-equipmentControl.shotAt)/160)*.15:0;
+      if(leftShoulder.current)leftShoulder.current.rotation.x=Math.PI/2+.12+Math.asin(Math.max(-1,Math.min(1,equipmentControl?.aimDirection.y??0)))-recoil;
+      if(rightShoulder.current)rightShoulder.current.rotation.x=Math.PI/2+.12+Math.asin(Math.max(-1,Math.min(1,equipmentControl?.aimDirection.y??0)))-recoil;
+      if(leftElbow.current)leftElbow.current.rotation.x=-.12;
+      if(rightElbow.current)rightElbow.current.rotation.x=-.12-(equipmentControl?.drawingAt!==null&&equipmentControl?.drawingAt!==undefined?Math.min(1,(performance.now()-equipmentControl.drawingAt)/700)*.4:0);
+    }else{if(leftShoulder.current)leftShoulder.current.position.x=-.25;if(rightShoulder.current)rightShoulder.current.position.x=.25;}
     // Preserve inward palms at rest; each active wrist turns independently.
-    if(leftWrist.current)leftWrist.current.rotation.y=Math.PI/2-leftPose.wristY;
-    if(rightWrist.current)rightWrist.current.rotation.y=-Math.PI/2+rightPose.wristY;
+    if(leftWrist.current)leftWrist.current.rotation.y=aiming&&heldCreationEquipment?.hand==='left'?0:Math.PI/2-leftPose.wristY;
+    if(rightWrist.current)rightWrist.current.rotation.y=aiming&&heldCreationEquipment?.hand==='right'?0:-Math.PI/2+rightPose.wristY;
     if (satchel.current) { satchel.current.rotation.z = grounded ? stride * -0.09 : 0; satchel.current.visible = !sleeping; }
     if (scarf.current) scarf.current.rotation.x = 0.18 + Math.sin(elapsed * 5.5) * (moving ? 0.12 : 0.035) * readability.motionScale;
     if (aerialHarness.current) aerialHarness.current.visible = airborne && !remote;

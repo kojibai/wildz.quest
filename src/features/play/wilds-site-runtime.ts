@@ -40,8 +40,13 @@ const point = (x: number, y: number, z: number): Point3 => Object.freeze({ x: q(
 function add<T extends Box>(index: Index<T>, value: T) {
   let space = index.get(value.spaceId);
   if (!space) { space = new Map(); index.set(value.spaceId, space); }
-  const minX = Math.floor((value.center.x - value.halfExtents.x) / CELL), maxX = Math.floor((value.center.x + value.halfExtents.x) / CELL);
-  const minZ = Math.floor((value.center.z - value.halfExtents.z) / CELL), maxZ = Math.floor((value.center.z + value.halfExtents.z) / CELL);
+  const yaw = 'yaw' in value && typeof value.yaw === 'number' ? value.yaw : 0;
+  const margin = 'id' in value && typeof value.id === 'string' && value.id.startsWith('construction-terrain:') ? .6 : 0;
+  const c = Math.abs(Math.cos(yaw)), s = Math.abs(Math.sin(yaw)),
+    hx = value.halfExtents.x * c + value.halfExtents.z * s + margin,
+    hz = value.halfExtents.x * s + value.halfExtents.z * c + margin;
+  const minX = Math.floor((value.center.x - hx) / CELL), maxX = Math.floor((value.center.x + hx) / CELL);
+  const minZ = Math.floor((value.center.z - hz) / CELL), maxZ = Math.floor((value.center.z + hz) / CELL);
   for (let x = minX; x <= maxX; x += 1) {
     let column = space.get(x); if (!column) { column = new Map(); space.set(x, column); }
     for (let z = minZ; z <= maxZ; z += 1) { const bucket = column.get(z); if (bucket) (bucket as T[]).push(value); else column.set(z, [value]); }
@@ -97,8 +102,20 @@ function mountainFieldAt(runtime: WildsSiteRuntimeProjection, spaceId: string, x
   return selected;
 }
 export function wildsSiteRuntimeGroundY(runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, z: number, fallback: number) {
+  const grading = constructionGroundAt(runtime, spaceId, x, z);
+  if (grading) return grading.center.y;
   const mountain = mountainFieldAt(runtime, spaceId, x, z);
   return mountain ? wildsMountainFieldValue(mountain, x, z, "topY") : fallback;
+}
+function constructionGroundAt(runtime: WildsSiteRuntimeProjection, spaceId: string, x: number, z: number) {
+  let selected: WildsSiteSurface | undefined, nearest = Infinity;
+  for (const surface of at(indexFor(runtime).surfaces, spaceId, x, z)) {
+    if (!surface.id.startsWith('construction-terrain:')) continue;
+    const dx = x - surface.center.x, dz = z - surface.center.z, c = Math.cos(surface.yaw ?? 0), s = Math.sin(surface.yaw ?? 0);
+    const distance = Math.max(Math.abs(dx * c - dz * s) - surface.halfExtents.x, Math.abs(dx * s + dz * c) - surface.halfExtents.z);
+    if (distance <= .6 && distance < nearest) { selected = surface; nearest = distance; }
+  }
+  return selected;
 }
 function triangleContains(ax: number, az: number, bx: number, bz: number, cx: number, cz: number, x: number, z: number) {
   const first = (bx - ax) * (z - az) - (bz - az) * (x - ax);
@@ -195,6 +212,8 @@ function floorAndCeiling(output: { floorY: number; ceilingY: number; flooded: bo
   output.floorY = surface?.center.y ?? fallback; output.ceilingY = Number.POSITIVE_INFINITY; output.flooded = surface?.flooded ?? false;
   const mountain = mountainFieldAt(runtime, spaceId, x, z);
   if (mountain) { output.floorY = wildsMountainFieldValue(mountain, x, z, "topY"); output.flooded = false; if ("surfaceId" in output) output.surfaceId = mountain.id; }
+  const grading = constructionGroundAt(runtime, spaceId, x, z);
+  if (grading) { output.floorY = grading.center.y; output.flooded = false; if ('surfaceId' in output) output.surfaceId = grading.id; }
   for (const ceiling of at(indexFor(runtime).ceilings, spaceId, x, z)) { if (Math.abs(x - ceiling.center.x) > ceiling.halfExtents.x || Math.abs(z - ceiling.center.z) > ceiling.halfExtents.z) continue; const underside = ceiling.center.y - ceiling.halfExtents.y; if (underside >= output.floorY && underside < output.ceilingY) output.ceilingY = underside; }
   if ("waterSurfaceY" in output) output.waterSurfaceY = Number.NaN;
   for (const water of at(indexFor(runtime).waters, spaceId, x, z)) {

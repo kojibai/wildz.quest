@@ -1,9 +1,10 @@
-import { WILDS_TERRAIN_TILE_SIZE, WILDS_TERRAIN_VERSION, sampleWildsTerrain, wildsTerrainElevation, type WildsTerrainSurface } from "./wilds-terrain-authority";
+import { WILDS_TERRAIN_TILE_SIZE, WILDS_TERRAIN_VERSION, WILDS_TERRAIN_WATER_SURFACE_ELEVATION, sampleWildsTerrain, wildsTerrainElevation, type WildsTerrainSurface } from "./wilds-terrain-authority";
 import { buildWildsTerrainTile, wildsTerrainTileKey, type WildsTerrainTileData } from "./wilds-terrain-tiles";
+import {sampleWildsConstructionTerrainAt,wildsConstructionTerrainPadsInBounds,type WildsConstructionTerrainPad} from './wilds-construction-terrain';
 
 type WorldPoint = Readonly<{ x: number; z: number }>;
 
-export const WILDS_WATERLINE_ELEVATION = -1.06;
+export const WILDS_WATERLINE_ELEVATION = WILDS_TERRAIN_WATER_SURFACE_ELEVATION;
 
 export type WildsTerrainMeshVertex = {
   grid: { x: number; z: number };
@@ -42,6 +43,39 @@ export type WildsTerrainRibbonProjection = {
   indices: readonly number[];
   vertices: readonly Pick<WildsTerrainMeshVertex, "world" | "position">[];
 };
+
+/** Grade cached mesh projections without altering their reusable source tiles. */
+export function gradeWildsTerrainMeshProjection(mesh: WildsTerrainMeshProjection, pads: readonly WildsConstructionTerrainPad[]): WildsTerrainMeshProjection {
+  if (!pads.length) return mesh;
+  let changed = false;
+  const vertices = mesh.vertices.map(vertex => {
+    const {x,z}=vertex.world, y=sampleWildsConstructionTerrainAt(pads,x,z,vertex.position.y);
+    if (y === vertex.position.y) return vertex;
+    changed=true;
+    const step=.25, height=(px:number,pz:number)=>sampleWildsConstructionTerrainAt(pads,px,pz,wildsTerrainElevation(px,pz)),
+      nx=(height(x-step,z)-height(x+step,z))/(step*2),nz=(height(x,z-step)-height(x,z+step))/(step*2),length=Math.hypot(nx,1,nz);
+    return {...vertex,position:{...vertex.position,y},normal:{x:nx/length,y:1/length,z:nz/length},surface:y>WILDS_WATERLINE_ELEVATION?'soil' as const:vertex.surface};
+  });
+  return changed ? {...mesh,vertices,positions:vertices.flatMap(vertex=>[vertex.position.x,vertex.position.y,vertex.position.z]),normals:vertices.flatMap(vertex=>[vertex.normal.x,vertex.normal.y,vertex.normal.z])} : mesh;
+}
+
+/** Filled dry earth hides its lake surface, including footprints spanning the
+ * old shoreline. Preserve water away from the construction-derived grading. */
+export function gradeWildsTerrainWaterProjection(water: WildsTerrainWaterProjection, pads: readonly WildsConstructionTerrainPad[]): WildsTerrainWaterProjection {
+  if (!pads.length) return water;
+  const grade=(layer:WildsTerrainWaterLayer):WildsTerrainWaterLayer=>{
+    const indices:number[]=[];
+    for(let offset=0;offset<layer.indices.length;offset+=3){
+      const triangle=layer.indices.slice(offset,offset+3),x=triangle.reduce((sum,index)=>sum+layer.positions[index*3],0)/3+water.origin.x,
+        z=triangle.reduce((sum,index)=>sum+layer.positions[index*3+2],0)/3+water.origin.z,raw=wildsTerrainElevation(x,z),graded=sampleWildsConstructionTerrainAt(pads,x,z,raw);
+      if(graded!==raw&&graded>water.waterline)continue;
+      indices.push(...triangle);
+    }
+    return indices.length===layer.indices.length?layer:{...layer,indices};
+  };
+  const shallow=grade(water.shallow),deep=grade(water.deep);
+  return shallow===water.shallow&&deep===water.deep?water:{...water,shallow,deep};
+}
 
 let actorTerrainSamples = 0;
 let anchorTerrainSamples = 0;
@@ -240,7 +274,8 @@ export function buildWildsTerrainWaterProjection(
   centerTileX: number,
   centerTileZ: number,
   radius: number,
-  segments: number
+  segments: number,
+  terrainPads: readonly WildsConstructionTerrainPad[] = []
 ): WildsTerrainWaterProjection {
   if (!Number.isInteger(radius) || radius < 0 || radius > 4) throw new Error("wilds_terrain_water_radius_invalid");
   if (!Number.isInteger(segments) || segments < 1 || segments > 64) throw new Error("wilds_terrain_water_segments_invalid");
@@ -251,19 +286,21 @@ export function buildWildsTerrainWaterProjection(
   const waterline = WILDS_WATERLINE_ELEVATION;
   const shallow = { positions: [] as number[], normals: [] as number[], indices: [] as number[] };
   const deep = { positions: [] as number[], normals: [] as number[], indices: [] as number[] };
-  const cellSize = WILDS_TERRAIN_TILE_SIZE / segments;
 
   for (let tileZ = centerTileZ - radius; tileZ <= centerTileZ + radius; tileZ += 1) {
     for (let tileX = centerTileX - radius; tileX <= centerTileX + radius; tileX += 1) {
-      const surfaces = cachedWaterSurfaces(tileX, tileZ, segments, cellSize);
-      for (let gridZ = 0; gridZ < segments; gridZ += 1) {
-        for (let gridX = 0; gridX < segments; gridX += 1) {
+      const affected = wildsConstructionTerrainPadsInBounds(terrainPads, tileX * WILDS_TERRAIN_TILE_SIZE, tileZ * WILDS_TERRAIN_TILE_SIZE,
+        (tileX + 1) * WILDS_TERRAIN_TILE_SIZE, (tileZ + 1) * WILDS_TERRAIN_TILE_SIZE).length > 0;
+      const tileSegments = affected ? Math.max(32, segments) : segments, cellSize = WILDS_TERRAIN_TILE_SIZE / tileSegments;
+      const surfaces = cachedWaterSurfaces(tileX, tileZ, tileSegments, cellSize);
+      for (let gridZ = 0; gridZ < tileSegments; gridZ += 1) {
+        for (let gridX = 0; gridX < tileSegments; gridX += 1) {
           const worldX = tileX * WILDS_TERRAIN_TILE_SIZE + gridX * cellSize;
           const worldZ = tileZ * WILDS_TERRAIN_TILE_SIZE + gridZ * cellSize;
           // Keep a continuous water body below the terrain. Opaque terrain hides this
           // plane on land, while submerged route shoulders can no longer punch square
           // holes through the ocean merely because their cell center is a trail.
-          const layer = surfaces[gridZ * segments + gridX] === 1 ? shallow : deep;
+          const layer = surfaces[gridZ * tileSegments + gridX] === 1 ? shallow : deep;
           const vertexOffset = layer.positions.length / 3;
           const x0 = worldX - origin.x;
           const z0 = worldZ - origin.z;
@@ -284,7 +321,8 @@ export function buildWildsTerrainWaterProjection(
   return { origin, waterline, shallow, deep };
 }
 
-export function buildWildsTerrainPatchProjection(centerTileX: number, centerTileZ: number, radius: number, segments: number): WildsTerrainMeshProjection {
+export function buildWildsTerrainPatchProjection(centerTileX: number, centerTileZ: number, radius: number, segments: number,
+  terrainPads: readonly WildsConstructionTerrainPad[] = []): WildsTerrainMeshProjection {
   if (!Number.isInteger(radius) || radius < 0 || radius > 4) throw new Error("wilds_terrain_patch_radius_invalid");
   const origin = {
     x: (centerTileX - radius) * WILDS_TERRAIN_TILE_SIZE,
@@ -299,7 +337,12 @@ export function buildWildsTerrainPatchProjection(centerTileX: number, centerTile
 
   for (let offsetZ = -radius; offsetZ <= radius; offsetZ += 1) {
     for (let offsetX = -radius; offsetX <= radius; offsetX += 1) {
-      const tile = buildWildsTerrainMeshProjection(centerTileX + offsetX, centerTileZ + offsetZ, segments);
+      const tileX = centerTileX + offsetX, tileZ = centerTileZ + offsetZ;
+      const affected = wildsConstructionTerrainPadsInBounds(terrainPads, tileX * WILDS_TERRAIN_TILE_SIZE, tileZ * WILDS_TERRAIN_TILE_SIZE,
+        (tileX + 1) * WILDS_TERRAIN_TILE_SIZE, (tileZ + 1) * WILDS_TERRAIN_TILE_SIZE).length > 0;
+      // A 37.5cm grid only in affected tiles keeps mountain cuts below even a
+      // small floor's edges. Other streamed tiles retain their quality budget.
+      const tile = buildWildsTerrainMeshProjection(tileX, tileZ, affected ? Math.max(32, segments) : segments);
       const vertexOffset = vertices.length;
       for (const vertex of tile.vertices) {
         const projected: WildsTerrainMeshVertex = {

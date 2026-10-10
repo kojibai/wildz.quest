@@ -1,6 +1,9 @@
 "use client";
 import { projectWildsExplorerAnatomy } from "./wilds-explorer-anatomy";
 import { wildsPlayerTapDestination, writeWildsPlayerViewPose, writeWildsEmbodiedEyeAnchor, wildsFirstPersonZoomedOut, prioritizeWildsLocalPlayerHit, WILDS_FIRST_PERSON_DISTANCE, type WildsPlayerEyePose } from "./wilds-player-view";
+import {WildsEquipmentEffects} from './WildsEquipmentEffects';
+import type {WildsEquipmentControlState} from './wilds-equipment-controls';
+import {writeWildsEquipmentCameraOffset} from './wilds-equipment-camera';
 import type {WildsHandActionState} from "./wilds-player-actions";
 import {WildsGraphicsLifecycle} from '../pwa/WildsGraphicsLifecycle';
 import { WildsNourishmentEnvironment, type WildsNourishmentEnvironmentProps } from './WildsNourishmentEnvironment';
@@ -200,6 +203,7 @@ export function WildsWorldCanvas({
   aerialStateRef,
   verticalTraversalRef,
   handActionsRef,
+  equipmentControlsRef,
   heldCreationEquipment,
   verticalIntentRef,
   horizontalAllowedRef,
@@ -267,6 +271,7 @@ export function WildsWorldCanvas({
   aerialStateRef: MutableRefObject<WildsAerialTraversalState>;
   verticalTraversalRef: MutableRefObject<WildsVerticalTraversalState>;
   handActionsRef?: MutableRefObject<WildsHandActionState>;
+  equipmentControlsRef?:MutableRefObject<WildsEquipmentControlState>;
   heldCreationEquipment?: WildsHeldCreationEquipment;
   verticalIntentRef: MutableRefObject<WildsVerticalTraversalIntent>;
   horizontalAllowedRef: MutableRefObject<boolean>;
@@ -320,7 +325,7 @@ export function WildsWorldCanvas({
           <WildsFirstDrawPreparation onPrepared={setStartupPrepared} />
           <WildsFirstFrame onReady={onWorldReady} />
           {startupPrepared ? <WildsShaderPrewarm /> : null}
-          <WildsScene monumentLightState={monumentLightState} nourishment={nourishment} sleepingCreationBed={sleepingCreationBed} suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} creationPreview={creationPreview} creationProjections={creationProjections} creationNavigation={creationNavigation} creationSource={creationSource} creationWorldId={creationWorldId} onCreationNavigation={onCreationNavigation} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onSleepingPlayerTap={onSleepingPlayerTap} playerTapEnabled={playerTapEnabled} playerFacingRef={playerFacingRef} onJumpTravel={onJumpTravel} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} handActionsRef={handActionsRef} heldCreationEquipment={heldCreationEquipment} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
+          <WildsScene monumentLightState={monumentLightState} nourishment={nourishment} sleepingCreationBed={sleepingCreationBed} suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} creationPreview={creationPreview} creationProjections={creationProjections} creationNavigation={creationNavigation} creationSource={creationSource} creationWorldId={creationWorldId} onCreationNavigation={onCreationNavigation} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onSleepingPlayerTap={onSleepingPlayerTap} playerTapEnabled={playerTapEnabled} playerFacingRef={playerFacingRef} onJumpTravel={onJumpTravel} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} handActionsRef={handActionsRef} equipmentControlsRef={equipmentControlsRef} heldCreationEquipment={heldCreationEquipment} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
         </WildsEmbodiedAudioContext.Provider>
       </Canvas>
@@ -387,6 +392,7 @@ function WildsScene({
   aerialStateRef,
   verticalTraversalRef,
   handActionsRef,
+  equipmentControlsRef,
   heldCreationEquipment,
   verticalIntentRef,
   horizontalAllowedRef,
@@ -455,6 +461,7 @@ function WildsScene({
   aerialStateRef: MutableRefObject<WildsAerialTraversalState>;
   verticalTraversalRef: MutableRefObject<WildsVerticalTraversalState>;
   handActionsRef?: MutableRefObject<WildsHandActionState>;
+  equipmentControlsRef?:MutableRefObject<WildsEquipmentControlState>;
   heldCreationEquipment?: WildsHeldCreationEquipment;
   verticalIntentRef: MutableRefObject<WildsVerticalTraversalIntent>;
   horizontalAllowedRef: MutableRefObject<boolean>;
@@ -557,7 +564,7 @@ function WildsScene({
       {!interior && <WildsCelestialSky expression={kaiExpression} qualityProfile={qualityProfile} />}
       <WildsAtmosphere interior={interior} encounter={state.encounter} expression={kaiExpression} missionProgress={state.missionProgress} nightRig={nightRig} player={state.player} qualityProfile={qualityProfile} />
       {!interior && <WildsKaiAtmosphereGeometry expression={kaiExpression} qualityProfile={qualityProfile} />}
-      <CameraRig firstPerson={firstPerson} eyeHeight={eyeHeight} eyePoseRef={eyePoseRef} onExitFirstPerson={() => setFirstPerson(false)} terrainElevation={activeFloorY} actualCameraSubmergedRef={actualCameraSubmergedRef} verticalTraversalRef={verticalTraversalRef} aquaticPresentation={aquaticPresentation} onCameraHeadingChange={onCameraHeadingChange} vistaHeading={vistaHeading} siteRuntime={siteRuntime} siteSpace={siteSpace} player={state.player} />
+      <CameraRig equipmentControlsRef={equipmentControlsRef} firstPerson={firstPerson} eyeHeight={eyeHeight} eyePoseRef={eyePoseRef} onExitFirstPerson={() => setFirstPerson(false)} terrainElevation={activeFloorY} actualCameraSubmergedRef={actualCameraSubmergedRef} verticalTraversalRef={verticalTraversalRef} aquaticPresentation={aquaticPresentation} onCameraHeadingChange={onCameraHeadingChange} vistaHeading={vistaHeading} siteRuntime={siteRuntime} siteSpace={siteSpace} player={state.player} />
       <WildsUnderwaterAtmosphere cameraSubmergedRef={actualCameraSubmergedRef} qualityProfile={qualityProfile} surfaceFog={interior ? "#020304" : kaiFog} surfaceFogFar={interior ? 22 : fogFar} surfaceFogNear={interior ? 2 : fogNear} surfaceSky={interior ? "#020304" : kaiSky} />
       {WILDS_DIAGNOSTICS_ENABLED ? <WildsDiagnostics environment={{
         authoredDarkness: interior ? 1 : darkness.amount,
@@ -570,6 +577,7 @@ function WildsScene({
         starCount: wildsStarCountForTier(qualityProfile.tier)
       }} qualityProfile={qualityProfile} siteRuntime={siteRuntime} state={state} /> : null}
       <WorldFrame>
+        {equipmentControlsRef?<WildsEquipmentEffects controls={equipmentControlsRef} player={state.player} floorY={activeFloorY}/>:null}
         <SearchableTerrain
           monumentLightState={monumentLightState}
           activeWorkSource={activeWorkSource}
@@ -633,7 +641,7 @@ function WildsScene({
           }}
           aerialStateRef={aerialStateRef}
           verticalTraversalRef={verticalTraversalRef}
-          handActionsRef={handActionsRef}
+          handActionsRef={handActionsRef} equipmentControlsRef={equipmentControlsRef}
           heldCreationEquipment={heldCreationEquipment}
           character={character}
           identityKey={explorerIdentityKey}
@@ -1458,7 +1466,8 @@ function RemoteExplorer({
   );
 }
 
-function CameraRig({ firstPerson = false, eyeHeight = 1.38, eyePoseRef, onExitFirstPerson = () => {}, terrainElevation, actualCameraSubmergedRef, verticalTraversalRef, aquaticPresentation, onCameraHeadingChange, vistaHeading, siteRuntime, siteSpace, player }: {
+function CameraRig({ equipmentControlsRef, firstPerson = false, eyeHeight = 1.38, eyePoseRef, onExitFirstPerson = () => {}, terrainElevation, actualCameraSubmergedRef, verticalTraversalRef, aquaticPresentation, onCameraHeadingChange, vistaHeading, siteRuntime, siteSpace, player }: {
+  equipmentControlsRef?:MutableRefObject<WildsEquipmentControlState>;
   firstPerson: boolean;
   eyeHeight: number;
   eyePoseRef: MutableRefObject<WildsPlayerEyePose>;
@@ -1477,6 +1486,9 @@ function CameraRig({ firstPerson = false, eyeHeight = 1.38, eyePoseRef, onExitFi
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const desiredCamera = useMemo(() => camera.clone(), [camera]);
   const firstPersonActive = useRef(false);
+  const aimActive=useRef(false);
+  const cameraAimDirection=useMemo(()=>new THREE.Vector3(),[]);
+  const cameraLookTarget=useMemo(()=>new THREE.Vector3(),[]);
   const switchingView = useRef(false);
   const thirdPersonDistance = useRef(6);
   const thirdPersonFov=useRef(desiredCamera instanceof THREE.PerspectiveCamera?desiredCamera.fov:40);
@@ -1489,7 +1501,7 @@ function CameraRig({ firstPerson = false, eyeHeight = 1.38, eyePoseRef, onExitFi
     const orbit = controls.current;
     if (!orbit || firstPerson === firstPersonActive.current) return;
     switchingView.current = true;
-    if (firstPerson) {thirdPersonDistance.current = Math.max(.45, Math.min(12.5, desiredCamera.position.distanceTo(orbit.target)));if(desiredCamera instanceof THREE.PerspectiveCamera)thirdPersonFov.current=desiredCamera.fov;}
+    if (firstPerson) {thirdPersonDistance.current = Math.max(.45, Math.min(12.5, desiredCamera.position.distanceTo(orbit.target)));}
     setPlayerViewFov(firstPerson);
     firstPersonActive.current = firstPerson;
     orbit.minDistance = firstPerson ? WILDS_FIRST_PERSON_DISTANCE : .45;
@@ -1544,14 +1556,17 @@ function CameraRig({ firstPerson = false, eyeHeight = 1.38, eyePoseRef, onExitFi
       orbit.maxDistance = siteSpace.spaceId === "wildz.space.outer.v1" ? controlState.maxDistance : 4;
       orbit.minDistance = firstPersonActive.current ? WILDS_FIRST_PERSON_DISTANCE : siteSpace.spaceId === "wildz.space.outer.v1" && verticalTraversalRef.current.layer === "air" ? controlState.minDistance : .45;
       orbit.minPolarAngle = firstPersonActive.current ? .08 : controlState.minPolarAngle;
-      orbit.maxPolarAngle = firstPersonActive.current ? Math.PI - .08 : controlState.maxPolarAngle;
+      const aiming=Boolean(equipmentControlsRef?.current.aiming||equipmentControlsRef?.current.drawingAt!==null&&equipmentControlsRef?.current.drawingAt!==undefined);
+      orbit.maxPolarAngle = firstPersonActive.current||aiming ? Math.PI - .08 : controlState.maxPolarAngle;
+      if(aiming&&!aimActive.current&&!firstPersonActive.current)desiredCamera.position.y=orbit.target.y+.25;
+      aimActive.current=aiming;
       orbit.rotateSpeed = controlState.rotateSpeed;
       orbit.zoomSpeed = controlState.zoomSpeed;
       const siteWorldY = terrainElevation;
       const siteCamera = writeWildsSiteRuntimeCamera(siteCameraRef.current, siteRuntime, siteSpace.spaceId, player.x, siteWorldY, player.z);
       const clearance = verticalTraversalRef.current.offset;
       if (firstPersonActive.current) writeWildsEmbodiedEyeAnchor(desiredCamera.position,orbit.target,eyePoseRef.current,clearance);
-      const surfaceTargetY = firstPersonActive.current ? orbit.target.y : .9 + clearance;
+      const surfaceTargetY = firstPersonActive.current ? orbit.target.y : (aiming?1.25:.9) + clearance;
       const projection = cameraProjection.current;
       let activeAquatic = aquaticPresentation;
       if (wildsSiteRuntimeCameraIsFlooded(siteCamera)) {
@@ -1592,6 +1607,10 @@ function CameraRig({ firstPerson = false, eyeHeight = 1.38, eyePoseRef, onExitFi
     publishCameraPose();
   }, -.25);
   function publishCameraPose() {
+    if(equipmentControlsRef){
+      const aiming=equipmentControlsRef.current.aiming||equipmentControlsRef.current.drawingAt!==null;
+      if(desiredCamera instanceof THREE.PerspectiveCamera&&camera instanceof THREE.PerspectiveCamera){const fov=(firstPersonActive.current?64:thirdPersonFov.current)*(aiming?.78:1);if(desiredCamera.fov!==fov){desiredCamera.fov=fov;camera.fov=fov;desiredCamera.updateProjectionMatrix();camera.updateProjectionMatrix();}}
+    }
     const orbit = controls.current;
     if (orbit && firstPersonActive.current && !switchingView.current && wildsFirstPersonZoomedOut(desiredCamera.position, orbit.target)) {
       firstPersonActive.current = false;
@@ -1605,12 +1624,15 @@ function CameraRig({ firstPerson = false, eyeHeight = 1.38, eyePoseRef, onExitFi
     }
     if (orbit) {
       camera.position.copy(desiredCamera.position);
+      const aiming=Boolean(equipmentControlsRef?.current.aiming||equipmentControlsRef?.current.drawingAt!==null&&equipmentControlsRef?.current.drawingAt!==undefined);
+      writeWildsEquipmentCameraOffset(camera.position,orbit.target,cameraLookTarget,aiming,firstPersonActive.current);
       const origin = cameraOrigin.current;
       origin.x = player.x; origin.y = terrainElevation; origin.z = player.z;
       if (siteSpace.spaceId !== "wildz.space.outer.v1") writeWildsInteriorCameraPosition(camera.position, siteRuntime, siteSpace.spaceId, origin, orbit.target.y);
       else writeWildsMountainCameraPosition(camera.position, siteRuntime, siteSpace.spaceId, origin, orbit.target);
-      camera.lookAt(orbit.target);
+      camera.lookAt(cameraLookTarget);
     }
+    if(equipmentControlsRef){camera.getWorldDirection(cameraAimDirection);const direction=equipmentControlsRef.current.aimDirection;direction.x=cameraAimDirection.x;direction.y=cameraAimDirection.y;direction.z=cameraAimDirection.z;const origin=equipmentControlsRef.current.viewOrigin;origin.x=player.x+camera.position.x;origin.y=terrainElevation+camera.position.y;origin.z=player.z+camera.position.z;}
     const heading = Math.atan2(camera.position.x-(orbit?.target.x??0), camera.position.z-(orbit?.target.z??0));
     if (Number.isFinite(lastHeading.current) && Math.abs(heading - lastHeading.current) < .001) return;
     lastHeading.current = heading;
@@ -2148,7 +2170,9 @@ function WildsDiagnostics({
         diagnostics: wildsSiteRuntimeDiagnostics(),
         physicalVersion: siteRuntime.physical.version,
         runtimeVersion: siteRuntime.version,
-        siteCount: siteRuntime.sites.length
+        siteCount: siteRuntime.sites.length,
+        constructionTerrainFields: siteRuntime.physical.mountainFields.filter(field => field.id.startsWith('construction-terrain:')).length,
+        playerSpace: currentState.siteSpace
       },
       boss: scene.getObjectByName("wilds-boss-environment")?.userData ?? { detailedBosses: 0, maxDetailedBosses: 1 }
     };

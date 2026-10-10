@@ -1,4 +1,4 @@
-import {verifyWorldCreationActionRecord,type WildsCreationActionRecord} from './world-action';
+import {CREATION_WORLD_GEAR_ACTION_RULE_HEAD,verifyWorldCreationActionRecord,type WildsCreationActionRecord} from './world-action';
 import { emptyAdventureCondition, validateAdventureCondition, type AdventureCardCondition } from '../adventure/card-condition';
 import { verifyAnyWildsCard, type PortableCardAsset } from '../portable-card';
 import { constructionProofDigest, freezeConstructionProof, validConstructionHead, validConstructionId, validConstructionKai } from '../wilds-construction-project';
@@ -7,7 +7,7 @@ import { assertCreationData, parseCreationDefinition } from './definition';
 import { compileCreation, type CreationCompileContext, type CreationPlan } from './compiler';
 import { projectCreationWorkers, combineCreationTechniques } from './capabilities';
 import { createCreationInstance, sealCreationInstance, verifyCreationInstance, type CreationInstance } from './instance';
-import { initializeCreationComponents, CREATION_COMPONENT_RULE_HEAD } from './components';
+import { initializeCreationComponents, CREATION_COMPONENT_RULE_HEAD, creationComponentRuleForDefinition } from './components';
 import { selectCreationResources, type CreationSelectedLot } from './resources';
 import { projectCreationPhysical, creationNodePoses } from './projection';
 import { reviseCreationInstance, CREATION_EVOLUTION_RULE_HEAD } from './evolution';
@@ -25,6 +25,9 @@ import { sameWildzPlayerCoordinate } from '../../../lib/receiz/wildz-player-coor
 import { CREATURE_CREATION_TECHNIQUE_RULE_V1 } from '../creature-capability-identity';
 import { createWildsExactProofCache } from '../wilds-exact-proof-cache';
 import { creationBuildInReach, CREATION_PHYSICAL_BUILD_REACH_RULE, type CreationBuildReachRule } from './build-reach';
+import {projectWildsConstructionTerrain,sampleWildsConstructionTerrainAt} from '../wilds-construction-terrain';
+import {sampleWildsBuildGround} from '../wilds-build-ground';
+import { assertCreationTerrainSupport, assertCreationTerrainObjectsClear, creationUsesTerrainSupport } from './ground-placement';
 
 export const CREATION_WORLD_RULE = Object.freeze({ id: 'creation.world.construct.v1', componentRuleHead: CREATION_COMPONENT_RULE_HEAD, techniqueRule: CREATURE_CREATION_TECHNIQUE_RULE_V1, maximumWorkers: 32, maximumMaterialLots: 256, maximumTerrainTiles: 256, work: 'source-card-techniques', custody: 'exact-finite-lot-consumption', readiness: 'local-condition-restricts-source-capability', physical: 'canonical-terrain-discovery-burrows-construction-and-admitted-creations' });
 export type WildsCreationWorkerSource = Readonly<{ card: PortableCardAsset; condition: AdventureCardCondition }>;
@@ -49,7 +52,11 @@ export const CREATION_WORLD_PHYSICAL_EVOLUTION_RULE_HEAD = constructionProofDige
   construct: CREATION_WORLD_PHYSICAL_BUILD_RULE_HEAD, evolution: CREATION_EVOLUTION_RULE_HEAD,
   maximumPredecessors: 64, identity: 'owner-current-head-compare-and-swap', history: 'exact-flat-source-and-event-citations' });
 function creationWorldBuildRuleHead(command: WildsCreationBuildCommand): string {
-
+  const components=creationComponentRuleForDefinition(command.definition);
+  if(components.head!==CREATION_COMPONENT_RULE_HEAD){
+    if(command.reachRule!==undefined&&command.reachRule!==CREATION_PHYSICAL_BUILD_REACH_RULE.id)throw Error('creation_world_reach_rule_invalid');
+    return constructionProofDigest({id:command.type==='creation.construct'?'creation.world.construct.gear.v2':'creation.world.evolve.gear.v2',legacy:command.reachRule?(command.type==='creation.construct'?CREATION_WORLD_PHYSICAL_BUILD_RULE_HEAD:CREATION_WORLD_PHYSICAL_EVOLUTION_RULE_HEAD):(command.type==='creation.construct'?CREATION_WORLD_RULE_HEAD:CREATION_WORLD_EVOLUTION_RULE_HEAD),components:components.head});
+  }
   if (command.reachRule === undefined) return command.type === 'creation.construct' ? CREATION_WORLD_RULE_HEAD : CREATION_WORLD_EVOLUTION_RULE_HEAD;
   if (command.reachRule !== CREATION_PHYSICAL_BUILD_REACH_RULE.id) throw Error('creation_world_reach_rule_invalid');
   return command.type === 'creation.construct' ? CREATION_WORLD_PHYSICAL_BUILD_RULE_HEAD : CREATION_WORLD_PHYSICAL_EVOLUTION_RULE_HEAD;
@@ -178,28 +185,32 @@ function canonicalCreationWorldSolids(world: WildsWorldProjection, plan: Creatio
     const [x, z] = key.split(':').map(Number);
     const physical = composeWildsInteriorConstruction(composeWildsBurrowPhysical(admitWildsDiscoveryPhysicalNeighborhood(x, z), world.burrows), world);
     knownSpace ||= physical.surfaces.some(surface => surface.spaceId === plan.spaceId);
-    for (const solid of [...physical.solids, ...physical.ceilings]) if (solid.spaceId === plan.spaceId) solids.push({ id: solid.id, yaw: 0, center: solid.center, halfExtents: solid.halfExtents });
+    for (const solid of physical.solids) if (solid.spaceId === plan.spaceId && solid.kind !== 'mountain-envelope') solids.push({ id: solid.id, yaw: 0, center: solid.center, halfExtents: solid.halfExtents });
+    for (const solid of physical.ceilings) if (solid.spaceId === plan.spaceId) solids.push({ id: solid.id, yaw: 0, center: solid.center, halfExtents: solid.halfExtents });
   }
   if (!knownSpace) throw Error('creation_world_space_unadmitted');
   return solids;
 }
 
 /** Exact footprint check shared by the preview and source boundary. Never writes or spends materials. */
-function assertCanonicalWorldCreationPlacement(world: WildsWorldProjection, plan: CreationPlan) {
+function assertCanonicalWorldCreationPlacement(world: WildsWorldProjection, plan: CreationPlan, context?: CreationCompileContext) {
+  if (context && creationUsesTerrainSupport(context)) assertCreationTerrainSupport(plan,sampleWildsConstructionTerrainAt(projectWildsConstructionTerrain(world),plan.pose.position.x,plan.pose.position.z,sampleWildsBuildGround(plan.pose.position.x,plan.pose.position.z).elevation));
   const canonicalSolids = canonicalCreationWorldSolids(world, plan);
+  if(context&&creationUsesTerrainSupport(context))assertCreationTerrainObjectsClear(plan,canonicalSolids);
   if (plan.chunks.some(chunk => chunk.solids.some(solid => canonicalSolids.some(other => overlapsCreationSolids(solid, other))))) throw Error('creation_world_canonical_overlap');
 }
-function assertAdmittedWorldCreationPlacement(world: WildsWorldProjection, plan: CreationPlan) {
+function assertAdmittedWorldCreationPlacement(world: WildsWorldProjection, plan: CreationPlan, context?:CreationCompileContext) {
   for (const source of Object.values(world.creations ?? {})) {
     if (source.instance.instanceId === plan.evolution?.instanceId) continue;
     if (source.instance.worldId !== plan.worldId || source.instance.spaceId !== plan.spaceId) continue;
     const prior = compileWorldCreationSource(source), physical = projectCreationPhysical(source.instance, source.command.definition, prior);
+    if(context&&creationUsesTerrainSupport(context))assertCreationTerrainObjectsClear(plan,physical.solids);
     if (plan.chunks.some(chunk => chunk.solids.some(solid => physical.solids.some(other => overlapsCreationSolids(solid, other))))) throw Error('creation_world_admitted_overlap');
   }
 }
-export function assertWorldCreationPlacement(world: WildsWorldProjection, plan: CreationPlan) {
-  assertCanonicalWorldCreationPlacement(world, plan);
-  assertAdmittedWorldCreationPlacement(world, plan);
+export function assertWorldCreationPlacement(world: WildsWorldProjection, plan: CreationPlan, context?: CreationCompileContext) {
+  assertCanonicalWorldCreationPlacement(world, plan, context);
+  assertAdmittedWorldCreationPlacement(world, plan,context);
 }
 
 /** Pure source law used identically by local admission and replay. No writes, verifier injection, or remote rail. */
@@ -222,14 +233,14 @@ export function resolveWorldCreationBuild(world: WildsWorldProjection, command: 
   const fresh = compileCreation(definition, context);
   if (fresh.status !== 'ready' || fresh.plan.digest !== command.planDigest || fresh.plan.requiredWork < 1) throw Error('creation_world_plan_stale');
   if (command.reachRule && !creationBuildInReach(fresh.plan, command.actorPosition, command.reachRule)) throw Error('creation_world_build_out_of_reach');
-  assertCanonicalWorldCreationPlacement(world, fresh.plan);
+  assertCanonicalWorldCreationPlacement(world, fresh.plan, context);
   if (command.type === 'creation.evolve') {
     const previousPhysical = projectCreationPhysical(prior!.instance, prior!.command.definition, compileWorldCreationSource(prior!));
     if (!creationWorldReplacementSafe(previousPhysical.solids, fresh.plan.chunks.flatMap(chunk => chunk.solids), command.actorPosition)) throw Error('creation_world_occupied_replacement_required');
   }
   const selected = selectCreationResources(Object.values(world.materialLots), context.budget, fresh.plan.requiredResources, creationWorldAvailability(world, actorId));
   if (Object.keys(selected.deficits).length || selected.lots.length > CREATION_WORLD_RULE.maximumMaterialLots || constructionProofDigest(selected.lots) !== constructionProofDigest(command.resources)) throw Error('creation_world_materials_unavailable');
-  assertAdmittedWorldCreationPlacement(world, fresh.plan);
+  assertAdmittedWorldCreationPlacement(world, fresh.plan,context);
   const instance = command.type === 'creation.evolve' ? reviseCreationInstance(prior!.instance, prior!.command.definition, definition, selected.lots, kaiUPulse) : constructInstance(command, kaiUPulse);
   const history = command.type === 'creation.evolve' ? [...(prior!.history ?? []), { ...sourceCore(prior!), eventId: world.creationEvents![command.instanceId].eventId }] : undefined;
   const record: WildsCreationSourceRecord = { schema: 'wildz.creation-world-source.v1', command: JSON.parse(JSON.stringify(command)) as WildsCreationBuildCommand, commandDigest: constructionProofDigest(command), instance, ruleHead, kaiUPulse, ...(history ? { history } : {}) };
@@ -290,7 +301,7 @@ export function compileWorldCreationSource(source: WildsCreationSourceRecord): C
 
 function compileWorldCreationSourceUncached(source: WildsCreationSourceRecord): CreationPlan {
   if(source.actions?.length){
-    if(source.actions.length>64||!source.constructionInstance)throw Error('creation_action_history_invalid');
+    if(source.actions.length>(source.actions.some(action=>action.record.ruleHead===CREATION_WORLD_GEAR_ACTION_RULE_HEAD)?256:64)||!source.constructionInstance)throw Error('creation_action_history_invalid');
     const {actions,constructionInstance,...fields}=source,base={...fields,instance:constructionInstance};
     const plan=compileWorldCreationSourceUncached(base);let current=constructionInstance;
     for(const action of actions){if(action.record.predecessors[current.instanceId]?.head!==current.head)throw Error('creation_action_ancestry_invalid');current=verifyWorldCreationActionRecord(action.record)[current.instanceId];if(!current)throw Error('creation_action_source_missing');}

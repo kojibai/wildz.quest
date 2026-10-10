@@ -16,9 +16,10 @@ import type { CreationPlannerPort } from './planner';
 import { createCreationProposalClient } from './proposal-worker-client';
 import { createCreationPreview, type CreationPreview } from './preview';
 import { WildsCreationPanel,type CreationPanelObject } from './WildsCreationPanel';
+import {createGearDefinition,type CreationGearPreset} from './equipment-presets';
 import styles from './creation.module.css';
 import type {CreationObjectLibraryInput} from './library-session';
-export type CreationSessionProps={onGatherHay?:()=>void;validatePlacement?:(plan:CreationPlan)=>string|null;newPlacementPose?:()=>CreationPose;onSaveObject?:(instanceId:string)=>Promise<void>;displayName?:string;objectLibrary?:CreationObjectLibraryInput;classes?:Record<string,string>;objects?:readonly CreationPanelObject[];ownerId:string;spaceId:string;cards:readonly PortableCardAsset[];conditions:PlayState['adventureConditions'];lots:readonly WildsMaterialLotV1[];context:CreationCompileContext;cardAdmissions:Readonly<Record<string,unknown>>;onPreview:(preview:CreationPreview|null)=>void;onClose:()=>void;onManualBuild:()=>void;planner?:CreationPlannerPort;recover?:(operationId:string,plan:CreationPlan)=>Promise<CreationCommitResult>;commit?:(definition:CreationDefinition,plan:CreationPlan,workerIds:readonly string[],selected?:CreationInstanceRef|null,context?:CreationCompileContext)=>Promise<CreationCommitResult>;placementRef?:MutableRefObject<((pose:CreationPose)=>void)|null>;headingRef?:RefObject<number>;onPlacementModeChange?:(active:boolean)=>void;onMovementInput?:(input:WildsInput)=>void};
+export type CreationSessionProps={onGatherHay?:()=>void;validatePlacement?:(plan:CreationPlan,definition?:CreationDefinition)=>string|null;newPlacementPose?:()=>CreationPose;onSaveObject?:(instanceId:string)=>Promise<void>;displayName?:string;objectLibrary?:CreationObjectLibraryInput;classes?:Record<string,string>;objects?:readonly CreationPanelObject[];ownerId:string;spaceId:string;cards:readonly PortableCardAsset[];conditions:PlayState['adventureConditions'];lots:readonly WildsMaterialLotV1[];context:CreationCompileContext;cardAdmissions:Readonly<Record<string,unknown>>;onPreview:(preview:CreationPreview|null)=>void;onClose:()=>void;onManualBuild:()=>void;planner?:CreationPlannerPort;recover?:(operationId:string,plan:CreationPlan)=>Promise<CreationCommitResult>;commit?:(definition:CreationDefinition,plan:CreationPlan,workerIds:readonly string[],selected?:CreationInstanceRef|null,context?:CreationCompileContext)=>Promise<CreationCommitResult>;placementRef?:MutableRefObject<((pose:CreationPose)=>void)|null>;headingRef?:RefObject<number>;onPlacementModeChange?:(active:boolean)=>void;onMovementInput?:(input:WildsInput)=>void};
 const subscribeToClient=()=>()=>{};
 const clientSnapshot=()=>true;
 const serverSnapshot=()=>false;
@@ -44,6 +45,11 @@ function CreationSession(input:CreationSessionProps){
    conversation.change({type:'selection',definition,pose:input.newPlacementPose?.()??input.context.pose,workerIds:selected.length?selected:workers.filter(worker=>worker.ready).map(worker=>worker.assetId).slice(0,32),budget:counts});
   }catch(error){conversation.change({type:'blocked',reason:error instanceof Error?error.message:'This farm layout could not be prepared.'});}
  };
+ const prepareGear=(kind:CreationGearPreset)=>{
+  const definition=createGearDefinition({creatorId:input.ownerId,seed:`gear:${crypto.randomUUID()}`,kind});
+  const selected=conversation.state.workerIds.filter(id=>workers.some(worker=>worker.assetId===id&&worker.ready));
+  conversation.change({type:'selection',definition,pose:input.newPlacementPose?.()??input.context.pose,workerIds:selected.length?selected:workers.filter(worker=>worker.ready).map(worker=>worker.assetId).slice(0,32),budget:counts});
+ };
  const change=conversation.change,onPreview=input.onPreview,opened=useRef(false);
  useEffect(()=>{if(!opened.current){opened.current=true;change({type:'open'});}},[change]);
  useEffect(()=>{onPreview(conversation.state.plan?createCreationPreview(conversation.state.plan,conversation.state.placement):null);},[conversation.state.plan,conversation.state.placement,onPreview]);
@@ -51,7 +57,7 @@ function CreationSession(input:CreationSessionProps){
  const placementActive=conversation.state.minimized&&!gathering;
  const onPlacementModeChange=input.onPlacementModeChange;
  useEffect(()=>{onPlacementModeChange?.(placementActive);return ()=>onPlacementModeChange?.(false);},[placementActive,onPlacementModeChange]);
- return mounted?createPortal(<><WildsCreationPanel onGatherHay={input.onGatherHay?()=>{setGathering(true);input.onGatherHay?.();}:undefined} onCreateFarm={prepareFarm} onSaveObject={input.onSaveObject} objectLibrary={input.objectLibrary} objects={input.objects} state={conversation.state} workers={workers} cards={input.cards} materialCounts={counts} onChange={event=>{if(event.type==='minimize')setGathering(false);change(event);}} onAsk={()=>void conversation.ask()} onBuild={()=>void conversation.build()} onClose={()=>{change({type:'close'});input.onClose();}} onManualBuild={input.onManualBuild} canBuild={conversation.canBuild} classes={input.classes||styles}/>{placementActive?<CreationPlacementControls pose={conversation.state.placement} headingRef={input.headingRef||defaultHeading} onMovementInput={input.onMovementInput} onPlace={()=>void conversation.build()} onMove={pose=>change({type:'placement',pose})} canBuild={conversation.canBuild}/>:null}</>,document.body):null;
+ return mounted?createPortal(<><WildsCreationPanel onCreateGear={prepareGear} onGatherHay={input.onGatherHay?()=>{setGathering(true);input.onGatherHay?.();}:undefined} onCreateFarm={prepareFarm} onSaveObject={input.onSaveObject} objectLibrary={input.objectLibrary} objects={input.objects} state={conversation.state} workers={workers} cards={input.cards} materialCounts={counts} onChange={event=>{if(event.type==='minimize')setGathering(false);change(event);}} onAsk={()=>void conversation.ask()} onBuild={()=>void conversation.build()} onClose={()=>{change({type:'close'});input.onClose();}} onManualBuild={input.onManualBuild} canBuild={conversation.canBuild} classes={input.classes||styles}/>{placementActive?<CreationPlacementControls pose={conversation.state.placement} headingRef={input.headingRef||defaultHeading} onMovementInput={input.onMovementInput} onPlace={()=>void conversation.build()} onMove={pose=>change({type:'placement',pose})} canBuild={conversation.canBuild}/>:null}</>,document.body):null;
 }
 
 export default memo(CreationSession);

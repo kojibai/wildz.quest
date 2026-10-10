@@ -1,0 +1,13 @@
+# Ranged creation occlusion
+
+Ranged damage now checks the full admitted world before the atomic equipment/target transition. A caller naming a farther permitted target cannot shoot through a nearer private creation, natural ground, a mountain ridge, or canonical discovery geometry.
+
+`assertCreationRangedHitUnoccluded(world, command)` returns the actual aimed target solid intersection distance. It throws `creation_action_ray_occluded` when physical geometry intersects earlier. Legacy melee, equipment pickup, tool work and wear-only discharge retain their existing paths. `CREATION_RANGED_OCCLUSION_RULE_HEAD` binds the new check into the v2 world action rule while the legacy v1 rule head stays unchanged.
+
+The helper checks current creation solids independently of access permission; canonical discovery, burrow and interior construction solids, floors and ceilings; outer static, procedural and admitted living/construction obstacles; and the current construction-derived ground. Box, cylinder and mountain triangle intersections cover the complete segment. Raw and graded ground clearance uses deterministic samples at most 0.125 metres apart. Mountain envelopes serve only as broad bounds. Carried v2 equipment assemblies leave no decorative ground blocker. No player or creature damage authority is introduced.
+
+Full-world event replay runs the same assertion against the prior admitted world through `resolveWorldCreationAction`. Individual creation source replay has only exact participant predecessors; it proves the recorded effect and cannot independently prove absence of unrelated world blockers. Importers must retain the enclosing admitted world event/source boundary. The regression suite builds an exact participant record that passes local effect replay and source compilation, then verifies that full-world replay rejects it through a private wall.
+
+The initial actual-service tests failed for through-wall, private-wall and terrain shots. After integration, all 12 occlusion tests and the related ranged, input, player and legacy equipment/action suites pass: 38 tests in an isolated TypeScript output. Tests cover zero-write rejection, exact face distance, clear-hit replay, wear-only misses, cave and mountain blockers, carried assemblies, and malformed hit coordinates. The malformed `{}` hit-point probe originally admitted damage; exact finite `x,y,z` validation in the equipment and world action laws closes it. Pointer/keyboard overlap now releases each hand only after its final holder releases.
+
+Desktop/mobile browser verification of first/third-person aim, moving fire, visual hand alignment and cancellation remains part of the parent release pass. This isolated verification does not establish physical iPhone behavior.

@@ -17667,6 +17667,11 @@ body:has(.wilds-stage.is-creation-placement) .wildz-pwa-notice { visibility: hid
 .wildz-player-action-pad > button:active { transform:translateY(1px); background:#376d5e; box-shadow:inset 0 2px 4px #0006; }
 .wildz-player-action-pad > button:focus-visible { outline:2px solid #b7f2d5;outline-offset:3px; }
 .wildz-player-action-pad > button:disabled { opacity:.45; }
+.wildz-player-equipment-readout { grid-column:1/-1; max-width:96px; text-align:center; color:#d3e9cb; font-size:9px; line-height:1.25; overflow-wrap:anywhere; pointer-events:none; }
+.wildz-equipment-reticle { position:fixed; left:50%; top:50%; width:20px; height:20px; transform:translate(-50%,-50%); border:1px solid #e1f4dba6; border-radius:50%; pointer-events:none; box-shadow:0 0 2px #071c14; }
+.wildz-equipment-reticle::before,.wildz-equipment-reticle::after { content:""; position:absolute; background:#e8f6df; box-shadow:0 0 2px #071c14; }
+.wildz-equipment-reticle::before { width:2px; height:8px; left:8px; top:5px; }
+.wildz-equipment-reticle::after { height:2px; width:8px; left:5px; top:8px; }
 .wildz-utility-actions { display:grid; grid-column:1/-1; grid-template-columns:repeat(2,44px); gap:6px; }
 .wildz-utility-actions > :is(.wilds-capability-controls,.wildz-vertical-controls) { display:contents; }
 .wildz-utility-actions.has-odd-actions::before { content:""; grid-column:2; grid-row:1; pointer-events:none; }

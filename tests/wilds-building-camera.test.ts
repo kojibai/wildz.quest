@@ -12,6 +12,7 @@ import * as flightCamera from '../src/features/play/wilds-flight-camera';
 import * as underwaterCamera from '../src/features/play/wilds-underwater-camera';
 import * as obstacles from '../src/features/play/wilds-terrain-obstacles';
 import * as playerView from '../src/features/play/wilds-player-view';
+import {writeWildsEquipmentCameraOffset} from '../src/features/play/wilds-equipment-camera';
 import {admitWildsDiscoveryPhysicalNeighborhood} from '../src/features/play/wilds-discovery-sites';
 import {deriveCreationGeometry} from '../src/features/play/creation/geometry';
 import type {CreationPhysicalProjection} from '../src/features/play/creation/projection';
@@ -51,7 +52,7 @@ function mountCamera(desired:THREE.Vector3,projection?:CreationPhysicalProjectio
   const body=source.slice(source.indexOf('function CameraRig('),source.indexOf('\nfunction frameSeconds('));
   const output=ts.transpileModule(body+'\nexports.CameraRig=CameraRig;', {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
   const exports={CameraRig:null as unknown as (props:any)=>{props:{ref:{current:typeof orbit};camera?:THREE.PerspectiveCamera}}};
-  const environment={exports,THREE,OrbitControls:()=>null,...navigation,...siteRuntime,...flightCamera,...underwaterCamera,...obstacles,...playerView,
+  const environment={exports,THREE,OrbitControls:()=>null,...navigation,...siteRuntime,...flightCamera,...underwaterCamera,...obstacles,...playerView,writeWildsEquipmentCameraOffset,
     buildWildsObstacleIndex(input:readonly obstacles.WildsTerrainObstacle[]){indexBuilds++;return obstacles.buildWildsObstacleIndex(input);},
     useThree:()=>({camera}),useRef:(value:unknown)=>(slots[cursor++]??={value:{current:value}}).value,
     useMemo(factory:()=>unknown,deps:unknown[]){const slot=cursor++;if(!slots[slot]?.deps||!deps.every((d,i)=>Object.is(d,slots[slot].deps![i])))slots[slot]={value:factory(),deps};return slots[slot].value;},

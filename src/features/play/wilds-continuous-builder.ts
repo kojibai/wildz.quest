@@ -27,7 +27,7 @@ export function selectWildsConstructionDeposit(lots: readonly WildsMaterialLotV1
 }
 
 export function wildsConstructionCue(cue: string): string {
-  return ({ "needs-structure-anchor": "Choose Foundation first and place its plan, then position this piece on its support.", "needs-dry-ground": "Move this workbench onto dry ground.", "needs-water": "Choose water for this piece.",
+  return ({ "needs-structure-anchor": "Choose Foundation first and place its plan, then position this piece on its support.", "needs-dry-ground": "Move the whole footing onto dry ground.", "needs-level-ground": "Choose a gentler slope or level mountain shoulder for the whole footing.", "needs-water": "Choose water for this piece.",
     "needs-terrain-support": "Lower this piece onto the ground.", blocked: "Move or rotate this piece into a clear spot. It overlaps another structure.",
     "blueprint-collision": "Move or rotate this piece clear of the existing plan." } as Record<string, string>)[cue] ?? "Choose another spot.";
 }

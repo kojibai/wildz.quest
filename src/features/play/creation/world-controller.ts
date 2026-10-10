@@ -13,6 +13,7 @@ import { assertWorldCreationPlacement, creationWorldAvailability, creationWorldS
 import { creationPlacementMessage } from './placement-message';
 import type { CreationCommitResult, CreationDefinition, CreationInstanceRef } from './types';
 import { creationBuildInReach, CREATION_PHYSICAL_BUILD_REACH_RULE } from './build-reach';
+import { groundCreationCompileContext } from './ground-placement';
 
 export type WorldCreationControllerInput = Readonly<{
   environment: () => Readonly<{ ownerId: string; worldId: string; spaceId: string }>;
@@ -27,7 +28,7 @@ export type WorldCreationControllerInput = Readonly<{
 /** Concrete adapter to the same admitted local world/outbox used by manual materials.
  * The world callback must be the installed edge queue's currentSource; arbitrary
  * JSON, a transport response, and a digest alone do not install source authority. */
-export function createWorldCreationController(input: WorldCreationControllerInput): CreationController & Readonly<{ validatePlacement(plan: CreationPlan): string | null; restore(): Promise<number>; resolve(instanceId: string): Promise<CreationCurrentSource | null> }> {
+export function createWorldCreationController(input: WorldCreationControllerInput): CreationController & Readonly<{ validatePlacement(plan: CreationPlan, context?: CreationCompileContext, definition?: CreationDefinition): string | null; restore(): Promise<number>; resolve(instanceId: string): Promise<CreationCurrentSource | null> }> {
   const physical = createCreationPhysicalStore({ project: input.project, async canReplace(before, after, current) {
     const source = sourceRecord(current.instance.instanceId);
     return !!source && source.instance.head === current.instance.head && (creationWorldSourceHistory(source).some(prior => prior.instance.head === before.head)||Boolean(source.actions?.some(action=>action.record.predecessors[source.instance.instanceId]?.head===before.head))) && creationWorldReplacementSafe(before.solids, after.solids, input.position());
@@ -82,11 +83,12 @@ export function createWorldCreationController(input: WorldCreationControllerInpu
   }
   return {
     scope: input.environment, snapshot: physical.snapshot, subscribe: physical.subscribe, hydrate, resolve,
-    validatePlacement(plan: CreationPlan): string | null {
+    validatePlacement(plan: CreationPlan, context?: CreationCompileContext, definition?: CreationDefinition): string | null {
       const scope = input.environment(), world = input.world();
       if (closed || !world || world.worldId !== plan.worldId || scope.worldId !== plan.worldId || scope.spaceId !== plan.spaceId
         || plan.sourceHead !== creationWorldSourceHead(world) || !verifyCreationPlan(plan)) return 'The world changed. Prepare this placement again before building.';
-      try { assertWorldCreationPlacement(world, plan); return null; }
+      const selected = context ?? input.compileContext(plan) ?? undefined;
+      try { assertWorldCreationPlacement(world, plan, definition && selected ? groundCreationCompileContext(definition, selected) : selected); return null; }
       catch (error) { return creationPlacementMessage(error instanceof Error ? error.message : 'This placement could not be checked. Try moving it.'); }
     },
     async restore() {
@@ -115,7 +117,7 @@ export function createWorldCreationController(input: WorldCreationControllerInpu
         });
         const workers = creationWorldWorkers(workerSources, scope.ownerId), rawContext = input.compileContext(plan);
         if (!rawContext) throw Error('creation_world_context_unavailable');
-        const context: CreationCompileContext = { ...withoutSelectedPhysical(rawContext), pose: plan.pose, techniques: combineCreationTechniques(workers) };
+        const context = groundCreationCompileContext(definition, { ...withoutSelectedPhysical(rawContext), pose: plan.pose, techniques: combineCreationTechniques(workers) });
         if (context.sourceHead !== creationWorldSourceHead(world)) throw Error('creation_world_source_stale');
         const compiled = compileCreation(definition, context);
         if (compiled.status !== 'ready' || compiled.plan.digest !== plan.digest) throw Error('creation_world_plan_stale');
@@ -133,7 +135,7 @@ export function createWorldCreationController(input: WorldCreationControllerInpu
         await input.admit(command, async () => {
           if (!scopeMatches(scope)) throw Error('creation_world_scope_changed');
           const current = input.world(), crew = input.crew(), context = input.compileContext(plan);
-          if (!current || creationWorldSourceHead(current) !== command.context.sourceHead || !context || !same({ ...withoutSelectedPhysical(context), pose: plan.pose, techniques: command.context.techniques }, command.context)) throw Error('creation_world_final_source_changed');
+          if (!current || creationWorldSourceHead(current) !== command.context.sourceHead || !context || !same(groundCreationCompileContext(definition, { ...withoutSelectedPhysical(context), pose: plan.pose, techniques: command.context.techniques }), command.context)) throw Error('creation_world_final_source_changed');
           for (const expected of command.workerSources) {
             const card = crew.cards.find(candidate => candidate.id === expected.card.id);
             if (!card || !same(card, expected.card) || !same(crew.conditions[card.id], expected.condition)) throw Error('creation_world_final_worker_changed');

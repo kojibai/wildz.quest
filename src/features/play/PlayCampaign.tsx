@@ -20,9 +20,13 @@ import { requestWildsDive, requestWildsJump } from "./wilds-vertical-traversal";
 import {beginWildsHandAction, createWildsHandActionState, selectWildsHandTarget,readWildsEquipmentHand,rememberWildsEquipmentHand} from './wilds-player-actions';
 import type {WildsPlayerHand, WildsPlayerHandIntent} from './WildsPlayerActionPad';
 import {prepareCreationHandAction} from './creation/hand-action';
+import {creationAimFromView} from './creation/equipment-aim';
 import {creationWorldActorHead} from './creation/world-action';
 import {creationWorldSourceHead} from './creation/world-source';
-import {currentCreationEquipment} from './creation/equipment';
+import {currentCreationEquipment,creationEquipmentProfile} from './creation/equipment';
+import {createWildsEquipmentControlState,clearWildsEquipmentControlState,type WildsEquipmentControls} from './wilds-equipment-controls';
+import {createWildsConstructionTerrainSelector,composeWildsConstructionTerrain,sampleWildsConstructionTerrainAt} from './wilds-construction-terrain';
+import {wildsBuildGroundPoint,sampleWildsBuildGround} from './wilds-build-ground';
 import {creationNodePoses} from './creation/projection';
 import {withWildsWorldCommandKai} from './wilds-world-authority';
 import { canSleepInWildsBed, selectWildsBedAtPlayer, resolveWildsConstructionFunction } from "./wilds-construction-function";
@@ -1451,10 +1455,12 @@ export function PlayCampaign({
     () => structures ? projectWildsStructureSupports({ structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions }) : [],
     [structures, constructionComponents, constructionMaterialContributions, constructionWorkContributions]
   );
+  const selectConstructionTerrain=useMemo(createWildsConstructionTerrainSelector,[]);
+  const constructionTerrainPads=useMemo(()=>selectConstructionTerrain(livingWorld.snapshot),[selectConstructionTerrain,livingWorld.snapshot]);
   const siteRegion = wildsDiscoverySiteRegionForPosition(state.player);
   const sitePhysical = useMemo(
-    () => composeWildsInteriorConstruction(composeWildsBurrowPhysical(appendWildsDiscoveryVisualSolids(admitWildsDiscoveryPhysicalNeighborhood(siteRegion.x, siteRegion.z)),worldGeometry?.burrows),worldGeometry),
-    [siteRegion.x, siteRegion.z, worldGeometry]
+    () => composeWildsConstructionTerrain(composeWildsInteriorConstruction(composeWildsBurrowPhysical(appendWildsDiscoveryVisualSolids(admitWildsDiscoveryPhysicalNeighborhood(siteRegion.x, siteRegion.z)),worldGeometry?.burrows),worldGeometry),constructionTerrainPads),
+    [siteRegion.x, siteRegion.z, worldGeometry,constructionTerrainPads]
   );
   const siteRuntime = useMemo(() => prepareWildsSiteRuntime(sitePhysical), [sitePhysical]);
   const playerStructureSupport = useMemo(() => {
@@ -1479,6 +1485,9 @@ export function PlayCampaign({
   const aerialStateRef = useRef<WildsAerialTraversalState>(initialAerialState);
   const verticalTraversalRef = useRef<WildsVerticalTraversalState>(createWildsVerticalTraversalState());
   const handActionsRef = useRef(createWildsHandActionState());
+  const equipmentControlsRef=useRef(createWildsEquipmentControlState());
+  const equipmentGestureGeneration=useRef(0);
+  const currentGatherActions=useRef<{food:(plant:WildsNourishmentPlantProjection)=>void;material:(source:WildsResourceSource)=>Promise<void>;livestock:(animal:WildsOwnedLivestockProjection)=>void}|null>(null);
   const lastGroundMovement = useRef<{input: WildsJumpMovement; at: number} | null>(null);
   const jumpTravelRef = useRef<WildsJumpTravel | null>(null);
   const jumpTravelDispatching = useRef(false);
@@ -1491,8 +1500,13 @@ export function PlayCampaign({
     const definition=instance&&creationPhysical.definitions[instance.definitionDigest];
     return instance&&node&&definition?{instance,definition,nodeId:node.nodeId,hand:equipmentHand}:undefined;
   },[creationPhysical,equipmentHand,ownerReceizId]);
+  const equipmentControls=useMemo<WildsEquipmentControls|undefined>(()=>{
+    const node=heldCreationEquipment?.instance.nodeStates[heldCreationEquipment.nodeId];
+    if(node?.kind!=='equipment')return undefined;const profile=creationEquipmentProfile(node.actionProfileId);
+    return profile?{id:heldCreationEquipment!.instance.instanceId,toolMode:profile.mode==='axe'||profile.mode==='pickaxe'||profile.mode==='hoe'?profile.mode:undefined,mode:profile.mode==='bow'?'bow':profile.mode==='rifle'?'rifle':profile.kind==='tool'?'tool':'melee',hand:equipmentHand,label:profile.label??(profile.kind==='tool'?'Tool':'Weapon'),durability:node.durability,capacity:node.capacity}:undefined;
+  },[heldCreationEquipment,equipmentHand]);
   useEffect(() => {
-    handActionsRef.current.left=null;handActionsRef.current.right=null;
+    handActionsRef.current.left=null;handActionsRef.current.right=null;clearWildsEquipmentControlState(equipmentControlsRef.current);
     jumpTravelRef.current = null;
     lastGroundMovement.current = null;
     const vertical=verticalTraversalRef.current;
@@ -2692,6 +2706,7 @@ export function PlayCampaign({
     dispatch({ type: 'collect-livestock', ownerReceizId, animalId: animal.animalId, kaiUPulse: readActionKaiUPulse(), husbandryWorld: livingWorld.snapshot });
   };
 
+  currentGatherActions.current={food:gatherFood,material:gatherStewardResource,livestock:collectLivestockFood};
   const jumpPlayer = () => {
     if(!canUseWorldStage()||state.battle||state.playerBreaths?.mode==='bed'||state.playerBreaths?.mode==='sleep')return;
     if(aerialStateRef.current.mode!=='ground'||aquaticPresentation.mode==='swim'){showWorldFeedback('Land on a dry surface to jump.');return;}
@@ -2702,23 +2717,32 @@ export function PlayCampaign({
     if(!result.ok)showWorldFeedback(result.reason);
   };
   const usePlayerHand = (hand:WildsPlayerHand,intent:WildsPlayerHandIntent) => {
+    const controls=equipmentControlsRef.current;
+    if(intent==='cancel'){equipmentGestureGeneration.current++;clearWildsEquipmentControlState(controls);return;}
+    if(intent==='release-aim'){controls.aiming=false;return;}
     if(!canUseWorldStage()||state.battle||state.playerBreaths?.mode==='bed'||state.playerBreaths?.mode==='sleep')return;
-    const now=performance.now();
+    const now=performance.now(),gestureGeneration=equipmentGestureGeneration.current;
+    if(intent==='aim'){controls.aiming=true;return;}
+    if(intent==='draw'){controls.drawingAt=now;return;}
+    if(intent==='shoot'){controls.drawingAt=null;}
+    if((intent==='shoot'||intent==='use')&&pendingCreationHand.current)return;
     if(!beginWildsHandAction(handActionsRef.current,hand,intent,now))return;
     const actionKai=readActionKaiUPulse(), position={x:state.player.x,y:verticalTraversalRef.current.worldY,z:state.player.z};
     const actor={...position,spaceId:state.siteSpace.spaceId,heading:playerFacingRef.current};
     const candidates:Array<{id:string;x:number;y:number;z:number;spaceId:string;qualified:boolean;run:()=>void}>=[];
+    let runEquipmentAction:(()=>void)|undefined,afterEquipmentAction:(()=>void)|undefined;
     const applicationSource = livingWorld.currentApplicationResourceSource();
-    const handIntentAllowed = intent === "grab" || !heldCreationEquipment || heldCreationEquipment.hand === hand;
-    const operationId = `creation:hand:${crypto.randomUUID()}`;
-    const sourceCandidate = applicationSource && handIntentAllowed ? prepareCreationHandAction({world: applicationSource, actorId: ownerReceizId, position, spaceId: actor.spaceId, heading: actor.heading, kaiUPulse: actionKai, operationId, intent}) : null;
     const baselineActionWorld = livingWorld.currentSource();
+    const aim=intent==='shoot'?creationAimFromView([...Object.values(applicationSource?.creations??{}),...Object.values(baselineActionWorld?.creations??{}).filter(source=>!applicationSource?.creations?.[source.instance.instanceId])].map(source=>({definition:source.command.definition,instance:source.instance})),position,actor.spaceId,{...controls.viewOrigin},{direction:{...controls.aimDirection}},equipmentControls?.mode==='bow'?32:56):undefined;
+    const handIntentAllowed = intent === "grab" || intent === "shoot" || !heldCreationEquipment || heldCreationEquipment.hand === hand;
+    const operationId = `creation:hand:${crypto.randomUUID()}`;
+    const sourceCandidate = applicationSource && handIntentAllowed ? prepareCreationHandAction({world: applicationSource, actorId: ownerReceizId, position, spaceId: actor.spaceId, heading: actor.heading, kaiUPulse: actionKai, operationId, intent,aim}) : null;
     const actionWorld = sourceCandidate ? applicationSource : baselineActionWorld;
-    const creationCommand = sourceCandidate ?? (baselineActionWorld && handIntentAllowed ? prepareCreationHandAction({world: baselineActionWorld, actorId: ownerReceizId, position, spaceId: actor.spaceId, heading: actor.heading, kaiUPulse: actionKai, operationId, intent,
+    const creationCommand = sourceCandidate ?? (baselineActionWorld && handIntentAllowed ? prepareCreationHandAction({world: baselineActionWorld, actorId: ownerReceizId, position, spaceId: actor.spaceId, heading: actor.heading, kaiUPulse: actionKai, operationId, intent,aim,
       excludedInstanceIds: new Set(Object.keys(applicationSource?.creations ?? {}))}) : null);
     if(creationCommand&&actionWorld){
       const source=actionWorld.creations![creationCommand.actionRequest.instanceId],nodePosition=creationNodePoses(source.command.definition,source.instance.pose).get(creationCommand.actionRequest.nodeId)!.position;
-      candidates.push({...nodePosition,id:creationCommand.commandId,spaceId:actor.spaceId,qualified:true,run:()=>{
+      const runAction=()=>{
         const pending=pendingCreationHand.current;
         if(pending&&pending.ownerId===ownerReceizId&&!livingWorld.currentSource()?.constructionCommandReceipts[pending.operationId]){showWorldFeedback('Your last hand action is still being saved. Wait for confirmation before trying again.');return;}
         let exact=withWildsWorldCommandKai(creationCommand,createKaiTemporalRoot(deriveKaiKlokMomentFromUPulse({uPulse:actionKai,authority:livingWorld.mode==='receiz_live'||livingWorld.mode==='kai_live'?'world':'local'})));
@@ -2734,13 +2758,13 @@ export function PlayCampaign({
             if (!sameHandAttempt()) throw Error("The Explorer changed. Reopen the same hand action.");
             livingWorld.adoptApplicationResourceWorld(preview.replay.world);
             const pulse = readActionKaiUPulse();
-            const refreshed = prepareCreationHandAction({world: preview.replay.world, actorId: ownerReceizId, position, spaceId: actor.spaceId, heading: actor.heading, kaiUPulse: pulse, operationId, intent});
+            const refreshed = prepareCreationHandAction({world: preview.replay.world, actorId: ownerReceizId, position, spaceId: actor.spaceId, heading: actor.heading, kaiUPulse: pulse, operationId, intent,aim});
             if (!refreshed) throw Error("The weapon or target changed. Face it and try again.");
             exact = withWildsWorldCommandKai(refreshed, createKaiTemporalRoot(deriveKaiKlokMomentFromUPulse({uPulse: pulse, authority: "world"})));
           }
           return livingWorld.admitCreationAction(exact,async()=>{
           const current = sourceCandidate ? livingWorld.currentApplicationResourceSource() : livingWorld.currentSource(),scope=creationRuntime.current?.environment(),currentPosition=creationRuntime.current?.position();
-          if(!current||scope?.ownerId!==ownerReceizId||scope.spaceId!==exact.spaceId||!currentPosition||Math.hypot(currentPosition.x-position.x,currentPosition.y-position.y,currentPosition.z-position.z)>.2||creationWorldActorHead(current,ownerReceizId)!==exact.actionRequest.expectedHeads[`actor:${ownerReceizId}`])throw Error('Your position or the target changed. Face it and try again.');
+          if(!current||scope?.ownerId!==ownerReceizId||scope.spaceId!==exact.spaceId||!currentPosition||intent==='grab'&&Math.hypot(currentPosition.x-position.x,currentPosition.y-position.y,currentPosition.z-position.z)>.2||creationWorldActorHead(current,ownerReceizId)!==exact.actionRequest.expectedHeads[`actor:${ownerReceizId}`])throw Error('Your position or the target changed. Face it and try again.');
           prepared=true;
           });
         })().then(async()=>{
@@ -2749,24 +2773,32 @@ export function PlayCampaign({
           if (!sameHandAttempt()) return;
           if(intent==='grab'){setEquipmentHand(hand);rememberWildsEquipmentHand(ownerReceizId,hand);}
           pendingCreationHand.current=null;
-          showWorldFeedback(intent==='grab'?'Weapon equipped. Tap this hand to strike.':'Weapon strike landed.');
+          if(intent==='use'&&afterEquipmentAction&&equipmentGestureGeneration.current===gestureGeneration&&creationRuntime.current?.environment().spaceId===actor.spaceId)afterEquipmentAction();
+          else showWorldFeedback(intent==='grab'?'Equipped. Your hand controls now match this gear.':intent==='shoot'?exact.actionRequest.action==='damage'?'Shot landed.':'Shot saved.':intent==='use'?'Tool used. Face a matching resource within reach.':'Weapon strike landed.');
         }).catch(error=>{
           if (!sameHandAttempt()) return;
           const admitted=Boolean(livingWorld.currentSource()?.constructionCommandReceipts[exact.commandId]);
           if(!prepared||admitted)pendingCreationHand.current=null;
           showWorldFeedback(admitted?'Your hand action was saved. The view is catching up.':prepared?'Your hand action could not be confirmed yet. It is held to prevent a duplicate.':error instanceof Error?error.message.replaceAll('_',' '):'The target changed. Try again.');
         });
-      }});
+      };
+      if(intent==='shoot'){
+        controls.shotAt=now;controls.shotKind=equipmentControls?.mode==='bow'?'bow':'rifle';controls.shotRange=creationCommand.actionRequest.action==='damage'&&'equipment'in creationCommand.actionRequest&&creationCommand.actionRequest.equipment?.hitPosition?Math.hypot(creationCommand.actionRequest.equipment.hitPosition.x-position.x,creationCommand.actionRequest.equipment.hitPosition.y-position.y-1.25,creationCommand.actionRequest.equipment.hitPosition.z-position.z):(equipmentControls?.mode==='rifle'?56:32);
+        controls.shotOrigin={x:position.x,y:position.y+1.25,z:position.z};controls.shotDirection={...aim!.direction};runAction();return;
+      }
+      if(intent==='use')runEquipmentAction=runAction;
+      else candidates.push({...nodePosition,id:creationCommand.commandId,spaceId:actor.spaceId,qualified:true,run:runAction});
     }
-    if(intent==='grab'){
-      for(const plant of nourishmentPlants){const crop=wildsNourishmentSourceAt(plant,state.playerNourishment?.sources?.[plant.sourceId],actionKai);candidates.push({...plant.position,id:plant.sourceId,spaceId:'wildz.space.outer.v1',qualified:crop.valid&&crop.remaining>0&&!foodPackFull,run:()=>gatherFood(plant)});}
-      for(const animal of ownedLivestock)candidates.push({...animal.position,id:animal.animalId,spaceId:animal.spaceId,qualified:animal.canProduce&&!foodPackFull,run:()=>collectLivestockFood(animal)});
+    if(intent==='grab'||intent==='use'){
+      for(const plant of intent==='use'&&equipmentControls?.toolMode&&equipmentControls.toolMode!=='hoe'?[]:nourishmentPlants){const crop=wildsNourishmentSourceAt(plant,state.playerNourishment?.sources?.[plant.sourceId],actionKai);candidates.push({...plant.position,id:plant.sourceId,spaceId:'wildz.space.outer.v1',qualified:crop.valid&&crop.remaining>0&&!foodPackFull,run:()=>currentGatherActions.current?.food(plant)});}
+      for(const animal of intent==='use'&&equipmentControls?.toolMode&&equipmentControls.toolMode!=='hoe'?[]:ownedLivestock)candidates.push({...animal.position,id:animal.animalId,spaceId:animal.spaceId,qualified:animal.canProduce&&!foodPackFull,run:()=>currentGatherActions.current?.livestock(animal)});
       if(state.siteSpace.spaceId==='wildz.space.outer.v1'){
         const region=wildsResourceRegionForPosition(state.player);
         for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)for(const source of projectWildsResourceRegion(region.x+dx,region.z+dz)){
+          if(intent==='use'&&equipmentControls?.toolMode==='axe'&&source.kind!=='timber'||intent==='use'&&equipmentControls?.toolMode==='pickaxe'&&source.kind!=='stone')continue;
           const harvested=livingWorld.snapshot?.harvestedSources[source.sourceId],available=projectWildsResourceAvailability(source,{admittedHarvestedCapacity:harvested?.harvestedCapacity??0,lastHarvestKaiPulse:harvested?.lastHarvestKaiPulse??'0',currentKaiPulse:String(actionKai)});
           const partner=source.kind==='hay'||Boolean(selectWildsResourceWorkPartner(state.inventory,state.adventureConditions,source.requirements.creature,activeAsset?.id));
-          candidates.push({x:source.position.x,y:wildsTerrainElevation(source.position.x,source.position.z),z:source.position.z,id:source.sourceId,spaceId:'wildz.space.outer.v1',qualified:available.availableCapacity>0&&!available.clockPending&&partner&&!livingWorld.pendingCommand,run:()=>{void gatherStewardResource(source);}});
+          candidates.push({x:source.position.x,y:wildsSiteRuntimeGroundY(siteRuntime,actor.spaceId,source.position.x,source.position.z,wildsTerrainElevation(source.position.x,source.position.z)),z:source.position.z,id:source.sourceId,spaceId:'wildz.space.outer.v1',qualified:available.availableCapacity>0&&!available.clockPending&&partner&&!livingWorld.pendingCommand,run:()=>{void currentGatherActions.current?.material(source);}});
         }
       }
     }else{
@@ -2774,6 +2806,7 @@ export function PlayCampaign({
       for(const animal of wildAnimals){const motion=projectWildsWildAnimalPosition(animal,actionKai);candidates.push({...motion.position,id:animal.animalId,spaceId:'wildz.space.outer.v1',qualified:animal.status==='wild'&&support.hunter?.kind==='tool'&&!foodPackFull,run:()=>huntAnimal(animal,true)});}
     }
     const target=selectWildsHandTarget(actor,candidates,3);
+    if(intent==='use'&&runEquipmentAction){afterEquipmentAction=target?()=>{const current=creationRuntime.current?.position();if(current&&Math.hypot(current.x-target.x,current.y-target.y,current.z-target.z)<=3)target.run();else showWorldFeedback('Tool used. Move closer to that resource.');}:undefined;runEquipmentAction();return;}
     if(target){target.run();return;}
     showWorldFeedback(intent==='grab'?'Reach toward your weapon, ripe food, ready farm produce, or a resource your crew can gather.':'Strike ready. Hold a hand near your weapon to equip it, then face an allowed target within reach.');
   };
@@ -3798,6 +3831,7 @@ export function PlayCampaign({
                 finally {jumpTravelDispatching.current = false;}
               }}
               heldCreationEquipment={heldCreationEquipment}
+              equipmentControlsRef={equipmentControlsRef}
               verticalIntentRef={verticalIntentRef}
               horizontalAllowedRef={horizontalAllowedRef}
               flightEndurancePotential={traversalPotentials.flightEndurance}
@@ -4073,10 +4107,11 @@ export function PlayCampaign({
                 const runtime = creationRuntime.current;
                 if (!runtime || runtime.environment().spaceId !== liveCreationContext.spaceId) throw Error('Your location changed. Reopen the builder here.');
                 const position = runtime.position();
-                return { position: { ...position, x: position.x + 3 }, yaw: liveCreationContext.pose.yaw };
+                const p={...position,x:position.x+3};
+                return {position:wildsBuildGroundPoint(p,liveCreationContext.spaceId,sampleWildsConstructionTerrainAt(constructionTerrainPads,p.x,p.z,sampleWildsBuildGround(p.x,p.z).elevation)),yaw:liveCreationContext.pose.yaw};
               }}
               recover={suppliedCreationController ? undefined : localCreation.controller.recover}
-              validatePlacement={suppliedCreationController ? undefined : localCreation.controller.validatePlacement}
+              validatePlacement={suppliedCreationController ? undefined : (plan,definition)=>localCreation.controller.validatePlacement(plan,liveCreationContext,definition)}
               onSaveObject={async instanceId => {
                 const saved = await saveWorldCreationProofImage({ instanceId, resolve: localCreation.controller.resolve, world: livingWorld.currentSource, library: () => creationLibrary || null });
                 const url = URL.createObjectURL(new Blob([saved.bytes.slice().buffer as ArrayBuffer], {type: saved.mimeType}));
@@ -4090,11 +4125,12 @@ export function PlayCampaign({
               onGatherHay={() => gatherNearestStewardResource("gather")}
             /> : null}
             <WildzWorldControls
+              equipment={equipmentControls}
               onJump={state.playerBreaths?.mode==='bed'||state.playerBreaths?.mode==='sleep'?undefined:jumpPlayer}
               onHandAction={state.playerBreaths?.mode==='bed'||state.playerBreaths?.mode==='sleep'?undefined:usePlayerHand}
               onOpenCreation={()=>{
                 continuousBuilder.close();burrowBuilder.close();dispatchStageOverlay({type:'dismiss'});
-                setCreationContext({worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId,pose:{position:{x:state.player.x+3,y:state.siteSpace.position.y,z:state.player.z},yaw:0},budget:{...stewardMaterials},techniques:[],quality:qualityProfile.tier==='low'?'low':'high'});
+                setCreationContext({worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId,pose:{position:wildsBuildGroundPoint({x:state.player.x+3,y:state.siteSpace.position.y,z:state.player.z},state.siteSpace.spaceId,sampleWildsConstructionTerrainAt(constructionTerrainPads,state.player.x+3,state.player.z,sampleWildsBuildGround(state.player.x+3,state.player.z).elevation)),yaw:0},budget:{...stewardMaterials},techniques:[],quality:qualityProfile.tier==='low'?'low':'high'});
                 setCreationOpen(true);
               }}
               onOpenCrew={() => setRequestedCommand("crew")}

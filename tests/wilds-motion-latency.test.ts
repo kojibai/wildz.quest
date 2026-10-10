@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { mountFrameComponent } from './support/frame-component-harness';
 import { createWildsFlightCameraControlState, writeWildsFlightCameraControlState } from '../src/features/play/wilds-flight-camera';
 import { writeUnderwaterCameraTarget, isUnderwaterCameraSubmerged } from '../src/features/play/wilds-underwater-camera';
+import { writeWildsEquipmentCameraOffset } from '../src/features/play/wilds-equipment-camera';
 import { projectWildsExplorerAnatomy } from '../src/features/play/wilds-explorer-anatomy';
 import { createWildsExplorerFace, createWildsExplorerTorso } from '../src/features/play/wilds-explorer-face';
 import { createWildsExplorerHand } from '../src/features/play/wilds-explorer-hands';
@@ -141,7 +142,7 @@ function cameraRig() {
   };
   const rig = mountFrameComponent('src/features/play/WildsWorldCanvas.tsx', ['CameraRig'], {
     useThree: () => ({ camera }), OrbitControls: 'orbit', createWildsFlightCameraControlState, writeWildsFlightCameraControlState,
-    writeUnderwaterCameraTarget, isUnderwaterCameraSubmerged,
+    writeUnderwaterCameraTarget, isUnderwaterCameraSubmerged, writeWildsEquipmentCameraOffset,
     writeWildsSiteRuntimeCamera: () => ({ floorY: 10, ceilingY: Infinity, flooded: false }),
     wildsSiteRuntimeCameraIsFlooded: () => false, writeWildsInteriorCameraPosition: () => {},
     writeWildsMountainCameraPosition: sites.writeWildsMountainCameraPosition

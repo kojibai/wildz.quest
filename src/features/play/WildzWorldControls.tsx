@@ -28,6 +28,7 @@ import type { WildsWorldCapabilityFamily } from "./wilds-world-capability-regist
 import { projectWildsTraversalStatus } from "./wilds-traversal-status";
 import { WILDS_POWERED_FLIGHT_CRUISE_CLEARANCE, type WildsVerticalTraversalIntent, type WildsVerticalTraversalState } from "./wilds-vertical-traversal";
 import { projectWildsFlightObstruction } from "./wilds-flight-obstruction";
+import type {WildsEquipmentControls} from './wilds-equipment-controls';
 import { WildsPlayerActionPad, type WildsPlayerHand, type WildsPlayerHandIntent } from "./WildsPlayerActionPad";
 
 const ignore = () => {};
@@ -59,6 +60,7 @@ export function WildzWorldControls({
   nourishment,
   onJump,
   onHandAction,
+  equipment,
   dismissSignal,
   exclusiveOwner,
   overlayState,
@@ -98,6 +100,7 @@ export function WildzWorldControls({
   commandItems: readonly WildsCommandItem[];
   materialCounts?: Readonly<{ hay: number; timber: number; stone: number }>;
   nourishment?: WildsNourishmentPillProps;
+  equipment?:WildsEquipmentControls;
   onJump?: () => void;
   onHandAction?: (hand: WildsPlayerHand, intent: WildsPlayerHandIntent) => void;
   dismissSignal: number;
@@ -378,7 +381,7 @@ export function WildzWorldControls({
       </div>
 
       <div aria-hidden={movementHomeBlocked} className="wildz-construction-home wildz-quick-utilities" inert={movementHomeBlocked ? true : undefined}>
-          <WildsPlayerActionPad enabled={worldHomesEnabled} cancelSignal={gestureCancelSignal} onJump={onJump} onHandAction={onHandAction} />
+          {equipment?.mode==='bow'||equipment?.mode==='rifle'?<div className="wildz-equipment-reticle" aria-hidden="true"><span/></div>:null}<WildsPlayerActionPad equipment={equipment} enabled={worldHomesEnabled} cancelSignal={gestureCancelSignal} onJump={onJump} onHandAction={onHandAction} />
           <button
             aria-label={`${onOpenCreation ? "Create with creatures" : "Open Living Construction"}. Satchel has ${materialCounts.hay} hay, ${materialCounts.timber} timber, and ${materialCounts.stone} stone`}
             className="wildz-construction-control"

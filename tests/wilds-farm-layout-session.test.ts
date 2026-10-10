@@ -30,6 +30,7 @@ test('choosing a new farm replaces a distant restored placement with the latest 
       useState: (value: unknown) => [value, () => {}],
       useCallback: (fn: unknown) => fn, useRef: (value: unknown) => ({ current: value }), useEffect() {}, useSyncExternalStore: () => true };
     if (name === 'react-dom') return { createPortal: (children: unknown) => children };
+    if (name === './equipment-presets') return {};
     if (name === './farm-layout') return { createFarmLayoutDefinition };
     if (name === './starter-prompt') return { creationShelterStarterPrompt };
     if (name === './capabilities') return { projectCreationWorkers };

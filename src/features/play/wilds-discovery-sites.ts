@@ -102,6 +102,8 @@ export type WildsSiteSurface = Readonly<{
   center: Point3;
   halfExtents: Point3;
   flooded: boolean;
+  /** Construction-derived footing orientation; authored site floors omit it. */
+  yaw?: number;
 }>;
 
 export type WildsMountainFieldNode = Readonly<{ x: number; z: number; baseY: number; topY: number }>;

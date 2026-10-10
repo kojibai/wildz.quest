@@ -3,8 +3,11 @@ import type { CreationState, CreationAuthorityContext, CreationTransition } from
 import { sealCreationInstance, type CreationNodeState } from './instance';
 import { constructionProofDigest } from '../wilds-construction-project';
 import { resolveCreationEquipmentAction, CREATION_EQUIPMENT_PROFILES, type CreationEquipmentActionRequest } from './equipment';
+import {CREATION_GEAR_PROFILES,CREATION_GEAR_PROFILE_HEAD} from './equipment-profiles';
 export const CREATION_DAMAGE_RULE_ID = 'creation.damage.v1';
 export const CREATION_DAMAGE_RULE_HEAD = constructionProofDigest({ id: CREATION_DAMAGE_RULE_ID, salvageRate: .5, demolitionCondition: 100, profiles: CREATION_EQUIPMENT_PROFILES, occupiedTransition: 'requires-participant-relocation' });
+export const CREATION_GEAR_DAMAGE_RULE_ID='creation.damage.v2',CREATION_GEAR_DAMAGE_RULE_HEAD=constructionProofDigest({id:CREATION_GEAR_DAMAGE_RULE_ID,previous:CREATION_DAMAGE_RULE_HEAD,gear:CREATION_GEAR_PROFILE_HEAD});
+export function creationDamageRule(profileId?:string){return profileId&&CREATION_GEAR_PROFILES[profileId]?{id:CREATION_GEAR_DAMAGE_RULE_ID,head:CREATION_GEAR_DAMAGE_RULE_HEAD}:{id:CREATION_DAMAGE_RULE_ID,head:CREATION_DAMAGE_RULE_HEAD};}
 export type CreationAttack = CreationActionRequest & Readonly<{
     action: 'demolish' | 'damage';
     nodeId: string;
@@ -18,7 +21,8 @@ export type CreationDamageResult = CreationTransition & Readonly<{
  * Occupied/storage-bearing collapses fail closed until their participant transition is available. */
 export function resolveCreationDamage(state: CreationState, attack: CreationAttack, context: CreationAuthorityContext): CreationDamageResult {
     let salvage: Record<string, number> = {}, weapon: ReturnType<typeof resolveCreationEquipmentAction> | undefined;
-    const transition = proposeCreationAction(state, attack, context, { id: CREATION_DAMAGE_RULE_ID, head: CREATION_DAMAGE_RULE_HEAD }, 'demolish', current => {
+    const equipped=attack.equipmentId&&state.instances[attack.equipmentId],held=equipped&&Object.values(equipped.nodeStates).find(n=>n.kind==='equipment'&&n.equippedBy===attack.actorId);
+    const transition = proposeCreationAction(state, attack, context, creationDamageRule(held&&held.kind==='equipment'?held.actionProfileId:undefined), 'demolish', current => {
         const target = current.nodeStates[attack.nodeId];
         if (!target || target.condition <= 0)
             throw Error('creation_damage_target_unavailable');

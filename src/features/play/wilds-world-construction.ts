@@ -1,5 +1,6 @@
 import { architecturalSnap } from "./wilds-architectural-snap";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
+import { projectWildsBuildFootprint } from './wilds-build-ground';
 
 // Disposable local blueprint geometry only. Nothing in this module publishes
 // physical world state or consumes material authority.
@@ -56,6 +57,7 @@ export type WildsBlueprintPreview = Readonly<{
 }>;
 
 export type WildsPlacementPhysicalEvidence = Readonly<{
+  groundSupport?: 'wildz.build-ground.v1';
   terrainY: number;
   waterline: number | null;
   anchors: readonly WildsBlueprintAnchor[];
@@ -369,6 +371,7 @@ function placementAnchors(kind: WildsConstructionKind, placementId: string, cent
 }
 
 export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInput): WildsBlueprintPlacement {
+  if (input.physical.groundSupport !== undefined && input.physical.groundSupport !== 'wildz.build-ground.v1') throw new Error('wilds_blueprint_surface_invalid');
   if (!finitePoint(input.pointer)) throw new Error("wilds_blueprint_pointer_invalid");
   if (!Number.isFinite(input.physical.terrainY) || (input.physical.waterline !== null && !Number.isFinite(input.physical.waterline))) throw new Error("wilds_blueprint_surface_invalid");
   if (input.physical.anchors.some((anchor) => !anchor.id || !finitePoint(anchor.position))
@@ -407,6 +410,12 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
     rotated = rotationQuarterTurns % 2 === 0 ? catalog.halfExtents : { x: catalog.halfExtents.z, y: catalog.halfExtents.y, z: catalog.halfExtents.x };
     if (architectural.baseY !== undefined) baseY = architectural.baseY;
   }
+  const needsGround = catalog.support === 'terrain' || !anchor && (catalog.support === 'terrain-or-structure' || groundWorkbench);
+  const footing = input.physical.groundSupport && needsGround ? projectWildsBuildFootprint({
+    center: { x: quantize(input.pointer.x, .5), y: baseY, z: quantize(input.pointer.z, .5) }, halfExtents: rotated, yaw: 0
+  }) : null;
+  // The real centre contact fixes the level; paid construction then cuts and
+  // fills its footprint to this same plane, including steep mountain slopes.
   const surfaceOffset = input.surfaceSnap && anchor && supportPiece && !["door", "window", "roof", "room", "pitched-roof", "gable"].includes(input.kind)
     && Math.abs(input.pointer.x - supportPiece.geometry.center.x) <= supportPiece.geometry.halfExtents.x + .25
     && Math.abs(input.pointer.z - supportPiece.geometry.center.z) <= supportPiece.geometry.halfExtents.z + .25;
@@ -418,7 +427,7 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
   const geometry = freeze({ center: position, halfExtents: freeze({ ...rotated }) });
   const cues: string[] = [];
   if (groundWorkbench && !anchor && input.heightStep !== 0) cues.push("needs-terrain-support");
-  if (groundWorkbench && !anchor && input.physical.waterline !== null) cues.push("needs-dry-ground");
+  if (groundWorkbench && !anchor && input.physical.waterline !== null && !input.physical.groundSupport) cues.push("needs-dry-ground");
   if (needsStructure && !anchor) cues.push("needs-structure-anchor");
   if (needsWater && input.physical.waterline === null) cues.push("needs-water");
   if (catalog.support === "terrain" && input.heightStep !== 0) cues.push("needs-terrain-support");

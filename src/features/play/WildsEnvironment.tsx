@@ -24,7 +24,8 @@ import { WildsSettlementEnvironment, type WildsSettlementWorldMode } from "@/fea
 import { WAYFINDER_HOLLOW } from "@/features/play/wilds-settlements";
 import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-placement";
-import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, buildWildsTerrainWaterProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
+import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, buildWildsTerrainWaterProjection, gradeWildsTerrainMeshProjection, gradeWildsTerrainWaterProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
+import { createWildsConstructionTerrainSelector, wildsConstructionTerrainPadsInBounds, type WildsConstructionTerrainPad } from './wilds-construction-terrain';
 import { wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
 import { createWildsResourcePlacementProjector } from "./wilds-resource-placements";
 import { projectWildsHarvestWorkPhase, projectWildsSourceWorkMotion, type WildsActiveWorkSource, type WildsResourceBodyProjection } from "@/features/play/wilds-work-presentation";
@@ -202,6 +203,11 @@ export function WildsEnvironment({
   const outer = siteSpace.spaceId === "wildz.space.outer.v1";
   const centerX = Math.floor(player.x / WILDS_TILE_SIZE);
   const centerZ = Math.floor(player.z / WILDS_TILE_SIZE);
+  const selectTerrain = useMemo(createWildsConstructionTerrainSelector, []);
+  const allTerrainPads = useMemo(() => selectTerrain(livingWorld), [selectTerrain, livingWorld]);
+  const terrainPads = useMemo(() => wildsConstructionTerrainPadsInBounds(allTerrainPads,
+    (centerX - 4) * WILDS_TILE_SIZE, (centerZ - 4) * WILDS_TILE_SIZE,
+    (centerX + 5) * WILDS_TILE_SIZE, (centerZ + 5) * WILDS_TILE_SIZE), [allTerrainPads, centerX, centerZ]);
   const tiles = useMemo(() => {
     if (!outer) return EMPTY_TILES;
     const projected: Tile[] = [];
@@ -227,8 +233,8 @@ export function WildsEnvironment({
   return (
     <group>
       <group name="world-layer-play">
-        {outer ? <><GroundField centerX={centerX} centerZ={centerZ} color={tiles[12]?.ground.base ?? "#4f9254"} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} />
-        <TerrainWaterField centerX={centerX} centerZ={centerZ} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} />
+        {outer ? <><GroundField centerX={centerX} centerZ={centerZ} color={tiles[12]?.ground.base ?? "#4f9254"} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} terrainPads={terrainPads} />
+        <TerrainWaterField centerX={centerX} centerZ={centerZ} player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} terrainPads={terrainPads} />
         <WorldWatercourses player={player} qualityProfile={qualityProfile} terrainElevation={terrainElevation} />
         <TrailNetwork player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} terrainElevation={terrainElevation} />
         <MajorWorldRoutes player={player} palette={tiles[12]?.trail ?? { base: "#cbb778", edge: "#9b8b56" }} terrainElevation={terrainElevation} /></> : null}
@@ -438,12 +444,12 @@ function WorldWatercourses({ player, qualityProfile, terrainElevation }: { playe
   </group>;
 }
 
-function GroundField({ centerX, centerZ, color, player, qualityProfile, terrainElevation }: { centerX: number; centerZ: number; color: string; player: PlayState["player"]; qualityProfile: WildsQualityProfile; terrainElevation: number }) {
+function GroundField({ centerX, centerZ, color, player, qualityProfile, terrainElevation, terrainPads }: { centerX: number; centerZ: number; color: string; player: PlayState["player"]; qualityProfile: WildsQualityProfile; terrainElevation: number; terrainPads: readonly WildsConstructionTerrainPad[] }) {
   const readability = useWildsReadability();
   const terrainRadius = qualityProfile.tier === "low" ? 2 : qualityProfile.tier === "medium" ? 3 : 4;
   const geometry = useMemo(() => {
     const segments = qualityProfile.tier === "low" ? 4 : qualityProfile.tier === "medium" ? 6 : 8;
-    const projection = buildWildsTerrainPatchProjection(centerX, centerZ, terrainRadius, segments);
+    const projection = gradeWildsTerrainMeshProjection(buildWildsTerrainPatchProjection(centerX, centerZ, terrainRadius, segments, terrainPads), terrainPads);
     const next = new THREE.BufferGeometry();
     next.setAttribute("position", new THREE.Float32BufferAttribute(projection.positions, 3));
     next.setAttribute("normal", new THREE.Float32BufferAttribute(projection.normals, 3));
@@ -457,7 +463,7 @@ function GroundField({ centerX, centerZ, color, player, qualityProfile, terrainE
     next.setIndex(Array.from(projection.indices));
     next.computeBoundingSphere();
     return next;
-  }, [centerX, centerZ, qualityProfile.tier, terrainRadius]);
+  }, [centerX, centerZ, qualityProfile.tier, terrainRadius, terrainPads]);
   const terrainMap = useMemo(() => createWildsGroundTexture(color), [color]);
   useEffect(() => hydrateWildsGroundTexture(terrainMap, color), [terrainMap, color]);
   useEffect(()=>()=>terrainMap.dispose(),[terrainMap]);
@@ -473,20 +479,22 @@ function GroundField({ centerX, centerZ, color, player, qualityProfile, terrainE
   );
 }
 
-function TerrainWaterField({ centerX, centerZ, player, qualityProfile, terrainElevation }: {
+function TerrainWaterField({ centerX, centerZ, player, qualityProfile, terrainElevation, terrainPads }: {
   centerX: number;
   centerZ: number;
   player: PlayState["player"];
   qualityProfile: WildsQualityProfile;
   terrainElevation: number;
+  terrainPads: readonly WildsConstructionTerrainPad[];
 }) {
   const terrainRadius = qualityProfile.tier === "low" ? 2 : qualityProfile.tier === "medium" ? 3 : 4;
-  const projection = useMemo(() => buildWildsTerrainWaterProjection(
+  const projection = useMemo(() => gradeWildsTerrainWaterProjection(buildWildsTerrainWaterProjection(
     centerX,
     centerZ,
     terrainRadius,
-    qualityProfile.tier === "low" ? 4 : qualityProfile.tier === "medium" ? 6 : 8
-  ), [centerX, centerZ, qualityProfile.tier, terrainRadius]);
+    qualityProfile.tier === "low" ? 4 : qualityProfile.tier === "medium" ? 6 : 8,
+    terrainPads
+  ), terrainPads), [centerX, centerZ, qualityProfile.tier, terrainRadius, terrainPads]);
   const shallowGeometry = useMemo(() => waterLayerGeometry(projection.shallow), [projection]);
   const deepGeometry = useMemo(() => waterLayerGeometry(projection.deep), [projection]);
   useEffect(()=>()=>{shallowGeometry.dispose();deepGeometry.dispose();},[shallowGeometry,deepGeometry]);

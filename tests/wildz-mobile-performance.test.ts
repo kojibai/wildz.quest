@@ -155,9 +155,11 @@ test("authoritative terrain and route art are cell-bound instead of movement-bou
   const environment = source("src/features/play/WildsEnvironment.tsx");
 
   assert.doesNotMatch(worldArt, /horizonCell|Horizon|world-ridge/);
-  assert.match(environment, /buildWildsTerrainPatchProjection\(centerX, centerZ, terrainRadius, segments\)/);
+  assert.match(environment, /buildWildsTerrainPatchProjection\(centerX, centerZ, terrainRadius, segments(?:, terrainPads)?\)/);
   assert.match(environment, /buildWildsTerrainWaterProjection\(/);
   assert.doesNotMatch(environment, /buildWildsTerrain(?:Patch|Water)Projection\(player/);
+  const terrainFields = environment.slice(environment.indexOf('function GroundField'), environment.indexOf('function waterLayerGeometry'));
+  assert.doesNotMatch(terrainFields, /\}, \[[^\]]*player\.[xz][^\]]*\]\)/);
   assert.match(worldArt, /const routeCellX = Math\.floor\(player\.x \/ 6\)/);
   assert.match(worldArt, /const routeCellZ = Math\.floor\(player\.z \/ 6\)/);
   assert.match(worldArt, /\[radius, routeCellX, routeCellZ\]/);

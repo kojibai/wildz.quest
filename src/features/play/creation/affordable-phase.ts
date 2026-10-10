@@ -2,6 +2,7 @@ import {compileCreation,type CreationCompileContext,type CreationBlocker,type Cr
 import {createCreationDefinition,parseCreationDefinition} from './definition';
 import {creationContainsParts} from './parts-basis';
 import type {CreationDefinition,CreationNode,CreationResourceBudget} from './types';
+import {groundCreationCompileContext} from './ground-placement';
 
 export type CreationPhaseResult={status:'ready';definition:CreationDefinition;plan:CreationPlan;budget:CreationResourceBudget;targetQuote:CreationResourceQuote|null}|{status:'blocked';blockers:readonly CreationBlocker[];quote?:CreationResourceQuote};
 
@@ -11,6 +12,7 @@ export function prepareAffordableCreation(input:CreationDefinition,context:Creat
  const reject=(message:string):CreationPhaseResult=>({status:'blocked',blockers:[{code:'phase',nodeId:null,message}]});
  try{
   const target=parseCreationDefinition(input),previous=context.evolution?parseCreationDefinition(context.evolution.definition):null;
+  context=groundCreationCompileContext(target,context);
   if(previous&&!creationContainsParts(target,previous))return reject('The saved design no longer contains every built part unchanged. Prepare your changes through the normal construction flow.');
   const full=compileCreation(target,context),targetQuote=full.status==='ready'?{definitionDigest:target.digest,requiredResources:full.plan.requiredResources,requiredWork:full.plan.requiredWork}:full.quote||null;
   if(full.status==='ready')return ready(target,full.plan);

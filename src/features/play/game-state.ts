@@ -1,7 +1,11 @@
-import {resolveCreationMovement,resolveCreationFlight,creationFloorSupportAt,creationPositionIsClear,type CreationNavigation} from './creation/navigation';
+import {resolveCreationMovement,resolveCreationFlight,creationFloorSupportAt,creationPositionIsClear,prepareCreationNavigation,type CreationNavigation} from './creation/navigation';
 import {createPlayerBreaths,restorePlayerBreaths,isPlayerBreaths,advancePlayerBreaths,recordPlayerExertion,playerBreathEnergy,recoverPlayerBreaths} from "./player-breath-energy";
 import { canSleepInCreationBed, type CreationBedSource } from './creation/bed';
-import { projectWildsCreationPersistence, type WildsCreationSourceRecord } from './creation/world-source';
+import { compileWorldCreationSource, projectWildsCreationPersistence, type WildsCreationSourceRecord } from './creation/world-source';
+import { projectCreationPhysical } from './creation/projection';
+import { initialWildsWorldProjection } from './wilds-world-state';
+import { composeWildsConstructionTerrain, projectWildsConstructionTerrain, wildsConstructionTerrainPadsInBounds } from './wilds-construction-terrain';
+import { WILDS_BUILD_FLAT_APRON, WILDS_BUILD_EDGE_BLEND } from './wilds-build-ground';
 import type { WildsWorldEvent } from './wilds-world-event';
 import { createWildsNourishmentState, restoreWildsNourishmentState, gatherWildsNourishment, consumeWildsNourishment, creditWildsAnimalFood, retainWildsAnimalFoodSources, type WildsNourishmentState } from "./wilds-nourishment";
 import { createWildsLivestockState, restoreWildsLivestockState, huntWildsAnimal, captureWildsLivestock, collectWildsLivestock, type WildsLivestockState, type WildsHusbandryWorld, type WildsHuntingToolWorld } from "./wilds-livestock";
@@ -13,7 +17,7 @@ import { sanitizeWildsJourneyJournal, type WildsJourneyJournal } from "./wilds-j
 import { projectWildsResourcePackagePersistence } from "./wilds-resource-package-continuity";
 import { composeWildsInteriorConstruction } from "./wilds-construction-physics";
 import { restoreWildsBurrowSpace } from "./wilds-burrow";
-import { wildsStructureSupportAt } from "./wilds-structure-support";
+import { projectWildsStructureSupports, wildsStructureSupportAt } from "./wilds-structure-support";
 import { appendWildsActivity, normalizeWildsActivityHistory, type WildsActivityEntry } from "./wallet/wilds-activity-history";
 import { creatureFamilies, creatureForm, creatureForms, type CreatureRarity } from "./creature-catalog";
 import { projectWildsConstructionPersistence, type WildsConstructionPersistence } from "./wilds-construction-persistence";
@@ -73,14 +77,14 @@ import {
   revealWildsExplorationAt,
   type WildsExplorationAtlas
 } from "./wilds-exploration-atlas";
-import { admitWildsDiscoveryPhysicalNeighborhood, isCanonicalWildsDiscoverySiteKey, normalizeWildsSiteSpaceState, type WildsSiteSpaceState } from "./wilds-discovery-sites";
-import { enterWildsSiteRuntime, exitWildsSiteRuntime, forceExitWildsSiteRuntime, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeMovement, type WildsSiteDiscoveryOutput, type WildsSiteMovementOutput, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
+import { admitWildsDiscoveryPhysicalNeighborhood, isCanonicalWildsDiscoverySiteKey, normalizeWildsSiteSpaceState, wildsDiscoverySiteRegionForPosition, type WildsSiteSpaceState } from "./wilds-discovery-sites";
+import { enterWildsSiteRuntime, exitWildsSiteRuntime, forceExitWildsSiteRuntime, prepareWildsSiteRuntime, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeMovement, type WildsSiteDiscoveryOutput, type WildsSiteMovementOutput, type WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import {
   projectWildsTraversalCapabilities,
   type WildsTraversalCapability
 } from "./wilds-traversal-capabilities";
 import type { WildsEncounterInteractionLayer } from "./wilds-layered-encounters";
-import { wildsTerrainElevation } from "./wilds-terrain-authority";
+import { wildsTerrainElevation, WILDS_TERRAIN_WATER_SURFACE_ELEVATION } from "./wilds-terrain-authority";
 import type { WildsStructureSupport } from "./wilds-structure-support";
 import type { WildsTerrainObstacle } from "./wilds-terrain-obstacles";
 import { projectWildsCivicHistory, type WildsCivicEvent } from "./wilds-civic-history";
@@ -615,6 +619,31 @@ function normalizeOwnedWorldAdditions(value: unknown, ownerReceizId?: string): W
   };
 }
 
+/** Restore the same paid cut/fill ground used by movement, after source
+ * verification. Raw mountain normalization alone can put a saved player several
+ * metres beneath a filled apron, making the first step an impossible climb. */
+function restoreOwnedConstructionGround(space: WildsSiteSpaceState, owned: WildsOwnedWorldAdditions, saved?: WildsSiteSpaceState): WildsSiteSpaceState {
+  if (space.spaceId !== "wildz.space.outer.v1") return space;
+  const world = { ...initialWildsWorldProjection(), ...owned };
+  const pads = projectWildsConstructionTerrain(world);
+  const localPads = wildsConstructionTerrainPadsInBounds(pads, space.position.x, space.position.z, space.position.x, space.position.z).filter(pad => {
+    const dx = space.position.x - pad.center.x, dz = space.position.z - pad.center.z, c = Math.cos(pad.yaw), s = Math.sin(pad.yaw);
+    return Math.max(Math.abs(dx * c - dz * s) - pad.halfExtents.x, Math.abs(dx * s + dz * c) - pad.halfExtents.z) < WILDS_BUILD_FLAT_APRON + WILDS_BUILD_EDGE_BLEND;
+  });
+  if (!localPads.length) return space;
+  const region = wildsDiscoverySiteRegionForPosition(space.position);
+  const runtime = prepareWildsSiteRuntime(composeWildsConstructionTerrain(admitWildsDiscoveryPhysicalNeighborhood(region.x, region.z), localPads));
+  const groundY = wildsSiteRuntimeGroundY(runtime, space.spaceId, space.position.x, space.position.z, space.position.y);
+  const contact = { ...space.position, y: Number.isFinite(saved?.position?.y) ? saved!.position.y : groundY };
+  const localHeads = new Set(localPads.map(pad => pad.sourceHead));
+  const created = prepareCreationNavigation(Object.values(world.creations ?? {}).filter(source => localHeads.has(source.instance.head)).map(source =>
+    projectCreationPhysical(source.instance, source.command.definition, compileWorldCreationSource(source))));
+  const creationFloor = creationFloorSupportAt(created, space.spaceId, contact);
+  const manualFloor = wildsStructureSupportAt(contact, projectWildsStructureSupports(world), 0, contact.y);
+  const floorY = Math.max(groundY, creationFloor?.deckY ?? -Infinity, manualFloor?.deckY ?? -Infinity);
+  return { ...space, position: { ...space.position, y: floorY }, flooded: floorY < WILDS_TERRAIN_WATER_SURFACE_ELEVATION };
+}
+
 function reissuePlaceholderAsset(asset: PortableCardAsset, ownerReceizId: string): PortableCardAsset {
   if (asset.manifest.ownerReceizId !== LEGACY_PLACEHOLDER_OWNER || ownerReceizId === LEGACY_PLACEHOLDER_OWNER) return asset;
   const baseFormId = `${asset.manifest.familyId}-1`;
@@ -785,6 +814,7 @@ function restorePlayStateSource(
       z: clamp(saved.player.z, worldBounds.min, worldBounds.max)
     };
     const restoredWorldAdditions = normalizeOwnedWorldAdditions(saved.ownedWorldAdditions,ownerReceizId);
+    const restoredSiteSpace = restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z });
     const restoredLivestock = restoreWildsLivestockState(saved.playerLivestock, ownerReceizId);
     const restoredNourishment = retainWildsAnimalFoodSources(restoreWildsNourishmentState(saved.playerNourishment, ownerReceizId), restoredLivestock);
     // Legacy player continuity is bound to its owner by the caller. A card's
@@ -814,7 +844,7 @@ function restorePlayStateSource(
       playerBreaths: isPlayerBreaths(saved.playerBreaths) ? saved.playerBreaths : undefined,
       energy: isPlayerBreaths(saved.playerBreaths) ? playerBreathEnergy(saved.playerBreaths) : Math.max(0,Math.min(100,typeof saved.energy==='number'&&Number.isFinite(saved.energy)?saved.energy:84)),
       player: restoredPlayer,
-      siteSpace: restoreWildsBurrowSpace(saved.siteSpace,restoredWorldAdditions.burrows??{},physical=>composeWildsInteriorConstruction(physical,{structures:restoredWorldAdditions.structures,constructionComponents:restoredWorldAdditions.constructionComponents??{},constructionMaterialContributions:restoredWorldAdditions.constructionMaterialContributions??{},constructionWorkContributions:restoredWorldAdditions.constructionWorkContributions??{}})) ?? normalizeWildsSiteSpaceState(saved.siteSpace, { x: restoredPlayer.x, y: wildsTerrainElevation(restoredPlayer.x, restoredPlayer.z), z: restoredPlayer.z }),
+      siteSpace: restoreOwnedConstructionGround(restoredSiteSpace, restoredWorldAdditions, saved.siteSpace),
       explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, restoredPlayer),
       ownedWorldAdditions: restoredWorldAdditions,
       missionProgress: !foreignExplorer && typeof saved.missionProgress === "number" && Number.isFinite(saved.missionProgress)

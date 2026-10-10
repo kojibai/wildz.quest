@@ -4,7 +4,7 @@ import {constructionProofDigest,freezeConstructionProof,sealConstructionProof,va
 import {createCreationInstance,sealCreationInstance,verifyCreationInstance} from './instance';
 import {selectCreationResources} from './resources';
 import {planCreationTasks} from './crew';
-import {initializeCreationComponents,CREATION_COMPONENT_RULE_ID,CREATION_COMPONENT_RULE_HEAD} from './components';
+import {initializeCreationComponents,creationComponentRuleForDefinition} from './components';
 import {CREATION_MATERIALS} from './registry';
 import type {CreationDefinition,CreationCommitResult} from './types';
 import type {CreationInstance} from './instance';
@@ -21,7 +21,7 @@ export type CreationOperationJournalRow=Readonly<{schema:'wildz.creation-journal
 export type CreationOperationJournal=Readonly<{read(operationId:string):Promise<CreationOperationJournalRow|null>;compareAndSet(operationId:string,expectedRevision:number|null,next:CreationOperationJournalRow):Promise<boolean>}>;
 export const CREATION_CONSTRUCT_RULE_ID='creation.construct.v1';
 export const CREATION_CONSTRUCT_RULE_HEAD=constructionProofDigest({id:CREATION_CONSTRUCT_RULE_ID,version:1,grammarVersion:1,materials:CREATION_MATERIALS,maximumWorkers:32,components:'static-condition-support',custody:'exact-quantity1-lot-consumption-and-embedded-lineage'});
-export function creationConstructRuleForDefinition(definition:CreationDefinition){return definition.nodes.some(n=>n.behaviors.length)?{id:CREATION_COMPONENT_RULE_ID,head:CREATION_COMPONENT_RULE_HEAD}:{id:CREATION_CONSTRUCT_RULE_ID,head:CREATION_CONSTRUCT_RULE_HEAD};}
+export function creationConstructRuleForDefinition(definition:CreationDefinition){return definition.nodes.some(n=>n.behaviors.length)?creationComponentRuleForDefinition(definition):{id:CREATION_CONSTRUCT_RULE_ID,head:CREATION_CONSTRUCT_RULE_HEAD};}
 const authenticatedOutcomes=new WeakMap<object,string>();
 const pending=(operationId:string,reason:string):CreationAdmissionOutcome=>({status:'unknown',operationId,reason});
 export function verifyCreationOperation(operation:CreationOperation):boolean{

@@ -10,6 +10,7 @@ import * as savedGoal from '../src/features/play/creation/saved-goal';
 import {prepareAffordableCreation} from '../src/features/play/creation/affordable-phase';
 import * as draft from '../src/features/play/creation/draft';
 import * as compileEnvironment from '../src/features/play/creation/compile-environment';
+import * as groundPlacement from '../src/features/play/creation/ground-placement';
 import { constructionProofDigest } from '../src/features/play/wilds-construction-project';
 import { planCreation } from '../src/features/play/creation/planner';
 import { applyCreationPatch } from '../src/features/play/creation/patch';
@@ -76,6 +77,7 @@ async function mountConversation(saved?: string, overrides: Partial<Parameters<t
       if (name === './saved-goal') return savedGoal;
       if (name === './draft') return draft;
       if (name === './compile-environment') return compileEnvironment;
+      if (name === './ground-placement') return groundPlacement;
       if (name === './capabilities') return capabilities;
       if (name === '../wilds-construction-project') return { constructionProofDigest };
       if (name === './worker-client') return { createCreationWorkerClient: () => ({ async compile(_id: string, definition: Parameters<typeof compileCreation>[0], context: Parameters<typeof compileCreation>[1]) { return compileCreation(definition, context); }, async phase(_id:string,definition:Parameters<typeof compileCreation>[0],context:Parameters<typeof compileCreation>[1],mode:'automatic'|'manual'){return options.phase?options.phase(definition,context,mode):prepareAffordableCreation(definition,context,mode);}, cancel() {}, close() {} }) };

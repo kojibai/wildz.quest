@@ -4,8 +4,12 @@ import { deriveCreationGeometry } from './geometry';
 import { constructionProofDigest, freezeConstructionProof, validConstructionKai } from '../wilds-construction-project';
 import type { CreationDefinition } from './types';
 import type { CreationNodeState } from './instance';
+import {creationEquipmentProfileId,CREATION_GEAR_PROFILE_HEAD,hasCreationGearProfile} from './equipment-profiles';
 export const CREATION_COMPONENT_RULE_ID = 'creation.construct.components.v1';
 export const CREATION_COMPONENT_RULE_HEAD = constructionProofDigest({ id: CREATION_COMPONENT_RULE_ID, version: 1, storageSlotsPerCubicMetre: 4, maximumSlots: 256, bedOccupants: 1, habitatMaximumOccupants: 8, equipmentProfiles: { timber: { durability: 120, massLimit: 25 }, stone: { durability: 180, massLimit: 25 } }, bedMinimumFootprint: [.7, 1.9], bedHeight: [.1, 1], habitatMinimumInterior: [.8, 1.8, .8], equipmentAssemblyMaximumMass: 25, garden: 'empty-input-conserved', logicLimit: 1, jointMaximumTravel: 3 });
+export const CREATION_GEAR_COMPONENT_RULE_ID='creation.construct.components.v2';
+export const CREATION_GEAR_COMPONENT_RULE_HEAD=constructionProofDigest({id:CREATION_GEAR_COMPONENT_RULE_ID,previous:CREATION_COMPONENT_RULE_HEAD,gear:CREATION_GEAR_PROFILE_HEAD});
+export function creationComponentRuleForDefinition(definition:CreationDefinition){return hasCreationGearProfile(definition)?{id:CREATION_GEAR_COMPONENT_RULE_ID,head:CREATION_GEAR_COMPONENT_RULE_HEAD}:{id:CREATION_COMPONENT_RULE_ID,head:CREATION_COMPONENT_RULE_HEAD};}
 /** Candidate initialization, not admission. Parameters cannot grant stats, contents or energy. */
 export function initializeCreationComponents(input: CreationDefinition, kaiUPulse: number): Readonly<Record<string, CreationNodeState>> {
     const definition = parseCreationDefinition(input);
@@ -27,7 +31,7 @@ export function initializeCreationComponents(input: CreationDefinition, kaiUPuls
         const behavior = node.behaviors[0], p = behavior.parameters, keys = Object.keys(p);
         if (behavior.version !== 1)
             throw Error('creation_component_law_unavailable');
-        const allowed = behavior.id === 'joint' ? ['axis', 'travel'] : ['sensor', 'logic'].includes(behavior.id) ? ['target'] : [];
+        const allowed = behavior.id === 'joint' ? ['axis', 'travel'] : ['sensor', 'logic'].includes(behavior.id) ? ['target'] : ['tool','weapon'].includes(behavior.id)?['equipment']:[];
         if (keys.some(k => !allowed.includes(k)))
             throw Error('creation_component_parameter_unavailable');
         const volume = deriveCreationGeometry(node, { position: { x: 0, y: 0, z: 0 }, yaw: 0 }).volume;
@@ -54,7 +58,8 @@ export function initializeCreationComponents(input: CreationDefinition, kaiUPuls
                 if (!['timber', 'stone'].includes(node.material) || mass <= 0 || mass > 25)
                     throw Error('creation_equipment_material_or_mass_unavailable');
                 const capacity = node.material === 'stone' ? 180 : 120;
-                state = { ...common, kind: 'equipment', equipmentKind: behavior.id, capabilityId: `${behavior.id === 'tool' ? 'harvest' : 'strike'}.${node.material}.v1`, durability: capacity, capacity, mass, actionProfileId: `creation.${node.material}.${behavior.id}.v1`, equippedBy: null, lastActionKaiUPulse: 0, lastActionId: null };
+                const actionProfileId=creationEquipmentProfileId(behavior.id,node.material,p.equipment);
+                state = { ...common, kind: 'equipment', equipmentKind: behavior.id, capabilityId: p.equipment===undefined?`${behavior.id === 'tool' ? 'harvest' : 'strike'}.${node.material}.v1`:`${behavior.id==='tool'?'work':'shoot'}.${p.equipment}.v2`, durability: capacity, capacity, mass, actionProfileId, equippedBy: null, lastActionKaiUPulse: 0, lastActionId: null };
                 break;
             }
             case 'garden':
