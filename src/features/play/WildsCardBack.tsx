@@ -17,6 +17,7 @@ export function WildsCardBack({ asset, origin, qr, condition, onSaveProof }: { a
   const dossier = useMemo(() => projectLivingCardDossier(asset, origin), [asset, origin]);
   const death = useMemo(() => cardDeathRecord(asset, condition), [asset, condition]);
   const [copyStatus, setCopyStatus] = useState("");
+  const [proofDetailsOpen, setProofDetailsOpen] = useState(false);
   const [pngProof, setPngProof] = useState<PortableCardPngProof | null>(null);
   const [generatingPngProof, setGeneratingPngProof] = useState(false);
 
@@ -112,7 +113,7 @@ export function WildsCardBack({ asset, origin, qr, condition, onSaveProof }: { a
           </dl>
         </section>
 
-        <details className="wilds-card-proof-dossier">
+        <details className="wilds-card-proof-dossier" onToggle={(event) => setProofDetailsOpen(event.currentTarget.open)}>
           <summary>Complete offline proof <span>{dossier.verification.ok ? "All checks pass" : "Review errors"}</span></summary>
           <div className="wilds-proof-layers" aria-label="Card and Receiz carrier proof layers">
             <div><span>Card seal</span><strong>{dossier.proofLayers.card.suite}</strong><code title={dossier.proofLayers.card.digest}>{compactProofFingerprint(dossier.proofLayers.card.digest)}</code></div>
@@ -126,7 +127,7 @@ export function WildsCardBack({ asset, origin, qr, condition, onSaveProof }: { a
             <div><dt>Canonicalization</dt><dd>{asset.proof.canonicalization}</dd></div>
             <div><dt>Sealed</dt><dd>{asset.proof.sealedAt}</dd></div>
           </dl>
-          <pre aria-label="Complete canonical card proof">{dossier.canonicalProofJson}</pre>
+          {proofDetailsOpen ? <pre aria-label="Complete canonical card proof">{dossier.canonicalProofJson}</pre> : null}
           {pngProof ? <dl className="wilds-png-proof-meta"><div><dt>PNG schema</dt><dd>{pngProof.schema}</dd></div><div><dt>PNG image digest</dt><dd>{pngProof.imageDigest}</dd></div></dl> : null}
           <div className="wilds-card-proof-actions">
             <button onClick={async () => {

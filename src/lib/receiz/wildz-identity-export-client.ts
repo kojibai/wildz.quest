@@ -24,7 +24,7 @@ function closeWorker() {
   pending.clear();
 }
 
-/** Share admitted cards across active exports, then release the duplicate Vault. */
+/** Reuse admitted cards across exports; only new/replaced cards cross again. */
 export async function createWildzIdentityPlayerCardBundleOffThread(input: Input): Promise<Bundle | null> {
   if (typeof window === "undefined" || typeof Worker === "undefined") return null;
   if (active?.keyId !== input.keyFile.keyId) closeWorker();
@@ -40,7 +40,6 @@ export async function createWildzIdentityPlayerCardBundleOffThread(input: Input)
         if (!event.data.ok) { request.reject(new Error(event.data.error)); closeWorker(); }
         else {
           request.resolve({ bytes: new Uint8Array(event.data.bytes), playerPayloadDigest: event.data.playerPayloadDigest });
-          if (!pending.size) closeWorker();
         }
       };
       worker.onerror = event => { event.preventDefault(); if (active?.worker === worker) closeWorker(); };

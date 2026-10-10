@@ -39,18 +39,18 @@ function browserWorkerFixture() {
     } };
 }
 
-test("a completed readiness operation releases its signing worker and the next call reopens custody", async () => {
+test("repeated readiness calls reuse the warmed signing runtime without restarting custody", async () => {
   const f = browserWorkerFixture();
   try {
     const first = readWildzLocalSealerReadiness();
     f.workers[0]!.reply(0, true);
     assert.equal(await first, true);
-    assert.equal(f.workers[0]!.terminations, 1, "idle resource and proving runtime must be released");
+    assert.equal(f.workers[0]!.terminations, 0, "a warmed runtime must not be discarded between Vault opens");
     const second = readWildzLocalSealerReadiness();
-    assert.equal(f.workers.length, 2);
-    f.workers[1]!.reply(0, false);
+    assert.equal(f.workers.length, 1);
+    f.workers[0]!.reply(1, false);
     assert.equal(await second, false);
-    assert.equal(f.workers[1]!.terminations, 1);
+    assert.equal(f.workers[0]!.terminations, 0);
   } finally { f.restore(); }
 });
 
@@ -64,11 +64,11 @@ test("overlapping readiness requests share one worker until the last result sett
     assert.equal(f.workers[0]!.terminations, 0);
     f.workers[0]!.reply(0, false);
     assert.equal(await first, false);
-    assert.equal(f.workers[0]!.terminations, 1);
+    assert.equal(f.workers[0]!.terminations, 0);
   } finally { f.restore(); }
 });
 
-test("explicit signer setup retains one worker between readiness and enrollment then releases it", async () => {
+test("explicit signer setup retains one warmed worker between readiness, enrollment and subsequent calls", async () => {
   const f = browserWorkerFixture();
   try {
     const setup = prepareWildzLocalCardSealer();
@@ -79,7 +79,7 @@ test("explicit signer setup retains one worker between readiness and enrollment 
     assert.deepEqual(f.workers[0]!.messages.map(message => message.command), ["ready", "enroll"]);
     f.workers[0]!.reply(1, undefined);
     await setup;
-    assert.equal(f.workers[0]!.terminations, 1);
+    assert.equal(f.workers[0]!.terminations, 0);
   } finally { f.restore(); }
 });
 
@@ -95,17 +95,17 @@ test("signing-worker failure rejects all pending work and a later operation star
     assert.equal(f.workers.length, 2);
     f.workers[1]!.reply(0, true);
     assert.equal(await retry, true);
-    assert.equal(f.workers[1]!.terminations, 1);
+    assert.equal(f.workers[1]!.terminations, 0);
   } finally { f.restore(); }
 });
 
-test("a rejected readiness result propagates the real error and releases its worker", async () => {
+test("a rejected readiness result propagates the real error without fabricating readiness", async () => {
   const f = browserWorkerFixture();
   try {
     const result = readWildzLocalSealerReadiness();
     f.workers[0]!.reply(0, undefined, "offline_seal_resources_invalid");
     await assert.rejects(result, /offline_seal_resources_invalid/);
-    assert.equal(f.workers[0]!.terminations, 1);
+    assert.equal(f.workers[0]!.terminations, 0);
   } finally { f.restore(); }
 });
 
@@ -123,10 +123,11 @@ test("a late error from a completed signing worker cannot cancel a newer Save op
   try {
     const first = readWildzLocalSealerReadiness();
     f.workers[0]!.reply(0, true); await first;
+    f.workers[0]!.onerror?.({ message: "worker_replaced" });
     const second = readWildzLocalSealerReadiness();
     f.workers[0]!.onerror?.({ message: "late_old_error" });
     f.workers[1]!.reply(0, true);
     assert.equal(await second, true);
-    assert.equal(f.workers[1]!.terminations, 1);
+    assert.equal(f.workers[1]!.terminations, 0);
   } finally { f.restore(); }
 });

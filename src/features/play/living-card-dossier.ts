@@ -166,10 +166,13 @@ export function safePublicProofObject(asset: PortableCardAsset) {
 }
 
 export function canonicalPublicProofJson(asset: PortableCardAsset) {
-  return canonicalPortableCardJson(safePublicProofObject(asset));
+  // The portable card is already the public proof. Encode its exact fields
+  // directly instead of parsing and encoding a second full-card copy.
+  return canonicalPortableCardJson(asset);
 }
 
 export function projectLivingCardDossier(asset: PortableCardAsset, origin: string): LivingCardDossier {
+  let canonicalProofJson: string | undefined;
   const form = creatureForm(asset.manifest.formId);
   if (!form) throw new Error("wilds_dossier_form_unknown");
   const living = isLivingCardAsset(asset);
@@ -324,6 +327,10 @@ export function projectLivingCardDossier(asset: PortableCardAsset, origin: strin
       route: standaloneCardUrl(asset.id, origin),
       errors: [...verification.errors]
     },
-    canonicalProofJson: canonicalPublicProofJson(asset)
+    // Summary projections (including Consciousness) do not consume proof text.
+    // Preserve the existing full-proof property and prepare it on first demand.
+    get canonicalProofJson() {
+      return canonicalProofJson ??= canonicalPublicProofJson(asset);
+    }
   };
 }

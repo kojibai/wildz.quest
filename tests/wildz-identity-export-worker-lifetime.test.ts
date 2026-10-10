@@ -48,19 +48,19 @@ async function exportWorkerFixture() {
     } };
 }
 
-test("a completed account export releases its retained cards and the next Save creates a fresh worker", async () => {
+test("repeated account exports reuse admitted card deltas in one warmed worker", async () => {
   const f = await exportWorkerFixture();
   try {
     const first = createWildzIdentityPlayerCardBundleOffThread(f.input);
     assert.deepEqual(f.workers[0]!.messages[0]!.assetIds, f.input.assets.map(asset => asset.id));
     f.workers[0]!.reply(0, [8, 7, 6]);
     assert.deepEqual((await first)?.bytes, Uint8Array.from([8, 7, 6]));
-    assert.equal(f.workers[0]!.terminations, 1, "completed exports must not retain a duplicate account");
+    assert.equal(f.workers[0]!.terminations, 0, "reopening Vault must preserve the existing delta worker");
     const second = createWildzIdentityPlayerCardBundleOffThread(f.input);
-    assert.equal(f.workers.length, 2);
-    f.workers[1]!.reply(0, [5, 4, 3]);
+    assert.equal(f.workers.length, 1);
+    f.workers[0]!.reply(1, [5, 4, 3]);
     assert.deepEqual((await second)?.bytes, Uint8Array.from([5, 4, 3]));
-    assert.equal(f.workers[1]!.terminations, 1);
+    assert.equal(f.workers[0]!.terminations, 0);
   } finally { f.restore(); }
 });
 
@@ -74,7 +74,7 @@ test("overlapping exports keep their shared complete source until both replies s
     assert.equal(f.workers[0]!.terminations, 0);
     f.workers[0]!.reply(0, [1]);
     assert.deepEqual((await first)?.bytes, Uint8Array.from([1]));
-    assert.equal(f.workers[0]!.terminations, 1);
+    assert.equal(f.workers[0]!.terminations, 0);
   } finally { f.restore(); }
 });
 
@@ -93,12 +93,13 @@ test("a late error from a completed export cannot discard a newer export", async
   try {
     const first = createWildzIdentityPlayerCardBundleOffThread(f.input);
     f.workers[0]!.reply(0, [1]); await first;
+    f.workers[0]!.onerror?.({ preventDefault() {} });
     const second = createWildzIdentityPlayerCardBundleOffThread(f.input);
     f.workers[0]!.onerror?.({ preventDefault() {} });
     f.workers[0]!.onmessageerror?.();
     f.workers[1]!.reply(0, [2]);
     assert.deepEqual((await second)?.bytes, Uint8Array.from([2]));
-    assert.equal(f.workers[1]!.terminations, 1);
+    assert.equal(f.workers[1]!.terminations, 0);
   } finally { f.restore(); }
 });
 

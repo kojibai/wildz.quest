@@ -12,7 +12,6 @@ import { verifyWildsWalletBearerGiftOriginV128 } from "../../features/play/walle
 import type { WildsWalletBearerGiftLeg } from "../../features/play/wallet/wilds-wallet-bearer-gift-proof";
 import type { WildsWalletStagedTradeAssetAuthority } from "../../features/play/wallet/wilds-wallet-staged-trade-types";
 import type { WildsWalletBearerGiftSource } from "../../features/play/wallet/wilds-wallet-bearer-gift-recovery";
-import { WILDZ_RECEIZ_APPLICATION_ID } from "./wildz-application";
 
 /** Explicit receiver action only. Native published SDK law owns the one-use
  * claim and retained successor; no app-supplied owner/head/receipt grants title. */
@@ -26,7 +25,7 @@ export async function claimWildsWalletBearerGift(request: NextRequest) {
   if (!body || Object.keys(body).sort().join(",") !== "authority,leg,source" || body.leg?.kind !== "asset"
     || body.leg.recipientHandle !== account.profileHandle || !body.source || Object.keys(body.source).sort().join(",") !== "originProof,original,projectionOriginal") throw Error("Only the exact reviewed recipient can accept this native gift.");
   const sdk = createWildzReceizBearerClient(session);
-  await verifyWildsWalletBearerGiftOriginV128(body.leg, body.source, sdk, WILDZ_RECEIZ_APPLICATION_ID);
+  await verifyWildsWalletBearerGiftOriginV128(body.leg, body.source, sdk, process.env.RECEIZ_CLIENT_ID ?? "");
   const source = await verifyWildsWalletBearerGiftSource({ leg: body.leg, original: body.source.original, projectionOriginal: body.source.projectionOriginal, artifacts: sdk.artifacts, assertSelection: async () => undefined });
   const barrier = await verifyWildsWalletBearerGiftAuthority(body.leg, source.descriptor, body.authority);
   const own = body.authority.approvals.find(approval => approval.ownerHandle === account.profileHandle);

@@ -1,5 +1,12 @@
 # Panel export and signing-worker memory contract
 
+**Superseded policy:** The user rejected delayed first-tap exports and reported
+continued physical-device reloads. The removal of automatic preparation and
+idle worker reuse below has been reversed. See
+[baseline restoration](baseline-wallet-vault-restoration.md) and
+[proof-details pressure](vault-proof-details-pressure.md) for the current work.
+The historical desktop checks below never established an iPhone reload cure.
+
 This contract is written before implementation for the installed iPhone PWA
 report: Profile name saving persists but the app reloads; Card Vault and Market
 listing also reload for an account holding 68 cards. Source inspection exposes

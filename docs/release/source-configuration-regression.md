@@ -1,5 +1,13 @@
 # Source transport and application binding contract
 
+**Correction:** The application-ID substitution in this historical contract
+was incorrect for the connected wallet. Production requests on `d25a3af`
+reported `APPLICATION_NOT_AUTHORIZED`. The existing `RECEIZ_CLIENT_ID` binding
+has been restored across challenge, Connect, claims, configuration and proxy;
+see [baseline restoration](baseline-wallet-vault-restoration.md). The bounded
+same-Seal missing-grant recovery remains. Synthetic conformance alone did not
+verify compatibility with the live registered wallet application.
+
 Written before implementation for the iPhone report of
 `wilds_resource_source_configuration_unavailable` in Card Vault and Market.
 Production was inspected read-only at commit `8bc95c8`. Its environment values

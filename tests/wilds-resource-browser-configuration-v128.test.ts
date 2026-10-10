@@ -8,7 +8,7 @@ import {wildsWalletSourceSdkConfigV128,proxyWildsWalletSourceSdkV128} from '../s
 import type {WildzReceizChatSession} from '../src/lib/receiz/wildz-receiz-chat-session';
 import {GET as walletAuthorityChallenge} from '../app/api/auth/wildz/wallet-authority/route';
 
-const keyId='a'.repeat(64), expected={applicationId:'wildz',baseUrl:'https://receiz.example'};
+const keyId='a'.repeat(64), expected={applicationId:'registered-wildz-client',baseUrl:'https://receiz.example'};
 function fixture(responses:Array<Response|Error>){
  const calls:string[]=[];
  const dependencies:WildsResourceSourceConfigurationDependenciesV128={
@@ -23,13 +23,13 @@ function fixture(responses:Array<Response|Error>){
  return {calls,dependencies};
 }
 
-test('native source metadata binds the existing application regardless of OAuth client setting',async()=>{
+test('source metadata preserves the registered application used by the connected wallet',async()=>{
  const previous=process.env.RECEIZ_CLIENT_ID;
  const session={origin:expected.baseUrl} as WildzReceizChatSession;
  try{
-  for(const client of [undefined,'separate-oauth-client']){
-   if(client===undefined)delete process.env.RECEIZ_CLIENT_ID;else process.env.RECEIZ_CLIENT_ID=client;
-   assert.deepEqual(await wildsWalletSourceSdkConfigV128(new NextRequest('https://wildz.quest/api/wilds/wallet/source-sdk'),async()=>session),expected);
+  for(const client of ['registered-wildz-client','another-registered-client']){
+   process.env.RECEIZ_CLIENT_ID=client;
+   assert.deepEqual(await wildsWalletSourceSdkConfigV128(new NextRequest('https://wildz.quest/api/wilds/wallet/source-sdk'),async()=>session),{...expected,applicationId:client});
   }
  }finally{if(previous===undefined)delete process.env.RECEIZ_CLIENT_ID;else process.env.RECEIZ_CLIENT_ID=previous;}
 });
@@ -67,17 +67,17 @@ test('a Seal missing both grants recovers within one read renewal and one native
  assert.deepEqual(f.calls,['configuration','authorize','configuration','reconnect','configuration']);
 });
 
-test('the real read-renewal challenge uses Wildz native application rather than an OAuth alias',async()=>{
+test('read-renewal challenges retain the same registered wallet audience',async()=>{
  const previous=process.env.RECEIZ_CLIENT_ID;
  const previousSecret=process.env.RECEIZ_OAUTH_STATE_SECRET;
  try{
   process.env.RECEIZ_OAUTH_STATE_SECRET='source-config-synthetic-fixture-secret-only';
-  for(const client of [undefined,'separate-oauth-client']){
-   if(client===undefined)delete process.env.RECEIZ_CLIENT_ID;else process.env.RECEIZ_CLIENT_ID=client;
+  for(const client of ['registered-wildz-client','another-registered-client']){
+   process.env.RECEIZ_CLIENT_ID=client;
    const response=await walletAuthorityChallenge(new NextRequest(`https://wildz.quest/api/auth/wildz/wallet-authority?keyId=${keyId}&artifactDigest=${'b'.repeat(64)}`));
    assert.equal(response.status,200);
    const challenge=await response.json();
-   assert.equal(challenge.applicationId,'wildz');assert.equal(challenge.unsigned.audience,'wildz');
+   assert.equal(challenge.applicationId,client);assert.equal(challenge.unsigned.audience,client);
    assert.deepEqual(challenge.scopes,['openid','profile','receiz:wallet.read']);
   }
  }finally{
@@ -95,9 +95,9 @@ test('renewal failure and a repeated blocked configuration stop without an unbou
  assert.deepEqual(failed.calls,['configuration','authorize','configuration']);
 });
 
-test('transient, malformed and foreign-application configuration cannot become signing authority',async()=>{
+test('transient and malformed source configuration cannot become signing authority',async()=>{
  for(const response of [Response.json({error:'receiz_wallet_introspection_unavailable'},{status:503}),
-  Response.json({...expected,applicationId:'other'}),Response.json({...expected,baseUrl:'not-a-url'}),
+  Response.json({...expected,applicationId:''}),Response.json({...expected,baseUrl:'not-a-url'}),
   Response.json({...expected,baseUrl:'https://receiz.example/private'}),Response.json({...expected,token:'private'}),
   new Response('invalid JSON'),new TypeError('network disconnected')]){
   const f=fixture([response]);

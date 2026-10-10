@@ -19,8 +19,7 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   assert.match(campaign, /movementMode/);
   assert.match(campaign, /presentation\.audioSettings/);
   assert.match(inventory, /playerVault:\s*\(asset\?: PlayState\["inventory"\]\[number\]\) => WildsPlayerVaultPayload/);
-  // Mount/selection/explicit Save behavior is executed with a 68-card fixture
-  // in wildz-panel-export-lifecycle; viewing must not prepare a Vault backup.
+  assert.match(inventory, /scheduleAfterPaint\(\(\) => \{ void onPrepareVault\(\)/);
   assert.doesNotMatch(inventory, /ensureActiveWildzProofSession|\/api\/auth\/receiz\/start/);
   assert.match(inventory, /await onExportVault\(\)/);
   assert.match(exporter, /portableVaultPngBlob\(assets: PortableCardAsset\[\], player\?: WildsPlayerVaultPayload\)/);
@@ -67,7 +66,7 @@ test("Vault card detail can send a saved card to a Receiz username or email", ()
   assert.match(inventory, /mailto:/);
 });
 
-test("Save verified card retains its verified export rail and accessible feedback", () => {
+test("Save verified card prewarms its exact proof and resolves with premium accessible feedback", () => {
   const inventory = readFileSync("src/features/play/WildsInventory.tsx", "utf8");
   const campaign = readFileSync("src/features/play/PlayCampaign.tsx", "utf8");
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
@@ -76,8 +75,8 @@ test("Save verified card retains its verified export rail and accessible feedbac
   const css = readFileSync("app/globals.css", "utf8");
 
 
-  // Explicit card Save and complete-payload handoff are executed in the panel
-  // lifecycle regression instead of requiring an unrequested background export.
+  assert.match(inventory, /preparedIdentityCard\.current/);
+  assert.match(inventory, /onExportCard\(asset, playerVault, prepared\)/);
 
   assert.match(campaign, /onExportCard=\{onExportCard\}/);
   assert.match(campaign, /onPrepareCard=\{onPrepareCard\}/);

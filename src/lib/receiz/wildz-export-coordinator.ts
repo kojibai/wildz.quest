@@ -1,4 +1,4 @@
-/** Explicit exports only. State publication must never schedule a backup. */
+/** Opened Save surfaces may prepare; state publication must never schedule a backup. */
 export function createWildzExportCoordinator<Snapshot, Artifact>(options: {
   sameSnapshot: (left: Snapshot, right: Snapshot) => boolean;
   build: (snapshot: Snapshot, allowPrompt: boolean) => Promise<Artifact>;

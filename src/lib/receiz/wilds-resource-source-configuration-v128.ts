@@ -1,6 +1,5 @@
 'use client';
 
-import {WILDZ_RECEIZ_APPLICATION_ID} from './wildz-application';
 import {walletAuthorizationFailureCode} from '../../features/play/wallet/wilds-wallet-authorization-error';
 
 type Configuration = Readonly<{applicationId:string;baseUrl:string}>;
@@ -38,7 +37,7 @@ export class WildsResourceSourceConfigurationErrorV128 extends Error {
 function configuration(value:unknown):Configuration|null{
  if(!value||typeof value!=='object'||Array.isArray(value))return null;
  const item=value as Record<string,unknown>;
- if(Object.keys(item).sort().join()!=='applicationId,baseUrl'||item.applicationId!==WILDZ_RECEIZ_APPLICATION_ID||typeof item.baseUrl!=='string')return null;
+ if(Object.keys(item).sort().join()!=='applicationId,baseUrl'||typeof item.applicationId!=='string'||!item.applicationId.trim()||typeof item.baseUrl!=='string')return null;
  try{
   const url=new URL(item.baseUrl);
   if(url.protocol!=='https:'||url.username||url.password||url.origin!==item.baseUrl)return null;
