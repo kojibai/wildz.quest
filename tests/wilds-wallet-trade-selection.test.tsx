@@ -29,13 +29,22 @@ test("a large trade inventory exposes the last creature, food and materials with
   assert.match(markup, /aria-label="Add Foundation Stone to trade"/);
 });
 
-test("trade offers and requested wishlists have independent category and name controls", () => {
+test("requesting a peer's creature accepts its name without selecting an owned creature", () => {
   const markup = renderToStaticMarkup(<WildsWalletTrade publicUsername="alice" cards={cards} nourishment={nourishment} materialLots={[stone]} recoveryStore={recoveryStore} />);
   assert.match(markup, /aria-label="Offer asset categories"/);
   assert.match(markup, /aria-label="Requested asset categories"/);
-  assert.match(markup, /aria-label="Search requested assets"/);
+  assert.match(markup, /aria-label="Requested creature name"/);
+  assert.match(markup, /placeholder="Enter the creature&#x27;s name"/);
+  assert.doesNotMatch(markup, /aria-label="Request Creature \d+ in trade"/);
   assert.match(markup, /aria-label="Request Wild fruit in trade"/);
   assert.match(markup, /peer.+counteroffer/i);
+});
+
+test("a creature absent from the requester's collection is carried as a request, never an offered asset", () => {
+  const note = createWildsWalletTradeRequestNote([], {}, "Any stage", "  Moon Fox  ");
+  const draft = createWildsWalletTradeDraft({ attemptId: "wallet:trade:named-request", recipient: "bob", selfHandle: "alice", phiMicro: "1", requestedPhiMicro: "0", requestNote: note, selections: [] });
+  assert.equal(draft.requestNote, "Requested: 1 × Moon Fox. Any stage");
+  assert.deepEqual(draft.offered.assets, []);
 });
 
 test("category and name filtering finds resources after 68 creatures without reading proof payloads", () => {

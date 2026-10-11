@@ -1,4 +1,4 @@
-import {wildsBuildSceneryClearedAt} from './wilds-build-scenery';
+import {projectWildsBuildSceneryFootprints,wildsBuildSceneryClearedAt} from './wilds-build-scenery';
 import { wildsProductionPlacementGradesGround } from './wilds-world-construction';
 import { isWildsBuildingClearanceCandidate } from './wilds-building-clearance';
 import { deeplyImmutable } from './wilds-construction-geometry';
@@ -146,8 +146,18 @@ export function wildsConstructionTerrainPadsInBounds(pads: readonly WildsConstru
   });
 }
 
+const gradingPads = new WeakMap<readonly WildsConstructionTerrainPad[], readonly WildsConstructionTerrainPad[]>();
+/** Retired scenery still removes trees, but collected history has no floor to grade. */
+export function wildsConstructionGradingPads(pads: readonly WildsConstructionTerrainPad[]): readonly WildsConstructionTerrainPad[] {
+  const cached = gradingPads.get(pads);
+  if (cached) return cached;
+  const next = pads.every(pad => !pad.historicalScenery || pad.retainedLaydown)
+    ? pads : pads.filter(pad => !pad.historicalScenery || pad.retainedLaydown);
+  if (deeplyImmutable(pads)) gradingPads.set(pads, Object.freeze(next));
+  return next;
+}
 export function sampleWildsConstructionTerrainAt(pads: readonly WildsConstructionTerrainPad[], x: number, z: number, fallback: number): number {
-  return sampleWildsBuildGrading(pads.filter(pad => !pad.historicalScenery || pad.retainedLaydown), x, z, fallback);
+  return sampleWildsBuildGrading(wildsConstructionGradingPads(pads), x, z, fallback);
 }
 
 /** Rebuild only affected mountain meshes. These same nodes drive mountain
@@ -168,7 +178,7 @@ export function composeWildsConstructionTerrain(physical: WildsDiscoveryPhysical
     for (let row = 0; row < rows; row++) for (let column = 0; column < columns; column++) {
       const x = field.center.x - field.halfExtents.x + column / (columns - 1) * field.halfExtents.x * 2,
         z = field.center.z - field.halfExtents.z + row / (rows - 1) * field.halfExtents.z * 2,
-        original = wildsMountainFieldValue(field, x, z, 'topY'), topY = sampleWildsConstructionTerrainAt(relevant, x, z, original);
+        original = wildsMountainFieldValue(field, x, z, 'topY'), topY = sampleWildsBuildGrading(relevant, x, z, original);
       nodes.push({ x: q(x), z: q(z), baseY: Math.min(wildsMountainFieldValue(field, x, z, 'baseY'), topY), topY });
     }
     let minimum = Infinity, maximum = -Infinity;
@@ -191,7 +201,7 @@ export function composeWildsConstructionTerrain(physical: WildsDiscoveryPhysical
       let original = wildsTerrainElevation(x, z), mountain = -Infinity;
       for (const field of physical.mountainFields) { const y = wildsMountainFieldValue(field, x, z, 'topY'); if (Number.isFinite(y)) mountain = Math.max(mountain, y); }
       if (Number.isFinite(mountain)) original = mountain;
-      const topY = sampleWildsConstructionTerrainAt(grading, x, z, original);
+      const topY = sampleWildsBuildGrading(grading, x, z, original);
       minimum = Math.min(minimum, original, topY); maximum = Math.max(maximum, original, topY);
       nodes.push({ x, z, baseY: Math.min(original, topY), topY });
     }
@@ -201,9 +211,7 @@ export function composeWildsConstructionTerrain(physical: WildsDiscoveryPhysical
   }
   // Own only the derived footprint; mutable callers remain independently
   // observable and cannot invalidate a cached movement index by mutation.
-  const sceneryClearance=Object.freeze(local.filter(pad=>pad.clearsScenery).map(pad=>Object.freeze({
-    center:Object.freeze({...pad.center}),halfExtents:Object.freeze({...pad.halfExtents}),yaw:pad.yaw
-  })));
+  const sceneryClearance=projectWildsBuildSceneryFootprints(local.filter(pad=>pad.clearsScenery));
   const solids=physical.solids.filter(solid=>!solid.id.startsWith('waterfall-chute:')||!wildsBuildSceneryClearedAt(sceneryClearance,solid.center.x,solid.center.z,Math.hypot(solid.halfExtents.x,solid.halfExtents.z)));
   return { ...physical, mountainFields,solids, sceneryClearance, surfaces: [...physical.surfaces, ...grading.map(pad => ({
     id: `construction-terrain:${pad.id}`, siteKey: `construction-terrain:${pad.id}`, spaceId: 'wildz.space.outer.v1',

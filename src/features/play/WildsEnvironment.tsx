@@ -26,7 +26,7 @@ import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-placement";
 import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, buildWildsTerrainWaterProjection, gradeWildsTerrainMeshProjection, gradeWildsTerrainWaterProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
 import { createWildsConstructionTerrainSelector, wildsConstructionTerrainPadsInBounds, type WildsConstructionTerrainPad } from './wilds-construction-terrain';
-import { filterWildsBuildScenery, wildsBuildSceneryClearedAt } from './wilds-build-scenery';
+import { filterWildsBuildScenery, projectWildsBuildSceneryFootprints, wildsBuildSceneryClearedAt } from './wilds-build-scenery';
 import { wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
 import { createWildsResourcePlacementProjector } from "./wilds-resource-placements";
 import { projectWildsHarvestWorkPhase, projectWildsSourceWorkMotion, type WildsActiveWorkSource, type WildsResourceBodyProjection } from "@/features/play/wilds-work-presentation";
@@ -206,9 +206,9 @@ export function WildsEnvironment({
   const centerZ = Math.floor(player.z / WILDS_TILE_SIZE);
   const selectTerrain = useMemo(createWildsConstructionTerrainSelector, []);
   const allTerrainPads = useMemo(() => selectTerrain(livingWorld), [selectTerrain, livingWorld]);
-  const terrainPads = useMemo(() => wildsConstructionTerrainPadsInBounds(allTerrainPads,
+  const terrainPads = useMemo(() => Object.freeze(wildsConstructionTerrainPadsInBounds(allTerrainPads,
     (centerX - 4) * WILDS_TILE_SIZE, (centerZ - 4) * WILDS_TILE_SIZE,
-    (centerX + 5) * WILDS_TILE_SIZE, (centerZ + 5) * WILDS_TILE_SIZE), [allTerrainPads, centerX, centerZ]);
+    (centerX + 5) * WILDS_TILE_SIZE, (centerZ + 5) * WILDS_TILE_SIZE)), [allTerrainPads, centerX, centerZ]);
   const tiles = useMemo(() => {
     if (!outer) return EMPTY_TILES;
     const projected: Tile[] = [];
@@ -222,7 +222,7 @@ export function WildsEnvironment({
     return projected;
   }, [centerX, centerZ, missionProgress, outer, worldMastery]);
 
-  const sceneryClearance = useMemo(()=>terrainPads.filter(pad=>pad.clearsScenery),[terrainPads]);
+  const sceneryClearance = useMemo(()=>projectWildsBuildSceneryFootprints(terrainPads.filter(pad=>pad.clearsScenery)),[terrainPads]);
   const physicalObstacles = useMemo(() => outer ? filterWildsBuildScenery(tiles.flatMap((tile) => wildsTerrainObstaclesForTile(tile.tileX, tile.tileZ)),sceneryClearance) : EMPTY_VALUES, [outer, tiles,sceneryClearance]);
   const projectResourcePlacements = useMemo(createWildsResourcePlacementProjector, []);
   const { trees, rocks } = useMemo(() => projectResourcePlacements(physicalObstacles, livingWorld?.harvestedSources, kaiUPulse, activeWorkSource),

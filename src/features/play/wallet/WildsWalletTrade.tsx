@@ -54,6 +54,7 @@ export function WildsWalletTrade({ publicUsername, cards = [], nourishment, mate
   const [note, setNote] = useState("");
   const [selected, setSelected] = useState<Readonly<Record<string, number>>>({});
   const [requestedAssets, setRequestedAssets] = useState<Readonly<Record<string, number>>>({});
+  const [requestedCreatureName, setRequestedCreatureName] = useState("");
   const [review, setReview] = useState<WildsWalletTradeDraft | null>(restored.review?.draft ?? null);
   const [savedReview, setSavedReview] = useState<WildsWalletTradeReview | null>(restored.review);
   const [result, setResult] = useState<WildsWalletTradeResult | null>(restored.review?.result ?? (restored.review?.status === "pending" ? { status: "pending", message: "Recover this same trade offer." } : null));
@@ -68,8 +69,8 @@ export function WildsWalletTrade({ publicUsername, cards = [], nourishment, mate
   const nativeResult=agreementDigest?nativeTradeResults[agreementDigest]:undefined;
   useEffect(()=>{if(nativeResult)setExchange(nativeResult);},[nativeResult]);
   const selections = useMemo(() => projectWildsWalletTradeSelections({ cards, nourishment, materialLots, resourceLots, resourceCards }), [cards, nourishment, materialLots, resourceLots, resourceCards]);
-  const wishlist = useMemo(() => projectWildsWalletTradeWishlist(selections), [selections]);
-  const requestNote = createWildsWalletTradeRequestNote(wishlist, requestedAssets, note);
+  const wishlist = useMemo(() => projectWildsWalletTradeWishlist(selections.filter(item => item.category !== "creatures")), [selections]);
+  const requestNote = createWildsWalletTradeRequestNote(wishlist, requestedAssets, note, requestedCreatureName);
   const chosen = selections.filter(item => selected[item.id] !== undefined).map(selection => ({ selection, quantity: selected[selection.id]! }));
   const prepare = () => {
     try {
@@ -149,6 +150,7 @@ export function WildsWalletTrade({ publicUsername, cards = [], nourishment, mate
       <label><span>Trade with</span><input aria-label="Trade recipient" autoCapitalize="none" autoCorrect="off" placeholder="@username" value={recipient} onChange={event => setRecipient(event.target.value)} /></label>
       <div className={styles.columns}><label><span>PHI you offer</span><input aria-label="PHI offered in trade" inputMode="decimal" placeholder="0.00" value={phi} onChange={event => setPhi(event.target.value)} /></label><label><span>PHI you request</span><input aria-label="PHI requested in trade" inputMode="decimal" placeholder="0.00" value={requestedPhi} onChange={event => setRequestedPhi(event.target.value)} /></label></div>
       <WildsWalletTradeAssetSelector mode="offer" choices={selections} selected={selected} onChange={setSelected} />
+      <label><span>Creature you request</span><input aria-label="Requested creature name" maxLength={120} placeholder="Enter the creature's name" value={requestedCreatureName} onChange={event => setRequestedCreatureName(event.target.value)} /><small>Your peer selects their exact creature when they respond.</small></label>
       <WildsWalletTradeAssetSelector mode="request" choices={wishlist} selected={requestedAssets} onChange={setRequestedAssets} />
       <label><span>Request note or other items</span><textarea aria-label="Assets requested in trade" maxLength={500} placeholder="Other items, quality or a note for your peer…" value={note} onChange={event => setNote(event.target.value)} /></label>
       {requestNote ? <p className={styles.requestPreview}>{requestNote}<small>{requestNote.length}/500 characters</small></p> : null}
@@ -170,7 +172,7 @@ export function WildsWalletTrade({ publicUsername, cards = [], nourishment, mate
       <p>{formatWildsPhiExact(item.message.draft.offered.phiMicro)} Φ · {item.message.draft.offered.assets.length} asset selection{item.message.draft.offered.assets.length === 1 ? "" : "s"}</p>
       {item.message.draft.requestNote ? <p>{item.message.draft.requestNote}</p> : null}
       {item.message.stage === "offer" ? <button disabled={busy || savedReview?.status === "pending"} type="button" onClick={() => {
-        try {if (publicUsername) recoveryStore.clear(publicUsername); setReview(null); setSavedReview(null); setResult(null); setRecipient(item.senderHandle); setPhi(formatWildsPhiExact(item.message.draft.requestedPhiMicro)); setRequestedPhi(formatWildsPhiExact(item.message.draft.offered.phiMicro)); setNote("Your offered package"); setSelected({}); setInReplyTo({senderHandle: item.senderHandle, draft: item.message.draft});}
+        try {if (publicUsername) recoveryStore.clear(publicUsername); setReview(null); setSavedReview(null); setResult(null); setRecipient(item.senderHandle); setPhi(formatWildsPhiExact(item.message.draft.requestedPhiMicro)); setRequestedPhi(formatWildsPhiExact(item.message.draft.offered.phiMicro)); setNote("Your offered package"); setSelected({}); setRequestedAssets({}); setRequestedCreatureName(""); setInReplyTo({senderHandle: item.senderHandle, draft: item.message.draft});}
         catch (cause) {setError(cause instanceof Error ? cause.message : "Trade recovery is unavailable.");}
       }}>Choose what you send</button> : item.message.inReplyTo ? <button disabled={busy || savedReview?.status === "pending"} type="button" onClick={() => {
         try {setAgreement(createWildsWalletTradeAgreement(item.message.inReplyTo!, {senderHandle: item.senderHandle, draft: item.message.draft})); setExchange(null); setError("");}

@@ -1,6 +1,7 @@
 import { WILDS_TERRAIN_TILE_SIZE, WILDS_TERRAIN_VERSION, WILDS_TERRAIN_WATER_SURFACE_ELEVATION, sampleWildsTerrain, wildsTerrainElevation, type WildsTerrainSurface } from "./wilds-terrain-authority";
 import { buildWildsTerrainTile, wildsTerrainTileKey, type WildsTerrainTileData } from "./wilds-terrain-tiles";
-import {sampleWildsConstructionTerrainAt,wildsConstructionTerrainPadsInBounds,type WildsConstructionTerrainPad} from './wilds-construction-terrain';
+import {wildsConstructionGradingPads,wildsConstructionTerrainPadsInBounds,type WildsConstructionTerrainPad} from './wilds-construction-terrain';
+import {sampleWildsBuildGrading} from './wilds-build-ground';
 
 type WorldPoint = Readonly<{ x: number; z: number }>;
 
@@ -46,13 +47,14 @@ export type WildsTerrainRibbonProjection = {
 
 /** Grade cached mesh projections without altering their reusable source tiles. */
 export function gradeWildsTerrainMeshProjection(mesh: WildsTerrainMeshProjection, pads: readonly WildsConstructionTerrainPad[]): WildsTerrainMeshProjection {
+  pads = wildsConstructionGradingPads(pads);
   if (!pads.length) return mesh;
   let changed = false;
   const vertices = mesh.vertices.map(vertex => {
-    const {x,z}=vertex.world, y=sampleWildsConstructionTerrainAt(pads,x,z,vertex.position.y);
+    const {x,z}=vertex.world, y=sampleWildsBuildGrading(pads,x,z,vertex.position.y);
     if (y === vertex.position.y) return vertex;
     changed=true;
-    const step=.25, height=(px:number,pz:number)=>sampleWildsConstructionTerrainAt(pads,px,pz,wildsTerrainElevation(px,pz)),
+    const step=.25, height=(px:number,pz:number)=>sampleWildsBuildGrading(pads,px,pz,wildsTerrainElevation(px,pz)),
       nx=(height(x-step,z)-height(x+step,z))/(step*2),nz=(height(x,z-step)-height(x,z+step))/(step*2),length=Math.hypot(nx,1,nz);
     return {...vertex,position:{...vertex.position,y},normal:{x:nx/length,y:1/length,z:nz/length},surface:y>WILDS_WATERLINE_ELEVATION?'soil' as const:vertex.surface};
   });
@@ -62,12 +64,13 @@ export function gradeWildsTerrainMeshProjection(mesh: WildsTerrainMeshProjection
 /** Filled dry earth hides its lake surface, including footprints spanning the
  * old shoreline. Preserve water away from the construction-derived grading. */
 export function gradeWildsTerrainWaterProjection(water: WildsTerrainWaterProjection, pads: readonly WildsConstructionTerrainPad[]): WildsTerrainWaterProjection {
+  pads = wildsConstructionGradingPads(pads);
   if (!pads.length) return water;
   const grade=(layer:WildsTerrainWaterLayer):WildsTerrainWaterLayer=>{
     const indices:number[]=[];
     for(let offset=0;offset<layer.indices.length;offset+=3){
       const triangle=layer.indices.slice(offset,offset+3),x=triangle.reduce((sum,index)=>sum+layer.positions[index*3],0)/3+water.origin.x,
-        z=triangle.reduce((sum,index)=>sum+layer.positions[index*3+2],0)/3+water.origin.z,raw=wildsTerrainElevation(x,z),graded=sampleWildsConstructionTerrainAt(pads,x,z,raw);
+        z=triangle.reduce((sum,index)=>sum+layer.positions[index*3+2],0)/3+water.origin.z,raw=wildsTerrainElevation(x,z),graded=sampleWildsBuildGrading(pads,x,z,raw);
       if(graded!==raw&&graded>water.waterline)continue;
       indices.push(...triangle);
     }
@@ -277,6 +280,7 @@ export function buildWildsTerrainWaterProjection(
   segments: number,
   terrainPads: readonly WildsConstructionTerrainPad[] = []
 ): WildsTerrainWaterProjection {
+  terrainPads = wildsConstructionGradingPads(terrainPads);
   if (!Number.isInteger(radius) || radius < 0 || radius > 4) throw new Error("wilds_terrain_water_radius_invalid");
   if (!Number.isInteger(segments) || segments < 1 || segments > 64) throw new Error("wilds_terrain_water_segments_invalid");
   const origin = {
@@ -323,6 +327,7 @@ export function buildWildsTerrainWaterProjection(
 
 export function buildWildsTerrainPatchProjection(centerTileX: number, centerTileZ: number, radius: number, segments: number,
   terrainPads: readonly WildsConstructionTerrainPad[] = []): WildsTerrainMeshProjection {
+  terrainPads = wildsConstructionGradingPads(terrainPads);
   if (!Number.isInteger(radius) || radius < 0 || radius > 4) throw new Error("wilds_terrain_patch_radius_invalid");
   const origin = {
     x: (centerTileX - radius) * WILDS_TERRAIN_TILE_SIZE,

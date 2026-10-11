@@ -56,11 +56,12 @@ export function projectWildsWalletTradeWishlist(selections: readonly WildsWallet
   return [...choices.values()];
 }
 
-export function createWildsWalletTradeRequestNote(choices: readonly WildsWalletTradeChoice[], requested: Readonly<Record<string, number>>, note: string): string {
+export function createWildsWalletTradeRequestNote(choices: readonly WildsWalletTradeChoice[], requested: Readonly<Record<string, number>>, note: string, creatureName = ""): string {
   const items = choices.filter(item => requested[item.id] !== undefined).map(item => {
     const quantity = requested[item.id]!;
     if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 64) throw Error("Choose a whole quantity from 1 to 64 for each requested item.");
     return `${quantity} × ${item.label}`;
   });
+  if (creatureName.trim()) items.push(`1 × ${creatureName.trim()}`);
   return [items.length ? `Requested: ${items.join(", ")}` : "", note.trim()].filter(Boolean).join(". ");
 }
