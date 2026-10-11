@@ -1,0 +1,373 @@
+{
+  "schema": "wildz.gameplay-data-design-preview.v1",
+  "baselineCommit": "307c286",
+  "dataOrigin": "synthetic-existing-game-rule-simulation",
+  "scope": "construction state changes; no recorded human session",
+  "nativeEnclosingArtifactVerified": false,
+  "commercialRightsQualified": false,
+  "externalRevenueConfirmed": false,
+  "sourceMutationPerformed": false,
+  "datasetDigestIsProofAuthority": false,
+  "units": "Wildz virtual units; real-world calibration unestablished",
+  "transitions": [
+    {
+      "task": "construction-object-count",
+      "before": {
+        "projects": 0,
+        "components": 0
+      },
+      "action": {
+        "type": "construction.project.create"
+      },
+      "after": {
+        "projects": 1,
+        "components": 0
+      },
+      "sourceEventId": "wve:69a7e6420c613da8b2b7ff57bfa26c503cc01474acd0df708b2d782839811d71"
+    },
+    {
+      "task": "construction-stage-prediction",
+      "before": {
+        "projects": 1,
+        "components": 0
+      },
+      "action": {
+        "type": "construction.component.place",
+        "kind": "foundation",
+        "pointer": {
+          "x": 2,
+          "y": 0,
+          "z": 2
+        }
+      },
+      "after": {
+        "projects": 1,
+        "components": 1,
+        "stage": "planned",
+        "physicalSolidCount": 0
+      },
+      "sourceEventId": "wve:062feb8f96a829393b1908c7f7db84753502e186fdf9e0ebdf4bd71fe0fa68eb"
+    }
+  ],
+  "scene": {
+    "plannedObject": {
+      "kind": "foundation",
+      "transform": {
+        "position": {
+          "x": 2,
+          "y": 8.174786,
+          "z": 2
+        },
+        "rotationQuarterTurns": 0
+      },
+      "intendedGeometry": {
+        "center": {
+          "x": 2,
+          "y": 8.174786,
+          "z": 2
+        },
+        "halfExtents": {
+          "x": 3,
+          "y": 0.3,
+          "z": 3
+        }
+      }
+    },
+    "stage": "planned",
+    "activeCollisionSolids": []
+  },
+  "sourceEvents": [
+    {
+      "schema": "receiz.wilds_world_event.v4",
+      "worldId": "wilds:global:v3",
+      "uPulse": 10,
+      "sequence": 1,
+      "kind": "construction.project_created",
+      "actorId": "synthetic-builder.receiz.id",
+      "causeId": "dataset:demo:project",
+      "pulse": "2026-08-26T00:00:00.000Z",
+      "kaiKlok": 1,
+      "occurredAt": "2026-08-26T00:00:00.000Z",
+      "previousEventId": null,
+      "payload": {
+        "project": {
+          "access": "private",
+          "authority": "source-proof-object",
+          "commandId": "dataset:demo:project",
+          "firstChunkId": null,
+          "kaiUPulse": 10,
+          "name": "Synthetic evaluation build",
+          "ownerReceizId": "synthetic-builder.receiz.id",
+          "parentHead": null,
+          "permissions": {
+            "contribute": true,
+            "plan": false,
+            "remove": false,
+            "renovate": false,
+            "work": true
+          },
+          "projectId": "wildz:construction-project:736a8fbd7fdf7c9a01f4f5d920d634f5c7b51de3c7773de9bd13c03a77f8b3a3",
+          "region": {
+            "x": 0,
+            "z": 0
+          },
+          "revision": 0,
+          "schema": "wildz.construction-project.v1",
+          "styleDefaults": {},
+          "head": "sha256:f909c54b8c01300d133e317217b2bb94b502540f96cb561b1a427c6277c5c691"
+        },
+        "commandDigest": "sha256:ddefd9a67b13cf78d715289723e29b6d72113cf8e9df2e1caacca88e43d19a7d",
+        "constitutionalCommand": {
+          "digest": "sha256:ddefd9a67b13cf78d715289723e29b6d72113cf8e9df2e1caacca88e43d19a7d",
+          "type": "construction.project.create"
+        }
+      },
+      "eventId": "wve:69a7e6420c613da8b2b7ff57bfa26c503cc01474acd0df708b2d782839811d71",
+      "digest": "sha256:69a7e6420c613da8b2b7ff57bfa26c503cc01474acd0df708b2d782839811d71"
+    },
+    {
+      "schema": "receiz.wilds_world_event.v4",
+      "worldId": "wilds:global:v3",
+      "uPulse": 10,
+      "sequence": 2,
+      "kind": "construction.component_placed",
+      "actorId": "synthetic-builder.receiz.id",
+      "causeId": "dataset:demo:foundation",
+      "pulse": "2026-08-26T00:00:00.000Z",
+      "kaiKlok": 2,
+      "occurredAt": "2026-08-26T00:00:00.000Z",
+      "previousEventId": "wve:69a7e6420c613da8b2b7ff57bfa26c503cc01474acd0df708b2d782839811d71",
+      "payload": {
+        "component": {
+          "anchors": [
+            {
+              "id": "preview:sha256:58307580ab2a82272:anchor:0",
+              "kind": "foundation",
+              "position": {
+                "x": 2,
+                "y": 8.474786,
+                "z": 2
+              }
+            }
+          ],
+          "authority": "source-proof-object",
+          "commandId": "dataset:demo:foundation",
+          "componentId": "wildz:construction-component:6622942c1ba172e798ca094d407b1b18fa8d8586e62abb7f5829125c376c4b8f",
+          "customization": {},
+          "evidence": {
+            "heightStep": 0,
+            "physical": {
+              "anchors": [],
+              "solids": [],
+              "terrainY": 7.874786,
+              "waterline": null
+            },
+            "pointer": {
+              "x": 2,
+              "y": 0,
+              "z": 2
+            },
+            "rotationQuarterTurns": 0,
+            "sourceBlueprint": {
+              "blueprintId": "wildz:construction-project:736a8fbd7fdf7c9a01f4f5d920d634f5c7b51de3c7773de9bd13c03a77f8b3a3",
+              "heightStep": 0,
+              "physical": false,
+              "pieces": [],
+              "publish": "blocked-receiz-v122",
+              "revision": 0,
+              "rotationQuarterTurns": 0,
+              "schema": "wildz.blueprint-preview.v1",
+              "worldId": "wildz.excavation.region.v1:0:0",
+              "writes": 0
+            }
+          },
+          "functionId": "support",
+          "kaiUPulse": 10,
+          "kind": "foundation",
+          "ownerReceizId": "synthetic-builder.receiz.id",
+          "parentHead": null,
+          "placement": {
+            "anchors": [
+              {
+                "id": "preview:sha256:58307580ab2a82272:anchor:0",
+                "kind": "foundation",
+                "position": {
+                  "x": 2,
+                  "y": 8.474786,
+                  "z": 2
+                }
+              }
+            ],
+            "blueprintId": "wildz:construction-project:736a8fbd7fdf7c9a01f4f5d920d634f5c7b51de3c7773de9bd13c03a77f8b3a3",
+            "canConfirm": false,
+            "collisionSolids": [
+              {
+                "center": {
+                  "x": 2,
+                  "y": 8.174786,
+                  "z": 2
+                },
+                "halfExtents": {
+                  "x": 3,
+                  "y": 0.3,
+                  "z": 3
+                },
+                "id": "preview:sha256:58307580ab2a82272:solid:body"
+              }
+            ],
+            "cues": [],
+            "geometry": {
+              "center": {
+                "x": 2,
+                "y": 8.174786,
+                "z": 2
+              },
+              "halfExtents": {
+                "x": 3,
+                "y": 0.3,
+                "z": 3
+              }
+            },
+            "interior": null,
+            "kind": "foundation",
+            "physical": false,
+            "placementDigest": "sha256:d01427f2d924c05aaa5659ab474642950f4d0b01c50aaf719040d24ad14c3264",
+            "placementId": "preview:sha256:58307580ab2a82272",
+            "publish": "blocked-receiz-v122",
+            "schema": "wildz.blueprint-placement-preview.v1",
+            "sourceBlueprintDigest": "sha256:c64b8612cc762cab8e9b6b67b035d33d55c1de2b90a0c441b759e9c02626f5b7",
+            "sourceRevision": 0,
+            "transform": {
+              "position": {
+                "x": 2,
+                "y": 8.174786,
+                "z": 2
+              },
+              "rotationQuarterTurns": 0
+            },
+            "valid": true,
+            "worldId": "wildz.excavation.region.v1:0:0",
+            "writes": 0
+          },
+          "projectHead": "sha256:f909c54b8c01300d133e317217b2bb94b502540f96cb561b1a427c6277c5c691",
+          "projectId": "wildz:construction-project:736a8fbd7fdf7c9a01f4f5d920d634f5c7b51de3c7773de9bd13c03a77f8b3a3",
+          "recipe": {
+            "functionId": "support",
+            "kind": "foundation",
+            "salvagePercent": 50,
+            "stages": [
+              {
+                "materials": {
+                  "hay": 0,
+                  "stone": 2,
+                  "timber": 0
+                },
+                "stage": "framed",
+                "work": 1
+              },
+              {
+                "materials": {
+                  "hay": 0,
+                  "stone": 1,
+                  "timber": 1
+                },
+                "stage": "functional",
+                "work": 1
+              },
+              {
+                "materials": {
+                  "hay": 1,
+                  "stone": 0,
+                  "timber": 0
+                },
+                "stage": "finished",
+                "work": 1
+              }
+            ]
+          },
+          "region": {
+            "x": 0,
+            "z": 0
+          },
+          "regionId": "wildz.excavation.region.v1:0:0",
+          "revision": 0,
+          "schema": "wildz.construction-component.v1",
+          "stageGeometryDigest": "sha256:26a60641e92911a9836f302f850cf05beb5d0fea106434c59ebcae16d48fe3e3",
+          "transform": {
+            "position": {
+              "x": 2,
+              "y": 8.174786,
+              "z": 2
+            },
+            "rotationQuarterTurns": 0
+          },
+          "variant": "default",
+          "head": "sha256:cc39a52f8ecdfa81a5eaee22830d85e41b36124cfd637c4028f87dad05f3b8ea"
+        },
+        "chunk": {
+          "authority": "source-proof-object",
+          "chunkId": "wildz:construction-chunk:332a62215f0fbe186d3884f7b818c5eac3a24c98ceebc650bf4ca2cebef24682",
+          "kaiUPulse": 10,
+          "nextChunkId": null,
+          "page": 0,
+          "parentHead": "sha256:5e06eb2ad4fa2a4bf1c4fa877578fad40f27ff338d46fd76c15de37be1e31817",
+          "projectId": "wildz:construction-project:736a8fbd7fdf7c9a01f4f5d920d634f5c7b51de3c7773de9bd13c03a77f8b3a3",
+          "references": [
+            {
+              "componentHead": "sha256:cc39a52f8ecdfa81a5eaee22830d85e41b36124cfd637c4028f87dad05f3b8ea",
+              "componentId": "wildz:construction-component:6622942c1ba172e798ca094d407b1b18fa8d8586e62abb7f5829125c376c4b8f"
+            }
+          ],
+          "region": {
+            "x": 0,
+            "z": 0
+          },
+          "regionId": "wildz.excavation.region.v1:0:0",
+          "revision": 1,
+          "schema": "wildz.construction-chunk.v1",
+          "head": "sha256:c9aac2594c667b6ee5926c7a04f62c3a8048bdd9de1fdc12c724dae8be57f96a"
+        },
+        "project": {
+          "access": "private",
+          "authority": "source-proof-object",
+          "commandId": "dataset:demo:project",
+          "firstChunkId": "wildz:construction-chunk:332a62215f0fbe186d3884f7b818c5eac3a24c98ceebc650bf4ca2cebef24682",
+          "kaiUPulse": 10,
+          "name": "Synthetic evaluation build",
+          "ownerReceizId": "synthetic-builder.receiz.id",
+          "parentHead": "sha256:f909c54b8c01300d133e317217b2bb94b502540f96cb561b1a427c6277c5c691",
+          "permissions": {
+            "contribute": true,
+            "plan": false,
+            "remove": false,
+            "renovate": false,
+            "work": true
+          },
+          "projectId": "wildz:construction-project:736a8fbd7fdf7c9a01f4f5d920d634f5c7b51de3c7773de9bd13c03a77f8b3a3",
+          "region": {
+            "x": 0,
+            "z": 0
+          },
+          "revision": 1,
+          "schema": "wildz.construction-project.v1",
+          "styleDefaults": {},
+          "head": "sha256:1ec243e9cc50b63dc1d70858956c6906e107e1aac2bb1223b106f8e9a11d1f29"
+        },
+        "commandDigest": "sha256:7f0dbd363372f3e93e18b8336f9c8147517cd2b84c138e41a11d53c2b6c7e693",
+        "constitutionalCommand": {
+          "digest": "sha256:7f0dbd363372f3e93e18b8336f9c8147517cd2b84c138e41a11d53c2b6c7e693",
+          "type": "construction.component.place"
+        }
+      },
+      "eventId": "wve:062feb8f96a829393b1908c7f7db84753502e186fdf9e0ebdf4bd71fe0fa68eb",
+      "digest": "sha256:062feb8f96a829393b1908c7f7db84753502e186fdf9e0ebdf4bd71fe0fa68eb"
+    }
+  ],
+  "checks": {
+    "deterministicEventReplayMatchesState": true,
+    "eventAncestryPreserved": true,
+    "tamperedEventRejected": true,
+    "plannedGeometryNotLabeledPhysical": true,
+    "nativeSealVerified": false
+  }
+}
