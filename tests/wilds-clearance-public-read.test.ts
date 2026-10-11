@@ -5,7 +5,7 @@ const path='../src/lib/receiz/wilds-clearance-public-read-v128.js';
 async function load(){const api=await import(path).catch(()=>({}));assert.equal(typeof api.createWildsClearancePublicSdkV128,'function','display needs a signer-free fixed source read port');return api;}
 test('public pile reads use only the fixed resource Original URL and no identity/cookies',async()=>{
  const api=await load(),calls:{url:string;init?:RequestInit}[]=[];
- const sdk=api.createWildsClearancePublicSdkV128({applicationId:'fixture',fetcher:async(url:string,init?:RequestInit)=>{calls.push({url,init});return Response.json({ok:true,record:null});}});
+ const sdk=api.createWildsClearancePublicSdkV128({applicationId:'rc_SyntheticClient_ABC-123',fetcher:async(url:string,init?:RequestInit)=>{calls.push({url,init});return Response.json({ok:true,record:null});}});
  await sdk.publicStore.restoreLatest({url:'https://wildz.quest/receiz/resource-source-v128',tenantHost:'wildz.quest'});
  assert.equal(calls.length,1);assert.match(calls[0].url,/^\/api\/wilds\/clearance\/source\?url=/);assert.equal(calls[0].init?.credentials,'omit');assert.equal(calls[0].init?.method,'GET');assert.equal(new Headers(calls[0].init?.headers).has('authorization'),false);
 });

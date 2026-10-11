@@ -1,6 +1,6 @@
 import { createReceizClient, readReceizIdentityArtifact, receizBase64UrlDecode, sha256ReceizBytes } from "@receiz/sdk";
 import type { NextRequest } from "next/server";
-import { createReceizCommerceAdapter } from "./adapter";
+import {assertWildsSourceBearerAuthorityV128} from './wilds-source-bearer-authority-v128';
 import { resolveWildsWalletReadAuthority } from "./wilds-wallet-route-authority";
 import { readWildzProofSessionCookie } from "./wildz-proof-session";
 import { readWildzReceizChatSession, type WildzReceizChatSession } from "./wildz-receiz-chat-session";
@@ -100,10 +100,8 @@ export async function proxyWildsWalletSourceSdkV128(request: NextRequest): Promi
   } else if (!publicRead) {
     const bearer = request.headers.get("authorization")?.match(/^Bearer ([^\s]{1,12000})$/)?.[1];
     if (!bearer) throw Error("An actual scoped device grant is required for this source edge.");
-    const checked = await createReceizCommerceAdapter({ accessToken: bearer }).introspectAccessToken();
     const required = nativeSeal ? ["receiz:record","receiz:seal"] : [path.includes("/domains/") ? "receiz:domains.read" : path === "/api/sdk/v1/sources/publish" ? "receiz:domains.write" : method === "GET" ? "receiz:subjects.read" : "receiz:subjects.write"];
-    const scopes = typeof checked.scope === "string" ? checked.scope.split(/\s+/) : [];
-    if (checked.active !== true || checked.sub !== authority.ownerReceizId || checked.actor_label !== proof.keyId || !required.every(scope => scopes.includes(scope))) throw Error("The source grant belongs to another account, key, or scope.");
+    await assertWildsSourceBearerAuthorityV128({bearer,applicationId,baseUrl:session.origin,ownerReceizId:authority.ownerReceizId,keyId:proof.keyId,requiredScopes:required});
     headers.set("authorization", `Bearer ${bearer}`);
   }
   if (nativeSeal) { if (!(body instanceof FormData)) throw Error("The native source seal requires its exact file."); headers.set("cookie", `receiz_session=${session.cookie}`); }

@@ -9,6 +9,8 @@ import { generateWildzCharacter } from "../identity/wildz-genesis";
 import { admitWildsDiscoveryPhysicalNeighborhood } from "./wilds-discovery-sites";
 import { prepareWildsSiteRuntime, wildsSiteRuntimeGroundY } from "./wilds-site-runtime";
 import { createWildsPlayerVault } from "./wilds-player-vault";
+import {WildzMarketSheet} from '../market/WildzMarketSheet';
+import type {WildzMarketServiceV128} from '../market/wildz-market-service-v128';
 
 /** Exercises the production canvas, input, rest and overlay path without a live identity. */
 export default function PlayerGameplayBrowserFixture() {
@@ -16,6 +18,9 @@ export default function PlayerGameplayBrowserFixture() {
   const [sleeping, setSleeping] = useState(false);
   const [movementMode, setMovementMode] = useState<"walk" | "run">("walk");
   const [observed, setObserved] = useState<PlayState | null>(null);
+  const [localIdentity, setLocalIdentity] = useState(false);
+  const [marketOpen, setMarketOpen] = useState(false);
+  const [marketService, setMarketService] = useState<WildzMarketServiceV128|null>(null);
   useEffect(() => {
     const current = createPlacementFixture({ownerId: "player_gameplay_fixture", storageKey: "wildz:test-fixture:player-gameplay:v1"});
     setFixture(current);
@@ -38,14 +43,19 @@ export default function PlayerGameplayBrowserFixture() {
       <button type="button" onClick={() => setSleeping(false)}>Awake fixture</button>
       <button type="button" onClick={() => setSleeping(true)}>Sleeping fixture</button>
       <button type="button" onClick={() => setMovementMode(mode => mode === "walk" ? "run" : "walk")}>{movementMode === "walk" ? "Running fixture" : "Walking fixture"}</button>
+      <button type="button" onClick={()=>setLocalIdentity(value=>!value)}>{localIdentity?'Remove local ID fixture':'Connect local ID fixture'}</button>
+      {localIdentity?<button type="button" onClick={()=>setMarketOpen(value=>!value)}>{marketOpen?'Close Market fixture':'Open Market fixture'}</button>:null}
       <output data-testid="gameplay-state" style={{fontSize: 7, maxWidth: 140, maxHeight: 24, overflow: "hidden", pointerEvents: "none"}}>{JSON.stringify({player: observed?.player ?? initial.player, mode: observed?.playerBreaths?.mode ?? initial.playerBreaths?.mode,
         event: observed?.lastEvent, cardXp: observed?.cardXp, progress: observed?.companionProgress[fixture.card.manifest.familyId], beans: observed?.beans})}</output>
     </nav>
+    {marketOpen&&localIdentity?<div style={{position:'fixed',inset:40,zIndex:1900,overflow:'auto'}}><WildzMarketSheet service={marketService} connected /></div>:null}
     <div className="wildz-app"><PlayCampaign key={`${sleeping}:${movementMode}`} enabled networkEnabled={false} creationController={fixture.controller}
       ownerReceizId={fixture.owner} initialState={initial} initialWorld={{projection: fixture.queue.current(), mode: "kai_live"}}
       initialPlayerContinuity={continuity}
       character={generateWildzCharacter({identityRef: fixture.owner, kaiPulse: "1", gender: "female", version: 1})}
-      playerDisplayName="Gameplay fixture" walletAuthorityGeneration="fixture" walletIdentityKey={fixture.owner} walletPublicUsername={null}
+      playerDisplayName="Gameplay fixture" walletAuthorityGeneration="fixture" walletIdentityKey={fixture.owner}
+      walletReadIdentityKey={localIdentity?'a'.repeat(64):undefined} walletPublicUsername={localIdentity?'player_gameplay_fixture':null}
+      onMarketServiceChange={setMarketService}
       onPlayStateChange={state => setObserved(state)} onPrepareCard={async () => {throw Error("fixture_export_disabled");}}
       onExportCard={async () => {}} onExportVault={async () => {}} vaultAdmission={null}
       onRestoreArtifact={async () => {throw Error("fixture_import_disabled");}} onRestoreRoamingCapture={async () => {throw Error("fixture_import_disabled");}} />

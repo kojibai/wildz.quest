@@ -1362,14 +1362,15 @@ export function PlayCampaign({
       return {keyId, ownerHandle};
     };
     return createLazyWildzMarketServiceV128({binding: {keyId, ownerHandle}, currentBinding: currentIdentity, open: async () => {
-      const [{createWildzMarketServiceV128}, {openWildzMarketSourceBrowserV128}] = await Promise.all([
-        import("../market/wildz-market-service-v128"), import("../../lib/receiz/wildz-market-source-browser-v128")
+      const [{createWildzMarketServiceV128}, {openWildzMarketSourceBrowserV128}, {createWildzMarketPublicReadSourceV128}] = await Promise.all([
+        import("../market/wildz-market-service-v128"), import("../../lib/receiz/wildz-market-source-browser-v128"), import("../../lib/receiz/wildz-market-public-read-v128")
       ]);
       currentIdentity();
       const qualifySelection = (asset: WildsWalletAssetSendRequest["asset"]) => walletAssetPort.qualifyListing(asset,
         marketReadSelectionsRef.current().find(selection => JSON.stringify(selection.asset) === JSON.stringify(asset))?.label);
       return createWildzMarketServiceV128({keyId, ownerHandle, currentIdentity,
         readSelections: () => marketReadSelectionsRef.current(), qualifySelection,
+        openReadSource: async () => createWildzMarketPublicReadSourceV128(),
         openSource: async ({verifyTransition}) => openWildzMarketSourceBrowserV128({resourceRuntime: await walletAssetPort.openRuntime(),
           qualifySelection: async selection => walletAssetPort.qualifyListing(selection.asset, selection.summary), verifyTransition}),
         staged: {assetPort: walletAssetPort, readConversations: readTradeConversations, publish: sendStagedTrade,
@@ -1594,36 +1595,22 @@ export function PlayCampaign({
   const nearbyMonument=useMemo(()=>state.siteSpace.spaceId==='wildz.space.outer.v1'?monuments.find(monument=>
     Math.hypot(monument.position.x-state.player.x,monument.position.z-state.player.z)<=WILDS_MONUMENT_INTERACTION_RADIUS
     &&Math.abs(monument.position.y-state.siteSpace.position.y)<2):null,[monuments,state.player,state.siteSpace]);
-  const sourceCreationPlanning = Boolean(walletAssetPort);
-  const [creationSourcePending, setCreationSourcePending] = useState(false);
-  useEffect(() => {
-    if (!creationOpen || !sourceCreationPlanning || !walletAssetPort) { setCreationSourcePending(false); return; }
-    let cancelled = false; setCreationSourcePending(true);
-    void (async () => {
-      await walletSourceLive.current.flushGameplay();
-      await walletSourceStore?.assertCurrent();
-      const runtime = await walletAssetPort.openClearanceRuntime(), preview = await runtime.exchange.previewGameplay();
-      await walletSourceStore?.assertCurrent();
-      if (!cancelled) livingWorldSourceAdoptionRef.current(preview.replay.world);
-    })().catch(error => { if (!cancelled) showWorldFeedback(error instanceof Error ? error.message : "Reopen Build to check received materials."); })
-      .finally(() => { if (!cancelled) setCreationSourcePending(false); });
-    return () => { cancelled = true; };
-  }, [creationOpen, sourceCreationPlanning, walletAssetPort, walletSourceStore, showWorldFeedback]);
   const readApplicationCreationWorld = livingWorld.currentApplicationResourceSource, readBaselineCreationWorld = livingWorld.currentSource;
-  const currentCreationWorldSource = useCallback(() => creationOpen && sourceCreationPlanning
-    ? readApplicationCreationWorld() ?? readBaselineCreationWorld() : readBaselineCreationWorld(),
-  [creationOpen, sourceCreationPlanning, readApplicationCreationWorld, readBaselineCreationWorld]);
+  // Opening Build reads already admitted local source. Specific material
+  // commands still qualify their exact custody in admitResourceSourceCommand.
+  const currentCreationWorldSource = useCallback(() => readApplicationCreationWorld() ?? readBaselineCreationWorld(),
+  [readApplicationCreationWorld, readBaselineCreationWorld]);
   const creationWorldSnapshot=livingWorld.snapshot;
   const liveCreationContext = useMemo(() => {
     // World refreshes must not hash a full checkpoint or rebuild compiler
     // solids while the player is exploring with the builder closed.
     void creationWorldSnapshot;
-    return projectActiveCreationContext({ active: creationOpen && !creationSourcePending && (!sourceCreationPlanning || Boolean(readApplicationCreationWorld())),
+    return projectActiveCreationContext({ active: creationOpen,
       context: creationContext ? { ...creationContext, spaceId: state.siteSpace.spaceId } : null,
       world: currentCreationWorldSource,
       physical: { projections: creationPhysical.projections, obstacles: livingPhysicalObstacles, sites: sitePhysical }
     });
-  }, [creationOpen, creationSourcePending, sourceCreationPlanning, readApplicationCreationWorld, creationContext, state.siteSpace.spaceId, creationWorldSnapshot, currentCreationWorldSource, creationPhysical.projections, livingPhysicalObstacles, sitePhysical]);
+  }, [creationOpen, creationContext, state.siteSpace.spaceId, creationWorldSnapshot, currentCreationWorldSource, creationPhysical.projections, livingPhysicalObstacles, sitePhysical]);
   creationRuntime.current={
     environment:()=>({ownerId:ownerReceizId,worldId:'wilds:global:v3',spaceId:state.siteSpace.spaceId}),
     world:currentCreationWorldSource,

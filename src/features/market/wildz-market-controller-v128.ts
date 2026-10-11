@@ -23,6 +23,9 @@ type Transition=Extract<WildzMarketSourceEventV128,{kind:"approved"|"progress"|"
 export type WildzMarketServiceInputV128=Readonly<{
  keyId:string;ownerHandle:string;currentIdentity():Readonly<{keyId:string;ownerHandle:string}>;
  openSource(callbacks:Readonly<{verifyTransition(event:Transition,listing:WildzMarketListingV128):Promise<void>}>):Promise<WildzMarketSourceRepositoryV128>;
+ /** Locally verified public source for browsing/review recovery. This opens
+  * no write grant; explicit actions still re-admit current native custody. */
+ openReadSource?():Promise<Pick<WildzMarketSourceRepositoryV128,'load'|'observe'|'verifyReservation'>>;
  qualifySelection(asset:WildsWalletAssetSendAsset):Promise<WildzMarketSelectionV128>;
  readSelections:WildzMarketReadSelectionsV128;
  staged:Omit<WildsWalletStagedTradeAdapterInput,"keyId"|"ownerHandle"|"currentIdentity"|"phi"|"marketExecution">;
@@ -310,7 +313,7 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
  return {
   binding:Object.freeze({keyId:input.keyId,ownerHandle:input.ownerHandle}),snapshot:()=>snapshot,
   subscribe(listener){current();listeners.add(listener);return()=>listeners.delete(listener);},
-  async read(){return locked(async()=>{current();const repo=await source();sourceSnapshot=await repo.load();current();
+  async read(){return locked(async()=>{current();const repo=input.openReadSource?await input.openReadSource():await source();sourceSnapshot=await repo.load();current();
    const recovered=load();
    for(const attempt of recovered.lists.filter(item=>!item.published)){
     const listed=sourceSnapshot.state.listings[attempt.listingId];

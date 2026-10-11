@@ -137,6 +137,23 @@ export function createWildzMarketSourceRepositoryV128(input:Readonly<{
    if(!r||r.reservationId!==request.reservationId||r.buyerHandle!==request.buyerHandle||r.sellerHandle!==request.sellerHandle||r.priceUsdCents!==request.priceUsdCents||r.listingHead!==request.listingHead||r.phase==='cancelled')fail('reservation_mismatch');return value;}
  };
 }
+/** Recover exact public Originals without an identity or publication port.
+ * The caller must open and verify the enclosing proof before displaying it. */
+export async function readWildzMarketPublicSourceProofV128(sdk:ReceizClient):Promise<WildzMarketSourceProofV128|null>{
+ const sourceUrl='https://wildz.quest/receiz/market-source-v128';
+ const result=await sdk.publicStore.restoreLatest({url:sourceUrl,tenantHost:'wildz.quest'}),row=result.storeStateRecord;
+ if(!row)return null;if(row.schema!=='wildz.market-source-locator.v128'||!row.proof)fail('locator_invalid');
+ const value=row.proof as unknown as WildzMarketSourceProofV128;
+ if(value.schema==='wildz.market-source-proof.v128')return value;
+ if((value.schema as string)!=='wildz.market-source-reference.v128'||!same(Object.keys(value).sort(),['archivePages','custodyArtifact','schema','sourceArtifacts'])
+  ||!Array.isArray(value.archivePages)||value.archivePages.length>1)fail('locator_invalid');
+ createWildzMarketSourceArchivePageV128(value.sourceArtifacts,value.archivePages[0]??null);
+ const custodyArtifact=await restoreWildzMarketSourceOriginalV128(value.custodyArtifact,async reference=>{
+  const located=await sdk.publicStore.restoreLatest({url:`${sourceUrl}/pages/${reference.digest}`,tenantHost:'wildz.quest'});
+  const record=located.storeStateRecord;if(!record||record.schema!=='wildz.market-source-page-locator.v128'||!record.page)fail('bytes_page_missing');return record.page;
+ });
+ return {schema:'wildz.market-source-proof.v128',custodyArtifact,archivePages:value.archivePages,sourceArtifacts:value.sourceArtifacts};
+}
 export function createWildzMarketPublicStoreLocatorV128(input:Readonly<{sdk:ReceizClient;authority:WildsResourceSourceAuthorV128;sourceUrl:string}>):WildzMarketSourceLocatorV128{
  const url=new URL(input.sourceUrl);if(url.toString()!=='https://wildz.quest/receiz/market-source-v128')fail('locator_invalid');
  const publish=async(sourceUrl:string,storeStateRecord:Record<string,unknown>,idempotencyKey:string)=>{
@@ -146,18 +163,7 @@ export function createWildzMarketPublicStoreLocatorV128(input:Readonly<{sdk:Rece
   if(new TextEncoder().encode(JSON.stringify(signed)).length>2*1024*1024)fail('locator_request_too_large');
   await input.sdk.publicStore.publishSigned(signed,{idempotencyKey});
  };
- return {async read(){const result=await input.sdk.publicStore.restoreLatest({url:url.toString(),tenantHost:url.host});const row=result.storeStateRecord;
-  if(!row)return null;if(row.schema!=='wildz.market-source-locator.v128'||!row.proof)fail('locator_invalid');
-  const value=row.proof as unknown as WildzMarketSourceProofV128;
-  if(value.schema==='wildz.market-source-proof.v128')return value;
-  if((value.schema as string)!=='wildz.market-source-reference.v128'||!same(Object.keys(value).sort(),['archivePages','custodyArtifact','schema','sourceArtifacts'])
-   ||!Array.isArray(value.archivePages)||value.archivePages.length>1)fail('locator_invalid');
-  createWildzMarketSourceArchivePageV128(value.sourceArtifacts,value.archivePages[0]??null);
-  const custodyArtifact=await restoreWildzMarketSourceOriginalV128(value.custodyArtifact,async reference=>{
-   const located=await input.sdk.publicStore.restoreLatest({url:`${url.toString()}/pages/${reference.digest}`,tenantHost:url.host});
-   const record=located.storeStateRecord;if(!record||record.schema!=='wildz.market-source-page-locator.v128'||!record.page)fail('bytes_page_missing');return record.page;
-  });
-  return {schema:'wildz.market-source-proof.v128',custodyArtifact,archivePages:value.archivePages,sourceArtifacts:value.sourceArtifacts};},
+ return {read:()=>readWildzMarketPublicSourceProofV128(input.sdk),
   async compact(proof){return compactWildzMarketSourceProofV128(proof,async(page:WildzMarketSourceArchivePageV128,reference)=>{await publish(`${url.toString()}/pages/${reference.digest}`,{schema:'wildz.market-source-page-locator.v128',page},`wildz:market-archive:${reference.digest}`);});},
   async publish(proof){
    if(proof.schema!=='wildz.market-source-proof.v128'||proof.archivePages.length>1||encoded(proof).length>8*1024*1024)fail('source_proof_invalid');

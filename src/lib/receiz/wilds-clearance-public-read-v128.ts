@@ -6,7 +6,7 @@ import {freezeConstructionProof} from '../../features/play/wilds-construction-pr
 import type {WildsWorldProjection} from '../../features/play/wilds-world-state';
 export const isWildsClearancePublicUrlV128=(value:string)=>value===WILDS_RESOURCE_SOURCE_URL_V128||/^https:\/\/wildz\.quest\/receiz\/resource-source-v128\/pages\/[a-f0-9]{64}$/.test(value);
 export function createWildsClearancePublicSdkV128(input:{applicationId:string;fetcher?:typeof fetch;signal?:AbortSignal}){
- return createReceizClient({applicationId:input.applicationId,baseUrl:'https://receiz.com',fetchImpl:async(request,init)=>{
+ return createReceizClient({baseUrl:'https://receiz.com',fetchImpl:async(request,init)=>{
   const url=new URL(String(request)),source=url.searchParams.get('url')??'';
   if(url.origin!=='https://receiz.com'||url.pathname!=='/api/public-proof/by-url'||(init?.method??'GET')!=='GET'||url.searchParams.size!==1||!isWildsClearancePublicUrlV128(source))throw Error('wilds_clearance_public_path_invalid');
   return (input.fetcher??fetch)(`/api/wilds/clearance/source?url=${encodeURIComponent(source)}`,{method:'GET',credentials:'omit',cache:'no-store',redirect:'error',signal:input.signal});

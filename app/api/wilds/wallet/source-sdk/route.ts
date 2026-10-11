@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { proxyWildsWalletSourceSdkV128, wildsWalletSourceSdkConfigV128 } from "@/lib/receiz/wilds-wallet-source-sdk-runtime";
+import { receizHttpFailureCode } from "@/lib/receiz/receiz-http-failure";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const headers = { "cache-control": "private, no-store" };
@@ -9,5 +10,5 @@ export async function GET(request: NextRequest) {
 }
 export async function POST(request: NextRequest) {
   try { return await proxyWildsWalletSourceSdkV128(request); }
-  catch (cause) { return NextResponse.json({ error: cause instanceof Error ? cause.message : "The same native source request is pending." }, { status: 409, headers }); }
+  catch (cause) { return NextResponse.json({ error: receizHttpFailureCode(cause) ?? (cause instanceof Error ? cause.message : "The same native source request is pending.") }, { status: 409, headers }); }
 }
