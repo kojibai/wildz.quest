@@ -1,5 +1,18 @@
 # Source transport and application binding contract
 
+**2026-10-11 native source correction:** Production supplied an OAuth client
+ID beginning with `rc_` to the source SDK. The installed 128.0.0 client rejects
+that identifier with `V124_APPLICATION_ID_INVALID`: native application IDs
+must match `^[a-z][a-z0-9.-]{0,127}$`. Market and Build source configuration,
+the source proxy, public clearance reads, and native creature-origin recovery
+must consistently use the existing `wildz` application principal. Wallet read
+authorization, Connect consent, token introspection, and financial transfer
+consent continue to use the configured OAuth client audience. Never sanitize,
+lowercase, or otherwise transform an OAuth client ID into a native principal.
+The earlier lowercase synthetic client fixtures did not reproduce this format
+failure. Regression coverage now uses `rc_` clients with mixed case and checks
+the real SDK constructor, signed identity challenge, and exchange transport.
+
 **Correction:** The application-ID substitution in this historical contract
 was incorrect for the connected wallet. Production requests on `d25a3af`
 reported `APPLICATION_NOT_AUTHORIZED`. The existing `RECEIZ_CLIENT_ID` binding

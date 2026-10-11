@@ -7,6 +7,9 @@ import {NextRequest} from 'next/server';
 import {wildsWalletSourceSdkConfigV128,proxyWildsWalletSourceSdkV128} from '../src/lib/receiz/wilds-wallet-source-sdk-runtime';
 import type {WildzReceizChatSession} from '../src/lib/receiz/wildz-receiz-chat-session';
 import {GET as walletAuthorityChallenge} from '../app/api/auth/wildz/wallet-authority/route';
+import {createReceizClient,createReceizIdentityKeyFile,createReceizProofAuthorityChallenge,receizBase64UrlDecode,verifyReceizIdentityLoginProof} from '@receiz/sdk';
+import {createWildsWalletSourceSdkClientV128} from '../src/features/play/wallet/wilds-wallet-source-sdk-v128';
+import type {WildzContinuityDatabase} from '../src/lib/storage/wildz-indexed-db';
 
 const keyId='a'.repeat(64), expected={applicationId:'registered-wildz-client',baseUrl:'https://receiz.example'};
 function fixture(responses:Array<Response|Error>){
@@ -23,13 +26,19 @@ function fixture(responses:Array<Response|Error>){
  return {calls,dependencies};
 }
 
-test('source metadata preserves the registered application used by the connected wallet',async()=>{
+test('Market and Build source metadata opens the native SDK with an OAuth client configured',async()=>{
  const previous=process.env.RECEIZ_CLIENT_ID;
  const session={origin:expected.baseUrl} as WildzReceizChatSession;
  try{
-  for(const client of ['registered-wildz-client','another-registered-client']){
+  for(const client of ['rc_SyntheticClient_ABC-123','another-registered-client']){
    process.env.RECEIZ_CLIENT_ID=client;
-   assert.deepEqual(await wildsWalletSourceSdkConfigV128(new NextRequest('https://wildz.quest/api/wilds/wallet/source-sdk'),async()=>session),{...expected,applicationId:client});
+   const configuration=await wildsWalletSourceSdkConfigV128(new NextRequest('https://wildz.quest/api/wilds/wallet/source-sdk'),async()=>session);
+   // Use the real SDK: plausible slug-only fixtures hid the production failure.
+   const sdk=createReceizClient({...configuration,fetchImpl:async()=>{assert.fail('configuration must not perform a source write');}});
+   assert.ok(sdk);
+   assert.deepEqual(configuration,{applicationId:'wildz',baseUrl:expected.baseUrl});
+   const challenge=createReceizProofAuthorityChallenge({applicationId:configuration.applicationId,artifactDigest:'b'.repeat(64),scopes:['receiz:domains.read'],consentStatementDigest:'c'.repeat(64),ttlPulses:60});
+   assert.equal(challenge.challenge.audience,'wildz');
   }
  }finally{if(previous===undefined)delete process.env.RECEIZ_CLIENT_ID;else process.env.RECEIZ_CLIENT_ID=previous;}
 });
@@ -38,6 +47,32 @@ test('source metadata and actual source edges still require admitted current-acc
  const request=new NextRequest('https://wildz.quest/api/wilds/wallet/source-sdk');
  await assert.rejects(wildsWalletSourceSdkConfigV128(request),/receiz_wallet_read_scope_required/);
  await assert.rejects(proxyWildsWalletSourceSdkV128(request),/receiz_wallet_read_scope_required/);
+});
+
+test('Market and Build carry the native application through real identity signing and SDK exchange transport',async()=>{
+ const previous=process.env.RECEIZ_CLIENT_ID;
+ const {keyFile}=await createReceizIdentityKeyFile({owner:{uid:'source_application_fixture',username:'source_application_fixture',displayName:'Synthetic'}});
+ const calls:Array<{url:string;wire:Record<string,unknown>}>=[];
+ try{
+  process.env.RECEIZ_CLIENT_ID='rc_SyntheticClient_ABC-123';
+  const dependencies:WildsResourceExchangeBrowserDependenciesV128={
+   configuration:async()=>wildsWalletSourceSdkConfigV128(new NextRequest('https://wildz.quest/api/wilds/wallet/source-sdk'),async()=>({origin:'https://receiz.com'} as WildzReceizChatSession)),
+   loadIdentity:async()=>keyFile,
+   database:async()=>({read:async()=>null,transaction:async()=>assert.fail('grant rejection must precede source storage writes')} as WildzContinuityDatabase),
+   createSdk:configuration=>createWildsWalletSourceSdkClientV128({...configuration,fetcher:async(url,init)=>{
+    calls.push({url:String(url),wire:JSON.parse(String(init?.body))});
+    throw Error('synthetic upstream boundary');
+   }}),
+  };
+  await assert.rejects(openWildsResourcePackageExchangeBrowserV128({keyId:keyFile.keyId,gameplayOwnerId:'synthetic-explorer'},dependencies),/synthetic upstream boundary/);
+  assert.equal(calls.length,1);assert.equal(calls[0].url,'/api/wilds/wallet/source-sdk');
+  assert.equal(calls[0].wire.path,'/api/sdk/v1/identity/proof-authority/exchange');
+  const body=calls[0].wire.body as {applicationId:string;challenge:{audience:string;proof:{challengeB64Url:string;signatureB64Url:string}}};
+  assert.equal(body.applicationId,'wildz');assert.equal(body.challenge.audience,'wildz');
+  const basis=JSON.parse(new TextDecoder().decode(receizBase64UrlDecode(body.challenge.proof.challengeB64Url)));
+  assert.equal(basis.applicationId,'wildz');assert.equal(basis.audience,'wildz');
+  assert.equal(await verifyReceizIdentityLoginProof({keyFile,...body.challenge.proof}),true);
+ }finally{if(previous===undefined)delete process.env.RECEIZ_CLIENT_ID;else process.env.RECEIZ_CLIENT_ID=previous;}
 });
 
 test('healthy source configuration performs one read with no extra signing, authorization or reconnect',async()=>{
@@ -72,7 +107,7 @@ test('read-renewal challenges retain the same registered wallet audience',async(
  const previousSecret=process.env.RECEIZ_OAUTH_STATE_SECRET;
  try{
   process.env.RECEIZ_OAUTH_STATE_SECRET='source-config-synthetic-fixture-secret-only';
-  for(const client of ['registered-wildz-client','another-registered-client']){
+  for(const client of ['rc_SyntheticClient_ABC-123','another-registered-client']){
    process.env.RECEIZ_CLIENT_ID=client;
    const response=await walletAuthorityChallenge(new NextRequest(`https://wildz.quest/api/auth/wildz/wallet-authority?keyId=${keyId}&artifactDigest=${'b'.repeat(64)}`));
    assert.equal(response.status,200);
