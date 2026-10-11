@@ -513,3 +513,24 @@ test("combat takeover preserves the background balance read while closing intera
   assert.equal(driver.state.open, false);
   driver.close();
 });
+
+test("same actor replacement key never retains the previous live balance", async () => {
+  const data = response();
+  const driver = createWildsWalletControllerDriver({ identityKey: "keeper", authorityGeneration: "remote", sourceKey: "key-A",
+    cache: createWildsWalletSessionCache(4), publish() {}, fetcher: async path => ({ok: true, status: 200, json: async () => path.endsWith("summary") ? data.summary : path.endsWith("capabilities") ? data.capabilities : data.ledger}) });
+  await driver.refresh();
+  assert.equal(driver.state.summary?.admittedPhiMicro, "1");
+  driver.setAuthority("keeper", "remote", "key-B");
+  assert.equal(driver.state.summary, null);
+  driver.dispose();
+});
+
+
+test("an explicit source cannot inherit a pending unspecified source with the same fallback token", async () => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => {release = resolve;});
+  const driver = createWildsWalletControllerDriver({identityKey: "keeper", authorityGeneration: "same-key", cache: createWildsWalletSessionCache(4), publish() {}, fetcher: async () => {throw Error("offline");}});
+  const old = driver.projectSourceAuthority(async () => {await held; return null;});
+  driver.setAuthority("keeper", "same-key", "same-key"); release(); await old;
+  assert.equal(driver.state.sourceAuthorityVerified, false); assert.equal(driver.state.sourceKey, "same-key"); driver.dispose();
+});

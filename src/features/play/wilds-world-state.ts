@@ -1,3 +1,5 @@
+import { deriveWildsBuildingClearance, verifyWildsBuildingClearance, WILDS_BUILDING_CLEARANCE_RULE_HEAD, type WildsBuildingClearanceEventPayload, type WildsBuildingClearanceV1 } from './wilds-building-clearance';
+import {resolveWildsClearancePickupV128} from '../../lib/receiz/wilds-clearance-admission-v128';
 import {resolveWorldCreationAction,type WildsCreationActionRecord} from './creation/world-action';
 import {isQualifiedWildsApplicationResourceCustodyV128} from '../../lib/receiz/wilds-resource-gameplay-v128';
 import { applyWildsResourcePackageCommand, type WildsResourcePackageRecord, type WildsResourcePackageCommand, type WildsFoodCustody,type WildsFoodConsumptionReceipt } from "./wilds-resource-package-world";
@@ -146,6 +148,10 @@ export type WildsTournamentWorldProjection = { id: string; phase?: string; [key:
 
 export type WildsApplicationResourceCustodyV128=Readonly<{scheme:'wildz.resource-source.v128';ownerReceizId:string;packageId:string;unpackAppendId:string;sourceArtifactSha256:string}>;
 export type WildsWorldProjection = {
+  /** Exact replay consequence; shared reservation is a distinct native admission gate. */
+  buildingClearances?: Record<string, WildsBuildingClearanceV1>;
+  clearancePickups?: Record<string, import('../../lib/receiz/wilds-clearance-admission-v128').WildsClearancePickupV128>;
+  clearanceTaken?: Record<string, number>;
   resourcePackages?: Record<string, WildsResourcePackageRecord>;
   reservedResourceLots?: Record<string, string>;
   reservedFoodItems?: Record<string, string>;
@@ -422,6 +428,23 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
   const payload = recordPayload(event.payload);
 
   switch (event.kind) {
+    case 'construction.clearance_derived': {
+      if (!('uPulse' in event)) throw Error('wilds_clearance_temporal_source_required');
+      const carried = payload as unknown as WildsBuildingClearanceEventPayload;
+      if (carried.ruleHead !== WILDS_BUILDING_CLEARANCE_RULE_HEAD || !verifyWildsBuildingClearance(carried.clearance,
+        { world: state, buildingId: carried.buildingId, buildingHead: carried.buildingHead, sourceCheckpoints: carried.sourceCheckpoints, kaiUPulse: event.uPulse,...(carried.historicalContext?{historicalContext:carried.historicalContext}:{}) })
+        || carried.clearance.buildingOwnerId !== event.actorId || carried.clearance.kaiUPulse !== event.uPulse) throw Error('wilds_clearance_event_binding_invalid');
+      return appendEvent(state, event, { buildingClearances: { ...state.buildingClearances, [carried.clearance.clearanceId]: carried.clearance } });
+    }
+    case 'construction.clearance_picked_up': {
+      if(!('uPulse' in event))throw Error('wilds_clearance_temporal_source_required');
+      const command=payload.command as import('../../lib/receiz/wilds-clearance-admission-v128').WildsClearancePickupCommandV128;
+      if(command.commandId!==event.causeId)throw Error('wilds_clearance_pickup_binding_invalid');
+      const pickup=resolveWildsClearancePickupV128(command,event.actorId,event.uPulse);
+      if(canonicalPortableCardJson(pickup)!==canonicalPortableCardJson(payload.pickup)||state.clearancePickups?.[event.causeId])throw Error('wilds_clearance_pickup_binding_invalid');
+      return appendEvent(state,event,{clearancePickups:{...state.clearancePickups,[event.causeId]:pickup},clearanceTaken:{...state.clearanceTaken,[pickup.pileId]:pickup.taken},
+        ...(pickup.member.kind==='material'?{materialLots:{...state.materialLots,[pickup.member.id]:pickup.member.materialLot}}:{})});
+    }
     case 'creation.acted': {
       if(!('uPulse' in event))throw Error('creation_action_temporal_source_required');
       const action=payload.record as WildsCreationActionRecord;
@@ -439,12 +462,18 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       if (!source?.command || source.command.type !== (event.kind === "creation.constructed" ? "creation.construct" : "creation.evolve") || source.command.commandId !== event.causeId || payload.commandDigest !== constructionProofDigest(source.command)) throw new Error("creation_world_event_binding_invalid");
       const expected = resolveWorldCreationBuild(state, source.command, event.actorId, event.uPulse).record;
       if (constructionProofDigest(source) !== constructionProofDigest(expected)) throw new Error("creation_world_successor_invalid");
-      return appendEvent(state, event, {
+      const after = appendEvent(state, event, {
         creations: { ...state.creations, [source.instance.instanceId]: source },
         creationEvents: { ...state.creationEvents, ...(state.creationEvents?.[source.instance.instanceId] ? { [state.creationEvents[source.instance.instanceId].eventId]: state.creationEvents[source.instance.instanceId] } : {}), [source.instance.instanceId]: event, [event.eventId]: event },
         consumedMaterialLots: { ...state.consumedMaterialLots, ...Object.fromEntries(source.command.resources.map(lot => [lot.id, source.instance.instanceId])) },
         constructionCommandReceipts: { ...state.constructionCommandReceipts, [event.causeId]: { commandDigest: payload.commandDigest as string, eventPayloadDigest: constructionProofDigest(event.payload), actorId: event.actorId, kind: event.kind } }
       });
+      if (source.command.clearanceSourceCheckpoints !== undefined) {
+        const clearance = deriveWildsBuildingClearance({ world: after, buildingId: source.instance.instanceId,
+          buildingHead: source.instance.head, sourceCheckpoints: source.command.clearanceSourceCheckpoints, kaiUPulse: event.uPulse });
+        return { ...after, buildingClearances: { ...after.buildingClearances, [clearance.clearanceId]: clearance } };
+      }
+      return after;
     }
     case "construction.weathered": {
       if (!("uPulse" in event) || event.actorId !== "receiz:pulse" || !Array.isArray(payload.conditions) || payload.conditions.length > 16) throw new Error("wilds_weather_authority_invalid");

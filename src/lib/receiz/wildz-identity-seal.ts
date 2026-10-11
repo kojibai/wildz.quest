@@ -140,90 +140,95 @@ async function renderWildzIdentitySealArtwork(identity: WildzIdentitySealArtwork
   if (typeof document === "undefined") return renderPortableSealArtwork();
 
   const canvas = document.createElement("canvas");
-  canvas.width = SEAL_SIZE;
-  canvas.height = SEAL_SIZE;
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("identity_seal_canvas_required");
+  try {
+    canvas.width = SEAL_SIZE;
+    canvas.height = SEAL_SIZE;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("identity_seal_canvas_required");
 
-  const gradient = context.createLinearGradient(0, 0, SEAL_SIZE, SEAL_SIZE);
-  gradient.addColorStop(0, "#001b2d");
-  gradient.addColorStop(0.52, "#00a58a");
-  gradient.addColorStop(1, "#ffffff");
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, SEAL_SIZE, SEAL_SIZE);
+    const gradient = context.createLinearGradient(0, 0, SEAL_SIZE, SEAL_SIZE);
+    gradient.addColorStop(0, "#001b2d");
+    gradient.addColorStop(0.52, "#00a58a");
+    gradient.addColorStop(1, "#ffffff");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, SEAL_SIZE, SEAL_SIZE);
 
-  context.fillStyle = "rgba(255,255,255,0.92)";
-  roundedRectPath(context, 86, 86, 728, 728, 74);
-  context.fill();
+    context.fillStyle = "rgba(255,255,255,0.92)";
+    roundedRectPath(context, 86, 86, 728, 728, 74);
+    context.fill();
 
-  context.fillStyle = "#001b2d";
-  context.font = "900 28px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-  context.letterSpacing = "8px";
-  context.textAlign = "center";
-  context.fillText("RECEIZ ID", 450, 190);
+    context.fillStyle = "#001b2d";
+    context.font = "900 28px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    context.letterSpacing = "8px";
+    context.textAlign = "center";
+    context.fillText("RECEIZ ID", 450, 190);
 
-  context.fillStyle = "#00a58a";
-  context.font = "800 18px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-  context.letterSpacing = "4px";
-  context.fillText("IDENTITY SEAL", 450, 228);
+    context.fillStyle = "#00a58a";
+    context.font = "800 18px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    context.letterSpacing = "4px";
+    context.fillText("IDENTITY SEAL", 450, 228);
 
-  context.strokeStyle = "#00a58a";
-  context.lineWidth = 18;
-  roundedRectPath(context, 340, 280, 220, 220, 64);
-  context.stroke();
+    context.strokeStyle = "#00a58a";
+    context.lineWidth = 18;
+    roundedRectPath(context, 340, 280, 220, 220, 64);
+    context.stroke();
 
-  context.beginPath();
-  context.moveTo(398, 384);
-  context.lineTo(438, 424);
-  context.lineTo(510, 342);
-  context.lineWidth = 28;
-  context.lineCap = "round";
-  context.lineJoin = "round";
-  context.stroke();
+    context.beginPath();
+    context.moveTo(398, 384);
+    context.lineTo(438, 424);
+    context.lineTo(510, 342);
+    context.lineWidth = 28;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    context.stroke();
 
-  const identityLabel = identity.username?.trim() ? `@${identity.username.trim().replace(/^@+/, "")}` : identity.displayName?.trim() || identity.keyId;
-  context.fillStyle = "#001b2d";
-  context.letterSpacing = "0px";
-  let nameSize = 42;
-  const nameFont = () => `800 ${nameSize}px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
-  context.font = nameFont();
-  while (context.measureText(identityLabel).width > 600 && nameSize > 18) { nameSize -= 1; context.font = nameFont(); }
-  context.fillText(identityLabel, 450, 567, 600);
+    const identityLabel = identity.username?.trim() ? `@${identity.username.trim().replace(/^@+/, "")}` : identity.displayName?.trim() || identity.keyId;
+    context.fillStyle = "#001b2d";
+    context.letterSpacing = "0px";
+    let nameSize = 42;
+    const nameFont = () => `800 ${nameSize}px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
+    context.font = nameFont();
+    while (context.measureText(identityLabel).width > 600 && nameSize > 18) { nameSize -= 1; context.font = nameFont(); }
+    context.fillText(identityLabel, 450, 567, 600);
 
-  context.fillStyle = "#667085";
-  context.font = "700 14px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-  context.letterSpacing = "3px";
-  context.fillText("BEARER CREDENTIAL", 450, 602);
+    context.fillStyle = "#667085";
+    context.font = "700 14px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    context.letterSpacing = "3px";
+    context.fillText("BEARER CREDENTIAL", 450, 602);
 
-  context.fillStyle = "rgba(0, 165, 138, 0.065)";
-  roundedRectPath(context, 146, 628, 608, 112, 22);
-  context.fill();
-  context.strokeStyle = "rgba(0, 120, 104, 0.18)";
-  context.lineWidth = 1;
-  context.beginPath(); context.moveTo(450, 653); context.lineTo(450, 718); context.stroke();
-  context.fillStyle = "#48665f";
-  context.font = "700 12px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-  context.letterSpacing = "1.5px";
-  context.fillText("KAI · BEAT:STEP:PULSE", 298, 662);
-  context.fillText("TOTAL PULSES · SEALED", 602, 662);
-  context.fillStyle = "#003e38";
-  context.font = "600 32px ui-monospace, SFMono-Regular, Menlo, monospace";
-  context.letterSpacing = "0px";
-  context.fillText(stamp.coordinate, 298, 708, 254);
-  context.fillText(stamp.totalPulses, 602, 708, 254);
+    context.fillStyle = "rgba(0, 165, 138, 0.065)";
+    roundedRectPath(context, 146, 628, 608, 112, 22);
+    context.fill();
+    context.strokeStyle = "rgba(0, 120, 104, 0.18)";
+    context.lineWidth = 1;
+    context.beginPath(); context.moveTo(450, 653); context.lineTo(450, 718); context.stroke();
+    context.fillStyle = "#48665f";
+    context.font = "700 12px Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    context.letterSpacing = "1.5px";
+    context.fillText("KAI · BEAT:STEP:PULSE", 298, 662);
+    context.fillText("TOTAL PULSES · SEALED", 602, 662);
+    context.fillStyle = "#003e38";
+    context.font = "600 32px ui-monospace, SFMono-Regular, Menlo, monospace";
+    context.letterSpacing = "0px";
+    context.fillText(stamp.coordinate, 298, 708, 254);
+    context.fillText(stamp.totalPulses, 602, 708, 254);
 
-  context.fillStyle = "#667085";
-  context.font = "600 12px ui-monospace, SFMono-Regular, Menlo, monospace";
-  context.letterSpacing = "1px";
-  context.fillText(`KEY ${identity.keyId.slice(0, 8).toUpperCase()} · FULL CONTINUITY`, 450, 778);
+    context.fillStyle = "#667085";
+    context.font = "600 12px ui-monospace, SFMono-Regular, Menlo, monospace";
+    context.letterSpacing = "1px";
+    context.fillText(`KEY ${identity.keyId.slice(0, 8).toUpperCase()} · FULL CONTINUITY`, 450, 778);
 
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((value) => {
-      if (value) resolve(value);
-      else reject(new Error("identity_seal_canvas_export_failed"));
-    }, "image/png");
-  });
-  return new Uint8Array(await blob.arrayBuffer());
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((value) => {
+        if (value) resolve(value);
+        else reject(new Error("identity_seal_canvas_export_failed"));
+      }, "image/png");
+    });
+    return new Uint8Array(await blob.arrayBuffer());
+  } finally {
+    canvas.width = 0;
+    canvas.height = 0;
+  }
 }
 
 export function appendWildzIdentitySealAuthority(pngBytes: Uint8Array, keyFile: ReceizKeyFile) {

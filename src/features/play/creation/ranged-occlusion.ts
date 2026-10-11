@@ -1,11 +1,13 @@
 import type {WildsWorldProjection} from '../wilds-world-state';
 import {constructionProofDigest} from '../wilds-construction-project';
 import {admitWildsDiscoveryPhysicalNeighborhood,wildsDiscoverySiteRegionForPosition,wildsMountainFieldValue,type WildsMountainField} from '../wilds-discovery-sites';
+import {appendWildsDiscoveryVisualSolids} from '../wilds-discovery-monuments';
 import {composeWildsBurrowPhysical} from '../wilds-burrow';
 import {composeWildsInteriorConstruction} from '../wilds-construction-physics';
 import {composeWildsConstructionTerrain,projectWildsConstructionTerrain,sampleWildsConstructionTerrainAt} from '../wilds-construction-terrain';
 import {WILDS_TERRAIN_TILE_SIZE,WILDS_TERRAIN_VERSION,wildsTerrainElevation} from '../wilds-terrain-authority';
 import {WILDS_RENDERED_PHYSICAL_OBSTACLES,projectWildsRenderedLivingObstacles,wildsTerrainObstaclesForTile,type WildsTerrainObstacle} from '../wilds-terrain-obstacles';
+import { filterWildsBuildScenery } from '../wilds-build-scenery';
 import {compileWorldCreationSource} from './world-source';
 import {currentCreationEquipment} from './equipment';
 import {creationEquipmentProfile,heldCreationGearAssembly} from './equipment-profiles';
@@ -125,19 +127,24 @@ export function assertCreationRangedHitUnoccluded(world:WildsWorldProjection,com
  const end={x:origin.x+direction.x*distance,y:origin.y+direction.y*distance,z:origin.z+direction.z*distance};
  const first=wildsDiscoverySiteRegionForPosition({x:Math.min(origin.x,end.x),z:Math.min(origin.z,end.z)}),last=wildsDiscoverySiteRegionForPosition({x:Math.max(origin.x,end.x),z:Math.max(origin.z,end.z)}),seen=new Set<string>();
  const pads=command.spaceId===OUTER?projectWildsConstructionTerrain(world):[];
+ // Keep marker-absent ranged replay unchanged. New clearance scenes use the
+ // same natural/authored solids as movement, composed before any ray test.
+ const clearsScenery=pads.some(pad=>pad.clearsScenery);
  for(let regionX=first.x;regionX<=last.x;regionX++)for(let regionZ=first.z;regionZ<=last.z;regionZ++){
-  const physical=composeWildsInteriorConstruction(composeWildsBurrowPhysical(admitWildsDiscoveryPhysicalNeighborhood(regionX,regionZ),world.burrows),world);
+  const ungraded=composeWildsInteriorConstruction(composeWildsBurrowPhysical(admitWildsDiscoveryPhysicalNeighborhood(regionX,regionZ),world.burrows),world);
+  const physical=clearsScenery?composeWildsConstructionTerrain(appendWildsDiscoveryVisualSolids(ungraded),pads):ungraded;
   for(const box of [...physical.solids.filter(solid=>solid.kind!=='mountain-envelope'),...physical.ceilings,...physical.surfaces.filter(surface=>surface.kind==='interior-floor')]){
    if(box.spaceId!==command.spaceId||seen.has(box.id))continue;seen.add(box.id);assertClear(boxDistance(origin,direction,box,distance));
   }
   if(command.spaceId!==OUTER)continue;
   const fields=physical.mountainFields.filter(field=>!seen.has(field.id)&&Math.abs((origin.x+end.x)/2-field.center.x)<=Math.abs(end.x-origin.x)/2+field.halfExtents.x&&Math.abs((origin.z+end.z)/2-field.center.z)<=Math.abs(end.z-origin.z)/2+field.halfExtents.z);
-  for(const field of composeWildsConstructionTerrain({...physical,mountainFields:fields},pads).mountainFields){seen.add(field.id);assertClear(mountainDistance(origin,direction,field,distance));}
+  for(const field of clearsScenery?fields:composeWildsConstructionTerrain({...physical,mountainFields:fields},pads).mountainFields){seen.add(field.id);assertClear(mountainDistance(origin,direction,field,distance));}
  }
  if(command.spaceId===OUTER){
+  const clearance=pads.filter(pad=>pad.clearsScenery);
   for(const obstacle of [...WILDS_RENDERED_PHYSICAL_OBSTACLES,...projectWildsRenderedLivingObstacles(world)])assertClear(obstacleDistance(origin,direction,obstacle,distance));
   const minTileX=Math.floor(Math.min(origin.x,end.x)/WILDS_TERRAIN_TILE_SIZE)-1,maxTileX=Math.floor(Math.max(origin.x,end.x)/WILDS_TERRAIN_TILE_SIZE)+1,minTileZ=Math.floor(Math.min(origin.z,end.z)/WILDS_TERRAIN_TILE_SIZE)-1,maxTileZ=Math.floor(Math.max(origin.z,end.z)/WILDS_TERRAIN_TILE_SIZE)+1;
-  for(let tileX=minTileX;tileX<=maxTileX;tileX++)for(let tileZ=minTileZ;tileZ<=maxTileZ;tileZ++)for(const obstacle of wildsTerrainObstaclesForTile(tileX,tileZ))assertClear(obstacleDistance(origin,direction,obstacle,distance));
+  for(let tileX=minTileX;tileX<=maxTileX;tileX++)for(let tileZ=minTileZ;tileZ<=maxTileZ;tileZ++)for(const obstacle of filterWildsBuildScenery(wildsTerrainObstaclesForTile(tileX,tileZ),clearance))assertClear(obstacleDistance(origin,direction,obstacle,distance));
   const steps=Math.max(1,Math.ceil(distance/TERRAIN_STEP));
   for(let index=0;index<=steps;index++){
    const along=distance*index/steps;if(along>=limit)break;

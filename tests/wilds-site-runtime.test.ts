@@ -309,7 +309,9 @@ describe("production Wilds site runtime", () => {
     assert.match(canvas, /terrainElevation=\{activeFloorY\}/);
     assert.match(canvas, /const siteWorldY = terrainElevation/);
     assert.match(renderer, /key=\{site\.key\}/);
-    assert.match(renderer, /createWildsWaterfallBatches\(projectWildsWaterfallChute\(site\)/);
+    assert.match(renderer, /const chute=projectWildsWaterfallChute\(site\)/);
+    assert.match(renderer, /createWildsWaterfallBatches\(\{\.\.\.chute,parts:chute\.parts\.filter/);
+    assert.match(renderer, /!physical\.sceneryClearance\?\.length\|\|ids\.has\(part\.solidId/);
     assert.doesNotMatch(renderer, /siteSolids\.map/);
     assert.doesNotMatch(renderer, /water\.halfExtents\.y \* 2/);
     assert.match(renderer, /portalDistance = portal \? Math\.hypot\(portal\.position\.x - player\.x, portal\.position\.z - player\.z\)/);

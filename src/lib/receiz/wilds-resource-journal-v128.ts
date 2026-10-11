@@ -4,6 +4,8 @@ import {replayWildsResourceGameplayV128,type WildsResourceGameplayCommandV128} f
 import type {ReceizPortableSealedArtifactV124} from '@receiz/sdk';
 import type {PortableCardAsset} from '../../features/play/portable-card';
 import {isWorldCreationSuccessor} from '../../features/play/creation/world-source';
+import {deriveWildsClearanceCommandV128,assertWildsClearancePickupCurrentV128} from './wilds-clearance-admission-v128';
+import type {WildsBuildingClearanceV1} from '../../features/play/wilds-building-clearance';
 
 export const WILDS_RESOURCE_DOMAIN_V128='world:wildz:resource-custody:v128';
 export const WILDS_RESOURCE_NAMESPACE_V128='wildz.resources.v128';
@@ -24,7 +26,8 @@ export type WildsResourceJournalV128=Readonly<{schema:'wildz.resource-journal.v1
  frontiers:Readonly<Record<string,string>>;admittedCommands:Readonly<Record<string,true>>;
  reservations:Readonly<Record<string,string>>;packages:Readonly<Record<string,WildsResourceJournalPackageV128>>;
  imports:Readonly<Record<string,WildsResourceJournalImportV128>>;looseMembers:Readonly<Record<string,WildsResourceJournalLooseMemberV128>>;spentMembers:Readonly<Record<string,string>>;
- cardOrigins:Readonly<Record<string,WildsResourceCardOriginV128>>}>;
+ cardOrigins:Readonly<Record<string,WildsResourceCardOriginV128>>;
+ clearances?:Readonly<Record<string,WildsBuildingClearanceV1>>;retiredSourceIds?:Readonly<Record<string,string>>;clearanceTaken?:Readonly<Record<string,number>>}>;
 export type WildsResourceCardOriginV128=Readonly<{ownerReceizId:string;assetId:string;sourceOriginal:ReceizPortableSealedArtifactV124;card:PortableCardAsset;payloadSha256:string;provenanceRoot:string}>;
 export type WildsResourceJournalEventV128=
  | Readonly<{schema:'wildz.resource-command.v128';kind:'reserve';attemptId:string;ownerReceizId:string;gameplayOwnerId:string;
@@ -39,6 +42,7 @@ export function initialWildsResourceJournalV128():WildsResourceJournalV128{retur
 type CardVerifier=NonNullable<Parameters<typeof replayWildsResourceGameplayV128>[0]['verifyCard']>;
 export type WildsResourceJournalAdmissionV128=Readonly<{
  ownerReceizId:string;
+ expectedNativeHead?:string;
  verifyCard?:CardVerifier;
  verifyCardOrigin?:CardVerifier;
  verifyPackage?:(artifact:ReceizPortableSealedArtifactV124,record:WildsResourceJournalPackageV128)=>Promise<Readonly<{genesisOwnerReceizId:string;artifactSha256:string}>>;
@@ -73,10 +77,21 @@ export async function replayWildsResourceJournalOwnerV128(before:WildsResourceJo
   else if(entry.kind==='animal.hunt'&&entry.hunter.kind==='creature')remember(entry.hunter.asset,entry.cardOriginal);
  }
  const admitCard:CardVerifier=async(card,original)=>{if(witnessed.has(canonicalPortableCardJson({card,original})))return;if(!verifyCard)fail('card_original_required');await verifyCard(card,original);};
+ // Package insertion order is the admitted causal order, even when two
+ // actions share a Kai timestamp. A later actual unpack ends an older lock;
+ // neither genesis ownership nor a saved display flag can end it.
+ const packages=Object.values(before.packages),order=new Map(packages.map((row,index)=>[row.package.packageId,index]));
+ const excluded=packages.filter(row=>row.ownerReceizId!==ownerReceizId||row.status!=='unpacked').flatMap(row=>row.package.members.map(member=>{
+  const later=Object.values(before.imports).filter(item=>item.ownerReceizId===ownerReceizId
+   &&(order.get(item.package.packageId)??-1)>(order.get(row.package.packageId)??Infinity)
+   &&item.package.members.some(value=>value.id===member.id));
+  return {memberId:member.id,itemId:member.id,kind:member.kind,packageId:row.package.packageId,fromKaiUPulse:row.package.createdKaiUPulse,
+   ...(later.length?{untilKaiUPulse:Math.min(...later.map(item=>item.kaiUPulse))}:{})};
+ }));
  return replayWildsResourceGameplayV128({gameplayOwnerId,commands,
   imports:Object.values(before.imports).filter(item=>item.ownerReceizId===ownerReceizId).map(item=>({packageId:item.package.packageId,receiptId:item.unpackAppendId,kaiUPulse:item.kaiUPulse,sourceArtifactSha256:item.sourceArtifactSha256,members:item.package.members})),
-  excludedFood:Object.values(before.packages).filter(item=>item.ownerReceizId!==ownerReceizId||item.status!=='unpacked').flatMap(item=>item.package.members.filter(member=>member.kind==='food').map(member=>({itemId:member.id,fromKaiUPulse:item.package.createdKaiUPulse}))),
-  excludedMembers:Object.values(before.packages).filter(item=>item.ownerReceizId!==ownerReceizId||item.status!=='unpacked').flatMap(item=>item.package.members.filter(member=>member.kind!=='food').map(member=>({memberId:member.id,packageId:item.package.packageId,fromKaiUPulse:item.package.createdKaiUPulse}))),verifyCard:admitCard});
+  excludedFood:excluded.filter(item=>item.kind==='food'),
+  excludedMembers:excluded.filter(item=>item.kind!=='food'),verifyCard:admitCard});
 }
 export async function reduceWildsResourceJournalV128(before:WildsResourceJournalV128,raw:WildsResourceJournalEventV128,admission:WildsResourceJournalAdmissionV128):Promise<WildsResourceJournalV128>{
  const event=structuredClone(raw);
@@ -108,6 +123,12 @@ export async function reduceWildsResourceJournalV128(before:WildsResourceJournal
   if(existingRecord){if(existingRecord.package.createdKaiUPulse!==event.createdKaiUPulse||existingRecord.recipientHandle!==event.recipientHandle||!same(existingRecord.package.members.map(member=>member.id).sort(),[...event.memberIds].sort())||!same(previous?.commands??[],event.commands))fail('attempt_conflict');return before;}
   }
   const replay=await replayWildsResourceJournalOwnerV128(before,event.ownerReceizId,event.gameplayOwnerId,event.commands,admission.verifyCard);
+  const unseen=event.commands.slice(previous?.commands.length??0);
+  for(const entry of unseen){
+   const id=entry.kind==='food.gather'?entry.sourceId:entry.kind==='world'&&entry.command.type==='resource.material.harvest'?entry.command.source.sourceId:null;
+   if(id&&before.retiredSourceIds?.[id])fail('source_retired');
+   if(entry.kind==='world'&&(entry.command.type==='creation.construct'||entry.command.type==='creation.evolve')&&entry.command.clearanceSourceCheckpoints)fail('clearance_explicit_command_required');
+  }
   const frontiers={...before.frontiers},admittedCommands={...before.admittedCommands};
   for(const advance of replay.advances){
    if(admittedCommands[advance.commandDigest])continue;
@@ -116,12 +137,33 @@ export async function reduceWildsResourceJournalV128(before:WildsResourceJournal
   }
   const reservations={...before.reservations},looseMembers={...before.looseMembers},spentMembers={...before.spentMembers};
   for(const loose of Object.values(before.looseMembers))if(loose.ownerReceizId===event.ownerReceizId&&(loose.member.kind==='food'?replay.nourishment.items[loose.member.id]?.consumedKaiUPulse!==undefined:loose.member.kind==='material'?Boolean(replay.world.consumedMaterialLots[loose.member.id]||replay.world.reservedMaterialLots?.[loose.member.id]):false)){spentMembers[loose.member.id]=replay.traceDigest;delete looseMembers[loose.member.id];}
-  const advanced={...before,traces:{...before.traces,[event.ownerReceizId]:{gameplayOwnerId:event.gameplayOwnerId,commands:event.commands}},frontiers,admittedCommands,reservations,looseMembers,spentMembers};
+  let advanced:WildsResourceJournalV128={...before,traces:{...before.traces,[event.ownerReceizId]:{gameplayOwnerId:event.gameplayOwnerId,commands:event.commands}},frontiers,admittedCommands,reservations,looseMembers,spentMembers};
+  const clearanceEntries=unseen.filter(entry=>entry.kind==='world'&&(entry.command.type==='construction.clearance.derive'||entry.command.type==='construction.clearance.pickup'));
+  if(clearanceEntries.length>1||clearanceEntries.length&&clearanceEntries[0]!==event.commands.at(-1))fail('clearance_single_last_command_required');
+  const clearanceEntry=clearanceEntries[0];
+  if(clearanceEntry?.kind==='world'){
+   const command=clearanceEntry.command;
+   if(command.type!=='construction.clearance.derive'&&command.type!=='construction.clearance.pickup')fail('clearance_command_invalid');
+   if(!admission.expectedNativeHead||command.expectedHead!==admission.expectedNativeHead)fail('clearance_native_head_stale');
+   if(command.type==='construction.clearance.derive'){
+    const expected=await deriveWildsClearanceCommandV128({state:{...before,frontiers},ownerReceizId:event.ownerReceizId,gameplayOwnerId:event.gameplayOwnerId,commands:event.commands.slice(0,-1),buildingId:command.payload.buildingId,buildingHead:command.payload.buildingHead,expectedHead:command.expectedHead,kaiUPulse:clearanceEntry.kaiUPulse,commandId:command.commandId});
+    if(!same(expected,command))fail('clearance_context_mismatch');
+    const clearance=command.payload.clearance,retiredSourceIds={...before.retiredSourceIds};
+    if(before.clearances?.[clearance.clearanceId])fail('clearance_already_reserved');
+    for(const source of clearance.sources){if(retiredSourceIds[source.sourceId])fail('source_retired');retiredSourceIds[source.sourceId]=clearance.clearanceId;}
+    advanced={...advanced,clearances:{...before.clearances,[clearance.clearanceId]:clearance},retiredSourceIds};
+   }else{
+    assertWildsClearancePickupCurrentV128(before,command);
+    const pickup=replay.world.clearancePickups?.[command.commandId];if(!pickup)fail('clearance_pickup_missing');
+    looseMembers[pickup.member.id]={ownerReceizId:event.ownerReceizId,packageId:pickup.clearanceId,member:pickup.member};
+    advanced={...advanced,clearanceTaken:{...before.clearanceTaken,[pickup.pileId]:pickup.taken}};
+   }
+  }
   if(event.kind!=='reserve'){
    if(event.kind==='use'){
     const last=event.commands.at(-1),lastId=last?.kind==='world'?last.command.commandId:last?.commandId;
     const spent=Object.keys(spentMembers).some(id=>!before.spentMembers[id]&&before.looseMembers[id]?.ownerReceizId===event.ownerReceizId);
-    let continuation=false;
+    let continuation=last?.kind==='world'&&last.command.type==='construction.clearance.pickup'&&Boolean(replay.world.clearancePickups?.[last.command.commandId]);
     if(last?.kind==='world'){
      const command=last.command;
      if(command.type==='storage.material.move'){

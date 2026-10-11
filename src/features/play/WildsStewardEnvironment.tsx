@@ -1,5 +1,6 @@
 "use client";
 
+import {wildsBuildSceneryClearedAt} from './wilds-build-scenery';
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type ComponentProps } from "react";
 import * as THREE from "three";
@@ -104,10 +105,12 @@ export function WildsStewardEnvironment({ activeWorkSource, placementPreview, li
   // The cell cache returns the same array throughout fractional movement.
   // Depend on that projection without closing over the moving player object.
   const nearbySources = siteSpaceId === "wildz.space.outer.v1" ? constructionSourcesNear(player) : null;
+  const retired=useMemo(()=>new Set(Object.values(livingWorld?.buildingClearances??{}).flatMap(clearance=>clearance.sources.map(source=>source.sourceId))),[livingWorld?.buildingClearances]);
   const sources = useMemo(() => {
     const projected: Array<{ source: WildsResourceSource; availableCapacity: number }> = [];
     if (!nearbySources) return projected;
     for (const source of nearbySources) {
+      if(retired.has(source.sourceId)||wildsBuildSceneryClearedAt(siteRuntime.physical.sceneryClearance??[],source.position.x,source.position.z,.7))continue;
       const state = livingWorld?.harvestedSources[source.sourceId];
       const availability = projectWildsResourceAvailability(source, {
         admittedHarvestedCapacity: state?.harvestedCapacity ?? 0,
@@ -117,7 +120,7 @@ export function WildsStewardEnvironment({ activeWorkSource, placementPreview, li
       projected.push({ source, availableCapacity: availability.availableCapacity });
     }
     return projected;
-  }, [kaiUPulse, livingWorld?.harvestedSources, nearbySources]);
+  }, [kaiUPulse, livingWorld?.harvestedSources, nearbySources,retired,siteRuntime.physical.sceneryClearance]);
   const structureIndex = useMemo(() => createWildsProximityIndex(
     Object.values(livingWorld?.structures ?? {}), (structure) => structure.structureId
   ), [livingWorld?.structures]);

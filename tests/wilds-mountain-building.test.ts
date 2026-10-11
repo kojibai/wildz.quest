@@ -5,6 +5,8 @@ import { prepareWildsSiteRuntime, wildsSiteRuntimeGroundY } from '../src/feature
 import { sampleWildsTerrain, WILDS_TERRAIN_TILE_SIZE } from '../src/features/play/wilds-terrain-authority';
 import { projectCreationCompilePhysical } from '../src/features/play/creation/compile-environment';
 import { compileCreation } from '../src/features/play/creation/compiler';
+import { createWildsBlueprintPreview, previewWildsBlueprintPlacement } from '../src/features/play/wilds-world-construction';
+import { freezeConstructionProof } from '../src/features/play/wilds-construction-project';
 import { assertWorldCreationPlacement, creationWorldSourceHead, creationWorldAvailability, compileWorldCreationSource, type WildsCreationConstructCommand } from '../src/features/play/creation/world-source';
 import { initialWildsWorldProjection, checkpointWildsWorld, replayWildsWorld, type WildsWorldProjection } from '../src/features/play/wilds-world-state';
 import { previewWildsContinuousBuild } from '../src/features/play/wilds-continuous-builder';
@@ -33,6 +35,9 @@ import type { CreationShape } from '../src/features/play/creation/types';
 import { appendWildsDiscoveryVisualSolids } from '../src/features/play/wilds-discovery-monuments';
 import { composeWildsBurrowPhysical } from '../src/features/play/wilds-burrow';
 import { composeWildsInteriorConstruction } from '../src/features/play/wilds-construction-physics';
+import { wildsTerrainObstaclesForTile } from '../src/features/play/wilds-terrain-obstacles';
+import { resolveWildsGroundMovement } from '../src/features/play/wilds-grounded-movement';
+import { filterWildsBuildScenery, wildsBuildSceneryClearedAt } from '../src/features/play/wilds-build-scenery';
 import { projectWildsRenderedLivingObstacles } from '../src/features/play/wilds-terrain-obstacles';
 import { projectWildsStructureSupports } from '../src/features/play/wilds-structure-support';
 import { projectWildsOwnedWorldAdditions } from '../src/features/play/wilds-player-world-additions';
@@ -160,7 +165,7 @@ test('a levelled preview becomes the saved placement pose before build or reload
 });
 
 const pulse = '2026-10-10T12:00:00.000Z';
-function paidHouse(position: { x: number; y: number; z: number }, terrainSupport = true,
+function paidHouse(position: { x: number; y: number; z: number }, terrainSupport: boolean | 'clear-scenery' = true,
   shape: CreationShape = { kind: 'shell', width: 2, height: 2.2, depth: 2, thickness: .03, doorway: { width: .9, height: 1.9 } }, materialCount = 1) {
   const resources = Array.from({ length: materialCount > 1 ? 100 : 25 }, (_, index) => projectWildsResourceRegion(index - 12, 0)).flat().filter(source => source.kind === 'timber').slice(0, materialCount);
   const harvested = resources.map(source => createWildsMaterialHarvest({ source, current: initialWildsHarvestedSourceState(source), ownerReceizId: 'owner', actorPosition: source.position, kaiUPulse: 10 }));
@@ -171,7 +176,8 @@ function paidHouse(position: { x: number; y: number; z: number }, terrainSupport
   const definition = creationDefinitionFixture({ nodes: [{ ...node, shape }] });
   const context = groundCreationCompileContext(definition, creationContextFixture({ worldId: original.worldId, spaceId: outer,
     sourceHead: creationWorldSourceHead(original), pose: { position, yaw: 0 }, budget: { timber: materialCount },
-    techniques: combineCreationTechniques(projectCreationWorkers([card], { [card.id]: condition })), physical: terrainSupport ? [supportChunk] : [] }));
+    techniques: combineCreationTechniques(projectCreationWorkers([card], { [card.id]: condition })), physical: terrainSupport ? [{...supportChunk,
+      ...(terrainSupport === 'clear-scenery' ? {chunkId:'wildz.creation.terrain-support.v2'} : {})}] : [] }));
   const compiled = compileCreation(definition, context);
   assert.equal(compiled.status, 'ready'); if (compiled.status !== 'ready') throw Error('paid_house_compile');
   const selected = selectCreationResources(Object.values(original.materialLots), context.budget, compiled.plan.requiredResources, creationWorldAvailability(original, 'owner'));
@@ -319,14 +325,12 @@ test('an actual surface gear preview commits, replays and restores without a ter
   assert.deepEqual(projectWildsConstructionTerrain(restored), projectWildsConstructionTerrain(initial));
   assert.equal(await controller.restore(), 2);
   assert.equal(controller.snapshot().projections.length, 2);
-  const select = createWildsConstructionTerrainSelector(), before = select(restored);
-  const gear = Object.values(restored.creations!).find(source => Object.values(source.instance.nodeStates).some(node => node.kind === 'equipment'))!;
-  let historyReads = 0;
-  const creations = Object.fromEntries(Object.entries(restored.creations!).map(([id, source]) => [id,
-    id === gear.instance.instanceId ? { ...source, instance: { ...source.instance, head: 'sha256:' + 'f'.repeat(64) } }
-      : Object.defineProperty({ ...source }, 'history', { enumerable: true, get() { historyReads++; throw Error('building_history_not_materialized_for_gear_tick'); } })]));
-  assert.equal(select({ ...restored, creations }), before, 'portable gear head changes must not reproject paid building histories');
-  assert.equal(historyReads, 0);
+  const frozen = freezeConstructionProof(structuredClone(restored));
+  const select = createWildsConstructionTerrainSelector(), before = select(frozen);
+  const gear = Object.values(frozen.creations!).find(source => Object.values(source.instance.nodeStates).some(node => node.kind === 'equipment'))!;
+  const creations = freezeConstructionProof(Object.fromEntries(Object.entries(frozen.creations!).map(([id, source]) => [id,
+    id === gear.instance.instanceId ? { ...source, instance: { ...source.instance, head: 'sha256:' + 'f'.repeat(64) } } : source])));
+  assert.equal(select({ ...frozen, creations }), before, 'portable gear head changes must not reproject unchanged immutable paid building histories');
 });
 
 test('a mountain cut preserves trees and existing building footprints at any prior elevation', () => {
@@ -335,4 +339,114 @@ test('a mountain cut preserves trees and existing building footprints at any pri
   const solid = { id: 'protected-tree', center: { ...summit, y: groundY + 30 }, halfExtents: { x: .3, y: 3, z: .3 }, yaw: 0 };
   assert.throws(() => assertCreationTerrainObjectsClear(compiled.plan, [solid]), /terrain_occupied/);
   assert.doesNotThrow(() => assertCreationTerrainObjectsClear(compiled.plan, [{ ...solid, center: { ...solid.center, x: summit.x + 20 } }]));
+});
+
+test('new surface construction replaces a natural tree while preserving its paid source through replay', () => {
+  const tree = Array.from({length:30}, (_,x) => wildsTerrainObstaclesForTile(x,1)).flat().find(item=>item.kind==='tree')!;
+  assert.ok(tree);
+  const built = paidHouse({...tree.position,y:sampleWildsBuildGround(tree.position.x,tree.position.z).elevation},'clear-scenery');
+  const restored = replayWildsWorld(built.events,checkpointWildsWorld(built.original));
+  assert.deepEqual(restored,built.projection);
+  const source = restored.creations![built.command.instanceId];
+  assert.equal(compileWorldCreationSource(source).digest,built.plan.digest);
+  assert.equal(restored.consumedMaterialLots[built.lotId],source.instance.instanceId);
+});
+
+test('derived scenery filtering removes rendering and collision at a retired trunk after restoring a building', () => {
+  const tree = Array.from({length:30}, (_,x) => wildsTerrainObstaclesForTile(x,1)).flat().find(item=>item.kind==='tree')!;
+  const point={...tree.position,y:sampleWildsBuildGround(tree.position.x,tree.position.z).elevation};
+  const built=paidHouse(point,'clear-scenery'),restored=replayWildsWorld([],checkpointWildsWorld(built.projection));
+  const source=restored.creations![built.command.instanceId],plan=compileWorldCreationSource(source);
+  const pads=projectWildsConstructionTerrain(restored),physical=composeWildsConstructionTerrain(admitWildsDiscoveryPhysicalNeighborhood(Math.floor(point.x/128),Math.floor(point.z/128)),pads);
+  const clearance=physical.sceneryClearance??[];
+  assert.deepEqual(filterWildsBuildScenery([tree],clearance),[]);
+  assert.equal(wildsBuildSceneryClearedAt(clearance,point.x,point.z),true);
+  assert.equal(wildsBuildSceneryClearedAt(clearance,point.x+20,point.z),false);
+  const start={...point,x:point.x-.4,y:plan.pose.position.y+.03};
+  const runtime = prepareWildsSiteRuntime(physical);
+  // The model supplies disposable filtered inputs. Automatic control wiring is
+  // intentionally a later gate, independent of this candidate-only artifact.
+  const movement = resolveWildsGroundMovement(start, { ...start, x: start.x + .7 }, {
+    obstacles: filterWildsBuildScenery([tree], clearance),
+    groundElevationAt: point => wildsSiteRuntimeGroundY(runtime, outer, point.x, point.z, sampleWildsBuildGround(point.x, point.z).elevation)
+  });
+  assert.ok(movement.position.x>start.x+.25,'a removed tree must not leave an invisible collision trunk');
+  assert.throws(()=>assertWorldCreationPlacement(restored,built.plan,built.context),/admitted_overlap|terrain_occupied/);
+  assert.equal(restored.creations![built.command.instanceId].instance.head,source.instance.head);
+});
+
+test('manual foundation placement respects an established generated building', () => {
+  const built=paidHouse({x:2,y:sampleWildsBuildGround(2,2).elevation,z:2},'clear-scenery');
+  const preview=previewWildsContinuousBuild(built.projection,'owner','foundation',{pointer:built.plan.pose.position,rotationQuarterTurns:0,heightStep:0,surfaceSnap:true,snapVersion:2,landscapeRule:'wildz.build-ground.v2'});
+  assert.equal(preview.placement.valid,false,'manual building must preserve the same sovereignty as generated building');
+  assert.ok(preview.placement.cues.includes('blocked'));
+});
+
+test('preview terrain reuses immutable construction and custody collections across temporary draft worlds', () => {
+  const built = paidHouse({ ...summit, y: groundY }, 'clear-scenery');
+  const frozen = freezeConstructionProof(structuredClone(built.projection));
+  const first = projectWildsConstructionTerrain(frozen);
+  assert.equal(projectWildsConstructionTerrain({ ...frozen, constructionProjects: { ...frozen.constructionProjects } }), first,
+    'temporary preview project must not rebuild unchanged paid mountain support');
+});
+
+test('mutable imported terrain sources cannot retain stale paid authority by world identity or claimed heads', () => {
+  const built = paidHouse({ ...summit, y: groundY }, 'clear-scenery');
+  const imported = structuredClone(built.projection), select = createWildsConstructionTerrainSelector();
+  assert.equal(select(imported).length, 1);
+  (imported.creations![built.command.instanceId].command.workerSources[0].condition as { fatigue: number }).fatigue = 100;
+  assert.deepEqual(select(imported), [], 'mutable invalid source must be fully rechecked despite unchanged claimed heads');
+});
+
+test('grading the new apron cannot cut into an established neighbor footing at another elevation', () => {
+  const { definition, context } = house(), compiled = compileCreation(definition, context);
+  assert.equal(compiled.status, 'ready'); if (compiled.status !== 'ready') return;
+  // Existing neighbor begins 0.5 beyond the new floor, inside its paid flat apron.
+  const neighbor = { id: 'neighbor-wing', center: { x: summit.x + 2.55, y: groundY + 12, z: summit.z }, halfExtents: { x: .05, y: 1, z: .5 }, yaw: 0 };
+  assert.throws(() => (assertCreationTerrainObjectsClear as (...args: unknown[]) => void)(compiled.plan, [neighbor], true), /terrain_occupied/);
+});
+
+test('rotated flat apron corners participate in scenery broad phase', () => {
+  const pads = [{ center: { x: 0, y: 0, z: 0 }, halfExtents: { x: 1, z: 1 }, yaw: Math.PI / 4 }];
+  assert.equal(wildsBuildSceneryClearedAt(pads, 2.9, 0), true);
+  pads[0].center.x = 100;
+  assert.equal(wildsBuildSceneryClearedAt(pads, 102.9, 0), true, 'mutable imported footprint must not keep an old spatial index');
+});
+
+
+test('immutable terrain projections deeply freeze derived pads for safe scenery index reuse', () => {
+  const built = paidHouse({ x: 2, y: sampleWildsBuildGround(2, 2).elevation, z: 2 }, 'clear-scenery');
+  const pads = projectWildsConstructionTerrain(freezeConstructionProof(built.projection));
+  assert.ok(Object.isFrozen(pads));
+  assert.ok(pads.length > 0);
+  for (const pad of pads) {
+    assert.ok(Object.isFrozen(pad), 'derived pad must remain an immutable cache key');
+    assert.ok(Object.isFrozen(pad.center));
+    assert.ok(Object.isFrozen(pad.halfExtents));
+  }
+});
+
+
+test('a circular canopy beyond the apron corner does not clear an untouched source', () => {
+  const footprint = [{ center: { x: 0, y: 0, z: 0 }, halfExtents: { x: 1, z: 1 }, yaw: 0 }];
+  assert.equal(wildsBuildSceneryClearedAt(footprint, 2.5, 2.5, .5), false);
+  assert.equal(wildsBuildSceneryClearedAt(footprint, 2.4, 2.4, .5), true);
+});
+
+
+for (const [caseName, neighbor] of [
+  ['different elevation', { id: 'established-upper-wing', center: { x: 0, y: 12, z: 0 }, halfExtents: { x: 1, y: 1, z: 1 } }],
+  ['flat apron only', { id: 'established-edge-wing', center: { x: 4.1, y: .3, z: 0 }, halfExtents: { x: .5, y: .3, z: 1 } }]
+] as const) test(`ordinary v2 foundation protects established ${caseName} across its final grading footprint`, () => {
+  const blueprint = createWildsBlueprintPreview('ordinary-grade-protection', 'wildz.excavation.region.v1:0:0');
+  const input = { blueprint, kind: 'foundation' as const, pointer: { x: 0, y: 0, z: 0 }, rotationQuarterTurns: 0, heightStep: 0,
+    physical: { terrainY: 0, waterline: null, anchors: [], solids: [neighbor] } };
+  const legacy = previewWildsBlueprintPlacement(input);
+  const v1 = previewWildsBlueprintPlacement({ ...input, physical: { ...input.physical, groundSupport: 'wildz.build-ground.v1' } });
+  assert.equal(legacy.valid, true, 'legacy body-only output remains byte-preserved');
+  assert.deepEqual(v1, legacy);
+  const v2 = previewWildsBlueprintPlacement({ ...input, physical: { ...input.physical, groundSupport: 'wildz.build-ground.v2' } });
+  assert.equal(v2.valid, false);
+  assert.ok(v2.cues.includes('blocked'));
+  assert.deepEqual(v2.geometry, legacy.geometry, 'protection uses the actual final placed geometry');
 });

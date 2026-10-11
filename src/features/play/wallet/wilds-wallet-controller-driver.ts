@@ -1,3 +1,4 @@
+import type { WildzWalletObservation, WildzWalletObservationPort } from "../../../lib/receiz/wildz-wallet-observation";
 import type { WorldOverlayOwner } from "@/features/play/world-overlay-state";
 import { walletAuthorizationFailureCode } from "./wilds-wallet-authorization-error";
 import { admitWildsWalletTransferRecovery, checkpointWildsWalletTransferRecovery, wildsWalletBrowserTransferRecoveryStore, type WildsWalletTransferRecoveryStore } from "./wilds-wallet-transfer-recovery";
@@ -36,6 +37,9 @@ export function createWildsWalletControllerDriver(input: {
   identityKey: string;
   authorityGeneration: string;
   sourceKey?: string;
+  incarnation?: string;
+  observation?: WildzWalletObservation | null;
+  observationPort?: WildzWalletObservationPort;
   fetcher: DriverFetcher;
   readTimeoutMs?: number;
   transferTimeoutMs?: number;
@@ -47,14 +51,22 @@ export function createWildsWalletControllerDriver(input: {
   const cache = input.cache ?? wildsWalletSharedSessionCache;
   const recoveryStore = input.recoveryStore ?? wildsWalletBrowserTransferRecoveryStore;
   const runtime = createWildsWalletRequestRuntime();
-  let state = hydrateWildsWalletControllerState(input.identityKey, input.authorityGeneration, cache);
+  let state = hydrateWildsWalletControllerState(input.identityKey, input.authorityGeneration, cache, input.sourceKey, input.incarnation, input.observation);
   const restoreRecovery = () => {
     try {
-      const recovered = admitWildsWalletTransferRecovery(recoveryStore.load(state.identityKey), state.identityKey);
-      if (recovered) state = { ...state, page: "send", stagedTransactionId: recovered.attempt, transfer: recovered };
+      const retained = recoveryStore.load(state.identityKey);
+      const sourceMatches = !state.sourceKey || (retained && typeof retained === "object" && "sourceKey" in retained && retained.sourceKey === state.sourceKey);
+      const recovered = sourceMatches ? admitWildsWalletTransferRecovery(retained, state.identityKey) : null;
+      if (recovered) state = { ...state, page: "send", stagedTransactionId: recovered.attempt, transfer: recovered,
+        ...(state.summary ? {balanceBasis: "observed", observationPending: true} : {}) };
     } catch { /* A browser projection grants no payment or signing authority. */ }
   };
   restoreRecovery();
+  let observationRevision = 0;
+  let observationPort = input.observationPort;
+  const stableScope = () => JSON.stringify([state.identityKey, state.sourceKey, state.incarnation]);
+  const cacheKey = () => walletAuthorityCacheKey(state.identityKey, state.authorityGeneration, state.sourceKey, state.incarnation);
+  const observe = (origin: "live" | "seal") => { if (state.summary) void observationPort?.observe(state.summary, origin).catch(() => undefined); };
   let refreshPromise: Promise<void> | null = null;
   let receivePromise: Promise<void> | null = null;
   let transferPromise: Promise<void> | null = null;
@@ -96,6 +108,7 @@ export function createWildsWalletControllerDriver(input: {
     if (!request) return refreshPromise ?? Promise.resolve();
     const identityKey = state.identityKey;
     const authorityGeneration = state.authorityGeneration;
+    const observationAtStart = observationRevision;
     publish({ type: "refresh-start", requestId: request.id });
     const operation = (async () => {
       const cleanups: Array<() => void> = [];
@@ -119,16 +132,18 @@ export function createWildsWalletControllerDriver(input: {
           read("/api/wilds/wallet/ledger")
         ]);
         const summary = await read("/api/wilds/wallet/summary");
-        if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted) return;
+        if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted || observationRevision !== observationAtStart) return;
         let response = admitWildsWalletReadResponse({ summary, capabilities: projectWildsWalletCapabilities(), ledger: null });
         const publishResponse = (pendingDetails: boolean) => {
-          cache.write(walletAuthorityCacheKey(identityKey, authorityGeneration), response);
+          cache.revive(stableScope());
+          cache.write(cacheKey(), response);
           runtime.recordCacheWrite();
           publish({ type: "refresh-resolved", pendingDetails, requestId: request.id, identityKey, authorityGeneration, response });
         };
         publishResponse(true);
+        observe("live");
         const [capabilities, ledger] = await details;
-        if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted) return;
+        if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted || observationRevision !== observationAtStart) return;
         // Optional endpoint failures must not hide a successfully admitted balance.
         if (capabilities.status === "fulfilled") {
           try { response = admitWildsWalletReadResponse({ ...response, capabilities: capabilities.value }); } catch { /* Keep conservative capabilities. */ }
@@ -138,10 +153,10 @@ export function createWildsWalletControllerDriver(input: {
         }
         publishResponse(false);
       } catch (cause) {
-        if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted) return;
+        if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted || observationRevision !== observationAtStart) return;
         const failure = cause && typeof cause === "object" && "status" in cause ? cause as { status: number | null; code: string | null } : { status: null, code: null };
         const reason = classifyWildsWalletRefreshFailure(failure);
-        if (reason === "revoked") cache.delete(walletAuthorityCacheKey(identityKey, authorityGeneration));
+        if (reason === "revoked") { sourceRevision++; sourcePromise = null; sourceSnapshot = null; cache.retire(stableScope()); cache.delete(cacheKey()); void observationPort?.retire().catch(() => undefined); }
         const code = failure.code ? walletAuthorizationFailureCode({ code: failure.code })
           : cause instanceof Error && cause.message === "wallet_read_timeout" ? "WALLET_READ_TIMEOUT" : "WALLET_READ_UNAVAILABLE";
         publish({ type: "refresh-failed", requestId: request.id, reason, code });
@@ -158,8 +173,9 @@ export function createWildsWalletControllerDriver(input: {
   const admitSourceAuthority = (response: WildsWalletReadResponse | null, expected = { identityKey: state.identityKey, authorityGeneration: state.authorityGeneration }) => {
     const { identityKey, authorityGeneration } = expected;
     if (identityKey !== state.identityKey || authorityGeneration !== state.authorityGeneration) return;
-    if (response && state.balanceBasis !== "current" && state.status !== "verified") {
-      cache.write(walletAuthorityCacheKey(identityKey, authorityGeneration), response, "saved");
+    if (response && state.balanceBasis !== "current" && state.balanceBasis !== "observed" && state.status !== "verified") {
+      cache.write(cacheKey(), response, "saved");
+      void observationPort?.observe(response.summary, "seal").catch(() => undefined);
       runtime.recordCacheWrite();
     }
     publish({ type: "source-authority-resolved", identityKey, authorityGeneration, response });
@@ -167,7 +183,7 @@ export function createWildsWalletControllerDriver(input: {
   const projectSourceAuthority = (project: () => Promise<WildsWalletReadResponse | null>): Promise<void> => {
     // A completed source admission belongs to this exact active authority.
     // Transport failure cannot change the durable Seal or require replaying it.
-    if (state.sourceAuthorityVerified) return Promise.resolve();
+    if (state.sourceAuthorityVerified || state.status === "revoked") return Promise.resolve();
     if (sourceSnapshot) {
       admitSourceAuthority(sourceSnapshot.response);
       return Promise.resolve();
@@ -297,6 +313,18 @@ export function createWildsWalletControllerDriver(input: {
       projection: { status: "unknown", rail: current.rail, amountPhiMicro: current.amountPhiMicro }
     });
   };
+  const markObservationPending = async () => {
+    observationRevision++;
+    cache.delete(cacheKey());
+    if (!state.summary) return;
+    const summary = state.summary;
+    state = { ...state, balanceBasis: "observed", observationPending: true, status: "offline-verified" };
+    cache.write(cacheKey(), {summary, capabilities: projectWildsWalletCapabilities(), ledger: null}, "observed", true, state.observationOrigin);
+    input.publish(state);
+    // Existing exact recovery is already durable at submission. Local display
+    // I/O runs independently; a restart always labels this amount last-known.
+    void observationPort?.observe(summary, state.observationOrigin ?? "live", "pending").catch(() => undefined);
+  };
   const authorizeTransfer = (pointerId: number, consent: Readonly<{ artifact: unknown; challenge: unknown }>) => {
     if (transferPromise) return transferPromise;
     const request = runtime.beginTransfer();
@@ -318,6 +346,8 @@ export function createWildsWalletControllerDriver(input: {
     }
     const operation = (async () => {
       try {
+        void markObservationPending();
+        if (!runtime.isCurrentTransfer(request.id) || request.controller.signal.aborted) return;
         const response = await boundedJson("/api/wilds/wallet/transfer/execute", {
           method: "POST", body: JSON.stringify({ attempt, consent }), signal: request.controller.signal
         }, input.transferTimeoutMs ?? 15_000);
@@ -403,15 +433,17 @@ export function createWildsWalletControllerDriver(input: {
     cancelForExclusiveOwner(owner: WorldOverlayOwner) { if (owner !== "none" && owner !== "wallet") {
       if (!state.open && !recipientRequest && state.receiveRequestId === null && state.transfer.requestId === null && state.transfer.authorizationPointerId === null) return;
       runtime.cancelInteractive(); recipientRequest?.controller.abort(); recipientRequest = null; receivePromise = null; transferPromise = null; signingPromise = null; publish({ type: "exclusive-owner-changed", owner }); } },
-    setAuthority(identityKey: string, authorityGeneration: string, localSourceKey = authorityGeneration) {
+    setAuthority(identityKey: string, authorityGeneration: string, localSourceKey?: string, incarnation = "legacy", observation?: WildzWalletObservation | null, port?: WildzWalletObservationPort) {
       // Renewing distribution credentials does not replace the local proof.
       // An account/source replacement retires both completed and pending work.
-      if (state.identityKey !== identityKey || sourceKey !== localSourceKey) {
-        sourceRevision++; sourcePromise = null; sourceSnapshot = null; sourceKey = localSourceKey;
+      if (state.identityKey !== identityKey || state.sourceKey !== localSourceKey || sourceKey !== (localSourceKey ?? authorityGeneration) || state.incarnation !== incarnation) {
+        sourceRevision++; sourcePromise = null; sourceSnapshot = null; sourceKey = localSourceKey ?? authorityGeneration;
       }
-      cache.delete(walletAuthorityCacheKey(state.identityKey, state.authorityGeneration)); runtime.cancelAll(); recipientRequest?.controller.abort();
+      const sameObservationScope = state.identityKey === identityKey && state.sourceKey === localSourceKey && state.incarnation === incarnation;
+      observationRevision++; observationPort = port ?? (sameObservationScope ? observationPort : undefined);
+      cache.delete(cacheKey()); runtime.cancelAll(); recipientRequest?.controller.abort();
       recipientRequest = null; refreshPromise = null; receivePromise = null; transferPromise = null; signingPromise = null;
-      state = renewWildsWalletControllerState(state, hydrateWildsWalletControllerState(identityKey, authorityGeneration, cache));
+      state = renewWildsWalletControllerState(state, hydrateWildsWalletControllerState(identityKey, authorityGeneration, cache, localSourceKey, incarnation, observation));
       restoreRecovery();
       runtime.recordPublication(); input.publish(state);
     },
@@ -426,6 +458,7 @@ export function createWildsWalletControllerDriver(input: {
     editTransfer(field: "recipient" | "amount") { publish({ type: "transfer-edit", field }); },
     resetTransfer() { publish({ type: "transfer-reset" }); },
     expireTransferReview(currentKai: number) { publish({ type: "transfer-review-expired", currentKai }); },
+    markObservationPending,
     stageTransfer,
     authorizeTransfer,
     signAndAuthorizeTransfer,

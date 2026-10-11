@@ -856,7 +856,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   }, [overlay?.kind, prewarmCombinedVault]);
   // Seal and Vault reuse the exact prepared snapshot; movement never queues backups.
   const prepareCombinedVaultForSave = async (current: WildzContinuitySnapshot) => {
-    try { return await combinedVaultCoordinator.current!.prepare(current, false); }
+    try { return await combinedVaultCoordinator.current!.prepare(current, false, { explicit: true }); }
     catch (error) {
       if (!(error instanceof Error) || !["wildz_identity_passphrase_required", "offline_seal_enrollment_required"].includes(error.message)) throw error;
       return combinedVaultCoordinator.current!.prepare(current, true);
@@ -1383,6 +1383,8 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           networkEnabled={Boolean(character) && proofSessionConnected}
           walletAuthorityGeneration={proofSessionGeneration || identity.keyId}
           walletIdentityKey={identity.actorId}
+          walletObservationEpoch={identity.walletObservationEpoch}
+          initialWalletPresentation={continuity.walletPresentation}
           walletReadIdentityKey={identity.localAuthority === "verified" ? identity.keyId : undefined}
           walletPublicUsername={identity.username ?? null}
           initialState={ownerPlayState}
@@ -1393,7 +1395,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           playerDisplayName={ownerDisplayName ?? `@${ownerUsername}`}
           shellOverlayOwner={shellOverlayOwner}
           onPlayStateChange={(playState, playerContinuity) => persistPlayState(playState, playerContinuity, continuity)}
-          onPrepareCard={(asset, player) => prepareWildzIdentityOwnedCard(identity, asset, player, { allowPrompt: false })}
+          onPrepareCard={(asset, player, options) => prepareWildzIdentityOwnedCard(identity, asset, player, { allowPrompt: false, speculative: options?.speculative === true })}
           onExportCard={(asset, player, prepared) => prepared && matchesPreparedWildzIdentityOwnedCard(prepared, identity, asset)
             ? savePreparedWildzIdentityOwnedCard(prepared)
             : downloadWildzIdentityOwnedCard(identity, asset, player(asset))}

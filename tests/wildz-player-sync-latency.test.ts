@@ -5,6 +5,7 @@ import { mergeWildsRemotePlayerPlayState } from "../src/features/play/wilds-play
 import { admittedInventoryDiagnostics } from "../src/features/play/admitted-inventory";
 import { wildsCardVerificationDiagnostics } from "../src/features/play/portable-card";
 import { loadWildzRestoredOwnerState, saveWildzRestoredPlayState } from "../src/features/identity/wildz-restore";
+import { wildzInventoryMemoryKey } from "../src/features/identity/wildz-inventory-memory";
 import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-continuity-database";
 import type { WildzIdentitySession } from "../src/lib/receiz/wildz-identity-repository";
 
@@ -60,10 +61,16 @@ test("loading stored account proofs gives the browser a turn before completing a
   const session: WildzIdentitySession = { schema: "receiz.wildz.identity_session.v1", keyId: "startup-turn-key", actorId: "startup_turn", username: "startup_turn", displayName: "Explorer", portableStateStatus: "verified", localAuthority: "verified", remoteStatus: "offline" };
   const playState = createOwnerBoundInitialPlayState(session.actorId, "2026-10-07T00:00:00.000Z");
   await saveWildzRestoredPlayState({ database, session, playState });
+  // Exercise cold canonical proof admission, not the separately covered
+  // authenticated inventory-memory fast path retained by saving.
+  await database.transaction(["meta"], "readwrite", tx => tx.delete("meta", wildzInventoryMemoryKey(session)));
+  assert.equal(await database.read("meta", wildzInventoryMemoryKey(session)), null);
+  const admissionBefore = admittedInventoryDiagnostics().verifierCalls;
   let browserTurn = false;
   const turn = setTimeout(() => { browserTurn = true; }, 0);
   const restored = await loadWildzRestoredOwnerState({ database, session });
   clearTimeout(turn);
   assert.equal(browserTurn, true);
+  assert.ok(admittedInventoryDiagnostics().verifierCalls > admissionBefore, "cold stored proofs receive canonical admission");
   assert.equal(restored?.playState.inventory[0]!.proof.digest, playState.inventory[0]!.proof.digest);
 });

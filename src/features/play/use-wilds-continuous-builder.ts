@@ -38,16 +38,16 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
   const selected = selectedId ? snapshot?.constructionComponents[selectedId] ?? null : null;
   const progress = useMemo(() => selected && snapshot ? projectWildsConstructionProgressFromWorld(snapshot, selected.componentId) : null, [selected, snapshot]);
   const adjusting = adjustmentHead !== null;
-  const adjustmentRequest: WildsConstructionPlacementRequest | null = pointer ? {...(spaceId!=="wildz.space.outer.v1"?{spaceId}:{}),pointer: {x:pointer.x, y:pointer.surfaceWorldY ?? sampleWildsTerrain(pointer.x,pointer.z).elevation, z:pointer.z}, rotationQuarterTurns:rotation, heightStep:height, surfaceSnap:snapEnabled,snapVersion:2} : null;
+  const adjustmentRequest: WildsConstructionPlacementRequest | null = pointer ? {...(spaceId!=="wildz.space.outer.v1"?{spaceId}:{}),pointer: {x:pointer.x, y:pointer.surfaceWorldY ?? sampleWildsTerrain(pointer.x,pointer.z).elevation, z:pointer.z}, rotationQuarterTurns:rotation, heightStep:height, surfaceSnap:snapEnabled,snapVersion:2,landscapeRule:'wildz.build-ground.v2'} : null;
   const adjustment = useMemo(() => {
     if (!adjusting || !selected || !snapshot || !pointer) return null;
-    try { return previewWildsConstructionAdjustment(snapshot, selected.componentId, {...(spaceId!=="wildz.space.outer.v1"?{spaceId}:{}),pointer:{x:pointer.x,y:pointer.surfaceWorldY ?? sampleWildsTerrain(pointer.x,pointer.z).elevation,z:pointer.z},rotationQuarterTurns:rotation,heightStep:height,surfaceSnap:snapEnabled,snapVersion:2}); }
+    try { return previewWildsConstructionAdjustment(snapshot, selected.componentId, {...(spaceId!=="wildz.space.outer.v1"?{spaceId}:{}),pointer:{x:pointer.x,y:pointer.surfaceWorldY ?? sampleWildsTerrain(pointer.x,pointer.z).elevation,z:pointer.z},rotationQuarterTurns:rotation,heightStep:height,surfaceSnap:snapEnabled,snapVersion:2,landscapeRule:'wildz.build-ground.v2'}); }
     catch { return null; }
   }, [adjusting,selected,snapshot,pointer,rotation,height,spaceId,snapEnabled]);
   const preview = useMemo(() => {
     if (!open || selectedId || adjusting || !snapshot || !pointer) return null;
     try {
-      return previewWildsContinuousBuild(snapshot, owner, kind, { ...(spaceId!=="wildz.space.outer.v1"?{spaceId}:{}), pointer: { x: pointer.x, y: pointer.surfaceWorldY ?? sampleWildsTerrain(pointer.x, pointer.z).elevation, z: pointer.z }, rotationQuarterTurns: rotation, heightStep: height, surfaceSnap: snapEnabled, snapVersion: 2 });
+      return previewWildsContinuousBuild(snapshot, owner, kind, { ...(spaceId!=="wildz.space.outer.v1"?{spaceId}:{}), pointer: { x: pointer.x, y: pointer.surfaceWorldY ?? sampleWildsTerrain(pointer.x, pointer.z).elevation, z: pointer.z }, rotationQuarterTurns: rotation, heightStep: height, surfaceSnap: snapEnabled, snapVersion: 2, landscapeRule:'wildz.build-ground.v2' });
     } catch { return null; }
   }, [open, selectedId, adjusting, snapshot, pointer, kind, owner, rotation, height,spaceId,snapEnabled]);
   const inReach = (point: { x: number; z: number }) => Math.hypot(player.x - point.x, player.z - point.z) <= 6;
@@ -117,7 +117,7 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
       setDragging(false);dragSource.current=null;
       void run(async()=>{
         if(source.head!==component.head)throw new Error("This piece changed. Select it again.");
-        const request:WildsConstructionPlacementRequest={...(spaceId!=="wildz.space.outer.v1"?{spaceId}:{}),pointer:{x:point.x,y:point.surfaceWorldY??component.evidence.pointer.y,z:point.z},rotationQuarterTurns:source.rotation,heightStep:source.height,surfaceSnap:snapEnabled,snapVersion:2};
+        const request:WildsConstructionPlacementRequest={...(spaceId!=="wildz.space.outer.v1"?{spaceId}:{}),pointer:{x:point.x,y:point.surfaceWorldY??component.evidence.pointer.y,z:point.z},rotationQuarterTurns:source.rotation,heightStep:source.height,surfaceSnap:snapEnabled,snapVersion:2,landscapeRule:'wildz.build-ground.v2'};
         const next=previewWildsConstructionAdjustment(snapshot,id,request);
         if(!inReach(component.transform.position)||!inReach(next.placement.transform.position)){setAdjustmentHead(null);setPointer(null);setError("Keep the piece within 6 metres.");feedback("Keep the piece within 6 metres.");return;}
         if(next.blocker||!next.placement.valid){const reason=next.blocker??next.placement.cues.map(wildsConstructionCue).join(" ");setAdjustmentHead(null);setPointer(null);setError(reason);feedback(reason);return;}
@@ -141,7 +141,7 @@ export function useWildsContinuousBuilder({ world, owner, player, lots, feedback
       if (inspecting || adjusting) return;
       setPointer(next); setSelectedId(null); setError(null);
       try {
-        const tapped = previewWildsContinuousBuild(snapshot, owner, kind, { ...(spaceId!=="wildz.space.outer.v1"?{spaceId}:{}), pointer: { x: next.x, y: next.surfaceWorldY ?? sampleWildsTerrain(next.x, next.z).elevation, z: next.z }, rotationQuarterTurns: rotation, heightStep: height, surfaceSnap: snapEnabled, snapVersion: 2 });
+        const tapped = previewWildsContinuousBuild(snapshot, owner, kind, { ...(spaceId!=="wildz.space.outer.v1"?{spaceId}:{}), pointer: { x: next.x, y: next.surfaceWorldY ?? sampleWildsTerrain(next.x, next.z).elevation, z: next.z }, rotationQuarterTurns: rotation, heightStep: height, surfaceSnap: snapEnabled, snapVersion: 2, landscapeRule:'wildz.build-ground.v2' });
         if (!tapped.placement.valid) { const reason = tapped.placement.cues.map(wildsConstructionCue).join(" "); setError(reason); feedback(reason); return; }
         if (!inReach(tapped.placement.transform.position)) { const reason = "Move within 6 metres of this spot, then tap to place your piece."; setError(reason); feedback(reason); return; }
         placePreview(tapped);

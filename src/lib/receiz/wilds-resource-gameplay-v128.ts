@@ -1,3 +1,4 @@
+import {isQualifiedWildsWorkerCustodyV128} from './wilds-clearance-action-worker-runtime';
 import type { ReceizPortableSealedArtifactV124 } from '@receiz/sdk';
 export {mergeQualifiedWildsResourceWorldV128} from '../../features/play/wilds-resource-application-world-v128';
 import type { AdventureCardCondition } from '../../features/play/adventure/card-condition';
@@ -21,7 +22,7 @@ import {wildsMaterialCustodian} from '../../features/play/wilds-world-state';
 const qualifiedApplicationCustody = new WeakMap<object,Readonly<{memberId:string;head:string}>>();
 export function isQualifiedWildsApplicationResourceCustodyV128(value:unknown,memberId:string,head:string):value is WildsApplicationResourceCustodyV128 {
  if(!value||typeof value!=='object')return false;
- const admitted=qualifiedApplicationCustody.get(value);return admitted?.memberId===memberId&&admitted.head===head;
+ const admitted=qualifiedApplicationCustody.get(value);return admitted?.memberId===memberId&&admitted.head===head||isQualifiedWildsWorkerCustodyV128(value,memberId,head);
 }
 type Pose={x:number;y:number;z:number};
 type Animal={commandId:string;animalId:string;expectedAnimalHead:string;kaiUPulse:number;player:Pose;spaceId:string};
@@ -35,6 +36,7 @@ export type WildsResourceGameplayCommandV128 =
 export const WILDS_RESOURCE_GAMEPLAY_MAX_COMMANDS_V128=1024;
 export const WILDS_RESOURCE_GAMEPLAY_MAX_BYTES_V128=8*1024*1024;
 const worldTypes=new Set(['grove.observe','grove.act','resource.material.harvest','tool.steward.craft','tool.steward.equip',
+ 'construction.clearance.derive','construction.clearance.pickup',
  'structure.trail-shelter.build','structure.trail-bridge.build','structure.steward-workbench.build','structure.trail-cache.build',
  'construction.site.place','construction.site.contribute','construction.site.work','construction.project.create',
  'construction.component.place','construction.component.adjust','construction.component.deposit','construction.component.work',
@@ -62,7 +64,7 @@ export function validateWildsResourceGameplayCommandV128(command:WildsResourceGa
 /** Replay only exact commands from the fixed source genesis. A caller cannot
  * supply inventory, tools, shelters, source checkpoints or a replacement grove.
  * Card evidence is independently admitted by the production SDK port on Send. */
-export async function replayWildsResourceGameplayV128(input:Readonly<{gameplayOwnerId:string;commands:readonly WildsResourceGameplayCommandV128[];imports?:readonly WildsResourceGameplayImportV128[];excludedFood?:readonly Readonly<{itemId:string;fromKaiUPulse:number}>[];excludedMembers?:readonly Readonly<{memberId:string;packageId:string;fromKaiUPulse:number}>[];verifyCard?:(card:PortableCardAsset,original:ReceizPortableSealedArtifactV124)=>Promise<void>}>) {
+export async function replayWildsResourceGameplayV128(input:Readonly<{gameplayOwnerId:string;commands:readonly WildsResourceGameplayCommandV128[];imports?:readonly WildsResourceGameplayImportV128[];excludedFood?:readonly Readonly<{itemId:string;fromKaiUPulse:number;untilKaiUPulse?:number}>[];excludedMembers?:readonly Readonly<{memberId:string;packageId:string;fromKaiUPulse:number;untilKaiUPulse?:number}>[];verifyCard?:(card:PortableCardAsset,original:ReceizPortableSealedArtifactV124)=>Promise<void>}>) {
  if(!/^[a-z0-9][a-z0-9:._-]{0,511}$/i.test(input.gameplayOwnerId)||!Array.isArray(input.commands)||input.commands.length>WILDS_RESOURCE_GAMEPLAY_MAX_COMMANDS_V128
   ||new TextEncoder().encode(canonicalPortableCardJson(input.commands)).length>WILDS_RESOURCE_GAMEPLAY_MAX_BYTES_V128)fail('trace_invalid');
  const commands=structuredClone(input.commands),owner=input.gameplayOwnerId;
@@ -80,9 +82,13 @@ export async function replayWildsResourceGameplayV128(input:Readonly<{gameplayOw
    }
    service=WildsWorldService.fromLocalProjection({...world,materialLots,resourceLots,applicationSourceCustody});}
 
-  const unavailable=(input.excludedFood??[]).filter(item=>item.fromKaiUPulse<=kai).map(item=>item.itemId);
-  if(unavailable.length)nourishment={...nourishment,unavailableItemIds:[...new Set(unavailable)].sort()};
-  const reserved=(input.excludedMembers??[]).filter(item=>item.fromKaiUPulse<=kai);
+  const unavailable=(input.excludedFood??[]).filter(item=>item.fromKaiUPulse<=kai&&(item.untilKaiUPulse===undefined||kai<item.untilKaiUPulse)).map(item=>item.itemId);
+  if(input.excludedFood?.length)nourishment={...nourishment,unavailableItemIds:[...new Set(unavailable)].sort()};
+  const expired=(input.excludedMembers??[]).filter(item=>item.untilKaiUPulse!==undefined&&kai>=item.untilKaiUPulse);
+  if(expired.length){const world=service.snapshot(),reservedMaterialLots={...world.reservedMaterialLots},reservedResourceLots={...world.reservedResourceLots};
+   for(const item of expired){if(reservedMaterialLots[item.memberId]===item.packageId)delete reservedMaterialLots[item.memberId];if(reservedResourceLots[item.memberId]===item.packageId)delete reservedResourceLots[item.memberId];}
+   service=WildsWorldService.fromLocalProjection({...world,reservedMaterialLots,reservedResourceLots});}
+  const reserved=(input.excludedMembers??[]).filter(item=>item.fromKaiUPulse<=kai&&(item.untilKaiUPulse===undefined||kai<item.untilKaiUPulse));
   if(reserved.length){const world=service.snapshot();service=WildsWorldService.fromLocalProjection({...world,reservedMaterialLots:{...world.reservedMaterialLots,...Object.fromEntries(reserved.filter(item=>world.materialLots[item.memberId]).map(item=>[item.memberId,item.packageId]))},reservedResourceLots:{...world.reservedResourceLots,...Object.fromEntries(reserved.filter(item=>world.resourceLots[item.memberId]).map(item=>[item.memberId,item.packageId]))}});}
  };
  const seen=new Map<string,string>(),advances:WildsResourceGameplaySourceAdvanceV128[]=[],eventsByCommand:Record<string,ReturnType<WildsWorldService['events']>>={};
@@ -127,6 +133,13 @@ export async function replayWildsResourceGameplayV128(input:Readonly<{gameplayOw
    const timestamp=kaiUPulseToISOString(entry.kaiUPulse);
    const result=service.execute(command,{actorId:owner,canonical:true,pulse:timestamp,occurredAt:timestamp,uPulse:entry.kaiUPulse,...(entry.card?{card:entry.card}:{})});
    eventsByCommand[commandId]=result.events;
+   if(command.type==='construction.clearance.pickup'){
+    const pickup=result.projection.clearancePickups?.[commandId];if(!pickup)fail('clearance_pickup_missing');
+    if(pickup.member.kind==='food'){
+     nourishment=creditWildsImportedPackageFood(nourishment,[pickup.member],{packageId:pickup.clearanceId,receiptId:commandId},entry.kaiUPulse);
+     nourishment={...nourishment,nativeItemIds:[...new Set([...(nourishment.nativeItemIds??[]),pickup.member.id])].sort()};
+    }
+   }
    if(command.type==='resource.material.harvest'){
     const previous=before.harvestedSources[command.source.sourceId]??initialWildsHarvestedSourceState(command.source);
     const next=result.projection.harvestedSources[command.source.sourceId];if(!next)fail('material_successor_missing');
@@ -151,7 +164,7 @@ export async function replayWildsResourceGameplayV128(input:Readonly<{gameplayOw
  }
  applyImports(Number.MAX_SAFE_INTEGER);
  const world=service.snapshot(),members:Record<string,WildsResourcePackageMember>={};
- for(const foodItem of Object.values(nourishment.items))if(foodItem.consumedKaiUPulse===undefined&&!nourishment.unavailableItemIds?.includes(foodItem.itemId))members[foodItem.itemId]={kind:'food',id:foodItem.itemId,foodItem,nourishment};
+ for(const foodItem of Object.values(nourishment.items))if(foodItem.consumedKaiUPulse===undefined&&!nourishment.unavailableItemIds?.includes(foodItem.itemId))members[foodItem.itemId]={kind:'food',id:foodItem.itemId,foodItem,nourishment:foodItem.clearance?{...createWildsNourishmentState(foodItem.ownerReceizId),lastKaiUPulse:foodItem.gatheredKaiUPulse,items:{[foodItem.itemId]:foodItem}}:nourishment};
  for(const lot of Object.values(world.materialLots))if(wildsMaterialCustodian(world,lot)===owner&&!world.consumedMaterialLots[lot.lotId]&&!world.storedMaterialLots[lot.lotId]&&!world.reservedMaterialLots?.[lot.lotId])members[lot.lotId]={kind:'material',id:lot.lotId,materialLot:lot};
  for(const lot of Object.values(world.resourceLots))if((isQualifiedWildsApplicationResourceCustodyV128(world.applicationSourceCustody?.[lot.lotId],lot.lotId,lot.head)?world.applicationSourceCustody![lot.lotId]!.ownerReceizId:lot.ownerReceizId)===owner&&!world.reservedResourceLots?.[lot.lotId])members[lot.lotId]={kind:'resource',id:lot.lotId,resourceLot:lot};
  return {nourishment,livestock,world,members,advances,eventsByCommand,traceDigest:sha256PortableBasis(canonicalPortableCardJson({owner,commands}))};

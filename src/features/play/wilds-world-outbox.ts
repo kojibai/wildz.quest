@@ -1,3 +1,4 @@
+import {preserveWildsClearanceHistory} from './wilds-building-clearance';
 import { createWildsExactProofCache } from "./wilds-exact-proof-cache";
 import { mergeWildsConstructionPersistence } from "./wilds-construction-persistence";
 import { constitutionalDigest, type ConstitutionalDecision } from "./wilds-constitution";
@@ -405,7 +406,7 @@ export function preserveWildsConstructionHistory(current: WildsWorldProjection, 
     if (consumed && candidate.consumedMaterialLots[id] !== consumed) return current;
     if (reserved && candidate.reservedMaterialLots[id] !== reserved && candidate.consumedMaterialLots[id] !== reserved) return current;
   }
-  return candidate.revision < current.revision ? current : candidate;
+  return candidate.revision < current.revision ? current : preserveWildsClearanceHistory(current,candidate);
 }
 
 export function createWildsWorldEdgeAdmissionQueue(input: {

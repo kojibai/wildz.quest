@@ -21,6 +21,9 @@ import {assertCreationRangedHitUnoccluded} from '../src/features/play/creation/r
 import {createWildsWorldEvent} from '../src/features/play/wilds-world-event';
 import {constructionProofDigest} from '../src/features/play/wilds-construction-project';
 import type {CreationPoint} from '../src/features/play/creation/types';
+import {appendWildsDiscoveryVisualSolids} from '../src/features/play/wilds-discovery-monuments';
+import {composeWildsConstructionTerrain,projectWildsConstructionTerrain} from '../src/features/play/wilds-construction-terrain';
+import {WILDS_BUILDING_CLEARANCE_RULE_HEAD,type WildsBuildingClearanceV1} from '../src/features/play/wilds-building-clearance';
 
 const actor='owner:occlusion',other='owner:private-wall',pulse='2026-10-09T12:00:00.000Z',outer='wildz.space.outer.v1';
 type Part={id:string;position:CreationPoint;owner?:string;gear?:'bow'|'trail-rifle'|'legacy';depth?:number;assembly?:boolean};
@@ -133,4 +136,40 @@ test('malformed claimed hit coordinates cannot bypass the exact point binding or
   const invalid={...command,actionRequest:{...request,equipment:{...request.equipment,hitPosition:malformed(request.equipment.hitPosition)}}},before=service.checkpoint();
   assert.throws(()=>execute(service,invalid));assert.deepEqual(service.checkpoint(),before);
  }
+});
+
+// Geometry-only historical display fixture: no native admission or demolition
+// is asserted. Real canonical solids and the actual ranged action use this row.
+function historicalSceneryFixture(center:CreationPoint):WildsBuildingClearanceV1{
+ const basis={schema:'wildz.building-clearance.v1' as const,ruleHead:WILDS_BUILDING_CLEARANCE_RULE_HEAD,
+  buildingId:'geometry-fixture',buildingHead:'geometry-fixture-head',buildingOwnerId:actor,
+  constructionRuleHead:'geometry-fixture-rule',commandId:'geometry-fixture-command',buildingKaiUPulse:1,
+  paidFootprintHead:'geometry-fixture-footprint',kaiUPulse:2,
+  footprints:[{center,halfExtents:{x:2,z:2},yaw:0}],sources:[]};
+ return {...basis,clearanceId:`wildz:clearance:${constructionProofDigest(basis).slice(7)}`};
+}
+test('actual ranged ray is blocked by a natural chute before clearance and passes after clearance',()=>{
+ const physical=appendWildsDiscoveryVisualSolids(admitWildsDiscoveryPhysicalNeighborhood(0,0));
+ const box=physical.solids.find(solid=>solid.id==='waterfall-chute:wildz.site.v1:0:0:0:7b8d5862806d8173:3')!;
+ assert.ok(box);
+ const start={x:box.center.x,y:box.center.y-1.25,z:box.center.z+1.5},end={...start,z:box.center.z-1.5};
+ const {service}=fixture([{id:'gear',position:start,gear:'bow'},{id:'target',position:end}]);
+ const command=shot(service,start),legacyWorld=service.snapshot();
+ assert.equal(assertCreationRangedHitUnoccluded(legacyWorld,command),2.5,'marker-absent ranged replay retains its prior output');
+ const marker=historicalSceneryFixture({...box.center,x:box.center.x+10});
+ const world={...legacyWorld,buildingClearances:{[marker.clearanceId]:marker}};
+ assert.throws(()=>assertCreationRangedHitUnoccluded(world,command),/creation_action_ray_occluded/);
+ const clearance=historicalSceneryFixture(box.center),cleared={...world,buildingClearances:{[clearance.clearanceId]:clearance}};
+ assert.equal(composeWildsConstructionTerrain(physical,projectWildsConstructionTerrain(cleared)).solids.some(solid=>solid.id===box.id),false);
+ assert.equal(assertCreationRangedHitUnoccluded(cleared,command),2.5);
+});
+test('actual ranged ray remains blocked by an authored monument inside a clearance footprint',()=>{
+ const physical=appendWildsDiscoveryVisualSolids(admitWildsDiscoveryPhysicalNeighborhood(5,5));
+ const box=physical.solids.find(solid=>solid.id==='monument:wildz.site.v1:6:6:3:6fbdaa0d37357ca3:solid:0')!;
+ assert.ok(box);
+ const start={x:box.center.x+1.5,y:box.center.y+box.halfExtents.y-.2-1.25,z:box.center.z},end={...start,x:box.center.x-1.5};
+ const {service}=fixture([{id:'gear',position:start,gear:'bow'},{id:'target',position:end}]);
+ const clearance=historicalSceneryFixture(box.center),world={...service.snapshot(),buildingClearances:{[clearance.clearanceId]:clearance}};
+ assert.ok(composeWildsConstructionTerrain(physical,projectWildsConstructionTerrain(world)).solids.some(solid=>solid.id===box.id));
+ assert.throws(()=>assertCreationRangedHitUnoccluded(world,shot(service,start)),/creation_action_ray_occluded/);
 });

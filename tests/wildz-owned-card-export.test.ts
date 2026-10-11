@@ -62,7 +62,7 @@ async function preparationFixture() {
         compatibility: "current-native" };
     }
   };
-  return { dependencies, counts, asset, player, session, exact,
+  return { dependencies, counts, asset, player, session, exact, identity,
     prepare: createWildzIdentityOwnedCardPreparer(dependencies),
     reopen: () => createWildzIdentityOwnedCardPreparer(dependencies),
     failSeal: (value: boolean) => { failSeal = value; }, failVerify: (value: boolean) => { failVerify = value; } };
@@ -99,3 +99,106 @@ test("old raw signed cache is not accepted as a prepared proof object", async ()
   assert.equal(f.counts.seal, 1);
   await assert.rejects(f.prepare(f.session, f.asset, { ...f.player, playerId: "someone_else" }), /owner_mismatch/);
 });
+
+
+test("locked background misses reject before card raster and can retry after unlock", async () => {
+  const f = await preparationFixture();
+  const unlocked = f.identity.keyFile;
+  const locked = { ...unlocked, crypto: { ...unlocked.crypto, privateKeyPkcs8B64u: undefined, privateKeyPkcs8CiphertextB64u: "locked" } };
+  let keyReads = 0;
+  f.dependencies.sign = async (_key, action) => { keyReads++; return action(locked); };
+  for (let i = 0; i < 3; i++) await assert.rejects(f.prepare(f.session, f.asset, f.player, { allowPrompt: false }), /passphrase_required/);
+  assert.equal(f.counts.render, 0);
+  assert.equal(f.counts.seal, 0);
+  assert.equal(keyReads, 3);
+  f.dependencies.sign = async (_key, action) => { keyReads++; return action(unlocked); };
+  await f.prepare(f.session, f.asset, f.player);
+  assert.equal(f.counts.render, 1);
+  assert.equal(f.counts.seal, 1);
+  assert.equal(keyReads, 4);
+  f.dependencies.sign = async () => { throw new Error("saved artifact must precede key access"); };
+  assert.deepEqual((await f.reopen()(f.session, f.asset, f.player, { allowPrompt: false })).bytes, f.exact);
+});
+
+test("raw input builds once on a cold miss and warm reuse still checks membership, owner, key and complete card", async () => {
+  const f = await preparationFixture();
+  let payloadReads = 0;
+  const { schema: _schema, payloadDigest: _digest, ...input } = f.player;
+  const raw = { ...input, get settings() { payloadReads++; return input.settings; } };
+  const first = await f.prepare(f.session, f.asset, raw);
+  assert.equal(payloadReads, 1, "one cold payload construction reads the carried settings");
+  for (let i = 0; i < 4; i++) assert.equal(await f.prepare(f.session, f.asset, raw), first);
+  assert.equal(payloadReads, 1, "warm exact artifact reuse does not construct another payload");
+  assert.equal(f.counts.render, 1);
+  await assert.rejects(f.prepare(f.session, f.asset, { ...input, playState: { ...input.playState, inventory: [] } }), /owner_mismatch/);
+  await assert.rejects(f.prepare({ ...f.session, username: "other_keeper" }, f.asset, raw), /owner_mismatch/);
+  await assert.rejects(f.prepare({ ...f.session, keyId: "other_key" }, f.asset, raw), /key_id_mismatch/);
+  assert.equal(f.counts.render, 1, "wrong-key miss must reject before raster");
+  const { appendLivingCardHistory } = await import("../src/features/play/living-card-proof");
+  const changed = appendLivingCardHistory({ asset: f.asset, event: {
+    eventId: "pressure-history-change", rulesetVersion: "wildz.progression.v1", occurredAt: "2026-07-15T21:02:00.000Z",
+    source: { mode: "training", activityId: "pressure-practice", actorId: "keeper", authority: "local" },
+    evidence: {}, effects: [{ kind: "progress", xpDelta: 1, growthEvents: [] }]
+  } });
+  await assert.rejects(f.prepare(f.session, changed, raw), /owner_mismatch/);
+  const next = await f.prepare(f.session, changed, { ...input, playState: { ...input.playState, inventory: [changed] } });
+  assert.notEqual(next.cardFingerprint, first.cardFingerprint);
+  assert.equal(f.counts.render, 2);
+});
+
+test("an encrypted cold card can prompt and sign after a rejected nonprompt warmup", async () => {
+  const f = await preparationFixture();
+  const encrypted = await createReceizIdentityKeyFile({ owner: { uid: "passphrase-retry", username: "keeper" }, passphrase: "disposable fixture password" });
+  const session = { ...f.session, keyId: encrypted.keyFile.keyId };
+  let prompts = 0, reads = 0;
+  f.dependencies.sign = async (_key, action) => { reads++; return action(encrypted.keyFile); };
+  await assert.rejects(f.prepare(session, f.asset, f.player, { allowPrompt: false }), /passphrase_required/);
+  assert.equal(f.counts.render, 0);
+  const prepared = await f.prepare(session, f.asset, f.player, { requestPassphrase: () => { prompts++; return "disposable fixture password"; } });
+  assert.equal(prepared.keyId, session.keyId);
+  assert.deepEqual({ prompts, reads, renders: f.counts.render, seals: f.counts.seal }, { prompts: 1, reads: 2, renders: 1, seals: 1 });
+});
+
+test("Campaign background whole Vault checks a locked key before creating identity artwork", async () => {
+  const { defaultIdentityRepository, prepareWildzBackgroundPlayerVault } = await import("../src/lib/receiz/wildz-identity-adapter");
+  const f = await preparationFixture();
+  const locked = { ...f.identity.keyFile, crypto: { ...f.identity.keyFile.crypto, privateKeyPkcs8B64u: undefined, privateKeyPkcs8CiphertextB64u: "locked" } };
+  const original = defaultIdentityRepository.withKeyFile;
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "document");
+  let rasters = 0, reads = 0;
+  defaultIdentityRepository.withKeyFile = async (_key, action) => { reads++; return action(locked); };
+  Object.defineProperty(globalThis, "document", { configurable: true, value: { createElement() { rasters++; throw new Error("unexpected identity raster"); } } });
+  try {
+    for (let i = 0; i < 3; i++) await assert.rejects(prepareWildzBackgroundPlayerVault(f.session, [f.asset], f.player), /passphrase_required/);
+    assert.deepEqual({ rasters, reads }, { rasters: 0, reads: 3 });
+  } finally { defaultIdentityRepository.withKeyFile = original;
+    if (descriptor) Object.defineProperty(globalThis, "document", descriptor); else Reflect.deleteProperty(globalThis, "document"); }
+});
+
+for (const firstAllowsPrompt of [true, false]) {
+  test(`queued owned-card Save ${firstAllowsPrompt ? "retains" : "promotes"} its required passphrase callback across explicit joins`, async () => {
+    const f = await preparationFixture();
+    const password = "disposable queued save password";
+    const encrypted = await createReceizIdentityKeyFile({ owner: { uid: "queued-passphrase", username: "keeper" }, passphrase: password });
+    const session = { ...f.session, keyId: encrypted.keyFile.keyId };
+    const other = admitLegacyCard(sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "keeper", encounterId: "queued-save", capturedAt: "2026-07-15T21:00:00.000Z" }), "2026-07-15T21:00:00.000Z");
+    const player = { ...f.player, playState: { ...f.player.playState, inventory: [f.asset, other] } };
+    let release!: () => void, entered!: () => void, reads = 0;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    f.dependencies.sign = async (_key, action) => { if (++reads === 1) { entered(); await gate; } return action(encrypted.keyFile); };
+    const active = f.prepare(session, f.asset, player, { passphrase: password });
+    await started;
+    const prompts: string[] = [];
+    const prompt = { speculative: false, requestPassphrase: () => { prompts.push(firstAllowsPrompt ? "original" : "promoted"); return password; } };
+    const nonprompt = { speculative: false, allowPrompt: false };
+    const requested = f.prepare(session, other, player, firstAllowsPrompt ? prompt : nonprompt);
+    const joined = f.prepare(session, other, player, firstAllowsPrompt ? nonprompt : prompt);
+    release();
+    const [, saved, shared] = await Promise.all([active, requested, joined]);
+    assert.equal(shared, saved);
+    assert.equal(saved.assetId, other.id);
+    assert.deepEqual(prompts, [firstAllowsPrompt ? "original" : "promoted"]);
+    assert.deepEqual({ reads, renders: f.counts.render, seals: f.counts.seal }, { reads: 2, renders: 2, seals: 2 });
+  });
+}

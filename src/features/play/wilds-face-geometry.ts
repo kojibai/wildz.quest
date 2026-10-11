@@ -10,7 +10,7 @@ type CloseAt = (x: number, y: number, z: number) => Point;
 export class WildsFaceGeometryBuilder {
   private parts: THREE.BufferGeometry[] = [];
 
-  add(geometry: THREE.BufferGeometry, color: string | ColorAt, position: Point = [0, 0, 0], scale: Point = [1, 1, 1], close?: CloseAt, ocular = false) {
+  add(geometry: THREE.BufferGeometry, color: string | ColorAt, position: Point = [0, 0, 0], scale: Point = [1, 1, 1], close?: CloseAt, ocular = false, untextured = ocular) {
     geometry.scale(...scale);
     geometry.translate(...position);
     const positions = geometry.getAttribute("position");
@@ -27,6 +27,7 @@ export class WildsFaceGeometryBuilder {
     geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     geometry.setAttribute("faceClosed", new THREE.BufferAttribute(closed, 3));
     geometry.setAttribute("faceOcular", new THREE.BufferAttribute(new Float32Array(positions.count).fill(ocular ? 1 : 0), 1));
+    geometry.setAttribute("faceUntextured", new THREE.BufferAttribute(new Float32Array(positions.count).fill(untextured ? 1 : 0), 1));
     this.parts.push(geometry);
   }
 
@@ -46,7 +47,7 @@ export class WildsFaceGeometryBuilder {
   }
 }
 
-function radialPatch(radii: readonly number[], segments: number, point: (r: number, angle: number) => Point, front = 1) {
+export function radialPatch(radii: readonly number[], segments: number, point: (r: number, angle: number) => Point, front = 1) {
   const positions: number[] = [], indices: number[] = [];
   for (const r of radii) for (let i = 0; i <= segments; i++) positions.push(...point(r, i / segments * Math.PI * 2));
   for (let ring = 0; ring < radii.length - 1; ring++) for (let i = 0; i < segments; i++) {
@@ -72,15 +73,18 @@ export function addWildsFaceEye(builder: WildsFaceGeometryBuilder, options: {
   center: Point; width: number; height: number; depth: number; tilt: number;
   skin: string; iris: string; seed: number; segments: number;
   pupil?: HeartboundPupilShape; highlight?: HeartboundHighlightShape; lidFold?: number;
+  /** Opt-in +z creature fitting; explorers retain their authored negative-z convention. */
+  surface?: (x: number, y: number) => number;
 }) {
   const { center: [cx, cy, cz], width: w, height: h, depth, tilt, skin, iris, seed, segments } = options;
-  const toWorld = (x: number, y: number, z: number): Point => [cx + x, cy + y + x * tilt, cz + z];
+  const surface = options.surface;
+  const toWorld = (x: number, y: number, z: number): Point => [cx + x, cy + y + x * tilt, (surface ? surface(cx+x, cy+y+x*tilt) : cz) + z];
   const seam = (x: number) => cy - h * .12 * (1 - Math.min(1, ((x - cx) / w) ** 2)) + (x - cx) * tilt;
-  const close: CloseAt = (x) => [x, seam(x), cz + depth * .08];
+  const close: CloseAt = (x) => [x, seam(x), surface ? surface(x,seam(x)) + .003 : cz + depth * .08];
   const skinTint = new THREE.Color(skin), rimTint = skinTint.clone().multiplyScalar(.66);
   const eye = radialPatch([0, .58, 1], segments, (r, angle) => {
     const x = Math.cos(angle) * w * r, y = Math.sin(angle) * h * r;
-    return toWorld(x, y, depth * (1 - r * r));
+    return toWorld(x, y, (surface ? .003 : 0) + depth * (1 - r * r));
   }, depth);
   builder.add(eye, (x, _y) => new THREE.Color("#eee9dd").lerp(new THREE.Color("#b98079"), Math.max(0, Math.abs((x - cx) / w) - .64) * .48), undefined, undefined, close, true);
 
@@ -90,7 +94,8 @@ export function addWildsFaceEye(builder: WildsFaceGeometryBuilder, options: {
     const shaped = pupilShape === "star" ? 1 + Math.cos(angle * 5) * .2 : pupilShape === "crescent" ? 1 + Math.cos(angle) * .28 : 1;
     const shape = r <= .45 ? shaped : 1;
     const sx = pupilShape === "slit" && r <= .45 ? .3 : pupilShape === "oval" && r <= .45 ? .7 : 1;
-    return toWorld(Math.cos(angle) * irisRadius * r * shape * sx, Math.sin(angle) * irisRadius * r * shape, depth + depth * .05 * (1 - r * r));
+    const x = Math.cos(angle) * irisRadius * r * shape * sx, y = Math.sin(angle) * irisRadius * r * shape;
+    return toWorld(x, y, surface ? .005 + depth * (1 - (x/w)**2 - (y/h)**2) : depth + depth * .05 * (1 - r * r));
   }, depth);
   builder.add(irisGeometry, (x, y) => {
     const radius = Math.hypot(x - cx, y - cy - (x - cx) * tilt) / irisRadius;
@@ -104,7 +109,7 @@ export function addWildsFaceEye(builder: WildsFaceGeometryBuilder, options: {
   // A fixed outer socket and moving inner lid cover the globe as the aperture closes.
   const lid = radialPatch([1, 1.17, 1.32], segments, (r, angle) => {
     const x = Math.cos(angle) * w * r, y = Math.sin(angle) * h * r;
-    return toWorld(x, y, -Math.abs(depth) * .06 * (r - 1));
+    return toWorld(x, y, surface ? .003 - .006 * (r-1)/.32 : -Math.abs(depth) * .06 * (r - 1));
   }, depth);
   builder.add(lid, (x, y) => {
     const r = Math.hypot((x - cx) / w, (y - cy - (x - cx) * tilt) / h);
@@ -112,7 +117,8 @@ export function addWildsFaceEye(builder: WildsFaceGeometryBuilder, options: {
   }, undefined, undefined, (x, y, z) => {
     const r = Math.hypot((x - cx) / w, (y - cy - (x - cx) * tilt) / h);
     const weight = Math.max(0, 1 - (r - 1) / .32);
-    return [x, y + (seam(x) - y) * weight, z + depth * .16 * weight];
+    const closedY = y + (seam(x) - y) * weight;
+    return [x, closedY, surface ? surface(x,closedY) + .006*weight - .003*(1-weight) : z + depth * .16 * weight];
   });
   if (options.lidFold) {
     const fold = new THREE.CatmullRomCurve3(Array.from({ length: 7 }, (_, i) => {
@@ -121,11 +127,12 @@ export function addWildsFaceEye(builder: WildsFaceGeometryBuilder, options: {
     }));
     builder.add(new THREE.TubeGeometry(fold, 6, options.lidFold * .2, 3, false), rimTint.getStyle());
   }
-  const highlight = toWorld(-irisRadius * .29, irisRadius * .33, depth * 1.07);
+  const highlightDepth = (x: number, y: number) => surface ? .006 + depth*(1-(x/w)**2-(y/h)**2) : depth*1.07;
+  const highlight = toWorld(-irisRadius * .29, irisRadius * .33, highlightDepth(-irisRadius*.29,irisRadius*.33));
   builder.add(options.highlight === "diamond" ? new THREE.OctahedronGeometry(irisRadius * .14) : new THREE.SphereGeometry(irisRadius * .12, 5, 3),
     "#ffffff", highlight, options.highlight === "comet" ? [1.65, .7, .3] : [1, 1, .3], close, true);
   if (options.highlight === "double") builder.add(new THREE.SphereGeometry(irisRadius * .07, 4, 3), "#ffffff",
-    toWorld(irisRadius * .2, -irisRadius * .16, depth * 1.07), [1, 1, .3], close, true);
+    toWorld(irisRadius * .2, -irisRadius * .16, highlightDepth(irisRadius*.2,-irisRadius*.16)), [1, 1, .3], close, true);
 }
 
 /** Same program for every face; each actor updates only its blink uniform. */
@@ -138,21 +145,24 @@ export function createWildsFaceMaterial(map: THREE.Texture, roughness = .68) {
       attribute vec3 faceClosed;
       attribute vec3 faceClosedNormal;
       attribute float faceOcular;
+      attribute float faceUntextured;
       uniform float wildsFaceBlink;
-      varying float vFaceOcular;`)
+      varying float vFaceOcular;
+      varying float vFaceUntextured;`)
       .replace("#include <beginnormal_vertex>", `#include <beginnormal_vertex>
         objectNormal = normalize(mix(objectNormal, faceClosedNormal, wildsFaceBlink));`)
       .replace("#include <begin_vertex>", `#include <begin_vertex>
         transformed = mix(transformed, faceClosed, wildsFaceBlink);
-        vFaceOcular = faceOcular;`);
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying float vFaceOcular;")
+        vFaceOcular = faceOcular;
+        vFaceUntextured = faceUntextured;`);
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying float vFaceOcular;\nvarying float vFaceUntextured;")
       .replace("#include <map_fragment>", `#ifdef USE_MAP
         vec4 sampledDiffuseColor = texture2D(map, vMapUv);
-        diffuseColor *= mix(sampledDiffuseColor, vec4(1.0), vFaceOcular);
+        diffuseColor *= mix(sampledDiffuseColor, vec4(1.0), vFaceUntextured);
         #endif`)
       .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.23, vFaceOcular);");
-    shader.fragmentShader = shader.fragmentShader.replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance *= 1.0 - vFaceOcular;");
+    shader.fragmentShader = shader.fragmentShader.replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\ntotalEmissiveRadiance *= 1.0 - vFaceUntextured;");
   };
-  material.customProgramCacheKey = () => "wildz.face-lids.v1";
+  material.customProgramCacheKey = () => "wildz.face-lids.v2";
   return { material, blink };
 }

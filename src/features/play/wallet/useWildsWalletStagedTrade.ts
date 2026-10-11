@@ -44,6 +44,7 @@ export function useWildsWalletStagedTrade(input: HookInput) {
     readConversations: () => live.current.readConversations(),
     publish: (message, peer) => live.current.publish(message, peer),
     ensureReady: () => live.current.ensureReady?.() ?? Promise.resolve(),
+    observeSubmission: () => live.current.observeSubmission?.() ?? Promise.resolve(),
   }); }, [keyId, ownerHandle]);
   const run = useCallback(async (action: () => Promise<WildsWalletStagedTradeResult>) => {
     const key = live.current.keyId, owner = live.current.ownerHandle;

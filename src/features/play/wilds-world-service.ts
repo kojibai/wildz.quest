@@ -87,8 +87,10 @@ import { reviseWildsConstructionChunkReference, createWildsConstructionProject, 
 import { adjustWildsConstructionComponent, createWildsConstructionComponent, createWildsMaterialContribution, createWildsWorkContribution, projectWildsConstructionProgress } from "./wilds-construction-component";
 import { previewWildsConstructionAdjustment, projectWildsProductionPlacementEvidence, type WildsConstructionPlacementRequest } from "./wilds-construction-placement";
 import type { WildsBlueprintPlacement } from "./wilds-world-construction";
+import {resolveWildsClearancePickupV128,type WildsClearanceCommandV128} from '../../lib/receiz/wilds-clearance-admission-v128';
 
 export type WildsWorldCommand = (
+  | WildsClearanceCommandV128
   | WildsResourcePackageCommand
   | WildsCreationBuildCommand
   | WildsCreationActionCommand
@@ -549,6 +551,11 @@ export class WildsWorldService {
     const kaiUPulse = authorityMoment(authority).uPulse;
     if (command.type.startsWith("resource.package.") || command.type === "resource.food.consume") {
       events.push(this.append("resource.package_transitioned", { command }, authority, command.commandId));
+    } else if(command.type==='construction.clearance.derive'){
+      events.push(this.append('construction.clearance_derived',command.payload,authority,command.commandId));
+    } else if(command.type==='construction.clearance.pickup'){
+      const pickup=resolveWildsClearancePickupV128(command,authority.actorId,kaiUPulse);
+      events.push(this.append('construction.clearance_picked_up',{command,pickup},authority,command.commandId));
     } else if(command.type==='creation.action'){
       const action=resolveWorldCreationAction(this.projection,command,authority.actorId,kaiUPulse);
       // Each event carries an independent JSON snapshot; the action journal repeats
@@ -556,6 +563,8 @@ export class WildsWorldService {
       events.push(this.append('creation.acted',JSON.parse(JSON.stringify({...action,commandDigest})),authority,command.commandId));
     } else if (command.type === "creation.construct" || command.type === "creation.evolve") {
       const { record } = resolveWorldCreationBuild(this.projection, command, authority.actorId, kaiUPulse);
+      // Explicit candidate checkpoints travel in the exact command/event. The
+      // reducer derives history atomically; shared source admission remains separate.
       events.push(this.append(command.type === "creation.construct" ? "creation.constructed" : "creation.evolved", { record, commandDigest }, authority, command.commandId));
     } else if (command.type === "construction.project.create") {
       const project = createWildsConstructionProject({ ownerReceizId: authority.actorId, name: command.name, region: command.region, commandId: command.commandId, kaiUPulse });

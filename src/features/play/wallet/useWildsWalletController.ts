@@ -1,7 +1,8 @@
 "use client";
 
+import type { WildzWalletObservation, WildzWalletObservationPort } from "../../../lib/receiz/wildz-wallet-observation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createWildsWalletControllerState, gateWildsWalletClientCapabilities, hydrateWildsWalletControllerState, renewWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPage, type WildsWalletReadResponse } from "./wilds-wallet-controller";
+import { gateWildsWalletClientCapabilities, hydrateWildsWalletControllerState, renewWildsWalletControllerState, type WildsWalletControllerState, type WildsWalletPage, type WildsWalletReadResponse } from "./wilds-wallet-controller";
 import { createWildsWalletControllerDriver, type WildsWalletControllerDriver, wildsWalletSharedSessionCache } from "./wilds-wallet-controller-driver";
 
 import { WildsWalletAuthorizationError } from "./wilds-wallet-authorization-error";
@@ -24,10 +25,10 @@ export function wildsWalletStatusNeedsIdentityReadAuthority(status: WildsWalletC
 export function useWildsWalletController(
   identityKey: string,
   authorityGeneration: string,
-  options: Readonly<{ authorization?: WildsWalletClientAuthorizationPort; readAuthorization?: WildsWalletReadAuthorizationPort; backgroundReady?: boolean; sourceKey?: string }> = {}
+  options: Readonly<{ authorization?: WildsWalletClientAuthorizationPort; readAuthorization?: WildsWalletReadAuthorizationPort; backgroundReady?: boolean; sourceKey?: string; incarnation?: string; observation?: WildzWalletObservation | null; observationPort?: WildzWalletObservationPort }> = {}
 ) {
   const sourceKey = options.sourceKey ?? authorityGeneration;
-  const [state, setState] = useState<WildsWalletControllerState>(() => hydrateWildsWalletControllerState(identityKey, authorityGeneration, wildsWalletSharedSessionCache));
+  const [state, setState] = useState<WildsWalletControllerState>(() => hydrateWildsWalletControllerState(identityKey, authorityGeneration, wildsWalletSharedSessionCache, options.sourceKey, options.incarnation, options.observation));
   const [operationError, setOperationError] = useState<string | null>(null);
   const stateRef = useRef(state);
   const driverRef = useRef<WildsWalletControllerDriver | null>(null);
@@ -35,7 +36,8 @@ export function useWildsWalletController(
     driverRef.current = createWildsWalletControllerDriver({
       identityKey,
       authorityGeneration,
-      sourceKey,
+      sourceKey: options.sourceKey,
+      incarnation: options.incarnation, observation: options.observation, observationPort: options.observationPort,
       fetcher: (path, init) => fetch(path, { ...init, cache: "no-store", credentials: "same-origin", headers: init.method === "POST" ? { "content-type": "application/json" } : undefined }) as Promise<FetchResponse>,
       publish(next) { stateRef.current = next; setState(next); }
     });
@@ -62,13 +64,13 @@ export function useWildsWalletController(
   const backgroundReady = options.backgroundReady ?? true;
   const preloadGenerationRef = useRef("");
   useEffect(() => {
-    if (stateRef.current.identityKey !== identityKey || stateRef.current.authorityGeneration !== authorityGeneration || driver.sourceKey !== sourceKey) {
+    if (stateRef.current.identityKey !== identityKey || stateRef.current.authorityGeneration !== authorityGeneration || driver.sourceKey !== sourceKey || stateRef.current.sourceKey !== options.sourceKey || stateRef.current.incarnation !== (options.incarnation ?? "legacy")) {
       readAuthorityPromiseRef.current = null;
       readAuthorityErrorRef.current = null;
       setOperationError(null);
-      driver.setAuthority(identityKey, authorityGeneration, sourceKey);
+      driver.setAuthority(identityKey, authorityGeneration, options.sourceKey, options.incarnation, options.observation, options.observationPort);
     }
-  }, [authorityGeneration, driver, identityKey, sourceKey]);
+  }, [authorityGeneration, driver, identityKey, sourceKey, options.sourceKey, options.incarnation, options.observation, options.observationPort]);
   useEffect(() => () => driver.dispose(), [driver]);
   useEffect(() => {
     const onVisibilityChange = () => { if (document.visibilityState === "hidden") driver.cancelPending(); };
@@ -190,10 +192,11 @@ export function useWildsWalletController(
     return () => { disposed = true; clearTimeout(timer); };
   }, [backgroundReady, admitSourceThenRefresh, authorityGeneration, driver, options.readAuthorization]);
   const openTerminal = useCallback(() => { driver.open(); void admitSourceThenRefresh(); }, [admitSourceThenRefresh, driver]);
-  const visible = state.identityKey === identityKey && state.authorityGeneration === authorityGeneration ? state
-    : renewWildsWalletControllerState(state, createWildsWalletControllerState(identityKey, authorityGeneration));
+  const displayState = driver.state;
+  const visible = displayState.identityKey === identityKey && displayState.authorityGeneration === authorityGeneration && displayState.sourceKey === options.sourceKey && displayState.incarnation === (options.incarnation ?? "legacy") ? displayState
+    : renewWildsWalletControllerState(displayState, hydrateWildsWalletControllerState(identityKey, authorityGeneration, wildsWalletSharedSessionCache, options.sourceKey, options.incarnation, options.observation));
   const capabilities = visible.capabilities
-    ? gateWildsWalletClientCapabilities(visible.capabilities, { proofAuthorization: Boolean(options.authorization) })
+    ? gateWildsWalletClientCapabilities(visible.capabilities, { proofAuthorization: Boolean(options.authorization) && visible.balanceBasis !== "observed" })
     : null;
   const lookupRecipient = useCallback(async (username: string) => {
     if (!await ensureSendReady()) return;
@@ -252,6 +255,7 @@ export function useWildsWalletController(
       if (page === "send" && options.authorization) void ensureSendReady().catch(() => { if (driver.state.open && driver.state.page === "send") setOperationError("Send could not reconnect. Your wallet is unchanged. Please retry."); });
     },
     refresh: admitSourceThenRefresh,
+    markObservationPending: driver.markObservationPending,
     lookupRecipient,
     selectTransferRecipient: driver.selectTransferRecipient,
     selectReceiveCoordinate: driver.selectReceiveCoordinate,

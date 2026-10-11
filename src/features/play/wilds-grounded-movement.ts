@@ -1,4 +1,5 @@
 import { createWildsOrderedSpatialIndex } from "./wilds-ordered-spatial-index";
+import { filterWildsBuildScenery, type WildsBuildSceneryFootprint } from './wilds-build-scenery';
 import {
   WILDS_TERRAIN_TILE_SIZE,
   sampleWildsTerrain,
@@ -451,6 +452,7 @@ export function resolveWildsGroundMovement(
     structureSupports?: readonly WildsStructureSupport[];
     additionalSupportAt?: WildsAdditionalGroundSupport;
     groundElevationAt?: WildsGroundElevationAt;
+    sceneryClearance?: readonly WildsBuildSceneryFootprint[];
   } = {}
 ): WildsGroundMovementResult {
   if (!finitePoint(start) || !finitePoint(intended)) throw new Error("wilds_ground_movement_invalid");
@@ -531,12 +533,12 @@ export function resolveWildsGroundMovement(
       traversalBlockedBy: missingTraversal
     };
   }
-  const terrainObstacles = options.obstacles ? [] : movementObstacles(start, target, capsuleRadius);
+  const terrainObstacles = options.obstacles ? [] : filterWildsBuildScenery(movementObstacles(start, target, capsuleRadius),options.sceneryClearance??[]);
   const terrainOverlap = terrainObstacles.some(obstacle => Math.hypot(start.x - obstacle.position.x, start.z - obstacle.position.z) <= obstacle.radius + capsuleRadius);
   const additional = options.additionalObstacles ?? [];
   const allObstacles = options.obstacles
-    ? nearbyWildsMovementObstacles(options.obstacles, start, target, capsuleRadius)
-    : [...terrainObstacles, ...(terrainOverlap ? additional : nearbyWildsMovementObstacles(additional, start, target, capsuleRadius))];
+    ? filterWildsBuildScenery(nearbyWildsMovementObstacles(options.obstacles, start, target, capsuleRadius),options.sceneryClearance??[])
+    : [...terrainObstacles, ...filterWildsBuildScenery(terrainOverlap ? additional : nearbyWildsMovementObstacles(additional, start, target, capsuleRadius),options.sceneryClearance??[])];
   // A capsule meets the slab edge before its centre enters the support area.
   // Read the leading foot contact so a reachable floor does not act like a wall.
   const travel = Math.hypot(target.x - start.x, target.z - start.z);

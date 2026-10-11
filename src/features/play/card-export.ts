@@ -662,12 +662,15 @@ export async function downloadReceizProofObject(
 
 async function svgPngBlob(svg: string, width = 750, height = 1050) {
   const source = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+  let image: HTMLImageElement | undefined;
+  let canvas: HTMLCanvasElement | undefined;
   try {
-    const image = new Image();
+    image = new Image();
+    const rasterImage = image;
     image.decoding = "async";
     const loaded = new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () => reject(new Error("wilds_card_svg_load_failed"));
+      rasterImage.onload = () => resolve();
+      rasterImage.onerror = () => reject(new Error("wilds_card_svg_load_failed"));
     });
     image.src = source;
     // Chromium can leave decode() pending indefinitely for a large SVG blob
@@ -677,14 +680,17 @@ async function svgPngBlob(svg: string, width = 750, height = 1050) {
       image.decode().catch(() => loaded),
       loaded
     ]);
-    const canvas = document.createElement("canvas");
+    canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("wilds_card_canvas_unavailable");
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    return await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("wilds_card_png_failed")), "image/png"));
+    const rasterCanvas = canvas;
+    return await new Promise<Blob>((resolve, reject) => rasterCanvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("wilds_card_png_failed")), "image/png"));
   } finally {
+    if (image) { image.onload = null; image.onerror = null; image.removeAttribute("src"); }
+    if (canvas) { canvas.width = 0; canvas.height = 0; }
     URL.revokeObjectURL(source);
   }
 }

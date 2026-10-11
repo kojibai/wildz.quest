@@ -145,6 +145,46 @@ export function createWildsCrewJournal(ownerSubjectId: string, database: WildzCo
 
   return Object.freeze({
     ownerSubjectId, append, readEvent, workerHead, command,
+    /** Reauthorize an exact dispatched source intent without another scheduling event.
+     * This read-only receipt fence grants no native source acceptance. */
+    async recheckPendingSource(commandDigest:string) {
+      const stored=await command(commandDigest),source=stored?.sourceCommand;
+      if(!stored||stored.phase!=="pending"||!source||!stored.expectedJobHead||await digestReceizCanonicalV122(source)!==commandDigest)
+        throw new Error("crew_journal_pending_source_missing");
+      const event=await readEvent(stored.head);
+      const job=await database.read<WildsCrewJob>("meta",wildsCrewJobStorageKey(ownerSubjectId,"job",stored.jobId));
+      if(!event||event.phase!=="pending"||event.commandDigest!==commandDigest||event.workerId!==stored.workerId||event.jobId!==stored.jobId
+        ||!job||job.head!==stored.expectedJobHead||job.ownerSubjectId!==ownerSubjectId||job.workerId!==stored.workerId||job.jobId!==stored.jobId
+        ||job.phase!=="working"||job.recallRequested||job.pending||job.committedWorldEventIds.length)
+        throw new Error("crew_journal_job_fence_conflict");
+      const {head,...body}=job;
+      if(await digestReceizCanonicalV122(body)!==head||source.ownerSubjectId!==ownerSubjectId||source.workerSubjectId!==stored.workerId
+        ||source.ownerHead!==job.expectedOwnerSubjectHead||source.workerHead!==job.expectedWorkerSubjectHead
+        ||source.ownerProofDigest!==job.ownerProofDigest||source.workerProofDigest!==job.workerProofDigest
+        ||source.mandateDigest!==job.mandateDigest||source.worldId!==job.worldId||source.assetId!==job.assetId
+        ||source.cardProofDigest!==source.command.cardProofDigest
+        ||({"resource.material.harvest":"gather","construction.site.contribute":"deliver","construction.site.work":"build"} as const)[source.command.type]!==job.kind
+        ||(source.command.type!=="resource.material.harvest"&&source.regionId!==job.regionId))throw new Error("crew_journal_job_source_mismatch");
+      if(source.command.type!=="resource.material.harvest"){
+        const arrival=source.arrival;
+        if(!arrival||arrival.spaceId!=="wildz.space.outer.v1"||![arrival.position.x,arrival.position.y,arrival.position.z].every(Number.isFinite)
+          ||arrival.position.x!==source.command.actorPosition.x||arrival.position.z!==source.command.actorPosition.z
+          ||Math.hypot(arrival.position.x-job.target.x,arrival.position.y-job.target.y,arrival.position.z-job.target.z)>6)
+          throw new Error("crew_journal_source_arrival_mismatch");
+      }
+      await database.transaction(["meta"],"readonly",async tx=>{
+        if(canonicalizeReceizV122(await tx.get("meta",key("command",commandDigest)))!==canonicalizeReceizV122(stored)
+          ||canonicalizeReceizV122(await tx.get("meta",key("event",stored.head)))!==canonicalizeReceizV122(event)
+          ||await tx.get("meta",key("worker",stored.workerId))!==stored.head
+          ||await tx.get("meta",key("creation-lease",stored.workerId))
+          ||canonicalizeReceizV122(await tx.get("meta",wildsCrewJobStorageKey(ownerSubjectId,"job",stored.jobId)))!==canonicalizeReceizV122(job)
+          ||await tx.get("meta",wildsCrewJobStorageKey(ownerSubjectId,"worker",stored.workerId))!==stored.jobId)
+          throw new Error("crew_journal_job_fence_conflict");
+        for(const lotId of stored.lotIds){const held=await tx.get<Reservation>("meta",key("lot",lotId));
+          if(!held||held.commandDigest!==commandDigest||held.workerId!==stored.workerId)throw new Error("crew_journal_reservation_missing");}
+      });
+      return stored;
+    },
     async cancelProposed(commandDigest: string, observedKaiUPulse: number) {
       const stored = await command(commandDigest);
       if (!stored || stored.phase !== "proposed") return {cancelled:false as const};

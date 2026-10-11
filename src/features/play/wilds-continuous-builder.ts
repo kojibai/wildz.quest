@@ -11,7 +11,8 @@ export function previewWildsContinuousBuild(world: WildsWorldProjection, owner: 
     const project = Object.values(world.constructionProjects).filter(p => p.ownerReceizId === owner && p.region.x === region.x && p.region.z === region.z)
       .sort((a, b) => a.projectId.localeCompare(b.projectId))[0];
     const draft = project ?? createWildsConstructionProject({ ownerReceizId: owner, name: "My place", region, commandId: "construction:preview", kaiUPulse: 0 });
-    const evidence = projectWildsProductionPlacementEvidence({ ...world, constructionProjects: { ...world.constructionProjects, [draft.projectId]: draft } }, draft.projectId, request);
+    const source = project ? world : { ...world, constructionProjects: { ...world.constructionProjects, [draft.projectId]: draft } };
+    const evidence = projectWildsProductionPlacementEvidence(source, draft.projectId, request);
     const placement = previewWildsBlueprintPlacement({ ...evidence, blueprint: evidence.sourceBlueprint, kind });
     return { project: project ?? null, region, placement, request };
   };

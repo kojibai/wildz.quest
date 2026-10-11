@@ -1,11 +1,16 @@
+import {wildsBuildSceneryClearedAt} from './wilds-build-scenery';
+import { wildsProductionPlacementGradesGround } from './wilds-world-construction';
+import { isWildsBuildingClearanceCandidate } from './wilds-building-clearance';
+import { deeplyImmutable } from './wilds-construction-geometry';
 import type { WildsWorldProjection } from './wilds-world-state';
 import { compileWorldCreationSource, projectWildsCreationPersistence, type WildsCreationSourceRecord } from './creation/world-source';
 import { constructionGeometryForCollections } from './wilds-construction-neighborhood';
 import { wildsMountainFieldValue, WILDS_DISCOVERY_SITE_REGION_SIZE, type WildsMountainField, type WildsDiscoveryPhysicalNeighborhood } from './wilds-discovery-sites';
 import type { CreationSolid } from './creation/geometry';
 import { projectCreationPhysical } from './creation/projection';
-import { creationUsesTerrainSupport } from './creation/ground-placement';
+import { creationUsesTerrainSupport, creationClearsNaturalScenery } from './creation/ground-placement';
 import { wildsTerrainElevation } from './wilds-terrain-authority';
+import { constructionProofDigest, freezeConstructionProof } from './wilds-construction-project';
 import { canonicalPortableCardJson } from './portable-card';
 import { wildsMaterialCustodian } from './wilds-world-state';
 import { sampleWildsBuildGround, sampleWildsBuildGrading, WILDS_BUILD_FLAT_APRON, WILDS_BUILD_EDGE_BLEND } from './wilds-build-ground';
@@ -13,6 +18,11 @@ import { sampleWildsBuildGround, sampleWildsBuildGrading, WILDS_BUILD_FLAT_APRON
 export type WildsConstructionTerrainPad = Readonly<{
   id: string; ownerId: string; sourceHead: string; center: Readonly<{ x: number; y: number; z: number }>;
   halfExtents: Readonly<{ x: number; z: number }>; yaw: number;
+  clearsScenery?: true;
+  /** Permanent original-source retirement after its building is withdrawn. */
+  historicalScenery?: true;
+  /** Positive finite history retains the connecting grade and exact pile floor. */
+  retainedLaydown?: true;
 }>;
 const q = (value: number) => Math.round(value * 1_000_000) / 1_000_000;
 const FLAT_APRON = WILDS_BUILD_FLAT_APRON, EDGE_BLEND = WILDS_BUILD_EDGE_BLEND;
@@ -27,9 +37,36 @@ function footingPads(solids: readonly CreationSolid[], id: string, ownerId: stri
   }));
 }
 
+const emptyCollection = Object.freeze({});
+/** Cache solely by immutable source/custody collections. Draft project maps do
+ * not affect the landscape. Mutable imports always execute the full verifier. */
+export function createWildsConstructionLandscapeCache<T>() {
+  type Entry = { children: WeakMap<object, Entry>; value?: T };
+  const root: Entry = { children: new WeakMap() };
+  return (world: WildsWorldProjection, compute: () => T): T => {
+    const collections = [world.creations, world.creationEvents, world.materialLots, world.materialCustody,
+      world.applicationSourceCustody, world.consumedMaterialLots, world.constructionComponents,
+      world.constructionMaterialContributions, world.constructionWorkContributions, world.burrows, world.buildingClearances]
+      .map(value => value ?? emptyCollection);
+    if (!collections.every(value => deeplyImmutable(value))) return compute();
+    let entry = root;
+    for (const collection of collections) {
+      let next = entry.children.get(collection);
+      if (!next) { next = { children: new WeakMap() }; entry.children.set(collection, next); }
+      entry = next;
+    }
+    if (entry.value === undefined) entry.value = compute();
+    return entry.value;
+  };
+}
+const terrainProjectionCache = createWildsConstructionLandscapeCache<readonly WildsConstructionTerrainPad[]>();
+export function projectWildsConstructionTerrain(world: WildsWorldProjection): readonly WildsConstructionTerrainPad[] {
+  return terrainProjectionCache(world, () => freezeConstructionProof(projectWildsConstructionTerrainUncached(world)));
+}
+
 /** Landscape is a disposable projection of admitted paid construction. It has
  * no separate save, ownership, receipt, database row, or mutation authority. */
-export function projectWildsConstructionTerrain(world: WildsWorldProjection): readonly WildsConstructionTerrainPad[] {
+function projectWildsConstructionTerrainUncached(world: WildsWorldProjection): WildsConstructionTerrainPad[] {
   const pads: WildsConstructionTerrainPad[] = [], protectedPads: WildsConstructionTerrainPad[] = [];
   const creations = projectWildsCreationPersistence(world).creations;
   for (const source of Object.values(creations)) {
@@ -37,7 +74,7 @@ export function projectWildsConstructionTerrain(world: WildsWorldProjection): re
     const plan = compileWorldCreationSource(source);
     const physical = projectCreationPhysical(source.instance, source.command.definition, plan);
     const footings = footingPads(physical.solids, source.instance.instanceId, source.instance.ownerId, source.instance.head);
-    if (creationUsesTerrainSupport(source.command.context)) pads.push(...footings);
+    if (creationUsesTerrainSupport(source.command.context)) pads.push(...footings.map(pad=>creationClearsNaturalScenery(source.command.context)?{...pad,clearsScenery:true as const}:pad));
     else protectedPads.push(...footings.filter(pad => Math.abs(pad.center.y - sampleWildsBuildGround(pad.center.x, pad.center.z).elevation) <= .65));
   }
   const geometry = constructionGeometryForCollections(world.constructionMaterialContributions, world.constructionWorkContributions);
@@ -45,9 +82,10 @@ export function projectWildsConstructionTerrain(world: WildsWorldProjection): re
     if ((component.evidence.spaceId ?? 'wildz.space.outer.v1') !== 'wildz.space.outer.v1'
       || !['foundation', 'floor', 'path', 'garden', 'workshop'].includes(component.kind)) continue;
     const built = geometry(component);
+    if (component.evidence.physical.groundSupport === 'wildz.build-ground.v2' && !wildsProductionPlacementGradesGround(component.evidence, component.kind)) continue;
     if (!built.solids.length) continue;
     const footings = footingPads(built.solids.map(solid => ({ ...solid, yaw: 0 })), component.componentId, component.ownerReceizId, component.head);
-    if (component.evidence.physical.groundSupport) pads.push(...footings);
+    if (component.evidence.physical.groundSupport) pads.push(...footings.map(pad=>component.evidence.physical.groundSupport==='wildz.build-ground.v2'?{...pad,clearsScenery:true as const}:pad));
     else protectedPads.push(...footings.filter(pad => Math.abs(pad.center.y - sampleWildsBuildGround(pad.center.x, pad.center.z).elevation) <= .65));
   }
   // A new grading blend cannot erode a neighbouring legacy building's real
@@ -55,6 +93,21 @@ export function projectWildsConstructionTerrain(world: WildsWorldProjection): re
   pads.push(...protectedPads.filter(old => wildsConstructionTerrainPadsInBounds(pads,
     old.center.x - old.halfExtents.x, old.center.z - old.halfExtents.z,
     old.center.x + old.halfExtents.x, old.center.z + old.halfExtents.z).length > 0));
+  for (const clearance of Object.values(world.buildingClearances ?? {})) {
+    if (!isWildsBuildingClearanceCandidate(clearance)) continue;
+    for (const [index, footprint] of clearance.footprints.entries()) {
+      if (pads.some(pad => pad.clearsScenery && constructionProofDigest({ center: pad.center, halfExtents: pad.halfExtents, yaw: pad.yaw }) === constructionProofDigest(footprint))) continue;
+      pads.push({ ...footprint, center: { ...footprint.center }, halfExtents: { ...footprint.halfExtents }, id: `clearance:${clearance.clearanceId}:${index}`, ownerId: clearance.buildingOwnerId,
+        sourceHead: clearance.buildingHead, clearsScenery: true, historicalScenery: true,
+        ...(clearance.sources.some(source => source.remaining > 0) ? { retainedLaydown: true as const } : {}) });
+    }
+    // Fixed pile positions also retain their exact floor when a side was laid
+    // down beyond the original flat apron. No source is added or refilled here.
+    for (const source of clearance.sources.filter(source => source.remaining > 0)) {
+      pads.push({ id: `clearance:${clearance.clearanceId}:laydown:${source.sourceId}`, ownerId: clearance.buildingOwnerId,
+        sourceHead: clearance.buildingHead, center: { ...source.position }, halfExtents: { x: .45, z: .45 }, yaw: 0, retainedLaydown: true });
+    }
+  }
   return pads.sort((left, right) => left.id.localeCompare(right.id));
 }
 
@@ -73,9 +126,10 @@ export function createWildsConstructionTerrainSelector() {
           const lot = world.materialLots[ref.id];
           return [ref.id, lot?.head ?? null, lot ? wildsMaterialCustodian(world, lot) : null, world.consumedMaterialLots[ref.id] ?? null];
         })]),
-      components: heads(world.constructionComponents), materials: heads(world.constructionMaterialContributions), work: heads(world.constructionWorkContributions)
+      clearances: world.buildingClearances ?? null, components: heads(world.constructionComponents), materials: heads(world.constructionMaterialContributions), work: heads(world.constructionWorkContributions)
     }) : '';
-    if (nextSource === sourceSignature) return pads;
+    const immutable = [world?.creations, world?.creationEvents, world?.materialLots, world?.materialCustody, world?.applicationSourceCustody, world?.consumedMaterialLots, world?.constructionComponents, world?.constructionMaterialContributions, world?.constructionWorkContributions, world?.buildingClearances].every(value => deeplyImmutable(value ?? emptyCollection));
+    if (immutable && nextSource === sourceSignature) return pads;
     const next = world ? projectWildsConstructionTerrain(world) : [], signature = canonicalPortableCardJson(next);
     sourceSignature = nextSource;
     if (signature !== padSignature) { padSignature = signature; pads = Object.freeze(next); }
@@ -93,7 +147,7 @@ export function wildsConstructionTerrainPadsInBounds(pads: readonly WildsConstru
 }
 
 export function sampleWildsConstructionTerrainAt(pads: readonly WildsConstructionTerrainPad[], x: number, z: number, fallback: number): number {
-  return sampleWildsBuildGrading(pads, x, z, fallback);
+  return sampleWildsBuildGrading(pads.filter(pad => !pad.historicalScenery || pad.retainedLaydown), x, z, fallback);
 }
 
 /** Rebuild only affected mountain meshes. These same nodes drive mountain
@@ -104,8 +158,9 @@ export function composeWildsConstructionTerrain(physical: WildsDiscoveryPhysical
     (physical.regionX - 1) * WILDS_DISCOVERY_SITE_REGION_SIZE, (physical.regionZ - 1) * WILDS_DISCOVERY_SITE_REGION_SIZE,
     (physical.regionX + 2) * WILDS_DISCOVERY_SITE_REGION_SIZE, (physical.regionZ + 2) * WILDS_DISCOVERY_SITE_REGION_SIZE);
   if (!local.length) return physical;
+  const grading = local.filter(pad => !pad.historicalScenery || pad.retainedLaydown);
   const mountainFields = physical.mountainFields.map(field => {
-    const relevant = wildsConstructionTerrainPadsInBounds(local, field.center.x - field.halfExtents.x, field.center.z - field.halfExtents.z,
+    const relevant = wildsConstructionTerrainPadsInBounds(grading, field.center.x - field.halfExtents.x, field.center.z - field.halfExtents.z,
       field.center.x + field.halfExtents.x, field.center.z + field.halfExtents.z);
     if (!relevant.length) return field;
     const columns = Math.max(field.columns, Math.ceil(field.halfExtents.x * 4) + 1),
@@ -123,7 +178,7 @@ export function composeWildsConstructionTerrain(physical: WildsDiscoveryPhysical
   });
   // Additional fields provide the same floor to movement and water transition
   // logic where the original landscape had no authored mountain mesh.
-  for (const pad of local) {
+  for (const pad of grading) {
     const c = Math.abs(Math.cos(pad.yaw)), s = Math.abs(Math.sin(pad.yaw)),
       hx = c * pad.halfExtents.x + s * pad.halfExtents.z + FLAT_APRON + EDGE_BLEND,
       hz = s * pad.halfExtents.x + c * pad.halfExtents.z + FLAT_APRON + EDGE_BLEND,
@@ -136,7 +191,7 @@ export function composeWildsConstructionTerrain(physical: WildsDiscoveryPhysical
       let original = wildsTerrainElevation(x, z), mountain = -Infinity;
       for (const field of physical.mountainFields) { const y = wildsMountainFieldValue(field, x, z, 'topY'); if (Number.isFinite(y)) mountain = Math.max(mountain, y); }
       if (Number.isFinite(mountain)) original = mountain;
-      const topY = sampleWildsConstructionTerrainAt(local, x, z, original);
+      const topY = sampleWildsConstructionTerrainAt(grading, x, z, original);
       minimum = Math.min(minimum, original, topY); maximum = Math.max(maximum, original, topY);
       nodes.push({ x, z, baseY: Math.min(original, topY), topY });
     }
@@ -144,7 +199,13 @@ export function composeWildsConstructionTerrain(physical: WildsDiscoveryPhysical
       spaceId: 'wildz.space.outer.v1', center: { x: pad.center.x, y: (minimum + maximum) / 2, z: pad.center.z },
       halfExtents: { x: hx, y: (maximum - minimum) / 2, z: hz }, columns, rows, nodes });
   }
-  return { ...physical, mountainFields, surfaces: [...physical.surfaces, ...local.map(pad => ({
+  // Own only the derived footprint; mutable callers remain independently
+  // observable and cannot invalidate a cached movement index by mutation.
+  const sceneryClearance=Object.freeze(local.filter(pad=>pad.clearsScenery).map(pad=>Object.freeze({
+    center:Object.freeze({...pad.center}),halfExtents:Object.freeze({...pad.halfExtents}),yaw:pad.yaw
+  })));
+  const solids=physical.solids.filter(solid=>!solid.id.startsWith('waterfall-chute:')||!wildsBuildSceneryClearedAt(sceneryClearance,solid.center.x,solid.center.z,Math.hypot(solid.halfExtents.x,solid.halfExtents.z)));
+  return { ...physical, mountainFields,solids, sceneryClearance, surfaces: [...physical.surfaces, ...grading.map(pad => ({
     id: `construction-terrain:${pad.id}`, siteKey: `construction-terrain:${pad.id}`, spaceId: 'wildz.space.outer.v1',
     kind: 'terrain-overlay' as const, center: pad.center, halfExtents: { ...pad.halfExtents, y: 0 }, yaw: pad.yaw, flooded: false
   }))] };

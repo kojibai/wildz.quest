@@ -8,7 +8,9 @@ import {
   type ReceizPortableSealedArtifactV124, type ReceizProofAuthorityChallengeV123,
   type ReceizProofAuthorityV123,
 } from "@receiz/sdk";
+import {assertWildsMaterialPublicationOpenV128} from "./wilds-material-publication-fence-v128";
 import type { WildzContinuityDatabase } from "../storage/wildz-indexed-db";
+import {decodeWildsResourceEventV128} from './wilds-resource-event-codec-v128';
 import { prepareWildsPortableDocumentV128 } from "./wilds-portable-document-v128";
 import { prepareWildsResourceSourcePageV128, WILDS_RESOURCE_SOURCE_WRITE_SCOPES_V128,
   type WildsResourceSourceAuthorV128, type WildsResourceSourcePageV128 } from "./wilds-resource-source-v128";
@@ -40,6 +42,7 @@ export function createWildsResourceSourceRecoveryStoreV128(database: WildzContin
   return {
     read: (owner, attempt) => database.read("meta", keyFor(owner, attempt)),
     reserve: value => database.transaction(["meta"], "readwrite", async tx => {
+      await assertWildsMaterialPublicationOpenV128(tx,value.ownerReceizId,value.attemptId);
       const key = keyFor(value.ownerReceizId, value.attemptId), prior = await tx.get<SourceAttempt>("meta", key);
       if (prior) { if (prior.requestDigest !== value.requestDigest) conflict(); return prior; }
       await tx.put("meta", value, key); return value;
@@ -65,11 +68,14 @@ async function revalidatePreparation(value: SourceAttempt, page: WildsResourceSo
   if (carrier.schema !== "receiz.domain-replay-segment-proof.v124") throw Error("wilds_resource_source_recovery_invalid");
   const child = JSON.parse(new TextDecoder().decode(receizBase64UrlDecode(carrier.segment.exactSegmentBytesB64u)));
   const addition = child.replay.additions[0];
+  const transportEvent=JSON.parse(new TextDecoder().decode(receizBase64UrlDecode(addition.exactEventBytesB64u)));
+  const retainedEvent=await decodeWildsResourceEventV128(transportEvent);
   if (value.idempotencyKey !== `wildz:resource-source:${value.requestDigest}`
     || child.replay.applicationId !== applicationId || child.replay.domainId !== page.domainId
     || child.replay.registryDigest !== page.registryDigest || child.replay.reducerDigest !== page.reducerDigest
     || carrier.head.genesisHead !== page.genesisHead || child.replay.additions.length !== 1
-    || addition.appendId !== page.appendId || addition.exactEventBytesB64u !== receizBase64UrlEncode(new TextEncoder().encode(canonicalizeReceizV122(page.event)))
+    || addition.appendId !== page.appendId || canonicalizeReceizV122(retainedEvent)!==canonicalizeReceizV122(page.event)
+    || !['wildz.resource-event-bytes.v1','wildz.resource-event-bytes.v2'].includes(transportEvent?.schema)&&addition.exactEventBytesB64u!==receizBase64UrlEncode(new TextEncoder().encode(canonicalizeReceizV122(page.event)))
     || child.replay.namespace.name !== page.namespaceName || child.replay.namespace.head !== page.namespaceHead
     || child.replay.namespace.exactBytesB64u !== receizBase64UrlEncode(new TextEncoder().encode(canonicalizeReceizV122(page.namespace)))
     || canonicalizeReceizV122(value.predecessorArtifact) !== canonicalizeReceizV122(page.predecessor?.artifact ?? null)

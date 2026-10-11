@@ -31,6 +31,7 @@ export type WildsWalletStagedTradeAdapterInput = Readonly<{
   readConversations(): Promise<readonly WildsConversation[]>;
   publish(message: WildsWalletStagedTradeMessage, peerHandle: string): Promise<void>;
   ensureReady?(): Promise<boolean | void>;
+  observeSubmission?(): Promise<void>;
   loadIdentityOriginal?(): Promise<ReceizPortableSealedArtifactV124>;
   recoveryStore?: WildsWalletStagedTradeRecoveryStore;
   archiveStore?:WildsWalletStagedTradeArchiveStore;
@@ -46,7 +47,7 @@ export type WildsWalletStagedTradeAdapterInput = Readonly<{
 export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTradeAdapterInput) {
   const store = input.recoveryStore ?? wildsWalletBrowserStagedTradeRecoveryStore;
   const controller = createWildsWalletStagedTradeController({ recoveryStore: store, archiveStore:input.archiveStore??(store===wildsWalletBrowserStagedTradeRecoveryStore?wildsWalletBrowserStagedTradeArchiveStore:undefined) });
-  const phi = input.phi ?? createWildsWalletConnectPhiPort({ keyId: input.keyId, ownerHandle: input.ownerHandle, currentBinding: input.currentIdentity, ensureReady: input.ensureReady });
+  const phi = input.phi ?? createWildsWalletConnectPhiPort({ keyId: input.keyId, ownerHandle: input.ownerHandle, currentBinding: input.currentIdentity, ensureReady: input.ensureReady, beforeSubmit: async () => { await input.observeSubmission?.().catch(() => undefined); } });
   let identity: Awaited<ReturnType<typeof prepareWildsWalletStagedTradeIdentity>> | null = null;
   let preparing: Promise<void> | null = null;
   const assertCurrent = () => {
@@ -107,6 +108,8 @@ export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTrad
       const descriptor = descriptorForLeg(leg);
       if (input.ensureReady && await input.ensureReady() === false) throw Error("Reconnect the same Explorer before sending this stage.");
       assertCurrent();
+      await input.observeSubmission?.().catch(() => undefined);
+      assertCurrent();
       return input.assetPort.sendSource(leg, descriptor, await assetAuthorityForLeg(leg));
     },
     async acceptAsset(leg) {
@@ -114,6 +117,8 @@ export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTrad
       await assertMarket(entryForLeg(leg).plan, "accept-asset");
       if (!input.assetPort.acceptSource) throw Error("Acceptance is unavailable for this asset source.");
       if (input.ensureReady && await input.ensureReady() === false) throw Error("Reconnect the same Explorer before accepting this stage.");
+      assertCurrent();
+      await input.observeSubmission?.().catch(() => undefined);
       assertCurrent();
       const outcome = await input.assetPort.acceptSource(leg, descriptorForLeg(leg), await assetAuthorityForLeg(leg));
       assertCurrent();

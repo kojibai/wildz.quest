@@ -119,6 +119,7 @@ export type WildsMountainField = Readonly<{
 }>;
 
 export type WildsDiscoveryPhysicalNeighborhood = Readonly<{
+  sceneryClearance?: readonly import('./wilds-build-scenery').WildsBuildSceneryFootprint[];
   version: "wildz.site-physical-neighborhood.v1";
   regionX: number;
   regionZ: number;

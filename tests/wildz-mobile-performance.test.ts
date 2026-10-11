@@ -115,7 +115,16 @@ test("proof admission does not activate recurring work on the gameplay hot path"
 
   assert.doesNotMatch(campaign, /usePublicCardPublisher/);
   assert.match(campaign, /surfaceOpen:\s*multiplayerRosterOpen/);
-  assert.doesNotMatch(world, /setInterval/);
+  // The compact shared-clearance reader is a visible-only worker poll. It
+  // has no identity/wallet port, and its effect owns cancellation/disposal.
+  const clearanceEffect = world.slice(world.indexOf('void refreshPublicClearance();'), world.indexOf('const refreshCoordinator = edge.current.refresh;'));
+  assert.match(clearanceEffect, /document.visibilityState==='visible'/);
+  assert.match(clearanceEffect, /setInterval\(resume,30_000\)/);
+  assert.match(clearanceEffect, /clearInterval\(timer\)/);
+  assert.match(clearanceEffect, /publicClearanceAbort.current\?\.abort\(\)/);
+  assert.match(clearanceEffect, /publicClearanceReader.current\?\.dispose\(\)/);
+  assert.doesNotMatch(clearanceEffect, /openRuntime|wallet|verifyCard|replayWilds/);
+  assert.doesNotMatch(world.replace(clearanceEffect, ''), /setInterval/);
   assert.doesNotMatch(multiplayer, /setInterval/);
 
   const ownership = shell.slice(

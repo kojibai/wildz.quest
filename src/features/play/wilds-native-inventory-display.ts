@@ -21,6 +21,7 @@ export function wildsFoodConsumptionRoute(input: {
 }): 'native' | 'wait' | 'world' | 'local' {
   if (input.nourishment?.ownerReceizId === input.owner && input.nourishment.nativePendingFuelItemIds?.includes(input.itemId)) return 'wait';
   const native = input.nourishment?.ownerReceizId === input.owner && input.nourishment.nativeItemIds?.includes(input.itemId)
+    || Boolean(input.nourishment?.items[input.itemId]?.clearance)
     || input.nativeSource?.owner === input.owner && input.nativeSource.foodIds.has(input.itemId);
   if (native) return input.hasNativeIdentity ? 'native' : 'wait';
   if (input.world?.foodItems?.[input.itemId]) return input.hasNativeIdentity ? 'native' : 'world';

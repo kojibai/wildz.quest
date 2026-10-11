@@ -1,3 +1,7 @@
+import {validateWalletResourceIndex, type ResourceIndex} from "../src/features/play/wallet/wilds-wallet-resource-index-validation";
+import {verifyWalletResourceIndexOffThread} from "../src/features/play/wallet/wilds-wallet-resource-index-client";
+import { loadWildzWalletPresentation } from "../src/lib/receiz/wildz-wallet-presentation";
+import { createWildzIdentityRepository } from "../src/lib/receiz/wildz-identity-repository";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createReceizClient, createReceizIdentityKeyFile } from "@receiz/sdk";
@@ -23,6 +27,16 @@ import type { WildsResourcePackageMember } from "../src/features/play/wilds-reso
 async function fixture(mixed = false) {
   const { keyFile } = await createReceizIdentityKeyFile({ owner: { uid: "fixture-bob", username: "bob" } });
   const database = createMemoryWildzContinuityDatabase(), ownerHandle = "bob.receiz.id";
+  const repository = createWildzIdentityRepository({database}), prepared = await repository.prepare(keyFile);
+  await database.transaction(["identities", "meta"], "readwrite", tx => repository.writePrepared(tx, prepared, true));
+  let waitAt: "qualification" | "signing" | "commit" | null = null;
+  let entered = () => {}, release = () => {};
+  let waiting = Promise.resolve();
+  const pauseAt = async (stage: typeof waitAt) => { if (waitAt === stage) { entered(); await waiting; waitAt = null; } };
+  const storeDatabase = {...database, transaction: (async (stores, mode, operation) => {
+    if (mode === "readwrite" && stores.includes("artifacts")) await pauseAt("commit");
+    return database.transaction(stores, mode, operation);
+  }) as typeof database.transaction};
   const plant = Array.from({ length: 9 }, (_, i) => wildsNourishmentPlantsForTile(i - 4, -4)).flat()[0]!, kai = 100_000_000;
   const replay = await replayWildsResourceGameplayV128({ gameplayOwnerId: "explorer", commands: [{ kind: "food.gather", commandId: "gather:fixture", sourceId: plant.sourceId, expectedSourceHead: wildsNourishmentSourceAt(plant, undefined, kai).head, kaiUPulse: kai, player: plant.position, spaceId: "wildz.space.outer.v1" }] });
   const members: WildsResourcePackageMember[] = Object.values(replay.members);
@@ -41,11 +55,12 @@ async function fixture(mixed = false) {
   let state: WildsResourceJournalV128 = { ...initialWildsResourceJournalV128(), packages: { [packageProof.packageId]: { package: packageProof, ownerReceizId: ownerHandle, recipientHandle: "bob", status: "claimed", custodyAppendId: "fixture:claim", claimAppendId: "fixture:claim" } } };
   let binding = { keyId: keyFile.keyId, ownerHandle }, admissions = 0, keyReads = 0;
   const value: WildsWalletResourceProjectionV128 = { kind: "received", leg, package: packageProof, source: original, proof };
-  const store = () => createWildsWalletResourceProjectionStoreV128({ keyId: keyFile.keyId, ownerHandle, currentIdentity: () => binding, openRuntime: async () => { throw Error("fixture source port only"); } }, {
-    database: async () => database, withLock: async (_name, action) => action(), readIdentity: async () => { keyReads++; return keyFile; },
-    qualify: async input => { admissions++; assert.deepEqual(input.source, original); return { package: packageProof, state, proof, events: [{ event: { schema: "wildz.resource-command.v128", kind: "claim", ownerReceizId: ownerHandle, packageId: packageProof.packageId, attemptId: "fixture:claim", artifact: original }, appendId: "fixture:claim", head: "c".repeat(64), kaiUPulse: kai, sealKai: "100" }], currentHead: "c".repeat(64) }; },
+  const store = (incarnation = prepared.session.walletObservationEpoch ?? "legacy", verifyIndex = verifyWalletResourceIndexOffThread) => createWildsWalletResourceProjectionStoreV128({ ...{incarnation}, keyId: keyFile.keyId, ownerHandle, currentIdentity: () => ({...binding, incarnation}), openRuntime: async () => { throw Error("fixture source port only"); } }, {
+    verifyIndex, database: async () => storeDatabase, withLock: async (_name, action) => action(), readIdentity: async () => { keyReads++; await pauseAt("signing"); return keyFile; },
+    qualify: async input => { admissions++; await pauseAt("qualification"); assert.deepEqual(input.source, original); return { package: packageProof, state, proof, events: [{ event: { schema: "wildz.resource-command.v128", kind: "claim", ownerReceizId: ownerHandle, packageId: packageProof.packageId, attemptId: "fixture:claim", artifact: original }, appendId: "fixture:claim", head: "c".repeat(64), kaiUPulse: kai, sealKai: "100" }], currentHead: "c".repeat(64) }; },
   });
-  return { store, database, value, keyFile, counts: () => ({ admissions, keyReads }), switchOwner: () => { binding = { ...binding, ownerHandle: "charlie.receiz.id" }; }, unpack() {
+  return { store, database, value, keyFile, repository, session: prepared.session,
+    pause(stage: NonNullable<typeof waitAt>) { waitAt = stage; waiting = new Promise<void>(resolve => { release = resolve; }); return {entered: new Promise<void>(resolve => { entered = resolve; }), release: () => release()}; }, counts: () => ({ admissions, keyReads }), switchOwner: () => { binding = { ...binding, ownerHandle: "charlie.receiz.id" }; }, unpack() {
     const id = packageProof.packageId;
     state = { ...state, packages: { [id]: { ...state.packages[id]!, status: "unpacked" } }, imports: { [id]: { ownerReceizId: ownerHandle, package: packageProof, kaiUPulse: kai, unpackAppendId: "fixture:unpack", sourceArtifactSha256: original.artifactSha256 } }, looseMembers: Object.fromEntries(packageProof.members.map(member => [member.id, { ownerReceizId: ownerHandle, packageId: id, member }])) };
   }, transferAway() { state = { ...state, packages: { [packageProof.packageId]: { ...state.packages[packageProof.packageId]!, ownerReceizId: "charlie.receiz.id" } }, looseMembers: {} }; }, spend() { const id = packageProof.members[0]!.id; state = { ...state, looseMembers: {}, spentMembers: { [id]: "spent:real-source-command" } }; } };
@@ -104,8 +119,8 @@ test("spent imported food remains unavailable after proof replay and late callba
 });
 
 test("identity change during qualification cannot write another Explorer's projection", async () => {
-  const f = await fixture(); const pending = f.store().retain(f.value); f.switchOwner(); await assert.rejects(pending, /Explorer changed/);
-  assert.equal(f.database.dump().meta.length, 0); assert.equal(f.database.dump().artifacts.length, 0);
+  const f = await fixture(), originalMeta = f.database.dump().meta; const pending = f.store().retain(f.value); f.switchOwner(); await assert.rejects(pending, /Explorer changed/);
+  assert.deepEqual(f.database.dump().meta, originalMeta); assert.equal(f.database.dump().artifacts.length, 0);
 });
 
 test("changed full retained proof is rejected before current-source use", async () => {
@@ -120,7 +135,7 @@ test("changed full retained proof is rejected before current-source use", async 
 test("production admission rejects fabricated source bytes before writing a display row", async () => {
   const f = await fixture(), sdk = createReceizClient({ applicationId: "wildz" });
   const runtime = { sdk, keyId: f.keyFile.keyId, ownerReceizId: "bob.receiz.id", exchange: { async verifyProjection() { throw Error("current source must not be read for a fabricated Original"); } } } as unknown as WildsResourceExchangeBrowserRuntimeV128;
-  const store = createWildsWalletResourceProjectionStoreV128({ keyId: f.keyFile.keyId, ownerHandle: "bob.receiz.id", currentIdentity: () => ({ keyId: f.keyFile.keyId, ownerHandle: "bob.receiz.id" }), openRuntime: async () => runtime }, { database: async () => f.database, withLock: async (_name, action) => action(), readIdentity: async () => f.keyFile });
+  const store = createWildsWalletResourceProjectionStoreV128({ incarnation: f.session.walletObservationEpoch ?? "legacy", keyId: f.keyFile.keyId, ownerHandle: "bob.receiz.id", currentIdentity: () => ({ keyId: f.keyFile.keyId, ownerHandle: "bob.receiz.id", incarnation: f.session.walletObservationEpoch ?? "legacy" }), openRuntime: async () => runtime }, { database: async () => f.database, withLock: async (_name, action) => action(), readIdentity: async () => f.keyFile });
   const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("x")))].map(n => n.toString(16).padStart(2, "0")).join("");
   await assert.rejects(store.retain({ ...f.value, source: { ...f.value.source, artifactSha256: digest } }), /artifact|bundle|seal|verification|original/i);
   assert.deepEqual(await store.listCached(), []); assert.equal(f.database.dump().artifacts.length, 0);
@@ -153,4 +168,131 @@ test("mixed food, timber and Honey retain their immutable genesis while current 
   assert.deepEqual(honeyRef.resourceLot, f.value.package.members.find(member => member.kind === "resource")!.resourceLot);
   assert.ok(materialRef.materialLot!.quality >= 1); assert.ok(honeyRef.resourceLot!.quality >= 1);
   assert.equal("nourishment" in display.availableMembers.find(member => member.kind === "food")!, false);
+});
+
+
+test("continuity first-paint handoff reloads real signed compact resource index without Original or signer", async () => {
+  const f = await fixture(true), repository = createWildzIdentityRepository({database: f.database});
+  const prepared = await repository.prepare(f.keyFile);
+  await f.database.transaction(["identities", "meta"], "readwrite", tx => repository.writePrepared(tx, prepared, true));
+  await f.store(prepared.session.walletObservationEpoch).retain(f.value); const before = f.counts(), start = performance.now();
+  const presentation = await loadWildzWalletPresentation(f.database, await repository.bootstrap());
+  const resourceRows = await f.store(prepared.session.walletObservationEpoch).listCached();
+  const ms = performance.now() - start;
+  assert.equal(presentation.resourceRowsPending, true);
+  assert.equal(resourceRows.length, 1); assert.deepEqual(f.counts(), before);
+  assert.equal(resourceRows[0]!.sourceArtifactSha256, f.value.source.artifactSha256);
+  const display = projectWildsWalletResourceProjectionsV128(resourceRows);
+  assert.equal(display.cards.length, 1); assert.equal(display.availableMembers.length, 0);
+  const bytes = Buffer.byteLength(JSON.stringify(resourceRows));
+  assert.ok(bytes < 5000); console.log(JSON.stringify({signedResourceHydrationMs: ms, signedResourcePresentationBytes: bytes, rows: 1, newSourceAdmissions: f.counts().admissions - before.admissions, newPrivateKeyReads: f.counts().keyReads - before.keyReads}));
+  await repository.logout(); assert.deepEqual((await loadWildzWalletPresentation(f.database, prepared.session)).resourceRows, []);
+  assert.ok(f.database.dump().artifacts.length > 0, "Original/detail retention remains untouched");
+});
+
+for (const boundary of ["qualification", "signing", "commit"] as const) {
+  for (const retirement of ["same-key restore", "logout"] as const) {
+    test(`retained index commit rejects stale ${boundary} completion after ${retirement}`, async () => {
+      const f = await fixture(true), oldStore = f.store();
+      await oldStore.retain(f.value);
+      const artifacts = f.database.dump().artifacts;
+      const gate = f.pause(boundary);
+      // Its callback intentionally remains the old mounted/unmounted key+owner.
+      const pending = oldStore.retain(f.value);
+      await gate.entered;
+      const restored = await f.repository.prepare(f.keyFile);
+      if (retirement === "same-key restore") {
+        assert.notEqual(restored.session.walletObservationEpoch, f.session.walletObservationEpoch);
+        await f.database.transaction(["identities", "meta"], "readwrite", tx => f.repository.writePrepared(tx, restored, true));
+      } else await f.repository.logout();
+      const rejected = assert.rejects(pending, /Explorer changed|incarnation|matching resource wallet/);
+      gate.release();
+      await rejected;
+      assert.deepEqual(f.database.dump().artifacts, artifacts, "Exact proof/detail/continuation artifacts are preserved");
+      const freshRepository = createWildzIdentityRepository({database: f.database});
+      const session = retirement === "same-key restore" ? await freshRepository.bootstrap() : f.session;
+      assert.deepEqual((await loadWildzWalletPresentation(f.database, session)).resourceRows, []);
+      if (retirement === "same-key restore") {
+        await f.store(session.walletObservationEpoch).retain(f.value);
+        assert.equal((await f.store(session.walletObservationEpoch).listCached()).length, 1, "The active restored incarnation can retain newly admitted resources");
+      }
+    });
+  }
+}
+
+
+test("public index validator preserves exact bounds and rejects corrupt signatures and scope", async () => {
+  const f = await fixture(true); await f.store().retain(f.value);
+  const index = f.database.dump().meta.find(([, raw]) => (raw as {schema?: string}).schema === "wildz.wallet.resource-projection-index.v128")![1] as ResourceIndex;
+  const scope = {keyId: f.keyFile.keyId, ownerHandle: "bob.receiz.id"};
+  assert.deepEqual(await validateWalletResourceIndex(index, scope), [0]);
+  assert.deepEqual(await validateWalletResourceIndex(index, {...scope, ownerHandle: "alice.receiz.id"}), []);
+  const corrupt = structuredClone(index); (corrupt.entries[0]!.signature as {signatureB64Url: string}).signatureB64Url = "AAAA";
+  assert.deepEqual(await validateWalletResourceIndex(corrupt, scope), []);
+  const malformed = {...index, entries: [null]} as unknown as ResourceIndex;
+  assert.deepEqual(await validateWalletResourceIndex(malformed, scope), []);
+  await assert.rejects(validateWalletResourceIndex({...index, entries: Array(257).fill(index.entries[0])}, scope));
+  const oversizeRow = {...index.entries[0], padding: "x".repeat(100_000)};
+  assert.deepEqual(await validateWalletResourceIndex({...index, entries: [oversizeRow]}, scope), []);
+  await assert.rejects(validateWalletResourceIndex({...index, entries: Array(41).fill(oversizeRow)}, scope), /limit/);
+  let slices = 0;
+  assert.deepEqual(await validateWalletResourceIndex({...index, entries: [index.entries[0]!, index.entries[0]!]}, scope, async () => {slices++;}), [0, 1]);
+  assert.equal(slices, 2);
+  await assert.rejects(validateWalletResourceIndex({...index, metadata: "é".repeat(2_000_000)} as ResourceIndex, scope), /limit/);
+});
+
+for (const retirement of ["restore", "logout"] as const) test(`background validation and final delivery reject ${retirement}`, async () => {
+  const f = await fixture(true); await f.store().retain(f.value);
+  let release!: () => void, entered!: () => void;
+  const gate = new Promise<void>(resolve => {release = resolve;}), started = new Promise<void>(resolve => {entered = resolve;});
+  const store = f.store(undefined, async (index, scope) => {const result = await validateWalletResourceIndex(index, scope); entered(); await gate; return result;});
+  const pending = store.listCached(); await started;
+  if (retirement === "logout") await f.repository.logout();
+  else {const prepared = await f.repository.prepare(f.keyFile); await f.database.transaction(["identities", "meta"], "readwrite", tx => f.repository.writePrepared(tx, prepared, true));}
+  const rejected = assert.rejects(pending, /Explorer changed/); release(); await rejected;
+  await assert.rejects(store.assertCurrent(), /Explorer changed/);
+});
+
+test("public worker returns positions for exact snapshot and retires on success, abort and malformed reply", async () => {
+  const f = await fixture(); await f.store().retain(f.value);
+  const index = f.database.dump().meta.find(([, raw]) => (raw as {schema?: string}).schema === "wildz.wallet.resource-projection-index.v128")![1] as ResourceIndex;
+  const scope = {keyId: f.keyFile.keyId, ownerHandle: "bob.receiz.id"};
+  for (const mode of ["valid", "malformed", "abort"] as const) {
+    let terminated = 0, sent: unknown;
+    const abort = new AbortController();
+    const worker = {onmessage: null as Worker["onmessage"], onerror: null as Worker["onerror"], onmessageerror: null as Worker["onmessageerror"],
+      terminate() {terminated++;}, postMessage(value: unknown) {sent = value; if (mode === "abort") {abort.abort(); return;}
+        void validateWalletResourceIndex(index, scope).then(positions => worker.onmessage?.call(worker as unknown as Worker, {data: {ok: true, positions: mode === "malformed" ? [999] : positions}} as MessageEvent)); }};
+    const result = verifyWalletResourceIndexOffThread(index, scope, () => worker, abort.signal);
+    if (mode === "valid") assert.deepEqual(await result, [0]); else await assert.rejects(result);
+    assert.equal(terminated, 1); assert.equal(worker.onmessage, null);
+    assert.deepEqual(Object.keys(sent as object), ["index", "scope"]);
+  }
+});
+
+
+test("exact pending material checkpoint survives a fresh store and new intent, without loading display rows", async () => {
+  const f = await fixture();
+  const entry = {schema:"receiz.wilds_world_outbox_entry.v1" as const,actorId:"explorer",guestId:"material-checkpoint",queuedAt:"2026-10-10T00:00:00.000Z",
+    command:{type:"storage.material.move" as const,commandId:"material:original",lotId:"material:lot",cacheId:"cache",direction:"deposit" as const,actorPosition:{x:0,y:0,z:0}}};
+  const first = await f.store().prepareMaterial(entry);
+  assert.deepEqual(structuredClone(first), entry);
+  const retry = {...entry,command:{...entry.command,commandId:"material:new-retry"}};
+  assert.deepEqual(await f.store().prepareMaterial(retry), entry);
+  await assert.rejects(f.store().finishMaterial(retry.command.commandId), /exact saved material/);
+  await f.store().finishMaterial(entry.command.commandId);
+  assert.deepEqual(await f.store().prepareMaterial(retry), retry);
+  assert.deepEqual(f.counts(), {admissions:0,keyReads:0});
+});
+for (const retirement of ["restore", "logout"] as const) test(`material pending checkpoint and acknowledgement fence persisted ${retirement}`, async () => {
+  const f = await fixture(), old = f.store();
+  const entry = {schema:"receiz.wilds_world_outbox_entry.v1" as const,actorId:"explorer",guestId:"material-checkpoint",queuedAt:"2026-10-10T00:00:00.000Z",
+    command:{type:"storage.material.move" as const,commandId:"material:original",lotId:"material:lot",cacheId:"cache",direction:"deposit" as const,actorPosition:{x:0,y:0,z:0}}};
+  await old.prepareMaterial(entry);
+  if(retirement === "restore") {const restored=await f.repository.prepare(f.keyFile);await f.database.transaction(["identities","meta"],"readwrite",tx=>f.repository.writePrepared(tx,restored,true));}
+  else await f.repository.logout();
+  const before=f.database.dump();
+  await assert.rejects(old.prepareMaterial(entry),/Explorer changed/);
+  await assert.rejects(old.finishMaterial(entry.command.commandId),/Explorer changed/);
+  assert.deepEqual(f.database.dump(),before);
 });

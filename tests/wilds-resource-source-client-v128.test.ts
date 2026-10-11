@@ -7,6 +7,9 @@ import { prepareWildsResourceSourcePageV128 } from "../src/lib/receiz/wilds-reso
 import {canonicalPortableCardJson,sha256PortableBasis} from '../src/features/play/portable-card';
 import {queueWildsResourceGameplayV128} from '../src/lib/receiz/wilds-resource-gameplay-store-v128';
 import {createWildsResourcePackageExchangeV128} from '../src/lib/receiz/wilds-resource-exchange-v128';
+import type {WildsClearancePickupProposalV128} from '../src/lib/receiz/wilds-clearance-admission-v128';
+import {paidClearanceTrace} from './support/clearance-source-fixture';
+import {decodeWildsResourceEventV128} from '../src/lib/receiz/wilds-resource-event-codec-v128';
 
 function database(fail = false): WildzContinuityDatabase {
   const records = new Map<string, unknown>();
@@ -51,10 +54,37 @@ test("lost seal response retries frozen exact source bytes and the same native i
   assert.equal(new TextDecoder().decode(fixture.sealedInputs[0]!.bytes).includes(fixture.authority.keyFile.crypto.privateKeyPkcs8B64u!), false);
 });
 
+test('lost encoded-event seal reply keeps the identical candidate and raw paid trace across client recreation',async()=>{
+ const f=await createFixture(),paid=await paidClearanceTrace();
+ const event={schema:'wildz.resource-command.v128',kind:'replay',attemptId:'codec:retained-paid',ownerReceizId:'alice.receiz.id',gameplayOwnerId:'explorer',commands:paid.commands};
+ const page={...f.page,event};
+ assert.equal((await f.create().publish({attemptId:event.attemptId,page})).status,'pending');
+ assert.equal((await f.create().publish({attemptId:event.attemptId,page})).status,'pending');
+ assert.deepEqual(f.sealedInputs[0].bytes,f.sealedInputs[1].bytes);assert.equal(f.sealedInputs[0].idempotencyKey,f.sealedInputs[1].idempotencyKey);
+ const stored=await f.store.read(f.authority.ownerReceizId,event.attemptId);assert.ok(stored);
+ const child=JSON.parse(new TextDecoder().decode(receizBase64UrlDecode(stored.preparation.candidate.carrier.segment.exactSegmentBytesB64u)));
+ const encoded=JSON.parse(new TextDecoder().decode(receizBase64UrlDecode(child.replay.additions[0].exactEventBytesB64u)));
+ assert.equal(encoded.schema,'wildz.resource-event-bytes.v2');assert.deepEqual(await decodeWildsResourceEventV128(encoded),event);
+});
+
 test("resource source storage failure prevents all seal and publication writes", async () => {
   const fixture = await createFixture(database(true));
   await assert.rejects(fixture.create().publish({ attemptId: "collect:one", page: fixture.page }), /storage unavailable/);
   assert.equal(fixture.sealedInputs.length, 0);
+});
+
+test('clearance pickup fences held identity and gameplay owner before any locator, seal or publication access',async()=>{
+ const fixture=await createFixture();let reads=0;
+ const exchange=createWildsResourcePackageExchangeV128({sdk:fixture.sdk,database:fixture.storage,authority:fixture.authority,session:fixture.session as never,gameplayOwnerId:'explorer',locator:{read:async()=>{reads++;return null;},publish:async()=>assert.fail('foreign owner cannot publish')}});
+ for(const identity of [{ownerReceizId:'bob.receiz.id',gameplayOwnerId:'explorer'},{ownerReceizId:'alice.receiz.id',gameplayOwnerId:'other-player'}]){
+  // Deliberately incomplete body: identity fencing must happen even before a
+  // caller's candidate can trigger a source read or preparation.
+  const proposal={...identity,kaiUPulse:1,command:{commandId:'clearance:foreign-owner'}} as WildsClearancePickupProposalV128;
+  const result=await exchange.admitClearancePickup(proposal);
+  assert.equal(result.status,'pending');assert.deepEqual(result.members,[]);
+  assert.equal(result.reason,'wilds_resource_exchange_clearance_owner_mismatch');
+ }
+ assert.equal(reads,0);assert.equal(fixture.sealedInputs.length,0);
 });
 
 test("changing members on a retained source attempt fails before a second seal", async () => {

@@ -26,6 +26,7 @@ import { useWildsReadability } from "@/features/play/WildsReadabilityContext";
 import { projectWildsEcologyInstance } from "@/features/play/wilds-ecology-placement";
 import { buildWildsTerrainPatchProjection, buildWildsTerrainRibbonProjection, buildWildsTerrainWaterProjection, gradeWildsTerrainMeshProjection, gradeWildsTerrainWaterProjection, wildsTerrainRelativeElevation } from "@/features/play/wilds-terrain-rendering";
 import { createWildsConstructionTerrainSelector, wildsConstructionTerrainPadsInBounds, type WildsConstructionTerrainPad } from './wilds-construction-terrain';
+import { filterWildsBuildScenery, wildsBuildSceneryClearedAt } from './wilds-build-scenery';
 import { wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
 import { createWildsResourcePlacementProjector } from "./wilds-resource-placements";
 import { projectWildsHarvestWorkPhase, projectWildsSourceWorkMotion, type WildsActiveWorkSource, type WildsResourceBodyProjection } from "@/features/play/wilds-work-presentation";
@@ -221,14 +222,15 @@ export function WildsEnvironment({
     return projected;
   }, [centerX, centerZ, missionProgress, outer, worldMastery]);
 
-  const physicalObstacles = useMemo(() => outer ? tiles.flatMap((tile) => wildsTerrainObstaclesForTile(tile.tileX, tile.tileZ)) : EMPTY_VALUES, [outer, tiles]);
+  const sceneryClearance = useMemo(()=>terrainPads.filter(pad=>pad.clearsScenery),[terrainPads]);
+  const physicalObstacles = useMemo(() => outer ? filterWildsBuildScenery(tiles.flatMap((tile) => wildsTerrainObstaclesForTile(tile.tileX, tile.tileZ)),sceneryClearance) : EMPTY_VALUES, [outer, tiles,sceneryClearance]);
   const projectResourcePlacements = useMemo(createWildsResourcePlacementProjector, []);
   const { trees, rocks } = useMemo(() => projectResourcePlacements(physicalObstacles, livingWorld?.harvestedSources, kaiUPulse, activeWorkSource),
     // Work identity includes restarts at the same source; other work fields do not affect transforms.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [projectResourcePlacements, physicalObstacles, livingWorld?.harvestedSources, kaiUPulse, activeWorkSource?.sourceId, activeWorkSource?.startedAtMs]);
-  const bushes = useMemo(() => outer ? placements(tiles, "bushCount", 211, qualityProfile.foliage) : EMPTY_PLACEMENTS, [outer, qualityProfile.foliage, tiles]);
-  const flowers = useMemo(() => outer ? placements(tiles, "flowerCount", 401, qualityProfile.foliage) : EMPTY_PLACEMENTS, [outer, qualityProfile.foliage, tiles]);
+  const bushes = useMemo(() => outer ? placements(tiles, "bushCount", 211, qualityProfile.foliage).filter(p=>!wildsBuildSceneryClearedAt(sceneryClearance,p.x,p.z,p.scale)) : EMPTY_PLACEMENTS, [outer, qualityProfile.foliage, tiles,sceneryClearance]);
+  const flowers = useMemo(() => outer ? placements(tiles, "flowerCount", 401, qualityProfile.foliage).filter(p=>!wildsBuildSceneryClearedAt(sceneryClearance,p.x,p.z,.2)) : EMPTY_PLACEMENTS, [outer, qualityProfile.foliage, tiles,sceneryClearance]);
 
   return (
     <group>

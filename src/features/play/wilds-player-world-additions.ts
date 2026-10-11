@@ -1,3 +1,4 @@
+import {projectWildsClearanceHistory,preserveWildsClearanceHistory,type WildsClearanceHistory} from './wilds-building-clearance';
 import { canonicalPortableCardJson } from "./portable-card";
 import { createWildsExactProofCache } from "./wilds-exact-proof-cache";
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
@@ -35,7 +36,7 @@ function mergeMaterialLifecycle(
 }
 
 export function projectWildsOwnedWorldAdditions(
-  world: Pick<WildsWorldProjection, "constructionSites" | "structures" | "harvestedSources" | "materialLots" | "materialCustody" | "consumedMaterialLots" | "reservedMaterialLots" | "storedMaterialLots"> & Partial<WildsConstructionPersistence> & Partial<WildsCreationPersistence> & WildsResourcePackagePersistence,
+  world: Pick<WildsWorldProjection, "constructionSites" | "structures" | "harvestedSources" | "materialLots" | "materialCustody" | "consumedMaterialLots" | "reservedMaterialLots" | "storedMaterialLots"> & Partial<WildsConstructionPersistence> & Partial<WildsCreationPersistence> & WildsResourcePackagePersistence & WildsClearanceHistory,
   ownerReceizId: string
 ): WildsOwnedWorldAdditions {
   const materialLots = sortedRecord(Object.entries(world.materialLots).filter(([lotId, lot]) =>
@@ -47,6 +48,7 @@ export function projectWildsOwnedWorldAdditions(
   const creation = projectWildsCreationPersistence(world, ownerReceizId), construction = projectWildsConstructionPersistence(world, ownerReceizId);
   return {
     ...projectWildsResourcePackagePersistence(world, ownerReceizId),
+    ...projectWildsClearanceHistory(world),
     ...construction, ...creation,
     constructionCommandReceipts: { ...construction.constructionCommandReceipts, ...creation.constructionCommandReceipts },
     constructionSites: sortedRecord(Object.entries(world.constructionSites).filter(([siteId, site]) =>
@@ -104,7 +106,7 @@ export function mergeWildsOwnedWorldAdditions(
     materialCustody: { ...world.materialCustody, ...(owned.materialCustody ?? {}) },
     ...materialLifecycle
   };
-  return preserveWildsResourcePackageHistory(world, { ...merged, ...mergeWildsResourcePackagePersistence(world, owned) });
+  return preserveWildsClearanceHistory(projectWildsClearanceHistory(owned), preserveWildsResourcePackageHistory(world, { ...merged, ...mergeWildsResourcePackagePersistence(world, owned) }));
 }
 
 export function mergeWildsOwnedAdditionSets(
@@ -136,6 +138,7 @@ export function mergeWildsOwnedAdditionSets(
   const creation = projectWildsCreationPersistence({ ...mergeWorldCreationSourceRows(left, right), materialLots, materialCustody: { ...left.materialCustody, ...right.materialCustody }, consumedMaterialLots: materialLifecycle.consumedMaterialLots });
   return {
     ...mergeWildsResourcePackagePersistence(left, right),
+    ...preserveWildsClearanceHistory(projectWildsClearanceHistory(left), projectWildsClearanceHistory(right)),
     ...construction, ...creation,
     constructionCommandReceipts: { ...construction.constructionCommandReceipts, ...creation.constructionCommandReceipts },
     constructionSites,

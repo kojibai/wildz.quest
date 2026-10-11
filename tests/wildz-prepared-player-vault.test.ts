@@ -121,3 +121,17 @@ test("a prepared Vault invokes native file sharing synchronously with the exact 
     else Reflect.deleteProperty(globalThis, "navigator");
   }
 });
+
+
+test("locked background full Vault fails before raster and sealing", async () => {
+  const { identity, assets, player, session } = await fixture();
+  let renders = 0, seals = 0, keyReads = 0;
+  const locked = { ...identity.keyFile, crypto: { ...identity.keyFile.crypto, privateKeyPkcs8B64u: undefined, privateKeyPkcs8CiphertextB64u: "locked" } };
+  const prepare = createWildzIdentityPlayerVaultPreparer({
+    render: async (cards, state) => { renders++; return new Blob([embedPortableVaultInPng(png, cards, state)]); },
+    seal: async ({ bytes, filename }) => { seals++; return { bytes: bytes.slice(), filename, mimeType: "image/png", blob: new Blob([bytes.slice().buffer]) }; },
+    sign: async (_key, action) => { keyReads++; return action(locked); }
+  });
+  await assert.rejects(prepare(session, assets, player, { allowPrompt: false }), /passphrase_required/);
+  assert.deepEqual({ renders, seals, keyReads }, { renders: 0, seals: 0, keyReads: 1 });
+});

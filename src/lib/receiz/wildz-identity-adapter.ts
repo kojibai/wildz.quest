@@ -1,3 +1,4 @@
+import { loadWildzWalletPresentation, type WildzWalletPresentation } from "./wildz-wallet-presentation";
 import { createWildzSealedDocumentStore } from "./wildz-sealed-document-store";
 import { prepareWildzGameImage } from "./wildz-game-image-export";
 import { openWildzSealedCard, verifyWildzSealedCard } from "./wildz-sealed-card";
@@ -131,6 +132,7 @@ let continuityRestoreEpoch = 0;
 let continuityQueue: Promise<void> = Promise.resolve();
 
 export type WildzContinuitySnapshot = {
+  walletPresentation?: WildzWalletPresentation;
   crewCustody?: WildzCrewCustody | null;
   session: WildzIdentitySession;
   playState: PlayState | null;
@@ -139,11 +141,12 @@ export type WildzContinuitySnapshot = {
   restoreEpoch: number;
 };
 
-export type WildzUiArtifactRestore = WildzCommittedArtifactRestore & { restoreEpoch: number; crewCustody?: WildzCrewCustody | null };
+export type WildzUiArtifactRestore = WildzCommittedArtifactRestore & { restoreEpoch: number; crewCustody?: WildzCrewCustody | null; walletPresentation?: WildzWalletPresentation };
 export type WildzRestoreIntent = "merge-vault" | "activate-identity";
 
 export function commitWildzBootstrapContinuity(input: WildzContinuitySnapshot): WildzContinuitySnapshot {
   return {
+    walletPresentation: input.walletPresentation,
     session: input.session,
     crewCustody: input.crewCustody,
     playState: input.playState,
@@ -154,7 +157,7 @@ export function commitWildzBootstrapContinuity(input: WildzContinuitySnapshot): 
 }
 
 export function commitWildzArtifactContinuity(
-  outcome: Pick<WildzUiArtifactRestore, "session" | "playState" | "character" | "playerContinuity" | "restoreEpoch" | "crewCustody">
+  outcome: Pick<WildzUiArtifactRestore, "session" | "playState" | "character" | "playerContinuity" | "restoreEpoch" | "crewCustody" | "walletPresentation">
 ): WildzContinuitySnapshot {
   return commitWildzBootstrapContinuity(outcome);
 }
@@ -457,6 +460,7 @@ export async function bootstrapWildzContinuity(
     }
     onProgress?.("owner-state");
     const snapshot = commitWildzBootstrapContinuity({
+      walletPresentation: await loadWildzWalletPresentation(defaultContinuityDatabase, session),
       session,
       crewCustody: playState ? await restoreWildzCrewCustodyMemory(defaultContinuityDatabase, session, playState.inventory) : null,
       playState,
@@ -564,7 +568,7 @@ export async function restoreWildzFileForSurface(
     const crewCustody = mergeWildzCrewCustody(outcome.session.actorId,
       [current.crewCustody, readWildzArtifactCrewCustody(inspection)], outcome.playState.inventory);
     continuityRestoreEpoch += 1;
-    return { ...outcome, crewCustody, restoreEpoch: continuityRestoreEpoch };
+    return { ...outcome, crewCustody, walletPresentation: await loadWildzWalletPresentation(defaultContinuityDatabase, outcome.session), restoreEpoch: continuityRestoreEpoch };
   });
 }
 
@@ -573,7 +577,7 @@ export function resumePendingWildzVault(resumeId: string) {
     await defaultPendingVaultRepository.purgeExpired().catch(() => 0);
     const outcome = await defaultVaultLoginCoordinator.resume(resumeId);
     continuityRestoreEpoch += 1;
-    return { status: "committed" as const, restore: { ...outcome.restore, restoreEpoch: continuityRestoreEpoch } };
+    return { status: "committed" as const, restore: { ...outcome.restore, walletPresentation: await loadWildzWalletPresentation(defaultContinuityDatabase, outcome.restore.session), restoreEpoch: continuityRestoreEpoch } };
   });
 }
 
@@ -628,7 +632,6 @@ export async function createWildzIdentityPlayerCard(input: {
 export async function prepareWildzBackgroundPlayerVault(session: WildzIdentitySession, assets: PortableCardAsset[], player: Parameters<typeof createWildsPlayerVault>[0], options: { allowPrompt?: boolean } = {}) {
   if (session.localAuthority !== "verified") throw new Error("wildz_identity_vault_authority_required");
   if (!sameWildzPlayerCoordinate(player.playerId, session.username ?? session.actorId)) throw new Error("wildz_vault_export_owner_invalid");
-  const artwork = await createWildzIdentityCardArtworkPng(session, player.exportedAt);
   return defaultIdentityRepository.withKeyFile(session.keyId, async keyFile => {
     if (keyFile.keyId !== session.keyId) throw new Error("wildz_identity_vault_key_id_mismatch");
     let passphrase: string | undefined;
@@ -637,6 +640,7 @@ export async function prepareWildzBackgroundPlayerVault(session: WildzIdentitySe
       passphrase = window.prompt("Enter this Identity Seal’s passphrase to sign the Vault export.") ?? undefined;
       if (!passphrase) throw new Error("wildz_identity_passphrase_required");
     }
+    const artwork = await createWildzIdentityCardArtworkPng(session, player.exportedAt);
     const result = await createWildzIdentityPlayerCardBundleOffThread({artwork, assets, player, keyFile, passphrase});
     if (!result) throw new Error("wildz_background_export_worker_unavailable");
     const sealed = await prepareWildzGameImage({ bytes: result.bytes, filename: `wilds-vault-${session.keyId}.png`, kind: "vault", allowEnrollment: options.allowPrompt === true });
@@ -706,11 +710,12 @@ export function createWildzIdentityOwnedCardPreparer(dependencies: {
   return async function prepareWildzIdentityOwnedCard(
     session: WildzIdentitySession,
     asset: PortableCardAsset,
-    player: WildsPlayerVaultPayload,
+    player: WildsPlayerVaultPayload | Parameters<typeof createWildsPlayerVault>[0],
     options: {
       passphrase?: string;
       requestPassphrase?: () => string | null;
       allowPrompt?: boolean;
+      speculative?: boolean;
     } = {}
   ): Promise<WildzPreparedIdentityOwnedCard> {
     if (session.localAuthority !== "verified") throw new Error("wildz_identity_card_authority_required");
@@ -755,23 +760,8 @@ export function createWildzIdentityOwnedCardPreparer(dependencies: {
             ownerReceizId, cardFingerprint: fingerprint, keyId: session.keyId };
         } catch { /* An old or mismatched source cannot replace this exact current card. */ }
       }
-      const activePlayer = createWildsPlayerVault({
-        playerId: session.username ?? session.actorId,
-        exportedAt: new Date().toISOString(),
-        playState: { ...player.playState, inventory: [asset] },
-        character: player.character,
-        settings: player.settings,
-        personalEvents: player.personalEvents,
-        canonicalCursor: player.canonicalCursor,
-        receipts: player.receipts
-      });
-      const portable = await dependencies.renderCard(asset);
-      const playerCardBytes = embedPortableVaultInPng(
-        new Uint8Array(await portable.arrayBuffer()),
-        [asset],
-        activePlayer
-      );
       const combined = await dependencies.sign(session.keyId, async (keyFile) => {
+        if (keyFile.keyId !== session.keyId) throw new Error("wildz_identity_card_key_id_mismatch");
         let passphrase = options.passphrase;
         if (identityKeyNeedsPassphrase(keyFile) && passphrase === undefined) {
           if (options.allowPrompt === false) throw new Error("wildz_identity_passphrase_required");
@@ -780,6 +770,23 @@ export function createWildzIdentityOwnedCardPreparer(dependencies: {
               ? window.prompt("Enter this Identity Seal's passphrase to sign the card export.") ?? undefined
               : undefined);
         }
+        if (identityKeyNeedsPassphrase(keyFile) && !passphrase) throw new Error("wildz_identity_passphrase_required");
+        const activePlayer = createWildsPlayerVault({
+          playerId: session.username ?? session.actorId,
+          exportedAt: new Date().toISOString(),
+          playState: { ...player.playState, inventory: [asset] },
+          character: player.character,
+          settings: player.settings,
+          personalEvents: player.personalEvents,
+          canonicalCursor: player.canonicalCursor,
+          receipts: player.receipts
+        });
+        const portable = await dependencies.renderCard(asset);
+        const playerCardBytes = embedPortableVaultInPng(
+          new Uint8Array(await portable.arrayBuffer()),
+          [asset],
+          activePlayer
+        );
         return createWildzIdentityBoundPlayerVault({
           keyFile,
           vaultBytes: playerCardBytes,
@@ -800,7 +807,7 @@ export function createWildzIdentityOwnedCardPreparer(dependencies: {
         bytes: sealed.bytes,
         filename: sealed.filename,
         mimeType: sealed.mimeType,
-        ownerReceizId: activePlayer.playerId,
+        ownerReceizId,
         cardFingerprint: fingerprint,
         keyId: session.keyId
       };
@@ -810,7 +817,7 @@ export function createWildzIdentityOwnedCardPreparer(dependencies: {
         dependencies.database.transaction(["meta"], "readwrite", tx => tx.put("meta", source.artifactSha256, cacheKey))
       ).catch(() => {});
       return artifact;
-    });
+    }, { speculative: options.speculative ?? options.allowPrompt === false, allowPrompt: options.allowPrompt !== false });
   };
 }
 

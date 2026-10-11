@@ -3,7 +3,7 @@ import type {CreationCompileContext,CreationPhysicalChunk} from './compiler';
 import type {CreationPhysicalProjection} from './projection';
 import type {WildsTerrainObstacle} from '../wilds-terrain-obstacles';
 import type {WildsDiscoveryPhysicalNeighborhood} from '../wilds-discovery-sites';
-import {CREATION_TERRAIN_SUPPORT_CHUNK_ID} from './ground-placement';
+import {CREATION_TERRAIN_CLEARANCE_CHUNK_ID} from './ground-placement';
 
 /** Map the current world projection once per source change, never on clock or input ticks. */
 export function projectCreationCompilePhysical(input:Pick<CreationCompileContext,'worldId'|'spaceId'|'sourceHead'> & {
@@ -30,7 +30,7 @@ export function projectCreationCompilePhysical(input:Pick<CreationCompileContext
   // Source + exact derived footing planes bind the support context. Mountain
   // mesh buffers are unnecessary quotation/save payload; canonical ground is
   // sampled again at admission from its unchanged authored landscape law.
-  physical.push({chunkId:CREATION_TERRAIN_SUPPORT_CHUNK_ID,head:constructionProofDigest({sourceHead:input.sourceHead,regionX:input.sites.regionX,regionZ:input.sites.regionZ,walkable}),terrain:[],solids:[],walkable,portals:[]});
+  physical.push({chunkId:CREATION_TERRAIN_CLEARANCE_CHUNK_ID,head:constructionProofDigest({sourceHead:input.sourceHead,regionX:input.sites.regionX,regionZ:input.sites.regionZ,walkable}),terrain:[],solids:[],walkable,portals:[]});
  }
  return physical;
 }

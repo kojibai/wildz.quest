@@ -32,6 +32,11 @@ export type WildsNourishmentSourceState = Readonly<{
   lastKaiUPulse: number;
 }>;
 export type WildsNourishmentSources = Readonly<Record<string, WildsNourishmentSourceState>>;
+/** Compact frozen portion evidence. Structural validity never grants native title. */
+export type WildsClearanceFoodReceipt = Readonly<{
+  schema:'wildz.clearance-food.v1';clearanceId:string;pileId:string;sourceHead:string;
+  clearanceKaiUPulse:number;pickupHead:string;
+}>;
 export type WildsFoodItem = Readonly<{
   schema: 'wildz.food-item.v1';
   itemId: string;
@@ -41,6 +46,7 @@ export type WildsFoodItem = Readonly<{
   cropDay: number;
   slot: number;
   gatheredKaiUPulse: number;
+  clearance?: WildsClearanceFoodReceipt;
   consumedKaiUPulse?: number;
   consumedFuelMicroBreaths?: number;
 }>;
@@ -174,6 +180,17 @@ export function createWildsNourishmentState(ownerReceizId: string): WildsNourish
 function foodItemId(owner: string, sourceId: string, cropDay: number, slot: number) {
   return `wildz.food.v1|${encodeURIComponent(owner)}|${sourceId}|${cropDay}|${slot}`;
 }
+export function createWildsClearanceFoodItem(input:Readonly<{ownerReceizId:string;clearanceId:string;pileId:string;sourceId:string;sourceHead:string;cropDay:number;slot:number;clearanceKaiUPulse:number;kaiUPulse:number;pickupHead:string}>):WildsFoodItem {
+  const plant=wildsNourishmentPlantById(input.sourceId),parts=input.sourceHead.split('|'),harvested=Number(parts.at(-1));
+  if(!plant||!validOwner(input.ownerReceizId)||!integer(input.kaiUPulse)||!integer(input.clearanceKaiUPulse,input.kaiUPulse)
+    ||!/^wildz:clearance:[a-f0-9]{64}$/.test(input.clearanceId)||!/^wildz:clearance-pile:[a-f0-9]{64}$/.test(input.pileId)
+    ||!/^sha256:[a-f0-9]{64}$/.test(input.pickupHead)||!integer(input.slot,plant.capacity)||input.slot<1
+    ||input.cropDay!==cropDayAt(plant,input.clearanceKaiUPulse)||!integer(harvested,plant.capacity)||input.slot<=harvested
+    ||input.sourceHead!==`wildz.crop.v1|${plant.sourceId}|${input.cropDay}|${harvested}`)throw Error('wilds_clearance_food_source_invalid');
+  return {schema:'wildz.food-item.v1',itemId:`wildz.food.clearance.v1|${encodeURIComponent(input.ownerReceizId)}|${input.pileId}|${input.slot}`,
+    ownerReceizId:input.ownerReceizId,sourceId:plant.sourceId,foodKind:plant.foodKind,cropDay:input.cropDay,slot:input.slot,gatheredKaiUPulse:input.kaiUPulse,
+    clearance:{schema:'wildz.clearance-food.v1',clearanceId:input.clearanceId,pileId:input.pileId,sourceHead:input.sourceHead,clearanceKaiUPulse:input.clearanceKaiUPulse,pickupHead:input.pickupHead}};
+}
 function validItem(value: unknown, owner: string, sources: WildsNourishmentSources, lastKaiUPulse: number, animalSources: Readonly<Record<string, WildsAnimalFoodReceipt>> = {}, importedItems: Readonly<Record<string, WildsImportedFood>> = {}): value is WildsFoodItem {
   if (record(value) && typeof value.itemId === "string" && importedItems[value.itemId]) {
     const imported=importedItems[value.itemId]!;
@@ -182,7 +199,17 @@ function validItem(value: unknown, owner: string, sources: WildsNourishmentSourc
     if(canonicalPortableCardJson(sourceItem)!==canonicalPortableCardJson(imported.foodItem))return false;
     return validItem(value,imported.foodItem.ownerReceizId,imported.nourishment.sources,lastKaiUPulse,imported.nourishment.animalFoodSources);
   }
-  if (!record(value) || !exactKeys(value, ['schema', 'itemId', 'ownerReceizId', 'sourceId', 'foodKind', 'cropDay', 'slot', 'gatheredKaiUPulse', ...(value.consumedKaiUPulse === undefined ? [] : ['consumedKaiUPulse']), ...(value.consumedFuelMicroBreaths === undefined ? [] : ['consumedFuelMicroBreaths'])])) return false;
+  if (!record(value) || !exactKeys(value, ['schema', 'itemId', 'ownerReceizId', 'sourceId', 'foodKind', 'cropDay', 'slot', 'gatheredKaiUPulse', ...(value.clearance===undefined?[]:['clearance']), ...(value.consumedKaiUPulse === undefined ? [] : ['consumedKaiUPulse']), ...(value.consumedFuelMicroBreaths === undefined ? [] : ['consumedFuelMicroBreaths'])])) return false;
+  if(value.clearance!==undefined){
+    try{
+      const item=value as unknown as WildsFoodItem,receipt=item.clearance!;
+      const expected=createWildsClearanceFoodItem({ownerReceizId:owner,sourceId:item.sourceId,cropDay:item.cropDay,slot:item.slot,kaiUPulse:item.gatheredKaiUPulse,...receipt});
+      const {consumedKaiUPulse,consumedFuelMicroBreaths,...unspent}=item,plant=wildsNourishmentPlantById(item.sourceId)!;
+      return canonicalPortableCardJson(unspent)===canonicalPortableCardJson(expected)&&integer(item.gatheredKaiUPulse,lastKaiUPulse)
+        &&(consumedKaiUPulse===undefined||integer(consumedKaiUPulse,lastKaiUPulse)&&consumedKaiUPulse>=item.gatheredKaiUPulse)
+        &&(consumedFuelMicroBreaths===undefined||consumedKaiUPulse!==undefined&&integer(consumedFuelMicroBreaths,Math.round(plant.fuelBreaths*1_000_000)));
+    }catch{return false;}
+  }
   const plant = wildsNourishmentPlantById(value.sourceId);
   const animalReceipt = typeof value.sourceId === 'string' ? animalSources[value.sourceId] : undefined;
   const animalFood = animalReceipt ? wildsAnimalFoodSource(animalReceipt) : null;

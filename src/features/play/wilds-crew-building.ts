@@ -19,7 +19,7 @@ import { verifyKaiTemporalRoot, type KaiTemporalRoot } from "./kai-temporal-root
 import { canonicalPortableCardJson, sha256PortableBasis, verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 import { createWildsStewardStructureOperation, verifyWildsStructure, verifyWildsMaterialLot } from "./wilds-steward-construction";
 import type { WildsWorldProjection } from "./wilds-world-state";
-import type { WildsWorldOutboxEntry } from "./wilds-world-outbox";
+import type {WildsMaterialAdmissionFence} from "./wilds-material-edge-admission";
 import type { WildsCrewNavigationPoint } from "./wilds-crew-navigation";
 
 type BuildingSource=WildsCrewStoredSourceCommand<Extract<WildsWorldCommand,{type:"construction.site.work"}>>;
@@ -106,15 +106,19 @@ function admitted(source:BuildingSource,projection:WildsWorldProjection){
  * exact consent and source-worker↔SDK-worker linkage using the mandate verifier.
  * admit must be the exact source queue port; it MUST invoke beforeAdmit after all
  * preparation awaits and before its first durable source write. Missing/ambiguous
- * completion is lookup-only; no retry may silently redispatch the source command. */
+ * completion defaults to lookup-only. Explicit saved-entry recovery reauthorizes
+ * the exact pending receipt; it never creates another dispatch transition. */
 export function createWildsCrewBuilding(input:Readonly<{
   authorizeCapability(request:WildsCrewPreparedBuilding):Promise<WildsCrewMaterialCapabilityAuthorization>;
   journal:Journal;authorize(request:WildsCrewPreparedBuilding):Promise<Authorization>;
-  admit(command:BuildingSource["command"],card:PortableCardAsset,beforeAdmit:(entry:WildsWorldOutboxEntry)=>Promise<void>):Promise<WildsCrewBuildingAdmission>;
+  admit(command:BuildingSource["command"],card:PortableCardAsset,beforeAdmit:WildsMaterialAdmissionFence):Promise<WildsCrewBuildingAdmission>;
   lookup(source:BuildingSource):Promise<WildsWorldProjection|null>;
   observeKaiUPulse:()=>number;
 }>){
   return createWildsCrewSourceRuntime({...input,capability:"build",isSource:buildingSource,admitted,
+    restoreRequest:(stored,card)=>{const source=stored.sourceCommand;return {jobId:stored.jobId,workerId:stored.workerId,expectedJobHead:stored.expectedJobHead!,commandDigest:stored.commandDigest,
+      source,card,lotIds:source.lotHeads!.map(lot=>lot.lotId).sort(),authorizationCommand:{commandKind:WILDS_COMMAND_LAW[source.command.type],worldId:source.worldId,
+        regionId:source.regionId!,resourcePhiMicro:source.command.amountPhiMicro??"0",geometryUnits:"1",commandDigest:stored.commandDigest}};},
     reservations:request=>[request.source.command.siteId,...request.lotIds],
     validate:request=>!(request.authorizationCommand.commandKind!==WILDS_COMMAND_LAW[request.source.command.type]||request.authorizationCommand.commandDigest!==request.commandDigest
           ||request.authorizationCommand.worldId!==request.source.worldId||request.authorizationCommand.regionId!==request.source.regionId

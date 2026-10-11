@@ -5,6 +5,8 @@ import { constitutionalDigest, constitutionalPredicate as predicate, deriveConst
 
 /** Adding a command requires choosing its bounded source law at compile time. */
 export const WILDS_COMMAND_LAW = {
+  "construction.clearance.derive": "wildz.building-clearance.v1",
+  "construction.clearance.pickup": "wildz.building-clearance.v1",
   "resource.package.create": "sources.reserve",
   "resource.package.native-adopt": "verified-title.successor",
   "resource.package.begin-transfer": "owner.offer", "resource.package.offer": "owner.offer",

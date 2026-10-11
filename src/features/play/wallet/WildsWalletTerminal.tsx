@@ -80,7 +80,7 @@ export function WildsWalletTerminal({ actionHistory, livingOperations, cards = [
   onSendCard?: (asset: PortableCardAsset, targetHandle: string) => Promise<unknown>;
   onSendResource?: (resourceLot: WildsResourceLotV1, targetHandle: string) => Promise<Readonly<{ claimUrl: string }>>;
   onSendMaterial?: (materialLot: WildsMaterialLotV1, targetHandle: string) => Promise<Readonly<{ claimUrl: string }>>;
-  inventoryCounts?: { resourceUnits: number; creatureCards: number };
+  inventoryCounts?: { resourceUnits: number; creatureCards: number; resourceUnitsPending?: boolean };
   publicUsername: string | null;
   state: WildsWalletPresentationState;
 } & WildsWalletTerminalActions) {

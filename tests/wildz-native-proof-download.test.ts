@@ -24,10 +24,16 @@ function installDownloadBrowser() {
   let downloaded: Blob | null = null;
   let downloadedFilename = "";
 
+  let lastImage: TestImage | null = null;
   class TestImage {
+    constructor() { lastImage = this; }
     decoding = "async";
     src = "";
     async decode() {}
+    removeAttribute(name: string) {
+      assert.equal(name, "src");
+      this.src = "";
+    }
   }
 
   const documentStub = {
@@ -85,6 +91,7 @@ function installDownloadBrowser() {
 
   return {
     downloaded: () => downloaded,
+    imageSource: () => lastImage?.src,
     downloadedFilename: () => downloadedFilename,
     restore() {
       URL.createObjectURL = createObjectUrl;
@@ -159,6 +166,7 @@ test("card and Vault saves never upload recovery payloads or download an unseale
       await assert.rejects(operation(), /wildz_local_signer_storage_unavailable/);
       assert.equal(browser.downloaded(), null);
       assert.equal(browser.downloadedFilename(), "");
+      assert.equal(browser.imageSource(), "", "raster cleanup releases the loaded SVG source before signer rejection");
     }
     assert.ok(requests.every(url => url.startsWith("/api/cards/")), "no payload enters a remote seal endpoint");
   } finally { browser.restore(); }

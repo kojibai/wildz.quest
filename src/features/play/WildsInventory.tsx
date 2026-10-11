@@ -26,7 +26,7 @@ import {
 import { cardArtifactFingerprint, createPreparedCardArtifactCache } from "./prepared-card-artifact";
 import { exactCompanionProgress, type PlayState, type WildsInput } from "./game-state";
 import type { KaiKlokMoment } from "./kai-klok-moment";
-import type { WildsPlayerVaultPayload } from "./wilds-player-vault";
+import type { WildsPlayerVaultPayload, createWildsPlayerVault } from "./wilds-player-vault";
 import type { WildzPreparedIdentityOwnedCard } from "@/lib/receiz/wildz-identity-adapter";
 import { WildsCardScene } from "./WildsCardScene";
 import { WildsCreatureThumbnail } from "./WildsCreatureThumbnail";
@@ -68,6 +68,7 @@ export function WildsInventory({
   cardOrder,
   onCardOrderChange,
   playerVault,
+  playerVaultInput,
   vaultAdmission,
   onPrepareCard,
   onExportCard,
@@ -87,8 +88,9 @@ export function WildsInventory({
   cardOrder: WildzCardSort;
   onCardOrderChange: (order: WildzCardSort) => void;
   playerVault: (asset?: PlayState["inventory"][number]) => WildsPlayerVaultPayload;
+  playerVaultInput?: (asset?: PlayState["inventory"][number]) => Parameters<typeof createWildsPlayerVault>[0];
   vaultAdmission: WildzVaultCardAdmission;
-  onPrepareCard: (asset: PlayState["inventory"][number], player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
+  onPrepareCard: (asset: PlayState["inventory"][number], player: WildsPlayerVaultPayload | Parameters<typeof createWildsPlayerVault>[0], options?: { speculative?: boolean }) => Promise<WildzPreparedIdentityOwnedCard>;
   onExportCard: (asset: PlayState["inventory"][number], player: (asset?: PlayState["inventory"][number]) => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: () => Promise<unknown>;
   onPrepareVault?: () => Promise<unknown>;
@@ -139,7 +141,7 @@ export function WildsInventory({
   const cardSaveInFlight = useRef(false);
   const preparedIdentityCard = useRef<WildzPreparedIdentityOwnedCard | null>(null);
   const previousFocusedAssetId = useRef(focusedAssetId);
-  const playerVaultRef = useRef(playerVault);
+  const playerVaultRef = useRef(playerVaultInput ?? playerVault);
   const selectedCardRef = useRef<PlayState["inventory"][number] | undefined>(undefined);
   // The shell prepares exports in a worker independently of this overlay.
   const prepareCardRef = useRef(onPrepareCard);
@@ -161,7 +163,7 @@ export function WildsInventory({
   const visible = matches.slice(safePage * pageSize, safePage * pageSize + pageSize);
   const selected = state.inventory.find((asset) => asset.id === selectedId) ?? visible[0] ?? state.inventory[0];
   const selectedArtifactFingerprint = useMemo(() => selected ? cardArtifactFingerprint(selected) : "", [selected]);
-  playerVaultRef.current = playerVault;
+  playerVaultRef.current = playerVaultInput ?? playerVault;
   selectedCardRef.current = selected;
   const selectedForm = selected ? creatureForm(selected.manifest.formId) : null;
   const selectedRetired = Boolean(selected && (
@@ -290,9 +292,9 @@ export function WildsInventory({
     }
     let active = true;
     const cancelPreparation = scheduleAfterPaint(() => {
-      // Snapshot construction hashes the player snapshot synchronously.
-      // Keep it, and the export warmup, outside the overlay's opening frame.
-      void Promise.resolve().then(() => prepareCardRef.current(selectedCard, playerVaultRef.current(selectedCard)))
+      // Pass raw state so exact artifact reuse precedes payload normalization/hash.
+      // Keep cold preparation outside the overlay's opening frame.
+      void Promise.resolve().then(() => prepareCardRef.current(selectedCard, playerVaultRef.current(selectedCard), { speculative: true }))
         .then((artifact) => {
           if (!active || artifact.assetId !== selectedCard.id) return;
           preparedIdentityCard.current = artifact;

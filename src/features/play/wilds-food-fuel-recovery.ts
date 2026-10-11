@@ -74,7 +74,7 @@ export function mergeWildsNativeFoodFuelDisplay(state: PlayState, source: WildsN
 
 export function hasRecoverableWildsNativeFood(state: Pick<PlayState, 'playerNourishment'>, world: WildsWorldProjection, owner: string) {
   return Object.values(state.playerNourishment?.items ?? {}).some(item => item.consumedKaiUPulse === undefined
-    && !state.playerNourishment?.nativeItemIds?.includes(item.itemId)
+    && !item.clearance && !state.playerNourishment?.nativeItemIds?.includes(item.itemId)
     && Boolean(world.foodConsumptionReceipts?.[item.itemId]?.ownerReceizId
       && (world.foodConsumptionReceipts[item.itemId]!.ownerReceizId === owner || sameWildzPlayerCoordinate(world.foodConsumptionReceipts[item.itemId]!.ownerReceizId, owner))));
 }
@@ -86,7 +86,7 @@ export function recoverWildsNativeFoodFuel(state: PlayState, world: WildsWorldPr
   const owns = (value: string) => value === owner || sameWildzPlayerCoordinate(value, owner);
   if (!state.playerNourishment || !owns(state.playerNourishment.ownerReceizId) || !Number.isSafeInteger(kaiUPulse) || kaiUPulse < 0) return state;
   let next = state;
-  const receipts = Object.values(state.playerNourishment.items).filter(item => item.consumedKaiUPulse === undefined && !state.playerNourishment?.nativeItemIds?.includes(item.itemId))
+  const receipts = Object.values(state.playerNourishment.items).filter(item => item.consumedKaiUPulse === undefined && !item.clearance && !state.playerNourishment?.nativeItemIds?.includes(item.itemId))
     .flatMap(item => { const receipt = world.foodConsumptionReceipts?.[item.itemId]; return receipt ? [[item.itemId, receipt] as const] : []; })
     .sort(([, a], [, b]) => a.kaiUPulse - b.kaiUPulse || a.commandId.localeCompare(b.commandId));
   for (const [id, receipt] of receipts) {

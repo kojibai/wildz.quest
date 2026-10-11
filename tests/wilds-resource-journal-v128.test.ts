@@ -214,3 +214,27 @@ test('received material storage and withdrawal are qualified reversible effects;
  const repacked=await reduceWildsResourceJournalV128(withdrawn,{...pack,attemptId:'pack:withdrawn-unit',commands:withdrawal.commands,createdKaiUPulse:KAI+17},admission);
  assert.equal(Object.values(repacked.packages).find(p=>p.package.commandId==='pack:withdrawn-unit')!.package.members[0]!.id,loose.lotId);
 });
+
+test('same-genesis returned material supersedes outgoing reservation through replay and another reserve',async()=>{
+ const source=projectWildsResourceRegion(0,0).find(item=>item.kind==='hay')!;
+ const command=planWildsMaterialHarvest({projection:createWildsSourceAuthorityProjection(),source,actorId:GAMEPLAY,actorPosition:source.position,kaiUPulse:KAI,commandId:'return:harvest'});
+ const commands=[{kind:'world' as const,command,kaiUPulse:KAI}],born=await replayWildsResourceGameplayV128({gameplayOwnerId:GAMEPLAY,commands}),id=Object.keys(born.members)[0];
+ let state=initialWildsResourceJournalV128();
+ const move=async(from:string,to:string,time:number)=>{
+  const event={schema:'wildz.resource-command.v128',kind:'reserve',attemptId:`return:reserve:${time}`,ownerReceizId:`${from}.receiz.id`,gameplayOwnerId:from==='alice'?GAMEPLAY:from,commands:from==='alice'?commands:[],createdKaiUPulse:time,memberIds:[id],recipientHandle:to} as const;
+  state=await reduceWildsResourceJournalV128(state,event,{ownerReceizId:event.ownerReceizId});
+  const packageId=Object.values(state.packages).find(row=>row.package.commandId===event.attemptId)!.package.packageId;
+  const admission={ownerReceizId:`${to}.receiz.id`,verifyPackage:async()=>({genesisOwnerReceizId:event.ownerReceizId,artifactSha256:original.artifactSha256})};
+  const claim={schema:'wildz.resource-command.v128',kind:'claim',attemptId:`return:claim:${time}`,ownerReceizId:admission.ownerReceizId,packageId,artifact:original} as const;
+  state=await reduceWildsResourceJournalV128(state,claim,admission);
+  state=await reduceWildsResourceJournalV128(state,{...claim,kind:'unpack',attemptId:`return:unpack:${time}`,kaiUPulse:time+1},admission);
+ };
+ await move('alice','bob',KAI+1);await move('bob','alice',KAI+3);
+ const replay=await replayWildsResourceJournalOwnerV128(structuredClone(state),OWNER,GAMEPLAY,commands);
+ assert.equal(replay.world.reservedMaterialLots[id],undefined);assert.ok(replay.members[id]);
+ state=await reduceWildsResourceJournalV128(state,{schema:'wildz.resource-command.v128',kind:'replay',attemptId:'return:replay:again',ownerReceizId:OWNER,gameplayOwnerId:GAMEPLAY,commands},{ownerReceizId:OWNER});
+ assert.equal(state.spentMembers[id],undefined);assert.equal(state.looseMembers[id].ownerReceizId,OWNER);
+ await move('alice','bob',KAI+5);
+ assert.equal((await replayWildsResourceJournalOwnerV128(state,OWNER,GAMEPLAY,commands)).members[id],undefined);
+ assert.ok((await replayWildsResourceJournalOwnerV128(state,'bob.receiz.id','bob',[])).members[id]);
+});

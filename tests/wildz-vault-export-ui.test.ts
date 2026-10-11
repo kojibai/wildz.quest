@@ -80,7 +80,8 @@ test("Save verified card prewarms its exact proof and resolves with premium acce
 
   assert.match(campaign, /onExportCard=\{onExportCard\}/);
   assert.match(campaign, /onPrepareCard=\{onPrepareCard\}/);
-  assert.match(shell, /onPrepareCard=\{\(asset, player\) => prepareWildzIdentityOwnedCard\(identity, asset, player, \{ allowPrompt: false \}\)\}/);
+  // Actual warmup, protected explicit preparation and late-result behavior are
+  // covered by wildz-vault-warmup-pressure and prepared-card-cache tests.
   assert.match(shell, /savePreparedWildzIdentityOwnedCard\(prepared\)/);
   assert.match(adapter, /export async function downloadWildzIdentityOwnedCard/);
   assert.match(adapter, /export async function savePreparedWildzIdentityOwnedCard/);

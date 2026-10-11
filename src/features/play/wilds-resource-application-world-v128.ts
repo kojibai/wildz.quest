@@ -21,6 +21,9 @@ export function mergeQualifiedWildsResourceWorldV128(current:WildsWorldProjectio
  if(current.worldId!==qualifiedSource.worldId||current.schema!==qualifiedSource.schema)throw Error('wilds_resource_application_world_mismatch');
  const composed={...current,revision:Math.max(current.revision,qualifiedSource.revision),applicationSourceCustody:{...qualifiedSource.applicationSourceCustody}};
  for(const field of sourceFields)Object.assign(composed,{[field]:{...current[field],...qualifiedSource[field]}});
+ for(const field of ['buildingClearances','clearancePickups','clearanceTaken'] as const){
+  if(current[field]!==undefined||qualifiedSource[field]!==undefined)Object.assign(composed,{[field]:{...current[field],...qualifiedSource[field]}});
+ }
  for(const [id,before] of Object.entries(qualifiedSource.creations??{})){
   const later=current.creations?.[id];
   if(later&&isWorldCreationSuccessor(before,later)){composed.creations![id]=later;if(current.creationEvents?.[id])composed.creationEvents![id]=current.creationEvents[id];}

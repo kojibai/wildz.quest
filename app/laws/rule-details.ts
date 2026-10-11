@@ -5,6 +5,13 @@ export type RuleDetail = { title: string; summary: string; requirements: string;
 
 // Editorial explanations of the registered command families, not additional authority.
 export const RULE_DETAILS = {
+  "wildz.building-clearance.v1": {
+    title: "Collect building clearance", summary: "Move the remaining resources beneath a paid building into finite shared side piles.",
+    requirements: "The building and its current footprint must be admitted, with exact shared source checkpoints and established neighboring geometry. Pickup checks the current pile and the player's actual reach.",
+    success: "Each admitted pickup creates one ordinary resource portion. The cleared standing source stays retired, and frozen food does not begin another crop cycle.",
+    blocked: "A changed source, overlapping established structure, empty pile or unreachable pickup cannot credit inventory. An uncertain native result remains pending for the same attempt to recover.",
+    example: "Two explorers collect different remaining timber portions from the pile beside a completed building."
+  },
   "sources.reserve": {
     title: "Pack gathered resources", summary: "Bind exact available resources into one source-carrying package.",
     requirements: "An authenticated gatherer selects current material lots, grove resources or food with verified admitted gather history. The server verifies exact source, current custody and availability through a real conditional shared-inventory append before issuing native custody.",

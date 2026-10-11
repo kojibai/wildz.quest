@@ -11,6 +11,7 @@ import {
   type ReceizDomainReplayV124, type ReceizKeyFile, type ReceizPortableSealedArtifactV124,
   type ReceizProofAuthorityV123,
 } from "@receiz/sdk";
+import {encodeWildsResourceEventV128} from './wilds-resource-event-codec-v128';
 
 export const WILDS_RESOURCE_SOURCE_WRITE_SCOPES_V128 = Object.freeze([
   "openid", "profile", "receiz:domains.read", "receiz:domains.write", "receiz:record", "receiz:seal", "receiz:subjects.read", "receiz:subjects.write",
@@ -20,6 +21,8 @@ export type WildsResourceSourceAuthorV128 = Readonly<{
   grant: ReceizProofAuthorityV123;
   keyFile: ReceizKeyFile;
   passphrase?: string;
+  /** Dedicated clearance worker delegates exact consent signing to held custody. */
+  signChallenge?: (challengeText: string) => ReturnType<typeof signReceizIdentityLoginProof>;
   ownerReceizId: string;
   actorSubjectId: string;
   actorSubjectHead: string;
@@ -130,23 +133,39 @@ export async function prepareWildsResourceSourcePageV128(input: Readonly<{
   const priorHead = afterHead ?? page.genesisHead, cursor = afterCursor + 1;
   const causalParents = previous ? [([...previous.appendIndex].find(([, value]) => value.cursor === afterCursor) ?? fail("causal_parent_missing"))[0]] : [];
   const namespace = { name: page.namespaceName, head: page.namespaceHead, exactBytesB64u: receizBase64UrlEncode(encode(page.namespace)), digest: await digestReceizCanonicalV122(page.namespace) };
-  const eventDigest = await digestReceizCanonicalV122(page.event);
+  const transportEvent=await encodeWildsResourceEventV128(page.event);
+  const eventDigest = await digestReceizCanonicalV122(transportEvent);
   const newHead = await digestReceizCanonicalV122({ schema: "receiz.domain.replay-head.v124", applicationId: APP, domainId: page.domainId, registryDigest: page.registryDigest, reducerDigest: page.reducerDigest, priorHead, appendId: page.appendId, sequence: cursor, cursor, eventDigest, causalParents, namespace: { name: namespace.name, head: namespace.head, digest: namespace.digest } });
-  const additions = [{ appendId: page.appendId, sequence: cursor, cursor, exactEventBytesB64u: receizBase64UrlEncode(encode(page.event)), eventDigest, causalParents, priorHead, newHead, namespaceHead: namespace.head, namespaceDigest: namespace.digest }];
+  const additions = [{ appendId: page.appendId, sequence: cursor, cursor, exactEventBytesB64u: receizBase64UrlEncode(encode(transportEvent)), eventDigest, causalParents, priorHead, newHead, namespaceHead: namespace.head, namespaceDigest: namespace.digest }];
   const receiptBasis = { schema: "receiz.domain.replay-receipt.v124" as const, applicationId: APP, domainId: page.domainId, registryDigest: page.registryDigest, reducerDigest: page.reducerDigest, afterHead, priorHead, head: newHead, afterCursor, cursor, namespace: { name: namespace.name, head: namespace.head, digest: namespace.digest }, additionsDigest: await digestReceizCanonicalV122(additions), authority: { receiptIsProofAuthority: false as const, strongerTruth: "sealed-receiz-proof-object" as const } };
   const replayReceipt: ReceizDomainReplayReceiptV124 = { ...receiptBasis, receiptDigest: await digestReceizCanonicalV122(receiptBasis) };
   const replay: ReceizDomainReplayV124 = { schema: "receiz.domain.replay.v124", status: "authenticated", applicationId: APP, domainId: page.domainId, registryDigest: page.registryDigest, reducerDigest: page.reducerDigest, afterHead, afterCursor, cursor, priorHead, head: newHead, namespace, additions, receiptDigest: replayReceipt.receiptDigest, authority: { replayIsProofAuthority: false, strongerTruth: "sealed-receiz-proof-object" } };
-  const moment = receizKaiNow(), kai = { pulse: moment.pulse, uPulse: moment.uPulse };
   const insertionWitnesses = [indexWitness(previous?.appendIndex ?? new Map(), page.appendId)];
   const causalParentWitnesses = causalParents.map(id => indexWitness(previous!.appendIndex, id));
-  const journalAppends = await createReceizDomainAppendCommandsV124({ replay, replayReceipt, kai, acceptedAtKaiUPulses: [kai.uPulse], externalCausalParentHeads: causalParents.map(appendId => ({ appendId, head: previous!.appendIndex.get(appendId)!.newHead })) });
   const portable = { ownership: { ownerReceizId: author.ownerReceizId, custody: "current" as const, proofRef: "genesis" }, provenance: { root: `profile:${author.keyFile.owner.username!.trim().toLowerCase()}`, appends: [] }, settlement: { state: "none" } };
   const actorSubjectBindingDigest = await digestReceizCanonicalV122({ schema: "receiz.v124.actor-subject-binding", applicationId: APP, ownerReceizId: author.ownerReceizId, keyId: author.grant.keyId });
   const proofHeadBindingDigest = await digestReceizCanonicalV122({ schema: "receiz.v124.proof-head-binding", applicationId: APP, authorityDigest: author.grant.authorityDigest, artifactDigest: author.grant.artifactDigest, revocationHead: author.grant.revocationHead, actorSubjectBindingDigest });
   const sourceAuthority = await createReceizDomainReplaySourceAuthorityV124({ applicationId: APP, audience: APP, domainId: page.domainId, ownerReceizId: author.ownerReceizId, actorSubjectId: author.actorSubjectId, actorSubjectHead: author.actorSubjectHead, v123AuthorityDigest: author.grant.authorityDigest, v123KeyId: author.grant.keyId, v123IdentityArtifactDigest: author.grant.artifactDigest, proofHeadBindingDigest, acceptedHead: replay.head, ownership: portable.ownership, provenance: portable.provenance });
-  const sourceIntent = await createReceizDomainReplaySourceIntentV124({ applicationId: APP, audience: APP, domainId: page.domainId, registryDigest: page.registryDigest, reducerDigest: page.reducerDigest, acceptedHead: replay.head, sourceKai: kai, predecessorArtifactSha256: previous?.artifact.artifactSha256 ?? null, replay, replayReceipt, journalAppends, causalParentWitnesses, sourceAuthority, ownership: portable.ownership, provenance: portable.provenance });
-  const challenge = createReceizProofAuthorityChallenge({ applicationId: APP, artifactDigest: author.grant.artifactDigest, scopes: author.grant.grantedScopes, consentStatementDigest: sourceIntent.consentStatementDigest, ttlPulses: Math.min(60, author.grant.expiresAtKai - receizKaiNow().pulse) });
-  const proof = await signReceizIdentityLoginProof({ keyFile: author.keyFile, challengeText: new TextDecoder().decode(receizBase64UrlDecode(challenge.challengeB64Url)), ...(author.passphrase === undefined ? {} : { passphrase: author.passphrase }) });
+  // The SDK challenge factory samples its own live Kai after asynchronous
+  // intent hashing. A rollover must rebuild the unsigned time-bound tuple;
+  // never sign a challenge that starts after its source, or rewrite a retained
+  // preparation. Codec, replay and history witnesses above remain unchanged.
+  const prepareTimedConsent = async () => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const moment = receizKaiNow(), kai = { pulse: moment.pulse, uPulse: moment.uPulse };
+      if (kai.pulse < author.grant.issuedAtKai || kai.pulse >= author.grant.expiresAtKai) fail("authority_expired");
+      const journalAppends = await createReceizDomainAppendCommandsV124({ replay, replayReceipt, kai, acceptedAtKaiUPulses: [kai.uPulse], externalCausalParentHeads: causalParents.map(appendId => ({ appendId, head: previous!.appendIndex.get(appendId)!.newHead })) });
+      const sourceIntent = await createReceizDomainReplaySourceIntentV124({ applicationId: APP, audience: APP, domainId: page.domainId, registryDigest: page.registryDigest, reducerDigest: page.reducerDigest, acceptedHead: replay.head, sourceKai: kai, predecessorArtifactSha256: previous?.artifact.artifactSha256 ?? null, replay, replayReceipt, journalAppends, causalParentWitnesses, sourceAuthority, ownership: portable.ownership, provenance: portable.provenance });
+      const ttlPulses = Math.min(60, author.grant.expiresAtKai - receizKaiNow().pulse);
+      if (ttlPulses < 1) fail("authority_expired");
+      const challenge = createReceizProofAuthorityChallenge({ applicationId: APP, artifactDigest: author.grant.artifactDigest, scopes: author.grant.grantedScopes, consentStatementDigest: sourceIntent.consentStatementDigest, ttlPulses });
+      if (kai.pulse >= challenge.challenge.issuedAtKai && kai.pulse < challenge.challenge.expiresAtKai) return { kai, journalAppends, sourceIntent, challenge };
+    }
+    return fail("preparation_clock_advanced");
+  };
+  const { kai, journalAppends, sourceIntent, challenge } = await prepareTimedConsent();
+  const challengeText = new TextDecoder().decode(receizBase64UrlDecode(challenge.challengeB64Url));
+  const proof = author.signChallenge ? await author.signChallenge(challengeText) : await signReceizIdentityLoginProof({ keyFile: author.keyFile, challengeText, ...(author.passphrase === undefined ? {} : { passphrase: author.passphrase }) });
   const authoringEvidence: ReceizDomainReplaySourceAuthoringEvidenceV124 = { schema: "receiz.domain-replay-source-authoring-evidence.v124", identity: { schema: "receiz.identity-public-verification.v124", identityArtifactDigest: author.grant.artifactDigest, keyId: author.keyFile.keyId, alg: author.keyFile.alg, publicKeyRawB64u: author.keyFile.crypto.publicKeyRawB64u, authority: { projectionIsIdentityAuthority: false, strongerTruth: "receiz-identity-artifact" } }, signedChallenge: { ...challenge.challenge, proof }, scopes: author.grant.grantedScopes, consentStatementDigest: sourceIntent.consentStatementDigest, authority: { evidenceIsProofAuthority: false, evidenceIsIdentityAuthority: false, grantIsIdentityAuthority: false, strongerTruth: "receiz-identity-artifact" } };
 
   const segmentIndex = (previous?.head.segmentCount ?? 0) + 1;

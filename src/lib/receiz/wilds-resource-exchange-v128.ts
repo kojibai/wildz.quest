@@ -1,3 +1,8 @@
+import {assertWildsPaidPlacementFrontierV128} from './wilds-clearance-admission-v128';
+import {rejectUnpreparedWildsMaterialV128} from './wilds-material-publication-fence-v128';
+import {verifyWildsWorldAdmittedSource} from '../../features/play/wilds-world-outbox';
+import {checkpointWildsWorld} from '../../features/play/wilds-world-state';
+import {isWildsEdgeImmediateConstructionCommand} from '../../features/play/wilds-world-authority';
 import {createWildsResourceSourceArchiveLocatorV128,iterateWildsResourceSourceOriginalsV128,readWildsResourceLocatedProofV128,restoreWildsResourceSourceReferenceV128,assertWildsResourceSourceArchiveCapacityV128,assertWildsResourceSourceRequestCapacityV128,type WildsResourceSourceReferenceV128} from './wilds-resource-source-archive-v128';
 import type {WildzMarketSourceArchiveReferenceV128} from './wildz-market-source-types-v128';
 import {readWildsSourceReplayAfterV128} from './wilds-source-replay-recovery-v128';
@@ -24,6 +29,8 @@ import {replayWildsResourceJournalOwnerV128,initialWildsResourceJournalV128,redu
  WILDS_RESOURCE_LAW_V128,WILDS_RESOURCE_DOMAIN_V128,WILDS_RESOURCE_GENESIS_HEAD_V128,WILDS_RESOURCE_NAMESPACE_V128,WILDS_RESOURCE_REDUCER_DIGEST_V128,WILDS_RESOURCE_REGISTRY_DIGEST_V128,
  type WildsResourceJournalV128,type WildsResourceJournalEventV128,type WildsResourceJournalPackageV128,type WildsResourceCardOriginV128} from './wilds-resource-journal-v128';
 import {wildsResourceUseSpentMemberIdsV128,wildsResourceUseEffectMemberIdsV128} from './wilds-resource-journal-v128';
+import {deriveWildsClearanceCommandV128,captureWildsClearanceAdmissionV128,classifyWildsClearanceRecoveryV128,type WildsClearancePickupProposalV128} from './wilds-clearance-admission-v128';
+import {decodeWildsResourceEventV128} from './wilds-resource-event-codec-v128';
 
 export type WildsResourceSourceProofV128=Readonly<{schema:'wildz.resource-source-proof.v128';custodyArtifact:ReceizPortableSealedArtifactV124;sourceArtifacts:readonly ReceizPortableSealedArtifactV124[];archivePages?:readonly WildzMarketSourceArchiveReferenceV128[]}>;
 export type WildsResourceSourceReceiptV128=Readonly<{schema:'wildz.resource-source-receipt.v128';packageId:string;sourceArtifactSha256:string;sourcePayloadSha256:string;acceptedAppendId:string;acceptedHead:string;acceptedKaiUPulse:number;acceptedSealKai:string;ownerReceizId:string;authorizationDigest?:string;proof:WildsResourceSourceProofV128}>;
@@ -115,7 +122,7 @@ export async function verifyWildsResourceSourceProofV128(sdk:ReceizClient,proof:
    insertionWitnesses:child.insertionWitnesses,causalParentWitnesses:child.causalParentWitnesses,fibonacci:carrier.head.fibonacci,
    fibonacciWitnesses:carrier.fibonacciWitnesses,portable:{ownership:portable.ownership,provenance:portable.provenance,settlement:portable.settlement}});
   if(await sha256ReceizBytes(candidate.proofObject.payload.bytes)!==source.payloadSha256||!same(candidate.carrier,carrier))fail('source_candidate_binding_invalid');
-  const addition=replay.additions[0],event=JSON.parse(new TextDecoder().decode(receizBase64UrlDecode(addition.exactEventBytesB64u))) as WildsResourceJournalEventV128;
+  const addition=replay.additions[0],event=await decodeWildsResourceEventV128(JSON.parse(new TextDecoder().decode(receizBase64UrlDecode(addition.exactEventBytesB64u)))) as WildsResourceJournalEventV128;
   const sealKai=opened.sealedArtifact.verification.bundle.kaiPulseEternal;
   if(typeof sealKai!=='string'||!/^(?:0|[1-9][0-9]*)$/.test(sealKai))fail('source_seal_kai_required');
   const sealExclusiveUPulse=(BigInt(sealKai)+1n)*1_000_000n;
@@ -125,7 +132,7 @@ export async function verifyWildsResourceSourceProofV128(sdk:ReceizClient,proof:
    const claim=events.find(item=>item.appendId===state.packages[event.packageId]?.claimAppendId);
    if(!claim||BigInt(event.kaiUPulse)<BigInt(claim.sealKai)*1_000_000n||BigInt(event.kaiUPulse)>=sealExclusiveUPulse)fail('unpack_causal_time_invalid');
   }
-  state=await reduceWildsResourceJournalV128(state,event,{ownerReceizId:child.sourceAuthority.ownerReceizId,
+  state=await reduceWildsResourceJournalV128(state,event,{ownerReceizId:child.sourceAuthority.ownerReceizId,expectedNativeHead:previous?.head.head??WILDS_RESOURCE_GENESIS_HEAD_V128,
    verifyCard:(card,original)=>verifyWildsResourceGameplayCardV128(sdk,event.ownerReceizId,child.authoringEvidence.identity.keyId,card,original),
    verifyCardOrigin:(card,original)=>verifyWildsResourceCardOriginSourceV128(sdk,event.ownerReceizId,child.authoringEvidence.identity.keyId,card,original),
    verifyPackage:(artifact,record)=>nativePackageWitness(sdk,artifact,record)});
@@ -184,7 +191,7 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
    if(latest.head!==verified.predecessor.head.head||latest.additions.length)fail('source_locator_outdated');}
   return verified;
  }
- async function append(event:WildsResourceJournalEventV128,beforeCommit?:()=>Promise<void>){
+ async function append(event:WildsResourceJournalEventV128,beforeCommit?:()=>Promise<void>,validateState?:(state:WildsResourceJournalV128)=>Promise<void>){
   const retentionKey=key(event.attemptId),eventBytes=canonicalPortableCardJson(event);
   type Attempt={schema:'wildz.resource-exchange-attempt.v128';event:WildsResourceJournalEventV128;before:WildsResourceSourceProofV128|null;after?:WildsResourceSourceProofV128};
   let retained=await input.database.read<Attempt>('meta',retentionKey);
@@ -211,10 +218,12 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
   const located=await input.locator.read();
   if(located&&!same(located,retained.before)){const latest=await current(located);if(latest?.events.some(item=>same(item.event,event)))return latest;}
   const previous=retained.before?await verifyWildsResourceSourceProofV128(input.sdk,retained.before,{applicationId,historical:true}):null;
-  const state=await reduceWildsResourceJournalV128(previous?.state??initialWildsResourceJournalV128(),event,{ownerReceizId:owner,
+  const state=await reduceWildsResourceJournalV128(previous?.state??initialWildsResourceJournalV128(),event,{ownerReceizId:owner,expectedNativeHead:previous?.predecessor.head.head??WILDS_RESOURCE_GENESIS_HEAD_V128,
     verifyCard:(card,original)=>verifyWildsResourceGameplayCardV128(input.sdk,owner,input.authority.keyFile.keyId,card,original),
     verifyCardOrigin:(card,original)=>verifyWildsResourceCardOriginSourceV128(input.sdk,owner,input.authority.keyFile.keyId,card,original),
     verifyPackage:(artifact,record)=>nativePackageWitness(input.sdk,artifact,record)});
+  await assertWildsPaidPlacementFrontierV128(previous?.state??initialWildsResourceJournalV128(),event,state);
+  await validateState?.(state);
   const appendId=`wildz:resource:${owner}:${event.attemptId}`;
   const published=await publisher.publish({attemptId:event.attemptId,beforeCommit:async sourceArtifact=>{
    assertWildsResourceSourceArchiveCapacityV128([sourceArtifact]);
@@ -257,7 +266,72 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
    await queueWildsResourceGameplayV128({...input,ownerReceizId:owner,command:event.commands.at(-1)!});return outcome;
  }
 
+ async function completeClearance(event:Extract<WildsResourceJournalEventV128,{kind:'use'|'replay'}>,beforeCommit?:()=>Promise<void>){
+  const accepted=await append(event,beforeCommit),command=event.commands.at(-1)!;
+  if(command.kind!=='world'||!command.command.type.startsWith('construction.clearance.'))fail('clearance_command_required');
+  const replay=await replayWildsResourceJournalOwnerV128(accepted.state,owner,input.gameplayOwnerId,accepted.state.traces[owner]!.commands,
+   (card,original)=>verifyWildsResourceGameplayCardV128(input.sdk,owner,input.authority.keyFile.keyId,card,original));
+  await queueWildsResourceGameplayV128({...input,ownerReceizId:owner,command});
+  const pickup=replay.world.clearancePickups?.[command.command.commandId];
+  return {status:'admitted' as const,members:pickup?[pickup.member]:[],projection:{...replay.world,buildingClearances:{...accepted.state.clearances},clearanceTaken:{...accepted.state.clearanceTaken}},nourishment:replay.nourishment,state:accepted.state,proof:accepted.proof};
+ }
+
  return {
+  /** Explicit action through the same lazy browser runtime; no wallet opening. */
+  async deriveClearance(request:Readonly<{attemptId:string;buildingId:string;buildingHead:string;kaiUPulse:number}>,beforeCommit?:()=>Promise<void>){
+   return captureWildsClearanceAdmissionV128(request.attemptId,async()=>{
+   const retained=await input.database.read<{event:WildsResourceJournalEventV128}>('meta',key(request.attemptId));
+   if(retained){
+    const last=retained.event.kind==='replay'?retained.event.commands.at(-1):null;
+    if(last?.kind!=='world'||last.command.type!=='construction.clearance.derive'||last.command.payload.buildingId!==request.buildingId||last.command.payload.buildingHead!==request.buildingHead||last.kaiUPulse!==request.kaiUPulse)fail('attempt_conflict');
+    return completeClearance(retained.event as Extract<WildsResourceJournalEventV128,{kind:'replay'}>,beforeCommit);
+   }
+   const history=await resolveWildsResourceGameplayOriginalsV128({...input,ownerReceizId:owner});
+   const traceDigest=sha256PortableBasis(canonicalPortableCardJson(history.commands)).slice(7);
+   // Qualify the exact already captured paid construction before its distinct
+   // clearance command. No checkpoint is inserted into old command bytes.
+   const latest=await current(await input.locator.read());
+   let prefixId=`clearance-prefix:${traceDigest}`;
+   const oldPrefix=await input.database.read<{event:WildsResourceJournalEventV128;before:WildsResourceSourceProofV128|null}>('meta',key(prefixId));
+   if(oldPrefix&&latest){
+    const prior=oldPrefix.before?await verifyWildsResourceSourceProofV128(input.sdk,oldPrefix.before,{applicationId,historical:true}):null;
+    const expected={schema:'wildz.resource-command.v128',kind:'replay',attemptId:prefixId,ownerReceizId:owner,gameplayOwnerId:input.gameplayOwnerId,commands:history.commands};
+    if(!same(oldPrefix.event,expected))fail('attempt_conflict');
+    if(classifyWildsClearanceRecoveryV128({event:oldPrefix.event,previous:prior?.predecessor.sourceArtifactShas??[],current:{events:latest.events,sourceArtifactShas:latest.predecessor.sourceArtifactShas}})==='rejected')prefixId+=`:${latest.predecessor.head.head}`;
+   }
+   // Reuse an already admitted exact prefix. A new identity after a lost race
+   // requires the same verified-current ancestry exclusion as clearance itself.
+   const source=latest&&latest.state.traces[owner]?.gameplayOwnerId===input.gameplayOwnerId&&same(latest.state.traces[owner].commands,history.commands)?latest
+    :await append({schema:'wildz.resource-command.v128',kind:'replay',attemptId:prefixId,ownerReceizId:owner,gameplayOwnerId:input.gameplayOwnerId,commands:history.commands},beforeCommit);
+   const command=await deriveWildsClearanceCommandV128({state:source.state,ownerReceizId:owner,gameplayOwnerId:input.gameplayOwnerId,commands:history.commands,buildingId:request.buildingId,buildingHead:request.buildingHead,expectedHead:source.predecessor.head.head,kaiUPulse:request.kaiUPulse,commandId:request.attemptId});
+   return completeClearance({schema:'wildz.resource-command.v128',kind:'replay',attemptId:request.attemptId,ownerReceizId:owner,gameplayOwnerId:input.gameplayOwnerId,commands:[...history.commands,{kind:'world',command,kaiUPulse:request.kaiUPulse}]},beforeCommit);
+   });
+  },
+  async admitClearancePickup(proposal:WildsClearancePickupProposalV128,beforeCommit?:()=>Promise<void>){
+   return captureWildsClearanceAdmissionV128(proposal.command.commandId,async()=>{
+   if(proposal.ownerReceizId!==owner||proposal.gameplayOwnerId!==input.gameplayOwnerId)fail('clearance_owner_mismatch');
+   const retained=await input.database.read<{event:WildsResourceJournalEventV128}>('meta',key(proposal.command.commandId));
+   const entry:WildsResourceGameplayCommandV128={kind:'world',command:proposal.command,kaiUPulse:proposal.kaiUPulse};
+   if(retained){if(retained.event.kind!=='use'||!same(retained.event.commands.at(-1),entry))fail('attempt_conflict');return completeClearance(retained.event,beforeCommit);}
+   const history=await resolveWildsResourceGameplayOriginalsV128({...input,ownerReceizId:owner});
+   return completeClearance({schema:'wildz.resource-command.v128',kind:'use',attemptId:proposal.command.commandId,ownerReceizId:owner,gameplayOwnerId:input.gameplayOwnerId,commands:[...history.commands,entry],useCommandId:proposal.command.commandId},beforeCommit);
+   });
+  },
+  async recoverClearance(attemptId:string,beforeCommit?:()=>Promise<void>){
+   const retained=await input.database.read<{event:WildsResourceJournalEventV128;before:WildsResourceSourceProofV128|null}>('meta',key(attemptId));
+   if(!retained)return null;if(retained.event.kind!=='use'&&retained.event.kind!=='replay')fail('attempt_conflict');
+   const last=retained.event.commands.at(-1);if(last?.kind!=='world'||!last.command.type.startsWith('construction.clearance.'))fail('clearance_command_required');
+   return captureWildsClearanceAdmissionV128(attemptId,async()=>{
+    // current() independently opens the enclosing sources AND checks native
+    // authenticated domain currentness. A weaker public head cannot reject.
+    const latest=await current(await input.locator.read());
+    const prior=retained.before?await verifyWildsResourceSourceProofV128(input.sdk,retained.before,{applicationId,historical:true}):null;
+    if(retained.event.attemptId!==attemptId||retained.event.ownerReceizId!==owner||!('expectedHead' in last.command)||last.command.expectedHead!==(prior?.predecessor.head.head??WILDS_RESOURCE_GENESIS_HEAD_V128))fail('attempt_conflict');
+    const classification=classifyWildsClearanceRecoveryV128({event:retained.event,previous:prior?.predecessor.sourceArtifactShas??[],current:latest?{events:latest.events,sourceArtifactShas:latest.predecessor.sourceArtifactShas}:null});
+    if(classification==='rejected')return {status:'rejected' as const,attemptId,members:[] as const,reason:'source_advanced_without_attempt'};
+    return completeClearance(retained.event as Extract<WildsResourceJournalEventV128,{kind:'use'|'replay'}>,beforeCommit);
+   });
+  },
   async readCurrent(){return current(await input.locator.read());},
   async verifyProjection(proof:WildsResourceSourceProofV128){
    const historical=await verifyWildsResourceSourceProofV128(input.sdk,proof,{applicationId,historical:true}),latest=await current(await input.locator.read());
@@ -269,6 +343,78 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
    const accepted=await append({schema:'wildz.resource-command.v128',kind:'card-origin',ownerReceizId:owner,...request});
    const origin=accepted.state.cardOrigins[request.assetId];if(!origin)fail('card_origin_missing');
    return {origin,originProof:input.locator.reference?await input.locator.reference(accepted.proof):accepted.proof};
+  },
+  /** Display rows never select the ordinary material route. An ordinary command
+   * must itself win the existing replay CAS against concurrent reservation. */
+  async admitMaterialCommand(request:Readonly<{attemptId:string;command:Extract<WildsResourceGameplayCommandV128,{kind:'world'}>}>,beforeCommit?:()=>Promise<void>,beforeReject?:()=>Promise<void>){
+   const raw=request.command,command=raw.command,id=wildsResourceGameplayCommandIdV128(raw);
+   const memberIds='lotIds'in command?command.lotIds:'resources'in command?command.resources.map(lot=>lot.id):'lotId'in command?[command.lotId]:[];
+   if(!memberIds.length)fail('material_members_required');
+   const retained=await input.database.read<{event:WildsResourceJournalEventV128}>('meta',key(request.attemptId));
+   if(retained&&(retained.event.kind!=='replay'||retained.event.ownerReceizId!==owner||retained.event.gameplayOwnerId!==input.gameplayOwnerId
+     ||wildsResourceGameplayCommandIdV128(retained.event.commands.at(-1)!)!==id))fail('attempt_conflict');
+   const latest=await current(await input.locator.read());
+   const rejectUnprepared=async()=>{if(latest?.events.some(item=>item.event.ownerReceizId===owner&&[`material-replay:${id}`,`material-use:${id}`].includes(item.event.attemptId)))return false;await beforeReject?.();const rejected=await rejectUnpreparedWildsMaterialV128(input.database,owner,raw);await beforeReject?.();return rejected;};
+   // A verified current custody rejection is distinct from failed/offline reads.
+   if(latest&&memberIds.some(id=>typeof id==='string'&&(Boolean(latest.state.spentMembers[id])
+     ||Boolean(latest.state.reservations[id]&&latest.state.looseMembers[id]?.ownerReceizId!==owner)
+     ||Boolean(latest.state.looseMembers[id]&&latest.state.looseMembers[id].ownerReceizId!==owner)))
+     &&await rejectUnprepared())return {kind:'rejected' as const,commandId:id};
+   let sourceIds:string[]=[];
+   let event:Extract<WildsResourceJournalEventV128,{kind:'replay'|'use'}>;
+   if(retained){
+    event=retained.event as typeof event;
+    const saved=event.commands.at(-1)!;
+    if(saved.kind!=='world'||!same({...raw,...(!raw.cardOriginal&&saved.cardOriginal?{cardOriginal:saved.cardOriginal}:{}),...(!raw.workerOriginals&&saved.workerOriginals?{workerOriginals:saved.workerOriginals}:{})},saved))fail('attempt_conflict');
+   }else{
+    const known=new Set(latest?[...Object.keys(latest.state.looseMembers),...Object.keys(latest.state.spentMembers),
+     ...Object.values(latest.state.packages).flatMap(row=>row.package.members.map(member=>member.id))]:[]);
+    sourceIds=memberIds.filter((id):id is string=>typeof id==='string'&&known.has(id));
+    const history=await resolveWildsResourceGameplayOriginalsV128({...input,ownerReceizId:owner});
+    let enriched=structuredClone(raw);
+    if(input.resolveOriginal){
+     if(enriched.card&&!enriched.cardOriginal){const original=await input.resolveOriginal(enriched.card);if(original)enriched={...enriched,cardOriginal:original};}
+     if(enriched.command.type==='creation.construct'||enriched.command.type==='creation.evolve')for(const source of enriched.command.workerSources){if(!enriched.workerOriginals?.[source.card.id]){const original=await input.resolveOriginal(source.card);if(original)enriched={...enriched,workerOriginals:{...enriched.workerOriginals,[source.card.id]:original}};}}
+    }
+    const prior=history.commands.find(item=>wildsResourceGameplayCommandIdV128(item)===id);
+    if(prior&&!same(prior,enriched))fail('attempt_conflict');
+    event={schema:'wildz.resource-command.v128',...(sourceIds.length?{kind:'use' as const,useCommandId:id,attemptId:`material-use:${id}`}:{kind:'replay' as const,attemptId:request.attemptId}),ownerReceizId:owner,gameplayOwnerId:input.gameplayOwnerId,
+     commands:[...history.commands.filter(item=>wildsResourceGameplayCommandIdV128(item)!==id),enriched]};
+   }
+   const checkEffect=async(state:WildsResourceJournalV128)=>{
+    const replay=await replayWildsResourceJournalOwnerV128(state,owner,input.gameplayOwnerId,state.traces[owner]?.commands??event.commands,
+     (card,original)=>verifyWildsResourceGameplayCardV128(input.sdk,owner,input.authority.keyFile.keyId,card,original));
+    if(!replay.eventsByCommand[id]?.length)fail('material_effect_required');
+    return replay;
+   };
+   if(latest){
+    let verificationFailed=false,planningRejected=false;
+    try{
+     const state=await reduceWildsResourceJournalV128(latest.state,event,{ownerReceizId:owner,expectedNativeHead:latest.predecessor.head.head,
+      verifyCard:async(card,original)=>{try{await verifyWildsResourceGameplayCardV128(input.sdk,owner,input.authority.keyFile.keyId,card,original);}catch(cause){verificationFailed=true;throw cause;}}});
+     await assertWildsPaidPlacementFrontierV128(latest.state,event,state);
+     // The reducer has verified the exact command/card bytes. Its projection
+     // stage is deterministic; network verification failure never rejects.
+     const replay=await replayWildsResourceJournalOwnerV128(state,owner,input.gameplayOwnerId,state.traces[owner]?.commands??event.commands,async()=>{});
+     planningRejected=!replay.eventsByCommand[id]?.length;
+    }catch(cause){
+     if(verificationFailed)throw cause;
+     planningRejected=true;
+    }
+    if(planningRejected&&await rejectUnprepared())return {kind:'rejected' as const,commandId:id};
+    // A prepared/accepted request must still recover its original predecessor.
+   }
+   if(sourceIds.length)return {kind:'source' as const,memberIds:sourceIds};
+   const accepted=latest?.events.some(item=>same(item.event,event))?latest:await append(event,beforeCommit,async state=>{await checkEffect(state);});
+   const admitted=accepted.events.find(item=>item.event.attemptId===event.attemptId&&item.event.ownerReceizId===owner);
+   if(!admitted||!same(admitted.event,event))fail('attempt_conflict');
+   const replay=await checkEffect(accepted.state),last=event.commands.at(-1)!;
+   const prior=await replayWildsResourceJournalOwnerV128(accepted.state,owner,input.gameplayOwnerId,event.commands.slice(0,-1),
+    (card,original)=>verifyWildsResourceGameplayCardV128(input.sdk,owner,input.authority.keyFile.keyId,card,original));
+   const events=replay.eventsByCommand[id]!;
+   const admittedSource=last.kind==='world'&&isWildsEdgeImmediateConstructionCommand(last.command)?{anchorId:id,checkpoint:checkpointWildsWorld(prior.world),events}:undefined;
+   if(admittedSource&&last.kind==='world')verifyWildsWorldAdmittedSource({schema:'receiz.wilds_world_outbox_entry.v1',actorId:input.gameplayOwnerId,guestId:'native-material-replay',queuedAt:new Date(0).toISOString(),command:last.command,admittedSource});
+   return {kind:'ordinary' as const,memberIds:[] as string[],command:last,projection:replay.world,events,...(admittedSource?{admittedSource}:{})};
   },
   async qualifyGameplay(request:Readonly<{attemptId:string}>){
    // A stable selection intent can outlive later gather/consume actions. Bind

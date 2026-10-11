@@ -1,4 +1,6 @@
 "use client";
+import {WildsBuildingClearancePiles} from './WildsBuildingClearancePiles';
+import type {WildsClearancePile} from './wilds-building-clearance';
 import { projectWildsExplorerAnatomy } from "./wilds-explorer-anatomy";
 import { wildsPlayerTapDestination, writeWildsPlayerViewPose, writeWildsEmbodiedEyeAnchor, wildsFirstPersonZoomedOut, prioritizeWildsLocalPlayerHit, WILDS_FIRST_PERSON_DISTANCE, type WildsPlayerEyePose } from "./wilds-player-view";
 import {WildsEquipmentEffects} from './WildsEquipmentEffects';
@@ -139,6 +141,7 @@ import { readWildsCrewCondition } from "./wilds-crew-policy";
 import { canWildsCrewTravel, createWildsCrewPhysicalSampler } from "./wilds-crew-physical-navigation";
 import { createWildsCrewPathStepState, planWildsCrewPathNearTarget, wildsCrewRouteNeedsReplan, writeWildsCrewAlongsideTarget, writeWildsCrewTransportPosition, writeWildsCrewFollowingStep, type WildsCrewNavigationPoint, type WildsCrewNavigationAuthority } from "./wilds-crew-navigation";
 import { WILDS_RENDERED_PHYSICAL_OBSTACLES } from "./wilds-terrain-obstacles";
+import { filterWildsBuildScenery } from './wilds-build-scenery';
 
 export type WildsCrewModes = Readonly<Record<string, "follow" | "roam">>;
 
@@ -186,6 +189,8 @@ export function WildsWorldCanvas({
   onSelectOverlook,
   onSearchPoint,
   onInteractResource,
+  clearancePiles,
+  onCollectClearance,
   livingWorld,
   livingPhysicalObstacles,
   siteRuntime,
@@ -254,6 +259,8 @@ export function WildsWorldCanvas({
   onSelectPlayer: (player: WildsPresence | null) => void;
   onSearchPoint: (point: WildsInteractionSurfacePoint) => void;
   onInteractResource?: (source: WildsResourceSource) => void;
+  clearancePiles?:readonly WildsClearancePile[];
+  onCollectClearance?:(pile:WildsClearancePile)=>void;
   livingWorld?: WildsWorldProjection | null;
   livingPhysicalObstacles: readonly WildsTerrainObstacle[];
   siteRuntime: WildsSiteRuntimeProjection;
@@ -325,7 +332,7 @@ export function WildsWorldCanvas({
           <WildsFirstDrawPreparation onPrepared={setStartupPrepared} />
           <WildsFirstFrame onReady={onWorldReady} />
           {startupPrepared ? <WildsShaderPrewarm /> : null}
-          <WildsScene monumentLightState={monumentLightState} nourishment={nourishment} sleepingCreationBed={sleepingCreationBed} suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} creationPreview={creationPreview} creationProjections={creationProjections} creationNavigation={creationNavigation} creationSource={creationSource} creationWorldId={creationWorldId} onCreationNavigation={onCreationNavigation} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onSleepingPlayerTap={onSleepingPlayerTap} playerTapEnabled={playerTapEnabled} playerFacingRef={playerFacingRef} onJumpTravel={onJumpTravel} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} handActionsRef={handActionsRef} equipmentControlsRef={equipmentControlsRef} heldCreationEquipment={heldCreationEquipment} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
+          <WildsScene monumentLightState={monumentLightState} nourishment={nourishment} sleepingCreationBed={sleepingCreationBed} suspended={suspended} homeResidents={homeResidents} burrowPreview={burrowPreview} creationPreview={creationPreview} creationProjections={creationProjections} creationNavigation={creationNavigation} creationSource={creationSource} creationWorldId={creationWorldId} onCreationNavigation={onCreationNavigation} constructionPreview={constructionPreview} constructionSelectionEnabled={constructionSelectionEnabled} onSelectConstruction={onSelectConstruction} onDragConstruction={onDragConstruction} activeConstructionId={activeConstructionId} explorerIdentityKey={explorerIdentityKey} activeWorkSource={activeWorkSource} activeCapabilityFamily={activeCapabilityFamily} stewardPlacementPreview={stewardPlacementPreview} state={state} character={character} remotePlayers={remotePlayers} qualityProfile={qualityProfile} searchEnabled={searchEnabled} onSleepingPlayerTap={onSleepingPlayerTap} playerTapEnabled={playerTapEnabled} playerFacingRef={playerFacingRef} onJumpTravel={onJumpTravel} onCameraHeadingChange={onCameraHeadingChange} onSelectPlayer={onSelectPlayer} onSelectTrainer={onSelectTrainer} onSelectOverlook={onSelectOverlook} onSearchPoint={onSearchPoint} onInteractResource={onInteractResource} clearancePiles={clearancePiles} onCollectClearance={onCollectClearance} livingWorld={livingWorld} livingPhysicalObstacles={livingPhysicalObstacles} siteRuntime={siteRuntime} siteSpace={siteSpace} onSitePortal={onSitePortal} worldMode={worldMode} kaiMoment={kaiMoment} visualSettings={visualSettings} supportCards={supportCards} crewModes={crewModes} crewTravelRuntime={crewTravelRuntime} crewTravelMembershipRevision={crewTravelMembershipRevision} trainers={trainers} aerialCapabilities={aerialCapabilities} aerialStateRef={aerialStateRef} verticalTraversalRef={verticalTraversalRef} handActionsRef={handActionsRef} equipmentControlsRef={equipmentControlsRef} heldCreationEquipment={heldCreationEquipment} verticalIntentRef={verticalIntentRef} horizontalAllowedRef={horizontalAllowedRef} flightEndurancePotential={flightEndurancePotential} liftPotential={liftPotential} pressurePotential={pressurePotential} aquaticPresentation={aquaticPresentation} onAerialEnergyChange={onAerialEnergyChange} onAerialModeChange={onAerialModeChange} onLandingRequired={onLandingRequired} onVerticalReadoutChange={onVerticalReadoutChange} vistaHeading={vistaHeading} resourcePending={resourcePending} resourceCompanionReady={resourceCompanionReady} />
         </Suspense>
         </WildsEmbodiedAudioContext.Provider>
       </Canvas>
@@ -373,6 +380,8 @@ function WildsScene({
   onSelectPlayer,
   onSearchPoint,
   onInteractResource,
+  clearancePiles,
+  onCollectClearance,
   livingWorld,
   livingPhysicalObstacles,
   siteRuntime,
@@ -442,6 +451,8 @@ function WildsScene({
   onSelectPlayer: (player: WildsPresence | null) => void;
   onSearchPoint: (point: WildsInteractionSurfacePoint) => void;
   onInteractResource?: (source: WildsResourceSource) => void;
+  clearancePiles?:readonly WildsClearancePile[];
+  onCollectClearance?:(pile:WildsClearancePile)=>void;
   livingWorld?: WildsWorldProjection | null;
   livingPhysicalObstacles: readonly WildsTerrainObstacle[];
   siteRuntime: WildsSiteRuntimeProjection;
@@ -545,10 +556,15 @@ function WildsScene({
   const terrainTileX = Math.floor(state.player.x / WILDS_TERRAIN_TILE_SIZE);
   const terrainTileZ = Math.floor(state.player.z / WILDS_TERRAIN_TILE_SIZE);
   const terrainObstacleNeighborhood = useMemo(
-    () => siteSpace.spaceId === "wildz.space.outer.v1" ? projectWildsAerialObstacleNeighborhood(state.player) : EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD,
+    () => {
+      if(siteSpace.spaceId!=="wildz.space.outer.v1")return EMPTY_AERIAL_OBSTACLE_NEIGHBORHOOD;
+      const neighborhood=projectWildsAerialObstacleNeighborhood(state.player);
+      const obstacles=filterWildsBuildScenery(neighborhood.obstacles,siteRuntime.physical.sceneryClearance??[]);
+      return obstacles===neighborhood.obstacles?neighborhood:{...neighborhood,obstacles};
+    },
     // Player coordinates deliberately do not rebuild this immutable projection inside a tile.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [siteSpace.spaceId, terrainTileX, terrainTileZ]
+    [siteSpace.spaceId, terrainTileX, terrainTileZ,siteRuntime.physical.sceneryClearance]
   );
   const crewObstacles = useMemo(() => [...WILDS_RENDERED_PHYSICAL_OBSTACLES, ...terrainObstacleNeighborhood.obstacles, ...livingPhysicalObstacles], [terrainObstacleNeighborhood, livingPhysicalObstacles]);
   const actualCameraSubmergedRef = useRef(false);
@@ -617,6 +633,7 @@ function WildsScene({
           siteSpaceId={siteSpace.spaceId}
           terrainElevation={activeFloorY}
         />
+        {siteSpace.spaceId==='wildz.space.outer.v1'&&clearancePiles?<WildsBuildingClearancePiles piles={clearancePiles} player={state.player} elevation={activeFloorY} onCollect={onCollectClearance}/>:null}
         {nourishment ? <WildsNourishmentEnvironment {...nourishment} qualityTier={qualityProfile.tier} harvestedSources={livingWorld?.harvestedSources} siteRuntime={siteRuntime} origin={{...state.player,y:activeFloorY}} kaiUPulse={kaiMoment.uPulse} spaceId={siteSpace.spaceId} /> : null}
         <WildsBossEnvironment livingWorld={livingWorld} player={state.player} qualityProfile={qualityProfile} terrainElevation={activeFloorY} />
         <EncounterSequence onSearchPoint={onSearchPoint} state={state} terrainElevation={activeFloorY} siteRuntime={siteRuntime} siteSpace={siteSpace} />

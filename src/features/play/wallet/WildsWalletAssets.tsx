@@ -45,7 +45,7 @@ export function createWildsWalletResourceContentsRuntime(input: Readonly<{
 export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, materialLots, nourishment, resourceLots, resourceCards = [], stewardPhiAwards, publicUsername = null, onOpenVaultCard, onPrepareCard, onListCard, marketListedAssetIds = [], onSendAsset, onUnpackResourceCard, state }: {
   cards: readonly PortableCardAsset[];
   cardConditions: Readonly<Record<string, AdventureCardCondition>>;
-  inventoryCounts?: { resourceUnits: number; creatureCards: number };
+  inventoryCounts?: { resourceUnits: number; creatureCards: number; resourceUnitsPending?: boolean };
   resourceLots: readonly WildsResourceLotV1[];
   nourishment?: WildsNourishmentState;
   resourceCards?: readonly ExchangeCard[];
@@ -144,7 +144,7 @@ export function WildsWalletAssets({ cards, cardConditions, inventoryCounts, mate
     {state.summary ? <dl className="wilds-wallet-asset-register">
       <div><dt>{state.balanceBasis === "current" ? (state.status === "offline-verified" ? "Last known PHI" : "Available PHI") : "PHI balance"}</dt><dd><PhiNetworkAmount value={formatWildsPhiExact(state.summary.admittedPhiMicro)} /></dd><small>{state.balanceBasis === "current" ? "Wallet balance after settled earnings, receipts, and spending." : "Last verified balance."}</small></div>
       <div><dt>Stewardship earned</dt><dd><PhiNetworkAmount value={formatWildsPhiExact(sourceSettledPhiMicro)} /></dd><small>Lifetime world rewards. Settled rewards are already included in your available PHI.</small></div>
-      <div><dt>Resource units</dt><dd>{(inventoryCounts?.resourceUnits ?? state.summary.transferableResourceCount)?.toLocaleString("en-US") ?? "—"}</dd><small>Your current stored food, beans, fusion sparks, catalysts, available building materials, and Living Honey units.</small></div>
+      <div><dt>{inventoryCounts?.resourceUnitsPending ? "Last known resources" : "Resource units"}</dt><dd>{(inventoryCounts?.resourceUnitsPending ? state.summary.transferableResourceCount : inventoryCounts?.resourceUnits ?? state.summary.transferableResourceCount)?.toLocaleString("en-US") ?? "—"}</dd><small>{inventoryCounts?.resourceUnitsPending ? "Last observed resource count. Retained contents are loading." : "Your current stored food, beans, fusion sparks, catalysts, available building materials, and Living Honey units."}</small></div>
       <div><dt>Creature cards</dt><dd>{cards.length}</dd><small>Verified cards in your active Wildz Vault.</small></div>
       {reservedCardCount ? <div><dt>Unavailable to send</dt><dd>{reservedCardCount}</dd><small>Already listed, committed, suspended, or revoked.</small></div> : null}
     </dl> : null}

@@ -94,7 +94,7 @@ export function WildsDiscoverySites({ runtime, player, space, elevation = space.
           <meshPhysicalMaterial color="#2395ad" emissive="#155c73" emissiveIntensity={.18} opacity={.58} roughness={.14} side={2} transparent />
         </mesh>) : null}
         {site.waterfall && approach.lod !== "distant" ? <group name={`waterfall:${site.key}`}>
-          <WaterfallFlow site={site} materials={materials} qualityTier={qualityTier} />
+          <WaterfallFlow site={site} materials={materials} qualityTier={qualityTier} physical={runtime.physical} />
         </group> : null}
         {portal && approach.lod !== "distant" ? <group position={[portal.position.x - site.entrance.x, portal.position.y - site.entrance.y + 1, portal.position.z - site.entrance.z]}>
           <CaveEntrance dug={dug} />
@@ -134,8 +134,8 @@ function MountainSurface({ color, distant, site, surface }: {
   </mesh>;
 }
 
-function WaterfallFlow({ site, materials, qualityTier }: { site: WildsDiscoverySiteProjection; materials: DiscoveryMaterials; qualityTier: WildsQualityTier }) {
-  const batches = useMemo(() => createWildsWaterfallBatches(projectWildsWaterfallChute(site)!, site.entrance, qualityTier), [site, qualityTier]);
+function WaterfallFlow({ site, materials, qualityTier,physical }: { site: WildsDiscoverySiteProjection; materials: DiscoveryMaterials; qualityTier: WildsQualityTier;physical:WildsSiteRuntimeProjection['physical'] }) {
+  const batches = useMemo(() => {const chute=projectWildsWaterfallChute(site)!,ids=new Set(physical.solids.map(solid=>solid.id));return createWildsWaterfallBatches({...chute,parts:chute.parts.filter(part=>!physical.sceneryClearance?.length||ids.has(part.solidId!))},site.entrance,qualityTier);}, [site, qualityTier,physical]);
   useEffect(() => () => disposeBatches(batches), [batches]);
   return <>{batches.map(batch => <mesh key={batch.material} name={`waterfall-${batch.material}:${site.key}`} geometry={batch.geometry} material={materials[batch.material]} receiveShadow={batch.material === "stone"} />)}</>;
 }

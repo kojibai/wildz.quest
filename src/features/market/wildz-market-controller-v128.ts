@@ -118,6 +118,7 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
    if(listing.reservation!.phase==="reserved")listing=await progressApproved(plan,listing);
    if(listing.reservation!.phase==="approved")listing=await progress(plan,listing,"payment-pending");
    if(listing.reservation!.phase!=="payment-pending")throw Error("Resolve the original purchase payment before starting any new debit.");
+   await input.staged.observeSubmission?.().catch(() => undefined);current();
   }
  });
  const verifyPayment=async(plan:WildsWalletStagedTradePlan)=>{

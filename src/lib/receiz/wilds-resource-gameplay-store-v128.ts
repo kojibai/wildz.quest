@@ -37,7 +37,19 @@ export async function queueWildsResourceGameplayV128(input:Readonly<{database:Wi
  const entry=descriptor(command);
  return input.database.transaction(['meta'],'readwrite',async tx=>{
   const {index}=await readIndex(tx,input.ownerReceizId,input.gameplayOwnerId,true),existing=index.entries.find(e=>e.commandId===entry.commandId);
-  if(existing){if(existing.digest!==entry.digest)throw Error('wilds_resource_history_command_conflict');return {commandCount:index.entries.length};}
+  if(existing){
+   if(existing.digest!==entry.digest){
+    const retained=await tx.get<WildsResourceGameplayCommandV128>('meta',rowKey(input.ownerReceizId,entry.commandId));
+    // A retry may omit Originals that a later qualified preview resolved. Keep
+    // the richer immutable row; no replacement command or supplied Original is allowed.
+    const compared=command.kind==='world'&&retained?.kind==='world'?{...command,
+     ...(!command.cardOriginal&&retained.cardOriginal?{cardOriginal:retained.cardOriginal}:{}),
+     ...(!command.workerOriginals&&retained.workerOriginals?{workerOriginals:retained.workerOriginals}:{})}:command;
+    if(!retained||canonicalPortableCardJson(descriptor(retained))!==canonicalPortableCardJson(existing)
+     ||canonicalPortableCardJson(compared)!==canonicalPortableCardJson(retained))throw Error('wilds_resource_history_command_conflict');
+   }
+   return {commandCount:index.entries.length};
+  }
   const next={...index,entries:[...index.entries,entry].sort((a,b)=>a.kaiUPulse-b.kaiUPulse),bytes:index.bytes+entry.bytes};
   if(next.entries.length>WILDS_RESOURCE_GAMEPLAY_MAX_COMMANDS_V128||next.bytes>WILDS_RESOURCE_GAMEPLAY_MAX_BYTES_V128)throw Error('wilds_resource_history_full');
   await tx.put('meta',command,rowKey(input.ownerReceizId,entry.commandId));await tx.put('meta',next,key(input.ownerReceizId));return {commandCount:next.entries.length};

@@ -1,3 +1,6 @@
+import { createWildzWalletObservationStore } from "./wildz-wallet-observation";
+import { projectWildsWalletFromIdentityAccount } from "../../features/play/wallet/wilds-wallet-source-authority";
+import { projectWildsWalletSummary } from "./wilds-wallet-projections";
 import {
   createReceizIdIdentity,
   parseReceizIdentityArtifactText,
@@ -26,6 +29,7 @@ export type WildzIdentitySession = {
   username: string | null;
   displayName: string | null;
   createdAt?: string;
+  walletObservationEpoch?: string;
   portableStateStatus: "verified" | "missing" | "invalid";
   localAuthority: "verified" | "proof-sealed-vault" | "remote-only";
   remoteStatus: "unknown" | "connected" | "pending" | "offline" | "unavailable";
@@ -33,6 +37,7 @@ export type WildzIdentitySession = {
 
 export type PreparedWildzIdentity = {
   session: WildzIdentitySession;
+  walletObservation?: Awaited<ReturnType<ReturnType<typeof createWildzWalletObservationStore>["prepare"]>>;
   encryptedRecord: {
     schema: "receiz.wildz.encrypted_identity.v1";
     keyId: string;
@@ -154,6 +159,7 @@ function isIdentitySession(value: unknown): value is WildzIdentitySession {
     && typeof session.actorId === "string"
     && (typeof session.username === "string" || session.username === null)
     && (typeof session.displayName === "string" || session.displayName === null)
+    && (session.walletObservationEpoch === undefined || (typeof session.walletObservationEpoch === "string" && /^[a-f0-9-]{36}$/.test(session.walletObservationEpoch)))
     && (session.createdAt === undefined || Number.isFinite(Date.parse(session.createdAt)))
     && (session.portableStateStatus === "verified" || session.portableStateStatus === "missing")
     && (session.localAuthority === "verified" || session.localAuthority === "proof-sealed-vault" || session.localAuthority === "remote-only")
@@ -254,6 +260,7 @@ export function createWildzIdentityRepository(options: {
   const database = options.database ?? createWildzContinuityDatabase();
   const webCrypto = options.crypto ?? globalThis.crypto;
   const createIdentity = options.createIdentity ?? createReceizIdIdentity;
+  const observations = createWildzWalletObservationStore(database, webCrypto);
 
   if (!webCrypto?.subtle) throw new Error("wildz_identity_web_crypto_unavailable");
 
@@ -315,6 +322,7 @@ export function createWildzIdentityRepository(options: {
           sourceDigestB64Url
         };
         await database.transaction(["identities", "meta"], "readwrite", async (tx) => {
+          if (await verifiedLegacyMigrationFromTransaction(tx, marker)) return;
           await repository.writePrepared(tx, prepared, true);
           await tx.put("meta", marker, LEGACY_MIGRATION_KEY);
         });
@@ -336,6 +344,7 @@ export function createWildzIdentityRepository(options: {
         deviceName: "Wildz"
       });
       const prepared = await repository.prepare(identity.keyFile);
+      prepared.walletObservation = await observations.prepare(prepared.session, projectWildsWalletSummary({ok: true, balancePhiMicro: "0"}), "new-local").catch(() => undefined);
       return database.transaction(["identities", "meta"], "readwrite", async (tx) => {
         const admitted = await activeFromTransaction(tx);
         if (admitted) return admitted;
@@ -349,7 +358,9 @@ export function createWildzIdentityRepository(options: {
     async prepare(keyFile: ReceizKeyFile) {
       const projection = await projectReceizIdentityAccount(keyFile);
       if (projection.portableStateStatus === "invalid") throw new Error("wildz_identity_portable_state_invalid");
-      const session = sessionFromProjection(projection, keyFile.issuedAt);
+      const session = { ...sessionFromProjection(projection, keyFile.issuedAt), walletObservationEpoch: webCrypto.randomUUID() };
+      const summary = projectWildsWalletFromIdentityAccount(projection)?.summary;
+      const walletObservation = summary ? await observations.prepare(session, summary, "seal").catch(() => undefined) : undefined;
       const key = await wrappingKey();
       const iv = webCrypto.getRandomValues(new Uint8Array(12));
       const plaintext = new TextEncoder().encode(serializeReceizIdentityArtifact(keyFile));
@@ -364,6 +375,7 @@ export function createWildzIdentityRepository(options: {
       );
       return {
         session,
+        walletObservation,
         encryptedRecord: {
           schema: ENCRYPTED_IDENTITY_SCHEMA,
           keyId: session.keyId,
@@ -375,6 +387,10 @@ export function createWildzIdentityRepository(options: {
     async writeSession(tx: WildzContinuityTransaction, candidate: WildzIdentitySession, activate: boolean) {
       const session = { ...candidate };
       if (!isIdentitySession(session)) throw new Error("wildz_identity_session_invalid");
+      if (activate) {
+        const previous = await activeFromTransaction(tx);
+        if (previous && (previous.keyId !== session.keyId || previous.actorId !== session.actorId)) await observations.retire(tx, previous);
+      }
       await tx.put("meta", session, sessionMetaKey(session.keyId));
       if (activate) {
         const pointer: ActiveIdentityPointer = {
@@ -394,8 +410,14 @@ export function createWildzIdentityRepository(options: {
         || session.keyId !== encryptedRecord.keyId) {
         throw new Error("wildz_identity_prepared_record_invalid");
       }
+      const previous = await tx.get<WildzIdentitySession>("meta", sessionMetaKey(session.keyId));
+      if (previous) {
+        await observations.retire(tx, previous);
+        if (previous.username) await tx.delete("meta", JSON.stringify(["wildz.wallet.resource-projection-index.v128", `${previous.username}.receiz.id`, previous.keyId]));
+      }
       await tx.put("identities", encryptedRecord, session.keyId);
       await repository.writeSession(tx, session, activate);
+      if (prepared.walletObservation) await observations.install(tx, session, prepared.walletObservation);
     },
     async withKeyFile<T>(keyId: string, operation: (keyFile: ReceizKeyFile) => Promise<T>) {
       const record = await database.read<unknown>("identities", keyId);
@@ -421,6 +443,8 @@ export function createWildzIdentityRepository(options: {
     },
     async logout() {
       await database.transaction(["meta"], "readwrite", async (tx) => {
+        const current = await activeFromTransaction(tx);
+        if (current) await observations.retire(tx, current);
         await tx.delete("meta", ACTIVE_IDENTITY_KEY);
       });
     }

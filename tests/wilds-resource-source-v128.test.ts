@@ -89,3 +89,38 @@ test('stock named-domain namespace remains immutable while two admitted resource
 
  assert.equal(new TextDecoder().decode(receizBase64UrlDecode(prepared.replay.namespace.exactBytesB64u)),canonicalizeReceizV122(first.namespace));
 });
+
+test('unsealed preparation stays internally consistent when Kai rolls during source-intent hashing',async t=>{
+ const input=await fixture(),originalDateNow=Date.now,originalDigest=crypto.subtle.digest.bind(crypto.subtle),originalSign=crypto.subtle.sign.bind(crypto.subtle);
+ let clock=originalDateNow()+60_000,rolled=false,signatures=0;
+ t.mock.method(Date,'now',()=>clock);
+ t.mock.method(crypto.subtle,'digest',async(algorithm:AlgorithmIdentifier,data:BufferSource)=>{
+  const text=new TextDecoder().decode(data);
+  if(!rolled&&text.includes('"schema":"receiz.domain-replay-source-intent.v124"')){rolled=true;clock+=6_000;}
+  return originalDigest(algorithm,data);
+ });
+ t.mock.method(crypto.subtle,'sign',async(algorithm:AlgorithmIdentifier,key:CryptoKey,data:BufferSource)=>{signatures++;return originalSign(algorithm,key,data);});
+ const prepared=await prepareWildsResourceSourcePageV128(input);
+ const child=JSON.parse(new TextDecoder().decode(receizBase64UrlDecode(prepared.candidate.carrier.segment.exactSegmentBytesB64u)));
+ assert.equal(rolled,true,'the actual SDK intent hashing crossed a whole Kai pulse');
+ assert.ok(child.kai.pulse>=child.authoringEvidence.signedChallenge.issuedAtKai);
+ assert.ok(child.kai.pulse<child.authoringEvidence.signedChallenge.expiresAtKai);
+ assert.equal(child.journalAppends[0].acceptedAtKaiUPulse,child.kai.uPulse);
+ assert.deepEqual(prepared.sourceIntent.sourceKai,child.kai);
+ assert.equal(child.authoringEvidence.consentStatementDigest,prepared.sourceIntent.consentStatementDigest);
+ assert.equal(new TextDecoder().decode(receizBase64UrlDecode(child.replay.additions[0].exactEventBytesB64u)),canonicalizeReceizV122(input.page.event));
+ assert.equal(signatures,1,'discarded unsigned preparations never prompt/sign or change retained attempts');
+});
+
+test('delegated source consent uses public author only and unchanged released candidate verification',async()=>{
+ const input=await fixture();
+ const {wildsClearanceWorkerAuthor}=await import('../src/lib/receiz/wilds-clearance-action-worker-runtime');
+ const {signReceizIdentityLoginProof}=await import('@receiz/sdk');let signatures=0;
+ const author={...wildsClearanceWorkerAuthor(input.authority),signChallenge:async(challengeText:string)=>{signatures++;return signReceizIdentityLoginProof({keyFile:input.authority.keyFile,challengeText});}};
+ const prepared=await prepareWildsResourceSourcePageV128({...input,authority:author});
+ assert.equal(signatures,1);assert.equal(author.keyFile.crypto.privateKeyPkcs8B64u,undefined);
+ const child=JSON.parse(new TextDecoder().decode(receizBase64UrlDecode(prepared.candidate.carrier.segment.exactSegmentBytesB64u)));
+ assert.equal(child.authoringEvidence.identity.keyId,input.authority.keyFile.keyId);
+ assert.equal(child.replay.additions[0].exactEventBytesB64u,prepared.replay.additions[0].exactEventBytesB64u);
+ await assert.rejects(prepareWildsResourceSourcePageV128({...input,authority:{...author,signChallenge:async text=>{const proof=await author.signChallenge(text);return {...proof,signatureB64Url:'invalid'};}}}),/SIGNATURE|signature|PROOF|proof/);
+});

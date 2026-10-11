@@ -1,6 +1,8 @@
 "use client";
+import {persistWildsOrdinaryMaterialAdmission,type WildsOrdinaryMaterialAdmission,type WildsMaterialAdmissionFence} from "./wilds-material-edge-admission";
 import { prepareReceivedWildsWorldProofs } from "./wilds-received-proof-immutability";
 import { emitWildsPlaytestDuration } from "./wilds-playtest-events";
+import {preserveWildsClearanceHistory} from "./wilds-building-clearance";
 import { createWildsWorldRefreshCoordinator } from "./wilds-world-refresh-coordinator";
 import type { WildsBurrowRequest } from "./wilds-burrow";
 import { settleWildsBuild } from "./wilds-steward-build-settlement";
@@ -222,8 +224,8 @@ export async function startWildsWorldClient(input: {
 }
 
 export function useWildsWorld(input: {
-  onAdmittedCommand?: (entry: WildsWorldOutboxEntry, groveMandate?: WildsCreatureMandateV1) => void;
-  admitResourceSourceCommand?: (entry:WildsWorldOutboxEntry,beforeAdmit?: (entry:WildsWorldOutboxEntry)=>Promise<void>)=>Promise<Readonly<{projection:WildsWorldProjection;events:readonly WildsWorldEvent[]}>|null>;
+  onAdmittedCommand?: (entry: WildsWorldOutboxEntry, groveMandate?: WildsCreatureMandateV1) => void | Promise<void>;
+  admitResourceSourceCommand?: (entry:WildsWorldOutboxEntry,beforeAdmit?: WildsMaterialAdmissionFence)=>Promise<Readonly<{projection:WildsWorldProjection;events:readonly WildsWorldEvent[];entry?:WildsWorldOutboxEntry;beforeApply?:()=>Promise<void>;afterAdmit?:()=>Promise<void>}>|WildsOrdinaryMaterialAdmission|null>;
   onActivity?: (activity: WildsActivityEntry) => void;
   enabled: boolean;
   networkEnabled: boolean;
@@ -279,8 +281,6 @@ export function useWildsWorld(input: {
       onAdmitted: (projection, entry, events, constitution) => {
         canonicalSnapshot.current = projection;
         setSnapshot((current) => acceptWildsWorldSnapshot(current, projection, ownedWorldAdditions.current));
-        commandListener.current?.(entry,groveCaptureMandates.current.get(entry.command.commandId));
-        groveCaptureMandates.current.delete(entry.command.commandId);
         for (const event of events) {
           if (event.actorId !== entry.actorId) continue;
           activityListener.current?.(projectWildsStoryActivity(event, constitution));
@@ -410,10 +410,30 @@ export function useWildsWorld(input: {
     return { projection: canonical, mode: nextMode };
   }, [edgeQueue, input.actorId, projectPending, sendEntry]);
 
+  const publicClearanceReader = useRef<ReturnType<typeof import('./wilds-clearance-public-worker-client')['createWildsClearancePublicWorkerReader']>|null>(null);
+  const publicClearanceAbort = useRef<AbortController|null>(null);
+  const refreshPublicClearance = useCallback(async()=>{
+    if(!input.enabled||!input.networkEnabled)return;
+    const controller=publicClearanceAbort.current??new AbortController();publicClearanceAbort.current=controller;
+    try{
+      if(!publicClearanceReader.current){const {createWildsClearancePublicWorkerReader}=await import('./wilds-clearance-public-worker-client');if(controller.signal.aborted)return;publicClearanceReader.current??=createWildsClearancePublicWorkerReader();}
+      const history=await publicClearanceReader.current.read(controller.signal);
+      if(controller.signal.aborted||!history)return;
+      const projection=preserveWildsClearanceHistory(history,edgeQueue.current());edgeQueue.adopt(projection);
+      setSnapshot(current=>current?preserveWildsClearanceHistory(history,current):current);
+    }catch{/* Keep known sealed history visible while public transport is unavailable. */}
+  },[edgeQueue,input.enabled,input.networkEnabled]);
+  useEffect(()=>{
+    void refreshPublicClearance();
+    const resume=()=>{if(document.visibilityState==='visible')void refreshPublicClearance();};
+    const timer=setInterval(resume,30_000);window.addEventListener('focus',resume);
+    return()=>{clearInterval(timer);window.removeEventListener('focus',resume);publicClearanceAbort.current?.abort();publicClearanceAbort.current=null;publicClearanceReader.current?.dispose();publicClearanceReader.current=null;};
+  },[refreshPublicClearance]);
   const refreshCoordinator = edge.current.refresh;
   useEffect(() => () => refreshCoordinator.cancelPending(), [refreshCoordinator]);
   const refresh = useCallback(() => refreshCoordinator.run(async () => {
     if (!input.enabled || !input.networkEnabled) return;
+    void refreshPublicClearance();
     if (shouldAttemptWildsNetwork() && Date.now() < retryAfter.current) return;
     const result = await refreshWildsWorldClient({
       current: edgeQueue.current,
@@ -432,7 +452,7 @@ export function useWildsWorld(input: {
     setMode(result.mode);
     setError(result.error);
     if (result.retryAfter !== undefined) retryAfter.current = result.retryAfter;
-  }), [adoptSnapshot, edgeQueue, flushOutbox, input.actorId, input.enabled, input.networkEnabled, request, refreshCoordinator]);
+  }), [adoptSnapshot, edgeQueue, flushOutbox, input.actorId, input.enabled, input.networkEnabled, request, refreshCoordinator,refreshPublicClearance]);
 
   useEffect(() => {
     if (input.enabled) setMode(wildsWorldModeAfterConfirmedBootstrap);
@@ -496,12 +516,28 @@ export function useWildsWorld(input: {
     };
     assertWildsWorldCommandCardAuthority(rootedCommand,authorityCard,Boolean(crewAdmission));
     const entry=crewAdmission&&authorityCard&&rootedCommand.type!=="creation.action"?bindWildsCrewOutboxIdentity(unboundEntry,authorityCard):unboundEntry;
+    const captureAdmitted=async()=>{await commandListener.current?.(entry,groveCaptureMandates.current.get(entry.command.commandId));groveCaptureMandates.current.delete(entry.command.commandId);};
     const sourceAdmitted=await resourceSourceListener.current?.(entry,crewAdmission?.beforeAdmit);
-    if(sourceAdmitted){const projection=adoptApplicationResourceWorld(sourceAdmitted.projection,sourceAdmitted.events);crewAdmission?.onAdmitted(projection,sourceAdmitted.events);setError('');return projection;}
+    if (sourceAdmitted && "ordinary" in sourceAdmitted) {
+      const projection = await persistWildsOrdinaryMaterialAdmission({admission:sourceAdmitted,persist:persistWildsWorldCommand,restore:restoreSession,apply:adoptApplicationResourceWorld,
+        capture:async saved=>{await commandListener.current?.(saved,groveCaptureMandates.current.get(saved.command.commandId));groveCaptureMandates.current.delete(saved.command.commandId);},
+        onAdmitted:crewAdmission?.onAdmitted});
+      setError("");
+      return projection;
+    }
+    if(sourceAdmitted){
+      await sourceAdmitted.beforeApply?.();
+      const projection=adoptApplicationResourceWorld(sourceAdmitted.projection,sourceAdmitted.events),saved=sourceAdmitted.entry??entry;
+      crewAdmission?.onAdmitted(projection,sourceAdmitted.events);
+      await commandListener.current?.(saved,groveCaptureMandates.current.get(saved.command.commandId));
+      groveCaptureMandates.current.delete(saved.command.commandId);
+      await sourceAdmitted.afterAdmit?.();setError('');return projection;
+    }
     if (isWildsEdgeImmediateConstructionCommand(rootedCommand)) {
       try {
         await restoreSession();
         const projection = await edgeQueue.admit(entry,crewAdmission);
+        await captureAdmitted();
         setError("");
         scheduleWildsWorldBackgroundSync(() => {
           if (input.networkEnabled) void refresh();
@@ -515,6 +551,7 @@ export function useWildsWorld(input: {
       }
     }
     const locallyAdmittedProjection = await edgeQueue.admit(entry,crewAdmission);
+    await captureAdmitted();
     const queueForGlobalCommit = async () => {
       setSnapshot((current) => acceptWildsWorldSnapshot(current, locallyAdmittedProjection, ownedWorldAdditions.current));
       setMode("receiz_recovery_pending");

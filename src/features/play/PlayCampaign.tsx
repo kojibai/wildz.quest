@@ -1,4 +1,8 @@
 "use client";
+import { wildsFoodConsumptionRoute } from './wilds-native-inventory-display';
+import {useWildsWalletResourceRowsHydration} from "./wallet/useWildsWalletResourceRowsHydration";
+import { createWildzWalletObservationPort, type WildzWalletPresentation } from "../../lib/receiz/wildz-wallet-presentation";
+import { defaultContinuityDatabase as walletObservationDatabase } from "../../lib/receiz/wildz-active-identity";
 import type { WildzPreparedIdentityPlayerVault } from "../../lib/receiz/wildz-prepared-player-vault";
 import { receizBase64UrlEncode, receizBase64UrlDecode } from "@receiz/sdk";
 import { useWildsRoamingBattle } from "./use-wilds-roaming-battle";
@@ -89,7 +93,7 @@ import {
 } from "@/features/play/game-state";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
-import { sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
+import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
 import { WildsBattle } from "@/features/play/WildsBattle";
 import { WildsTransformation } from "@/features/play/WildsTransformation";
@@ -211,6 +215,10 @@ import { createWildsWalletResourceUsePortV128 } from "./wallet/wilds-wallet-reso
 import { captureWildsResourceGameplayInput } from "./wilds-resource-gameplay-capture";
 import { createWildsWalletGiftAgreement } from "./wallet/wilds-wallet-trade";
 import { projectWildsWalletStagedTradeInbox } from "./wallet/wilds-wallet-staged-trade-inbox";
+import {projectWildsBuildingClearancePiles,type WildsClearancePile} from './wilds-building-clearance';
+import {canReachWildsClearancePile} from './wilds-building-clearance-interaction';
+import {projectWildsConstructionProgress} from './wilds-construction-component';
+import type {WildsWorldOutboxEntry} from './wilds-world-outbox';
 import { useWildsResourceGameplayCapture } from "./useWildsResourceGameplayCapture";
 import { advanceWildsJumpTravel, captureWildsJumpTravel, type WildsJumpTravel, type WildsJumpMovement } from "./wilds-jump-travel";
 import { useWildsWalletController, type WildsWalletClientAuthorizationPort } from "@/features/play/wallet/useWildsWalletController";
@@ -250,6 +258,7 @@ import { resolveWildsRequiredLandingPosition } from "@/features/play/wilds-groun
 import { projectCreatureCapabilityIdentity, projectCreatureRuntimeCapabilities } from "@/features/play/creature-capability-identity";
 import { wildsTerrainElevation, WILDS_TERRAIN_TILE_SIZE } from "@/features/play/wilds-terrain-authority";
 import { projectWildsRenderedLivingObstacles, wildsTerrainObstaclesForTile } from "@/features/play/wilds-terrain-obstacles";
+import { wildsBuildSceneryClearedAt } from './wilds-build-scenery';
 import { projectWildsStructureSupports, wildsStructureSupportAt } from "@/features/play/wilds-structure-support";
 import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition } from "@/features/play/wilds-discovery-sites";
 import { prepareWildsSiteRuntime, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "@/features/play/wilds-site-runtime";
@@ -343,6 +352,8 @@ export function PlayCampaign({
   walletAuthorityGeneration,
   walletAuthorization,
   walletIdentityKey,
+  walletObservationEpoch,
+  initialWalletPresentation,
   walletReadIdentityKey,
   walletPublicUsername,
   onComplete,
@@ -379,6 +390,8 @@ export function PlayCampaign({
   walletAuthorityGeneration: string;
   walletAuthorization?: WildsWalletClientAuthorizationPort;
   walletIdentityKey: string;
+  walletObservationEpoch?: string;
+  initialWalletPresentation?: WildzWalletPresentation;
   walletReadIdentityKey?: string;
   walletPublicUsername: string | null;
   onComplete?: (beans: number) => void;
@@ -398,7 +411,7 @@ export function PlayCampaign({
   onWorldReady?: () => void;
   onWorldInitialized?: () => void;
   worldVisible?: boolean;
-  onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload) => Promise<WildzPreparedIdentityOwnedCard>;
+  onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload | Parameters<typeof createWildsPlayerVault>[0], options?: { speculative?: boolean }) => Promise<WildzPreparedIdentityOwnedCard>;
   onExportCard: (asset: PortableCardAsset, player: (asset?: PortableCardAsset) => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: () => Promise<unknown>;
   onPrepareVault?: () => Promise<unknown>;
@@ -630,13 +643,18 @@ export function PlayCampaign({
     ? (authorization: Parameters<typeof authorizeWildsLivingWorldOperationWithIdentity>[1]) =>
         authorizeWildsLivingWorldOperationWithIdentity(walletReadIdentityKey, authorization)
     : undefined, [walletReadIdentityKey]);
+  const admittedWalletPresentation = initialWalletPresentation && initialWalletPresentation.keyId === walletReadIdentityKey
+    && initialWalletPresentation.actorId === walletIdentityKey && initialWalletPresentation.incarnation === (walletObservationEpoch ?? "legacy") ? initialWalletPresentation : null;
+  const walletObservationPort = useMemo(() => walletReadIdentityKey ? createWildzWalletObservationPort(walletObservationDatabase,
+    {keyId: walletReadIdentityKey, actorId: walletIdentityKey, walletObservationEpoch}) : undefined, [walletReadIdentityKey, walletIdentityKey, walletObservationEpoch]);
   const walletController = useWildsWalletController(walletIdentityKey, walletAuthorityGeneration, {
     backgroundReady: worldVisible,
     sourceKey: walletReadIdentityKey ?? undefined,
+    incarnation: walletObservationEpoch, observation: admittedWalletPresentation?.observation, observationPort: walletObservationPort,
     authorization: walletTransferAuthorization,
     readAuthorization: walletReadAuthorization
   });
-  const { cancelForExclusiveOwner: cancelWalletForExclusiveOwner } = walletController;
+  const { cancelForExclusiveOwner: cancelWalletForExclusiveOwner, markObservationPending: markWalletObservationPending } = walletController;
   const cameraHeadingRef = useRef(0);
   const playerFacingRef = useRef(0);
   const updateCameraHeading = useCallback((heading: number) => {
@@ -1050,7 +1068,9 @@ export function PlayCampaign({
     setActiveTrainer(null);
     setTrainerEncounter(null);
   }, [multiplayer.activeBattle, state.battle, trainerEncounter?.phase]);
-  const resourceGameplayCapture=useWildsResourceGameplayCapture({enabled:networkEnabled,ownerHandle:walletPublicUsername?`${walletPublicUsername.replace(/\.receiz\.id$/, '').toLowerCase()}.receiz.id`:null,gameplayOwnerId:ownerReceizId,state});
+  const clearanceBeforeConstructionRef=useRef<(()=>Promise<void>)|null>(null);
+  const clearanceConstructionRef=useRef<((entry:WildsWorldOutboxEntry)=>Promise<void>)|null>(null);
+  const resourceGameplayCapture=useWildsResourceGameplayCapture({enabled:networkEnabled,ownerHandle:walletPublicUsername?`${walletPublicUsername.replace(/\.receiz\.id$/, '').toLowerCase()}.receiz.id`:null,gameplayOwnerId:ownerReceizId,state,captureScope:JSON.stringify([walletReadIdentityKey,walletIdentityKey,walletObservationEpoch??"legacy"]),onConstructionCaptured:entry=>clearanceConstructionRef.current?.(entry)??Promise.resolve()});
   const admitResourceSourceCommandRef = useRef<NonNullable<Parameters<typeof useWildsWorld>[0]["admitResourceSourceCommand"]>>(async () => null);
   const livingWorld = useWildsWorld({
     admitResourceSourceCommand: (entry, beforeAdmit) => admitResourceSourceCommandRef.current(entry, beforeAdmit),
@@ -1085,11 +1105,14 @@ export function PlayCampaign({
     });
   }, [livingWorld.snapshot, state.playerNourishment, readActionKaiUPulse]);
   const walletTradeOwnerHandle = walletPublicUsername ? `${walletPublicUsername.replace(/\.receiz\.id$/, "").toLowerCase()}.receiz.id` : null;
-  const walletTradeIdentityRef = useRef({keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle});
-  walletTradeIdentityRef.current = {keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle};
+  const walletTradeIdentityRef = useRef({keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle, incarnation: walletObservationEpoch ?? "legacy"});
+  walletTradeIdentityRef.current = {keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle, incarnation: walletObservationEpoch ?? "legacy"};
   const {readTradeConversations, sendBearerGift, sendResourceSource, sendStagedTrade} = messenger;
-  const [walletSourceRows, setWalletSourceRows] = useState<{keyId: string; owner: string; rows: readonly WildsWalletResourceProjectionRowV128[]} | null>(null);
-  const currentWalletSourceRows = walletSourceRows && walletSourceRows.keyId === walletReadIdentityKey && walletSourceRows.owner === walletTradeOwnerHandle ? walletSourceRows.rows : EMPTY_WALLET_SOURCE_ROWS;
+  const [walletSourceRows, setWalletSourceRows] = useState<{keyId: string; actorId: string; owner: string; incarnation: string; pending?: boolean; rows: readonly WildsWalletResourceProjectionRowV128[]} | null>(() => admittedWalletPresentation && walletTradeOwnerHandle ? {keyId: admittedWalletPresentation.keyId, actorId: walletIdentityKey, owner: walletTradeOwnerHandle, incarnation: admittedWalletPresentation.incarnation, rows: admittedWalletPresentation.resourceRows, pending: admittedWalletPresentation.resourceRowsPending} : null);
+  const scopedWalletSourceRows = walletSourceRows && walletSourceRows.keyId === walletReadIdentityKey && walletSourceRows.actorId === walletIdentityKey && walletSourceRows.owner === walletTradeOwnerHandle && walletSourceRows.incarnation === (walletObservationEpoch ?? "legacy") ? walletSourceRows : null;
+  const currentWalletSourceRows = scopedWalletSourceRows?.rows ?? admittedWalletPresentation?.resourceRows ?? EMPTY_WALLET_SOURCE_ROWS;
+  const walletSourceRowsPending = scopedWalletSourceRows ? Boolean(scopedWalletSourceRows.pending) : Boolean(walletReadIdentityKey && walletTradeOwnerHandle);
+
   const walletSourceProjection = useMemo(() => projectWildsWalletResourceProjectionsV128(currentWalletSourceRows), [currentWalletSourceRows]);
   const walletVisibleNourishment = useMemo(() => resourceExchange.nourishment ? {...resourceExchange.nourishment, unavailableItemIds: [...new Set([...(resourceExchange.nourishment.unavailableItemIds ?? []), ...walletSourceProjection.lockedMemberIds])]} : undefined, [resourceExchange.nourishment, walletSourceProjection.lockedMemberIds]);
   const walletSourceStoreRef = useRef<ReturnType<typeof createWildsWalletResourceProjectionStoreV128> | null>(null);
@@ -1110,7 +1133,7 @@ export function PlayCampaign({
     const currentIdentity = () => {
       if (walletSourceLive.current.ownerReceizId !== capturedActor) throw Error("The Explorer changed. Reopen the wallet action.");
       const identity = walletTradeIdentityRef.current;
-      if (identity.keyId !== keyId || identity.ownerHandle !== ownerHandle) throw Error("Unlock the same Explorer to continue this exact offer.");
+      if (identity.keyId !== keyId || identity.ownerHandle !== ownerHandle || identity.incarnation !== (walletObservationEpoch ?? "legacy")) throw Error("Unlock the same Explorer to continue this exact offer.");
       return {keyId: identity.keyId, ownerHandle: identity.ownerHandle};
     };
     return createWildsWalletAssetPortV128({ keyId, ownerHandle, gameplayOwnerId: capturedActor, currentIdentity,
@@ -1140,7 +1163,7 @@ export function PlayCampaign({
         const rows = await store.listCached(); currentIdentity();
         const projected = projectWildsWalletResourceProjectionsV128(rows);
         walletSourceLocksRef.current = projected.lockedMemberIds;
-        setWalletSourceRows({keyId, owner: ownerHandle, rows});
+        setWalletSourceRows({actorId: walletIdentityKey, incarnation: walletObservationEpoch ?? "legacy", keyId, owner: ownerHandle, rows});
         const sourceMemberIds = new Set(rows.flatMap(row => row.memberRefs.map(member => member.id)));
         setState(current => current.playerNourishment?.ownerReceizId !== capturedActor || walletTradeIdentityRef.current.keyId !== keyId || walletTradeIdentityRef.current.ownerHandle !== ownerHandle ? current
           : {...current, playerNourishment: {...current.playerNourishment, unavailableItemIds: [...new Set([
@@ -1195,17 +1218,17 @@ export function PlayCampaign({
         setState(current => applyWildsInput(current, {type: "transfer-card-out", assetId}));
       }
     });
-  }, [walletReadIdentityKey, walletTradeOwnerHandle, ownerReceizId, readTradeConversations, sendBearerGift, sendResourceSource]);
+  }, [walletReadIdentityKey, walletTradeOwnerHandle, ownerReceizId, readTradeConversations, sendBearerGift, sendResourceSource, walletObservationEpoch, walletIdentityKey]);
   walletAssetPortRuntimeRef.current = walletAssetPort?.openRuntime ?? null;
   const walletSourceStore = useMemo(() => {
     if (!walletAssetPort || !walletReadIdentityKey || !walletTradeOwnerHandle) return null;
-    return createWildsWalletResourceProjectionStoreV128({keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle,
+    return createWildsWalletResourceProjectionStoreV128({actorId: walletIdentityKey, keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle, incarnation: walletObservationEpoch ?? "legacy",
       currentIdentity: () => {
         const current = walletTradeIdentityRef.current;
         if (!current.keyId || !current.ownerHandle) throw Error("Unlock the same Explorer to reopen this source.");
-        return {keyId: current.keyId, ownerHandle: current.ownerHandle};
+        return {keyId: current.keyId, ownerHandle: current.ownerHandle, incarnation: current.incarnation};
       }, openRuntime: walletAssetPort.openRuntime});
-  }, [walletAssetPort, walletReadIdentityKey, walletTradeOwnerHandle]);
+  }, [walletAssetPort, walletReadIdentityKey, walletTradeOwnerHandle, walletObservationEpoch, walletIdentityKey]);
   walletSourceStoreRef.current = walletSourceStore;
   const walletSourceUse = useMemo(() => {
     if (!walletAssetPort || !walletReadIdentityKey || !walletTradeOwnerHandle) return null;
@@ -1216,55 +1239,92 @@ export function PlayCampaign({
         return {keyId: current.keyId, ownerHandle: current.ownerHandle};
       }, openRuntime: walletAssetPort.openRuntime});
   }, [walletAssetPort, walletReadIdentityKey, walletTradeOwnerHandle]);
-  useEffect(() => {
-    if (!walletSourceStore || !walletReadIdentityKey || !walletTradeOwnerHandle) return;
-    let cancelled = false;
-    void walletSourceStore.listCached().then(rows => {
-      if (!cancelled) setWalletSourceRows({keyId: walletReadIdentityKey, owner: walletTradeOwnerHandle, rows});
-    }).catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [walletSourceStore, walletReadIdentityKey, walletTradeOwnerHandle]);
+  useWildsWalletResourceRowsHydration(walletSourceStore, {keyId: walletReadIdentityKey ?? null, actorId: walletIdentityKey,
+    owner: walletTradeOwnerHandle, incarnation: walletObservationEpoch ?? "legacy"}, walletSourceRows, setWalletSourceRows);
+
   const unpackWalletSourcePackage = useCallback(async (packageId: string) => {
     if (!walletAssetPort || !walletSourceStore) throw Error("Unlock the same Explorer to use this package.");
     const expectedIdentity = {...walletTradeIdentityRef.current};
+    await markWalletObservationPending();
     const result = await walletAssetPort.unpackHeldPackage(packageId);
     if (result.status !== "accepted") throw Error(result.message ?? "Check the same package to finish unpacking its contents.");
     const rows = await walletSourceStore.listCached();
     const current = walletTradeIdentityRef.current;
     if (current.keyId !== expectedIdentity.keyId || current.ownerHandle !== expectedIdentity.ownerHandle) throw Error("The Explorer changed. Reopen the same package.");
-    if (current.keyId && current.ownerHandle) setWalletSourceRows({keyId: current.keyId, owner: current.ownerHandle, rows});
-  }, [walletAssetPort, walletSourceStore]);
+    if (current.keyId && current.ownerHandle) setWalletSourceRows({actorId: walletIdentityKey, incarnation: walletObservationEpoch ?? "legacy", keyId: current.keyId, owner: current.ownerHandle, rows});
+  }, [walletAssetPort, walletSourceStore, markWalletObservationPending, walletObservationEpoch, walletIdentityKey]);
   admitResourceSourceCommandRef.current = async (entry, beforeAdmit) => {
-    const command = entry.command;
-    const memberIds = "lotIds" in command ? command.lotIds : "resources" in command ? command.resources.map(lot => lot.id)
+    let command = entry.command;
+    if(command.type==='creation.construct'||command.type==='creation.evolve'||command.type==='construction.component.adjust'||command.type==='construction.component.work'||command.type==='construction.component.deposit')await clearanceBeforeConstructionRef.current?.();
+    let memberIds = "lotIds" in command ? command.lotIds : "resources" in command ? command.resources.map(lot => lot.id)
       : "lotId" in command ? [command.lotId] : [];
-    const knownSourceMembers = new Set(currentWalletSourceRows.flatMap(row => row.memberRefs.map(member => member.id)));
-    const selectedSourceIds = memberIds.filter((id): id is string => typeof id === "string" && knownSourceMembers.has(id));
+    let selectedSourceIds: string[] = [];
     const sourceWorld = livingWorld.currentApplicationResourceSource();
     const sourceCreation = (command.type === "creation.construct" || command.type === "creation.evolve") && sourceWorld
       && command.context.sourceHead === creationWorldSourceHead(sourceWorld);
     const sourceOwnerAction = command.type === "creation.action" && Boolean(sourceWorld?.creations?.[command.actionRequest.instanceId]);
-    if (!selectedSourceIds.length && !sourceCreation && !sourceOwnerAction) return null;
+    if (!memberIds.length && !sourceCreation && !sourceOwnerAction) return null;
     if (!walletAssetPort || !walletSourceUse || !walletSourceStore) throw Error("Unlock the same Explorer before using received materials.");
-    const available = new Set(walletSourceProjection.availableMembers.map(member => member.id));
-    const unavailable = selectedSourceIds.some(id => !available.has(id) || walletSourceProjection.lockedMemberIds.has(id));
     const expectedIdentity = {...walletTradeIdentityRef.current};
+    const hasMaterial = memberIds.length > 0;
+    if (hasMaterial) {
+      entry = await walletSourceStore.prepareMaterial(entry);
+      command = entry.command;
+      memberIds = "lotIds" in command ? command.lotIds : "resources" in command ? command.resources.map(lot => lot.id) : "lotId" in command ? [command.lotId] : [];
+      if (!memberIds.length) throw Error("The saved material command is invalid.");
+    }
+    const assertScope = async () => {
+      const current = walletTradeIdentityRef.current;
+      if (current.keyId !== expectedIdentity.keyId || current.ownerHandle !== expectedIdentity.ownerHandle || current.incarnation !== expectedIdentity.incarnation)
+        throw Error("The Explorer changed. Reopen the same material action.");
+      await walletSourceStore.assertCurrent();
+    };
+    const finalFence = async () => { await assertScope(); await beforeAdmit?.(entry); await assertScope(); };
+    // Accepted-source recovery may make no publication callback. Its separate
+    // read-only crew authorization must still precede local persistence/adoption.
+    const localFence = async () => { await assertScope(); await beforeAdmit?.beforeApply?.(entry); await assertScope(); };
+    await assertScope();
     await resourceGameplayCapture.flush();
+    await assertScope();
     const sourceCommand = {kind: "world" as const, command, kaiUPulse: command.kai!.uPulse,
       ...(entry.card ? {card: entry.card} : {}), ...("mandate" in command && command.mandate ? {groveMandate: command.mandate} : {})};
+    if (memberIds.length) {
+      const runtime = await walletAssetPort.openClearanceRuntime();
+      await assertScope();
+      const routing = await runtime.exchange.admitMaterialCommand({attemptId: `material-replay:${command.commandId}`, command: sourceCommand}, finalFence, assertScope);
+      await assertScope();
+      if (routing.kind === "rejected") {
+        if (routing.commandId !== command.commandId) throw Error("The rejected material command differs from the saved action.");
+        await assertScope();
+        await walletSourceStore.finishMaterial(command.commandId);
+        throw Error("These materials or their plan changed. Reopen Build and choose a current action.");
+      }
+      if (routing.kind === "ordinary") {
+        if (routing.command.kind !== "world" || canonicalPortableCardJson(routing.command.command) !== canonicalPortableCardJson(command)) throw Error("The native material command differs from the saved action.");
+        await assertScope();
+        return {ordinary: true as const, entry: {...entry,...(routing.admittedSource ? {admittedSource:routing.admittedSource} : {})}, projection:routing.projection, events:routing.events, beforeAdmit: localFence, afterAdmit: async () => { await resourceGameplayCapture.flush(); await walletSourceStore.finishMaterial(command.commandId); }};
+      }
+      if (routing.kind !== "source" || !routing.memberIds.length) throw Error("The material source could not be qualified.");
+      selectedSourceIds = routing.memberIds;
+    }
     const request = {attemptId: `material-use:${command.commandId}`, memberIds: selectedSourceIds, command: sourceCommand};
     const observed = await walletSourceUse.observe(request);
-    const finalFence = beforeAdmit ? () => beforeAdmit(entry) : undefined;
+    await assertScope();
     const recovered = observed ?? await walletSourceUse.recover(request, finalFence);
-    if (!recovered && unavailable) throw Error("These exact source materials are reserved, spent or held by another Explorer.");
+    await assertScope();
+    if (!recovered && selectedSourceIds.some(id => walletSourceProjection.lockedMemberIds.has(id))) throw Error("These exact source materials are reserved, spent or held by another Explorer.");
+    if (!recovered) await markWalletObservationPending();
     const admitted = recovered ?? await walletSourceUse.use(request, finalFence);
-    if (!admitted || walletTradeIdentityRef.current.keyId !== expectedIdentity.keyId || walletTradeIdentityRef.current.ownerHandle !== expectedIdentity.ownerHandle) throw Error("The Explorer changed. Reopen the same material action.");
+    await assertScope();
+    if (!admitted) throw Error("The material source did not admit this action.");
     const row = currentWalletSourceRows.find(row => row.memberRefs.some(member => selectedSourceIds.includes(member.id)));
-    if (row) await walletSourceStore.reopen(row.packageId);
-    const rows = await walletSourceStore.listCached();
-    if (walletTradeIdentityRef.current.keyId !== expectedIdentity.keyId || walletTradeIdentityRef.current.ownerHandle !== expectedIdentity.ownerHandle) throw Error("The Explorer changed. Reopen the same material action.");
-    if (expectedIdentity.keyId && expectedIdentity.ownerHandle) setWalletSourceRows({keyId: expectedIdentity.keyId, owner: expectedIdentity.ownerHandle, rows});
-    return {projection: admitted.projection, events: admitted.events};
+    if (row) {
+      await walletSourceStore.reopen(row.packageId);
+      const rows = await walletSourceStore.listCached();
+      await assertScope();
+      if (expectedIdentity.keyId && expectedIdentity.ownerHandle) setWalletSourceRows({actorId: walletIdentityKey, incarnation: walletObservationEpoch ?? "legacy", keyId: expectedIdentity.keyId, owner: expectedIdentity.ownerHandle, rows});
+    }
+    return {projection: admitted.projection, events: admitted.events, entry, beforeApply: localFence, ...(hasMaterial ? {afterAdmit: async () => { await resourceGameplayCapture.flush(); await walletSourceStore.finishMaterial(command.commandId); }} : {})};
   };
   const ensureWalletTradeReady = useCallback(async () => {
     const expected = {...walletTradeIdentityRef.current};
@@ -1313,10 +1373,10 @@ export function PlayCampaign({
         openSource: async ({verifyTransition}) => openWildzMarketSourceBrowserV128({resourceRuntime: await walletAssetPort.openRuntime(),
           qualifySelection: async selection => walletAssetPort.qualifyListing(selection.asset, selection.summary), verifyTransition}),
         staged: {assetPort: walletAssetPort, readConversations: readTradeConversations, publish: sendStagedTrade,
-          sendWalletAsset: async () => ({status: "failed", message: "Review the exact native asset in Market."}), ensureReady: ensureWalletTradeReady}
+          sendWalletAsset: async () => ({status: "failed", message: "Review the exact native asset in Market."}), ensureReady: ensureWalletTradeReady, observeSubmission: markWalletObservationPending}
       });
     }});
-  }, [walletReadIdentityKey, walletTradeOwnerHandle, walletAssetPort, readTradeConversations, sendStagedTrade, ensureWalletTradeReady]);
+  }, [walletReadIdentityKey, walletTradeOwnerHandle, walletAssetPort, readTradeConversations, sendStagedTrade, ensureWalletTradeReady, markWalletObservationPending]);
   useEffect(() => {
     marketActiveRef.current = true;
     onMarketServiceChange?.(lazyMarket?.service ?? null);
@@ -1365,7 +1425,8 @@ export function PlayCampaign({
     },
     readConversations: readTradeConversations,
     publish: sendStagedTrade,
-    ensureReady: ensureWalletTradeReady
+    ensureReady: ensureWalletTradeReady,
+    observeSubmission: markWalletObservationPending
   });
   const {approve: approveWalletAgreement, receive: receiveWalletNotice} = stagedWalletTrade;
   const sendWalletAsset = useCallback(async (request: WildsWalletAssetSendRequest) => {
@@ -1533,19 +1594,21 @@ export function PlayCampaign({
   const nearbyMonument=useMemo(()=>state.siteSpace.spaceId==='wildz.space.outer.v1'?monuments.find(monument=>
     Math.hypot(monument.position.x-state.player.x,monument.position.z-state.player.z)<=WILDS_MONUMENT_INTERACTION_RADIUS
     &&Math.abs(monument.position.y-state.siteSpace.position.y)<2):null,[monuments,state.player,state.siteSpace]);
-  const sourceCreationPlanning = useMemo(() => currentWalletSourceRows.some(row => row.currentOwnerHandle === row.ownerHandle && row.kind === "unpacked" && row.memberRefs.some(member => member.kind === "material")), [currentWalletSourceRows]);
+  const sourceCreationPlanning = Boolean(walletAssetPort);
   const [creationSourcePending, setCreationSourcePending] = useState(false);
   useEffect(() => {
     if (!creationOpen || !sourceCreationPlanning || !walletAssetPort) { setCreationSourcePending(false); return; }
     let cancelled = false; setCreationSourcePending(true);
     void (async () => {
       await walletSourceLive.current.flushGameplay();
-      const runtime = await walletAssetPort.openRuntime(), preview = await runtime.exchange.previewGameplay();
+      await walletSourceStore?.assertCurrent();
+      const runtime = await walletAssetPort.openClearanceRuntime(), preview = await runtime.exchange.previewGameplay();
+      await walletSourceStore?.assertCurrent();
       if (!cancelled) livingWorldSourceAdoptionRef.current(preview.replay.world);
     })().catch(error => { if (!cancelled) showWorldFeedback(error instanceof Error ? error.message : "Reopen Build to check received materials."); })
       .finally(() => { if (!cancelled) setCreationSourcePending(false); });
     return () => { cancelled = true; };
-  }, [creationOpen, sourceCreationPlanning, walletAssetPort, showWorldFeedback]);
+  }, [creationOpen, sourceCreationPlanning, walletAssetPort, walletSourceStore, showWorldFeedback]);
   const readApplicationCreationWorld = livingWorld.currentApplicationResourceSource, readBaselineCreationWorld = livingWorld.currentSource;
   const currentCreationWorldSource = useCallback(() => creationOpen && sourceCreationPlanning
     ? readApplicationCreationWorld() ?? readBaselineCreationWorld() : readBaselineCreationWorld(),
@@ -1652,7 +1715,8 @@ export function PlayCampaign({
   // not appear invalid/depleted while the displayed pulse catches up.
   const nourishmentKaiUPulse = Math.max(kaiUPulse, state.playerNourishment?.lastKaiUPulse ?? 0, state.playerLivestock?.lastKaiUPulse ?? 0);
   const nourishmentPlayer = useMemo(() => ({ ...state.player, y: verticalReadout.layer === 'ground' ? state.siteSpace.position.y : verticalTraversalRef.current.worldY }), [state.player, state.siteSpace.position.y, verticalReadout]);
-  const nourishmentPlants = useMemo(() => projectWildsNourishmentPlants({ player: nourishmentPlayer, radius: 28, kaiUPulse:nourishmentKaiUPulse, sourceStates: state.playerNourishment?.sources, spaceId: state.siteSpace.spaceId }), [nourishmentPlayer, nourishmentKaiUPulse, state.playerNourishment?.sources, state.siteSpace.spaceId]);
+  const retiredClearanceSources=useMemo(()=>new Set(Object.values(livingWorld.snapshot?.buildingClearances??{}).flatMap(clearance=>clearance.sources.map(source=>source.sourceId))),[livingWorld.snapshot?.buildingClearances]);
+  const nourishmentPlants = useMemo(() => projectWildsNourishmentPlants({ player: nourishmentPlayer, radius: 28, kaiUPulse:nourishmentKaiUPulse, sourceStates: state.playerNourishment?.sources, spaceId: state.siteSpace.spaceId }).filter(plant=>!retiredClearanceSources.has(plant.sourceId)&&!wildsBuildSceneryClearedAt(sitePhysical.sceneryClearance??[],plant.position.x,plant.position.z,.7)), [nourishmentPlayer, nourishmentKaiUPulse, state.playerNourishment?.sources, state.siteSpace.spaceId,sitePhysical.sceneryClearance,retiredClearanceSources]);
   const wildAnimals = useMemo(() => projectWildsWildAnimals({ player: nourishmentPlayer, radius: 28, kaiUPulse:nourishmentKaiUPulse, sourceStates: state.playerLivestock?.animals, spaceId: state.siteSpace.spaceId }), [nourishmentPlayer, nourishmentKaiUPulse, state.playerLivestock?.animals, state.siteSpace.spaceId]);
   const ownedLivestock = useMemo(() => livingWorld.snapshot ? projectWildsOwnedLivestock(state.playerLivestock, livingWorld.snapshot, nourishmentKaiUPulse) : [], [state.playerLivestock, livingWorld.snapshot, nourishmentKaiUPulse]);
   const nourishmentActionSource = nourishmentActionId ? nourishmentPlants.find(plant => plant.sourceId === nourishmentActionId)
@@ -1666,6 +1730,61 @@ export function PlayCampaign({
     : Object.values(state.playerLivestock?.animals ?? {}).filter(animal => animal.status === 'captured' && animal.shelterId === livestockShelter.shelterId).length >= livestockShelter.capacity
       ? 'This farm is full. Finish another nearby shelter for livestock.' : null;
   const foodPackFull = useMemo(() => availableWildsFood(walletVisibleNourishment).length >= WILDS_NOURISHMENT_PACK_CAPACITY, [walletVisibleNourishment]);
+  const [clearancePiles,setClearancePiles]=useState<readonly WildsClearancePile[]>([]);
+  useEffect(()=>{setClearancePiles(projectWildsBuildingClearancePiles(Object.values(livingWorld.snapshot?.buildingClearances??{}),livingWorld.snapshot?.clearanceTaken??{}));},[livingWorld.snapshot?.buildingClearances,livingWorld.snapshot?.clearanceTaken]);
+  const [clearancePending,setClearancePending]=useState(false);
+  const clearanceFoodCommit=useRef<{owner:string;keyId:string;ids:readonly string[];resolve:(credited:boolean)=>void}|null>(null);
+  useEffect(()=>{const pending=clearanceFoodCommit.current;if(!pending)return;clearanceFoodCommit.current=null;pending.resolve(ownerReceizId===pending.owner&&walletReadIdentityKey===pending.keyId&&pending.ids.every(id=>Boolean(state.playerNourishment?.items[id])));},[state,ownerReceizId,walletReadIdentityKey]);
+  useEffect(()=>()=>{clearanceFoodCommit.current?.resolve(false);clearanceFoodCommit.current=null;},[]);
+  const clearanceController=useRef<{port:NonNullable<typeof walletAssetPort>;controller:ReturnType<typeof import('./wilds-building-clearance-interaction')['createWildsClearanceInteraction']>}|null>(null);
+  useEffect(()=>()=>walletAssetPort?.disposeClearance(),[walletAssetPort]);
+  const openClearanceController=async()=>{
+    if(!walletAssetPort||!walletReadIdentityKey||!walletTradeOwnerHandle)throw Error('Unlock your Explorer to collect this shared pile.');
+    if(clearanceController.current?.port===walletAssetPort)return clearanceController.current.controller;
+    const [{createWildsClearanceInteraction},{defaultContinuityDatabase}]=await Promise.all([import('./wilds-building-clearance-interaction'),import('../../lib/receiz/wildz-active-identity')]);
+    const binding={keyId:walletReadIdentityKey,ownerHandle:walletTradeOwnerHandle,gameplayOwnerId:ownerReceizId};
+    const controller=createWildsClearanceInteraction({database:defaultContinuityDatabase,binding,openRuntime:walletAssetPort.openClearanceRuntime,flush:()=>walletSourceLive.current.flushGameplay(),
+      live:()=>{const live=walletSourceLive.current,identity=walletTradeIdentityRef.current;return {keyId:identity.keyId??'',ownerHandle:identity.ownerHandle??'',gameplayOwnerId:live.ownerReceizId,
+        player:{...live.state.player,y:verticalTraversalRef.current.layer==='ground'?live.state.siteSpace.position.y:verticalTraversalRef.current.worldY},spaceId:live.state.siteSpace.spaceId,kaiUPulse:live.readActionKaiUPulse(),foodRoom:availableWildsFood(live.state.playerNourishment).length<WILDS_NOURISHMENT_PACK_CAPACITY};},
+      apply:async result=>{
+        const live=walletSourceLive.current,food=live.state.playerNourishment;
+        if(live.ownerReceizId!==binding.gameplayOwnerId||walletTradeIdentityRef.current.keyId!==binding.keyId||walletTradeIdentityRef.current.ownerHandle!==binding.ownerHandle)return false;
+        livingWorldSourceAdoptionRef.current(result.projection);
+        const members=result.members.filter(member=>member.kind==='food'&&result.nourishment.nativeItemIds?.includes(member.id)&&result.nourishment.items[member.id]?.consumedKaiUPulse===undefined&&!result.nourishment.unavailableItemIds?.includes(member.id));
+        if(!members.length)return true;
+        if(!food||availableWildsFood(food).length+members.filter(member=>!food.items[member.id]).length>WILDS_NOURISHMENT_PACK_CAPACITY)return false;
+        const merge=(current:PlayState)=>{if(!current.playerNourishment||current.playerNourishment.ownerReceizId!==binding.gameplayOwnerId||walletTradeIdentityRef.current.keyId!==binding.keyId||walletTradeIdentityRef.current.ownerHandle!==binding.ownerHandle)return current;
+          let nourishment=current.playerNourishment;
+          for(const member of members){const imported=result.nourishment.importedItems?.[member.id];if(!imported)throw Error('This admitted food is awaiting its source receipt.');nourishment=creditWildsImportedPackageFood(nourishment,[member],imported,Math.max(nourishment.lastKaiUPulse,live.readActionKaiUPulse()));}
+          nourishment={...nourishment,nativeItemIds:[...new Set([...(nourishment.nativeItemIds??[]),...members.map(member=>member.id)])].sort()};return {...current,playerNourishment:nourishment};};
+        merge(live.state);
+        return new Promise<boolean>(resolve=>{clearanceFoodCommit.current?.resolve(false);clearanceFoodCommit.current={owner:binding.gameplayOwnerId,keyId:binding.keyId,ids:members.map(member=>member.id),resolve};setState(current=>{try{return merge(current);}catch{return {...current};}});});
+      }});
+    clearanceController.current={port:walletAssetPort,controller};return controller;
+  };
+  clearanceBeforeConstructionRef.current=async()=>{if(!walletAssetPort)return;const controller=await openClearanceController();if(await controller.pending()){const result=await controller.resume();if(result?.status==='pending'||result?.status==='retained'||await controller.pending())throw Error('Finish saving your cleared resources before changing the building. Gather again to resume.');}};
+  const collectClearancePile=async(pile:WildsClearancePile)=>{
+    if(clearancePending){showWorldFeedback('Your exact collection is still settling.');return;}
+    setClearancePending(true);showWorldFeedback(`Collecting ${pile.kind==='food'?'food':pile.kind==='timber'?'wood':'stone'} · ${pile.remaining} remaining…`);
+    try{const result=await (await openClearanceController()).pickup(pile);showWorldFeedback(result?.status==='admitted'?'Collected into your Satchel.':result?.status==='retained'?'Your portion is saved. Make room in your food pack, then gather again to recover it.':result?.status==='rejected'?'This pile changed. Gather again after it refreshes.':'Collection pending. Gather again here to recover the same portion.');}
+    catch(error){showWorldFeedback(error instanceof Error?error.message:'Collection is pending. Return here to recover it.');}
+    finally{setClearancePending(false);}
+  };
+  clearanceConstructionRef.current=async entry=>{
+    const command=entry.command;
+    if(command.type!=='creation.construct'&&command.type!=='creation.evolve'&&command.type!=='construction.component.deposit'&&command.type!=='construction.component.work'&&command.type!=='construction.component.adjust')return;
+    const world=livingWorld.currentSource();if(!world||entry.actorId!==ownerReceizId)return;
+    let buildingId:string,buildingHead:string;
+    if(command.type==='creation.construct'||command.type==='creation.evolve'){
+      buildingId=command.instanceId;const source=world.creations?.[buildingId];if(!source||!source.command.context.physical.some(chunk=>chunk.chunkId==='wildz.creation.terrain-support.v2')||Object.values(source.instance.nodeStates).some(node=>node.kind==='equipment'))return;buildingHead=source.instance.head;
+    }else{buildingId=command.componentId;const component=world.constructionComponents[buildingId];if(!component||component.evidence.physical.groundSupport!=='wildz.build-ground.v2'||!['foundation','floor','path','garden','workshop'].includes(component.kind))return;
+      const progress=projectWildsConstructionProgress(component,Object.values(world.constructionMaterialContributions),Object.values(world.constructionWorkContributions));if(progress.stage==='planned')return;buildingHead=component.head;}
+    setClearancePending(true);showWorldFeedback('Building placed. Saving the cleared resources beside it…');
+    try{const result=await (await openClearanceController()).derive({attemptId:`clearance-build:${sha256PortableBasis(command.commandId).slice(7)}`,buildingId,buildingHead,kaiUPulse:readActionKaiUPulse()});showWorldFeedback(result?.status==='admitted'?'Cleared resources are ready beside the property.':'Building saved. Its shared resources are pending; gather here to resume.');}
+    catch(error){showWorldFeedback(error instanceof Error?error.message:'Building saved. Shared resources are waiting to finish.');}
+    finally{setClearancePending(false);}
+  };
+
   const huntingCondition = activeAsset ? projectWildsRestedCompanionCondition(state, nourishmentKaiUPulse, activeAsset.id) : undefined;
   const huntingSupport = useMemo(() => worldOverlayState.panelKey === 'satchel' || wildAnimalActionsOpen ? selectWildsHuntingSupport({
     state: state.playerLivestock, ownerReceizId, kaiUPulse: nourishmentKaiUPulse,
@@ -1898,7 +2017,7 @@ export function PlayCampaign({
   const vaultWorldRevision = livingWorld.snapshot?.revision ?? initialPlayerContinuity?.canonicalCursor.revision ?? 0;
   const vaultWorldEventId = livingWorld.snapshot ? livingWorld.snapshot.cursor?.eventId ?? null : initialPlayerContinuity?.canonicalCursor.eventId ?? null;
   // Presentation clock renders must not retire an in-flight Vault preparation.
-  const createCurrentPlayerVault = useCallback((asset?: PortableCardAsset) => createWildsPlayerVault({
+  const createCurrentPlayerVaultInput = useCallback((asset?: PortableCardAsset): Parameters<typeof createWildsPlayerVault>[0] => ({
     playerId: ownerReceizId,
     exportedAt: new Date().toISOString(),
     playState: asset ? { ...state, inventory: [asset] } : state,
@@ -1909,6 +2028,8 @@ export function PlayCampaign({
     receipts: initialPlayerContinuity?.receipts ?? []
   }), [ownerReceizId, state, character, explorerStyle, movementMode, presentation.audioSettings, cardOrder, visualSettings,
     initialPlayerContinuity?.personalEvents, initialPlayerContinuity?.receipts, vaultWorldId, vaultWorldRevision, vaultWorldEventId]);
+
+  const createCurrentPlayerVault = useCallback((asset?: PortableCardAsset) => createWildsPlayerVault(createCurrentPlayerVaultInput(asset)), [createCurrentPlayerVaultInput]);
 
   walletSourceLive.current.prepareVault = createCurrentPlayerVault;
 
@@ -2261,6 +2382,7 @@ export function PlayCampaign({
   };
 
   const gatherStewardResource = async (source: WildsResourceSource, admittedHudAction = false) => {
+    if(retiredClearanceSources.has(source.sourceId)){showWorldFeedback("This source was cleared. Collect its remaining contents beside the property.");return;}
     if ((!admittedHudAction && !canUseWorldStage()) || livingWorld.pendingCommand || harvestPendingRef.current) {
       if (admittedHudAction) showWorldFeedback("Your current work is settling. The satchel count will update here before the next source can be gathered.");
       return;
@@ -2352,7 +2474,7 @@ export function PlayCampaign({
     }
   };
 
-  const gatherNearestStewardResource = (family: WildsVisibleWorkFamily | "gather") => {
+  const gatherNearestStewardResource = async (family: WildsVisibleWorkFamily | "gather") => {
     if (livingWorld.pendingCommand) {
       showWorldFeedback("Your current work is settling. The satchel count will update here before the next source can be gathered.");
       return;
@@ -2364,6 +2486,12 @@ export function PlayCampaign({
     if (family === "gather" && aerialStateRef.current.mode !== "ground") {
       showWorldFeedback("Land beside a hay patch to gather it.");
       return;
+    }
+    const pile=clearancePiles.filter(pile=>(family==='lumber'?pile.kind==='timber':family==='quarry'?pile.kind==='stone':true)&&canReachWildsClearancePile(pile,nourishmentPlayer,state.siteSpace.spaceId)).sort((a,b)=>Math.hypot(a.position.x-state.player.x,a.position.z-state.player.z)-Math.hypot(b.position.x-state.player.x,b.position.z-state.player.z))[0];
+    if(pile){void collectClearancePile(pile);return;}
+    if(walletAssetPort){
+      try{const controller=await openClearanceController();if(await controller.pending()){setClearancePending(true);showWorldFeedback('Recovering your saved clearance…');const result=await controller.resume();showWorldFeedback(result?.status==='admitted'?'Your saved resources are ready.':result?.status==='rejected'?'The pile changed. Gather again to collect what remains.':'Your saved resources are still pending. Make room in the food pack and try again here.');setClearancePending(false);return;}}
+      catch(error){setClearancePending(false);showWorldFeedback(error instanceof Error?error.message:'Your saved resources are pending.');return;}
     }
     const candidates = [] as Array<{ source: WildsResourceSource; availableCapacity: number }>;
     // Hay is sparse. Discover it on this explicit action using the nine already
@@ -2378,6 +2506,7 @@ export function PlayCampaign({
       return hay;
     })() : constructionSourcesNear(state.player, projectWildsResourceRegion);
     for (const source of sources) {
+      if(retiredClearanceSources.has(source.sourceId)||wildsBuildSceneryClearedAt(sitePhysical.sceneryClearance??[],source.position.x,source.position.z,.7))continue;
       const harvested = livingWorld.snapshot?.harvestedSources[source.sourceId];
       const availability = projectWildsResourceAvailability(source, {
         admittedHarvestedCapacity: harvested?.harvestedCapacity ?? 0,
@@ -2604,27 +2733,32 @@ export function PlayCampaign({
     if(applyWildsInput(state,attempt)===state)return;
     beginWorldActionFeedback();
     const importedSource = state.playerNourishment?.importedItems?.[item.itemId]?.receiptId.startsWith("wildz:resource:");
-    if (importedSource) {
+    const route=wildsFoodConsumptionRoute({owner:ownerReceizId,itemId:item.itemId,nourishment:state.playerNourishment,
+      nativeSource:null,world:null,hasNativeIdentity:Boolean(walletSourceUse&&walletSourceStore)});
+    if(route==='wait'){showWorldFeedback("Reopen this exact portion in Wallet to finish its saved use.");return;}
+    if (importedSource || route==='native') {
       if (!walletSourceUse || !walletSourceStore) { showWorldFeedback("Unlock the same Explorer to use this received portion."); return; }
       const candidate = applyWildsInput(state, attempt), command = captureWildsResourceGameplayInput(state, candidate, attempt);
       if (!command || command.kind !== "food.consume") return;
       foodSaveInFlight.current = true; setFoodSavePending(true);
       const identityAtUse = {...walletTradeIdentityRef.current};
+      const assertFoodScope=async()=>{const current=walletTradeIdentityRef.current;
+        if(current.keyId!==identityAtUse.keyId||current.ownerHandle!==identityAtUse.ownerHandle||current.incarnation!==identityAtUse.incarnation)throw Error("The Explorer changed. Reopen the same portion.");};
       const request = {attemptId: `food-use:${sha256PortableBasis(`${ownerReceizId}:${item.itemId}`).slice(7)}`, memberIds: [item.itemId], command};
-      void walletSourceUse.recover(request).then(recovered => recovered ?? walletSourceUse.use(request)).then(async admitted => {
+      void walletSourceUse.recover({attemptId:request.attemptId,memberIds:request.memberIds},assertFoodScope).then(async recovered => {if (recovered) return recovered; await assertFoodScope(); await markWalletObservationPending(); await assertFoodScope(); return walletSourceUse.use(request,assertFoodScope);}).then(async admitted => {
         if (!admitted) throw Error("The exact source action is still pending.");
-        if (walletTradeIdentityRef.current.keyId !== identityAtUse.keyId || walletTradeIdentityRef.current.ownerHandle !== identityAtUse.ownerHandle) throw Error("The Explorer changed. Reopen the same portion.");
+        if (walletTradeIdentityRef.current.keyId !== identityAtUse.keyId || walletTradeIdentityRef.current.ownerHandle !== identityAtUse.ownerHandle || walletTradeIdentityRef.current.incarnation !== identityAtUse.incarnation) throw Error("The Explorer changed. Reopen the same portion.");
         const actual = admitted.nourishment.items[item.itemId];
         if (!actual || actual.consumedKaiUPulse === undefined || actual.consumedFuelMicroBreaths === undefined) throw Error("The exact source portion's fuel is still pending.");
         const recoveryPreview = recoverWildsWalletSourceFoodV128(walletSourceLive.current.state, admitted.nourishment, ownerReceizId, readActionKaiUPulse(), [item.itemId]);
-        setState(current => walletTradeIdentityRef.current.keyId !== identityAtUse.keyId || walletTradeIdentityRef.current.ownerHandle !== identityAtUse.ownerHandle ? current
+        setState(current => walletTradeIdentityRef.current.keyId !== identityAtUse.keyId || walletTradeIdentityRef.current.ownerHandle !== identityAtUse.ownerHandle || walletTradeIdentityRef.current.incarnation !== identityAtUse.incarnation ? current
           : recoverWildsWalletSourceFoodV128(current, admitted.nourishment, ownerReceizId, readActionKaiUPulse(), [item.itemId]).state);
         if (recoveryPreview.pendingItemIds.length) showWorldFeedback("Your meal is saved. Give your body room, then refresh its package contents in Wallet.");
         const row = currentWalletSourceRows.find(row => row.memberRefs.some(member => member.id === item.itemId));
         if (row) await walletSourceStore.reopen(row.packageId);
         const rows = await walletSourceStore.listCached();
         const identity = walletTradeIdentityRef.current;
-        if (identity.keyId === identityAtUse.keyId && identity.ownerHandle === identityAtUse.ownerHandle && identity.keyId && identity.ownerHandle) setWalletSourceRows({keyId: identity.keyId, owner: identity.ownerHandle, rows});
+        if (identity.keyId === identityAtUse.keyId && identity.ownerHandle === identityAtUse.ownerHandle && identity.incarnation === identityAtUse.incarnation && identity.keyId && identity.ownerHandle) setWalletSourceRows({actorId: walletIdentityKey, incarnation: walletObservationEpoch ?? "legacy", keyId: identity.keyId, owner: identity.ownerHandle, rows});
       }).catch(error => showWorldFeedback(error instanceof Error ? error.message : "Check the same received portion to finish its saved use."))
         .finally(() => {foodSaveInFlight.current = false; setFoodSavePending(false);});
       return;
@@ -2790,11 +2924,13 @@ export function PlayCampaign({
       else candidates.push({...nodePosition,id:creationCommand.commandId,spaceId:actor.spaceId,qualified:true,run:runAction});
     }
     if(intent==='grab'||intent==='use'){
+      for(const pile of clearancePiles)candidates.push({...pile.position,id:pile.pileId,spaceId:'wildz.space.outer.v1',qualified:!clearancePending&&(pile.kind!=='food'||!foodPackFull)&&canReachWildsClearancePile(pile,position,state.siteSpace.spaceId),run:()=>{void collectClearancePile(pile);}});
       for(const plant of intent==='use'&&equipmentControls?.toolMode&&equipmentControls.toolMode!=='hoe'?[]:nourishmentPlants){const crop=wildsNourishmentSourceAt(plant,state.playerNourishment?.sources?.[plant.sourceId],actionKai);candidates.push({...plant.position,id:plant.sourceId,spaceId:'wildz.space.outer.v1',qualified:crop.valid&&crop.remaining>0&&!foodPackFull,run:()=>currentGatherActions.current?.food(plant)});}
       for(const animal of intent==='use'&&equipmentControls?.toolMode&&equipmentControls.toolMode!=='hoe'?[]:ownedLivestock)candidates.push({...animal.position,id:animal.animalId,spaceId:animal.spaceId,qualified:animal.canProduce&&!foodPackFull,run:()=>currentGatherActions.current?.livestock(animal)});
       if(state.siteSpace.spaceId==='wildz.space.outer.v1'){
         const region=wildsResourceRegionForPosition(state.player);
         for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++)for(const source of projectWildsResourceRegion(region.x+dx,region.z+dz)){
+          if(retiredClearanceSources.has(source.sourceId)||wildsBuildSceneryClearedAt(sitePhysical.sceneryClearance??[],source.position.x,source.position.z,.7))continue;
           if(intent==='use'&&equipmentControls?.toolMode==='axe'&&source.kind!=='timber'||intent==='use'&&equipmentControls?.toolMode==='pickaxe'&&source.kind!=='stone')continue;
           const harvested=livingWorld.snapshot?.harvestedSources[source.sourceId],available=projectWildsResourceAvailability(source,{admittedHarvestedCapacity:harvested?.harvestedCapacity??0,lastHarvestKaiPulse:harvested?.lastHarvestKaiPulse??'0',currentKaiPulse:String(actionKai)});
           const partner=source.kind==='hay'||Boolean(selectWildsResourceWorkPartner(state.inventory,state.adventureConditions,source.requirements.creature,activeAsset?.id));
@@ -3733,6 +3869,7 @@ export function PlayCampaign({
             cardOrder={cardOrder}
             onCardOrderChange={setCardOrder}
             playerVault={createCurrentPlayerVault}
+            playerVaultInput={createCurrentPlayerVaultInput}
             vaultAdmission={currentVaultAdmission}
             onPrepareCard={onPrepareCard}
             onExportCard={onExportCard}
@@ -3883,6 +4020,7 @@ export function PlayCampaign({
                 }
                 dispatchLayeredSearch(point);
               }}
+              clearancePiles={clearancePiles} onCollectClearance={pile=>{void collectClearancePile(pile);}}
               onInteractResource={(source) => { void gatherStewardResource(source); }}
               onSitePortal={(siteKey, direction) => {
                 if (!canUseWorldStage()) return;
@@ -4013,7 +4151,7 @@ export function PlayCampaign({
             />
 
             {exclusiveOwner === "wallet" ? <WildsWalletTerminal
-              inventoryCounts={{ resourceUnits: projectWildsWalletPlayStateSeed({ ...state, playerNourishment: walletVisibleNourishment }).resourceUnits + availableMaterialLots.length + availableWalletResourceLots.reduce((total, lot) => total + lot.quantity, 0) + walletPackagedResourceUnits + walletSourcePackedUnits, creatureCards: state.inventory.length }}
+              inventoryCounts={{ resourceUnitsPending: walletSourceRowsPending, resourceUnits: projectWildsWalletPlayStateSeed({ ...state, playerNourishment: walletVisibleNourishment }).resourceUnits + availableMaterialLots.length + availableWalletResourceLots.reduce((total, lot) => total + lot.quantity, 0) + walletPackagedResourceUnits + walletSourcePackedUnits, creatureCards: state.inventory.length }}
               actionHistory={state.actionHistory}
               livingOperations={livingWorld.snapshot?.livingOperations}
               cards={state.inventory}

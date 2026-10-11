@@ -1,5 +1,9 @@
-import { receizBase64UrlEncode, signReceizIdentityLoginProof, verifyReceizIdentityPublicKeyProjectionSignature, type ReceizIdentityKeyAlgorithm, type ReceizIdentityLoginProof, type ReceizKeyFile, type ReceizPortableSealedArtifactV124 } from "@receiz/sdk";
-import type { WildzContinuityDatabase } from "../../../lib/storage/wildz-indexed-db";
+import type {WildsWorldOutboxEntry} from '../wilds-world-outbox';
+import { admitWalletResourceEntry, resourceIndexChallenge as challenge, type ResourceIndex as Index } from "./wilds-wallet-resource-index-validation";
+import { verifyWalletResourceIndexOffThread } from "./wilds-wallet-resource-index-client";
+import { signReceizIdentityLoginProof, type ReceizKeyFile, type ReceizPortableSealedArtifactV124 } from "@receiz/sdk";
+import type { WildzContinuityDatabase, WildzContinuityTransaction } from "../../../lib/storage/wildz-indexed-db";
+import type { WildzIdentitySession } from "../../../lib/receiz/wildz-identity-repository";
 import type { WildsResourceJournalV128 } from "../../../lib/receiz/wilds-resource-journal-v128";
 import type { WildsResourceSourceProofV128 } from "../../../lib/receiz/wilds-resource-exchange-v128";
 import { canonicalPortableCardJson, sha256PortableBasis } from "../portable-card";
@@ -11,18 +15,17 @@ import type { WildsWalletStagedTradeAssetAuthority, WildsWalletStagedTradeResour
 
 export type WildsWalletResourceProjectionContinuationV128 = Readonly<{ descriptor: WildsWalletStagedTradeResourceSourceHead; authority: WildsWalletStagedTradeAssetAuthority }>;
 type Detail = Readonly<{ schema: "wildz.wallet.resource-projection-detail.v128"; value: Omit<WildsWalletResourceProjectionV128, "proof" | "continuation">; continuation?: WildsWalletResourceProjectionContinuationV128 }>;
-type SignedRow = Readonly<{ row: WildsWalletResourceProjectionRowV128; publicKey: Readonly<{ keyId: string; alg: ReceizIdentityKeyAlgorithm; publicKeyRawB64u: string }>; signature: ReceizIdentityLoginProof }>;
-type Index = Readonly<{ schema: "wildz.wallet.resource-projection-index.v128"; entries: readonly SignedRow[] }>;
 type Qualified = Readonly<{
   package: WildsResourcePackageV1; state: WildsResourceJournalV128; proof: WildsResourceSourceProofV128; currentHead: string;
   events: readonly Readonly<{ event: Readonly<{ kind: string; ownerReceizId: string; packageId?: string }>; appendId: string; head: string; kaiUPulse: number; sealKai: string }>[];
 }>;
 export type WildsWalletResourceProjectionStoreInputV128 = Readonly<{
-  keyId: string; ownerHandle: string; currentIdentity(): Readonly<{ keyId: string; ownerHandle: string }>;
+  keyId: string; ownerHandle: string; incarnation: string; actorId?: string; currentIdentity(): Readonly<{ keyId: string; ownerHandle: string; incarnation: string }>;
   openRuntime(): Promise<WildsResourceExchangeBrowserRuntimeV128>;
 }>;
 export type WildsWalletResourceProjectionStoreDependenciesV128 = Readonly<{
   database(): Promise<WildzContinuityDatabase>;
+  verifyIndex: typeof verifyWalletResourceIndexOffThread;
   withLock<T>(name: string, action: () => Promise<T>): Promise<T>;
   readIdentity(keyId: string): Promise<ReceizKeyFile>;
   qualify(value: WildsWalletResourceProjectionV128, input: WildsWalletResourceProjectionStoreInputV128): Promise<Qualified>;
@@ -30,6 +33,7 @@ export type WildsWalletResourceProjectionStoreDependenciesV128 = Readonly<{
 const digest = (value: unknown) => sha256PortableBasis(canonicalPortableCardJson(value)).slice(7);
 const same = (a: unknown, b: unknown) => canonicalPortableCardJson(a) === canonicalPortableCardJson(b);
 const defaults: WildsWalletResourceProjectionStoreDependenciesV128 = {
+  verifyIndex: verifyWalletResourceIndexOffThread,
   async database() { return (await import("../../../lib/receiz/wildz-active-identity")).defaultContinuityDatabase; },
   async withLock(name, action) { if (!globalThis.navigator?.locks) throw Error("A browser with Web Locks is required to retain resource custody."); return navigator.locks.request(name, action); },
   async readIdentity(keyId) { return (await import("../../../lib/receiz/wildz-identity-signing-read")).readWildzIdentityForSigning(keyId); },
@@ -45,8 +49,6 @@ const defaults: WildsWalletResourceProjectionStoreDependenciesV128 = {
     return { package: original.bearer.package, ...current, currentHead: current.predecessor.head.head };
   },
 };
-const sha = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
-const challenge = (row: WildsWalletResourceProjectionRowV128) => `WILDZ-RESOURCE-PRESENTATION-CACHE-V128\n${canonicalPortableCardJson(row)}`;
 function bounded(value: unknown, max: number) { if (new TextEncoder().encode(canonicalPortableCardJson(value)).length > max) throw Error("The resource projection exceeds its local storage limit."); }
 
 /** Cheap construction and offline compact loading. Signatures authenticate only
@@ -54,35 +56,34 @@ function bounded(value: unknown, max: number) { if (new TextEncoder().encode(can
  * SDK's root admission and current source CAS; cached ownership grants nothing. */
 export function createWildsWalletResourceProjectionStoreV128(input: WildsWalletResourceProjectionStoreInputV128, overrides: Partial<WildsWalletResourceProjectionStoreDependenciesV128> = {}) {
   const dependencies: WildsWalletResourceProjectionStoreDependenciesV128 = { ...defaults, ...overrides };
-  const current = () => { const actual = input.currentIdentity(); if (actual.keyId !== input.keyId || actual.ownerHandle !== input.ownerHandle) throw Error("The Explorer changed. Reopen the matching resource wallet."); };
+  const current = () => { const actual = input.currentIdentity(); if (actual.keyId !== input.keyId || actual.ownerHandle !== input.ownerHandle || actual.incarnation !== input.incarnation) throw Error("The Explorer changed. Reopen the matching resource wallet."); };
+  // A stale/unmounted Campaign can keep its old refs. The persisted scope is
+  // checked in the same transaction as the index commit, serialized with restore.
+  async function currentPersisted(tx: WildzContinuityTransaction) {
+    const pointer = await tx.get<{keyId: string; actorId: string}>("meta", "receiz.wildz.active_identity.v1");
+    const session = await tx.get<WildzIdentitySession>("meta", `receiz.wildz.identity_session.v1:${input.keyId}`);
+    if (pointer?.keyId !== input.keyId || session?.keyId !== input.keyId || pointer.actorId !== session.actorId
+      || input.actorId !== undefined && input.actorId !== session.actorId
+      || `${session.username}.receiz.id` !== input.ownerHandle || (session.walletObservationEpoch ?? "legacy") !== input.incarnation) {
+      throw Error("The Explorer changed. Reopen the matching resource wallet.");
+    }
+  }
   const indexKey = JSON.stringify(["wildz.wallet.resource-projection-index.v128", input.ownerHandle, input.keyId]);
   const proofKey = (sha: string) => JSON.stringify(["wildz.wallet.resource-projection-proof.v128", input.ownerHandle, input.keyId, sha]);
   const detailKey = (sha: string) => JSON.stringify(["wildz.wallet.resource-projection-detail.v128", input.ownerHandle, input.keyId, sha]);
   const locked = <T>(action: () => Promise<T>) => dependencies.withLock(`wildz:resource-projection:${input.ownerHandle}:${input.keyId}`, action);
-  async function admitted(entry: SignedRow): Promise<boolean> {
-    try {
-      const row = entry.row;
-      bounded(entry, 100_000);
-      if (!row || row.schema !== "wildz.wallet.resource-projection.v128" || row.keyId !== input.keyId || row.ownerHandle !== input.ownerHandle
-        || !sha(input.keyId) || !/^[a-z0-9_]{3,30}\.receiz\.id$/.test(input.ownerHandle)
-        || !/^wildz:package:[a-f0-9]{64}$/.test(row.packageId) || !/^sha256:[a-f0-9]{64}$/.test(row.packageHead)
-        || !["reserved", "received", "unpacked", "sent"].includes(row.kind) || !Array.isArray(row.memberRefs) || !row.memberRefs.length || row.memberRefs.length > 64
-        || !Array.isArray(row.availableMemberIds) || row.availableMemberIds.some(id => !row.memberRefs.some(m => m.id === id))
-        || new Set(row.memberRefs.map(m => m.id)).size !== row.memberRefs.length || new Set(row.availableMemberIds).size !== row.availableMemberIds.length
-        || ![row.sourceArtifactSha256, row.sourcePayloadSha256, row.proofDigest, row.detailDigest, row.currentHead].every(sha)
-        || entry.publicKey.keyId !== input.keyId || entry.signature.keyId !== input.keyId || entry.signature.alg !== entry.publicKey.alg
-        || entry.signature.challengeB64Url !== receizBase64UrlEncode(new TextEncoder().encode(challenge(row)))) return false;
-      return verifyReceizIdentityPublicKeyProjectionSignature({ keyId: input.keyId, alg: entry.publicKey.alg, publicKeyRawB64u: entry.publicKey.publicKeyRawB64u, challengeB64Url: entry.signature.challengeB64Url, signatureB64Url: entry.signature.signatureB64Url });
-    } catch { return false; }
-  }
-  async function readEntries() {
-    current(); const database = await dependencies.database(), index = await database.read<Index>("meta", indexKey); current();
+  async function readEntries(signal?: AbortSignal) {
+    signal?.throwIfAborted();
+    current(); const database = await dependencies.database();
+    const index = await database.transaction(["meta"], "readonly", async tx => {
+      await currentPersisted(tx); return tx.get<Index>("meta", indexKey);
+    }); current();
     if (!index) return [];
-    bounded(index, 4_000_000);
-    if (index.schema !== "wildz.wallet.resource-projection-index.v128" || !Array.isArray(index.entries) || index.entries.length > 256) throw Error("The saved resource cache is invalid. Reopen its exact source.");
-    const verified = await Promise.all(index.entries.map(admitted)); current();
-    return index.entries.filter((_entry, i) => verified[i]);
+    const positions = await dependencies.verifyIndex(index, input, undefined, signal); current();
+    await database.transaction(["meta"], "readonly", currentPersisted); current();
+    return positions.map(position => index.entries[position]!);
   }
+
   function reconcile(row: WildsWalletResourceProjectionRowV128, accepted: Qualified): WildsWalletResourceProjectionRowV128 {
     const record = accepted.state.packages[row.packageId];
     const identity = (ref: ReturnType<typeof wildsWalletResourceMemberRefV128>) => ({ id: ref.id, kind: ref.kind, resourceKind: ref.resourceKind, quantity: ref.quantity });
@@ -128,10 +129,10 @@ export function createWildsWalletResourceProjectionStoreV128(input: WildsWalletR
     const identity = await dependencies.readIdentity(input.keyId); current();
     if (identity.keyId !== input.keyId || `${identity.owner.username}.receiz.id` !== input.ownerHandle) throw Error("The held signing key belongs to another Explorer.");
     const signed = await Promise.all(rows.map(async row => ({ row, publicKey: { keyId: identity.keyId, alg: identity.alg, publicKeyRawB64u: identity.crypto.publicKeyRawB64u }, signature: await signReceizIdentityLoginProof({ keyFile: identity, challengeText: challenge(row) }) }))); current();
-    if (!(await Promise.all(signed.map(admitted))).every(Boolean)) throw Error("The local resource presentation signature is invalid.");
+    if (!(await Promise.all(signed.map(entry => admitWalletResourceEntry(entry, input)))).every(Boolean)) throw Error("The local resource presentation signature is invalid.");
     const database = await dependencies.database(); current();
     await database.transaction(["artifacts", "meta"], "readwrite", async tx => {
-      current();
+      current(); await currentPersisted(tx);
       await tx.put("artifacts", structuredClone(accepted.proof), proofKey(row.proofDigest));
       await tx.put("artifacts", structuredClone(detail), detailKey(row.detailDigest));
       // The source controller owns its unpack/reoffer locator and full exact
@@ -143,7 +144,34 @@ export function createWildsWalletResourceProjectionStoreV128(input: WildsWalletR
   }
   return {
     retain(value: WildsWalletResourceProjectionV128, continuation?: WildsWalletResourceProjectionContinuationV128) { return locked(() => retainInside(value, continuation)); },
-    async listCached(): Promise<readonly WildsWalletResourceProjectionRowV128[]> { return (await readEntries()).map(entry => Object.freeze(structuredClone(entry.row))); },
+    /** One exact material action survives a fresh command ID and a lost reply.
+     * This checkpoint grants no authority; native replay/use still admits it. */
+    async prepareMaterial(entry: WildsWorldOutboxEntry) {
+      current(); const database = await dependencies.database();
+      return database.transaction(["meta"], "readwrite", async tx => {
+        await currentPersisted(tx); current();
+        const key = JSON.stringify(["wildz.wallet.material-action.v128", input.ownerHandle, input.keyId]);
+        const saved = await tx.get<WildsWorldOutboxEntry>("meta", key);
+        if (saved) {
+          if (saved.schema !== "receiz.wilds_world_outbox_entry.v1" || saved.actorId !== entry.actorId || !saved.command?.commandId) throw Error("The saved material action does not match this Explorer.");
+          return saved;
+        }
+        await tx.put("meta", structuredClone(entry), key); return entry;
+      });
+    },
+    async finishMaterial(commandId: string) {
+      current(); const database = await dependencies.database();
+      await database.transaction(["meta"], "readwrite", async tx => {
+        await currentPersisted(tx); current();
+        const key = JSON.stringify(["wildz.wallet.material-action.v128", input.ownerHandle, input.keyId]);
+        const saved = await tx.get<WildsWorldOutboxEntry>("meta", key);
+        if (!saved) return;
+        if (saved.command.commandId !== commandId) throw Error("The exact saved material action changed.");
+        await tx.delete("meta", key);
+      });
+    },
+    async assertCurrent() { current(); await (await dependencies.database()).transaction(["meta"], "readonly", currentPersisted); current(); },
+    async listCached(signal?: AbortSignal): Promise<readonly WildsWalletResourceProjectionRowV128[]> { const entries = await readEntries(signal); signal?.throwIfAborted(); return entries.map(entry => Object.freeze(entry.row)); },
     reopen(packageId: string) { return locked(async () => {
       const entry = (await readEntries()).find(entry => entry.row.packageId === packageId); if (!entry) throw Error("The matching signed resource reference is unavailable. Reopen its private offer.");
       const database = await dependencies.database();

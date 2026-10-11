@@ -41,7 +41,7 @@ export function WildsMapSharing({ atlas, onImport }: {
     busyRef.current = true; setBusy("save"); setStatus("Drawing your discovered territory…");
     try {
       // A ready map opens the device sheet synchronously with the Save tap.
-      const artifact = prepared.peek(atlas) ?? await prepared.prepare(atlas, false).catch(error => {
+      const artifact = prepared.peek(atlas) ?? await prepared.prepare(atlas, false, { explicit: true }).catch(error => {
         if (error instanceof Error && error.message === "offline_seal_enrollment_required") return prepared.prepare(atlas, true);
         throw error;
       });

@@ -1,6 +1,6 @@
 import { architecturalSnap } from "./wilds-architectural-snap";
 import { canonicalPortableCardJson, sha256PortableBasis } from "./portable-card";
-import { projectWildsBuildFootprint } from './wilds-build-ground';
+import { WILDS_BUILD_FLAT_APRON, projectWildsBuildFootprint } from './wilds-build-ground';
 
 // Disposable local blueprint geometry only. Nothing in this module publishes
 // physical world state or consumes material authority.
@@ -57,7 +57,7 @@ export type WildsBlueprintPreview = Readonly<{
 }>;
 
 export type WildsPlacementPhysicalEvidence = Readonly<{
-  groundSupport?: 'wildz.build-ground.v1';
+  groundSupport?: 'wildz.build-ground.v1' | 'wildz.build-ground.v2';
   terrainY: number;
   waterline: number | null;
   anchors: readonly WildsBlueprintAnchor[];
@@ -76,6 +76,7 @@ export type WildsBlueprintPlacementInput = Readonly<{
 }>;
 
 export type WildsProductionPlacementEvidence = Readonly<{
+  landscapeRule?: 'wildz.build-ground.v2';
   spaceId?: string;
   sourceBlueprint: WildsBlueprintPreview;
   pointer: Point3;
@@ -370,8 +371,39 @@ function placementAnchors(kind: WildsConstructionKind, placementId: string, cent
   }));
 }
 
+function placementSupportAnchor(input: WildsBlueprintPlacementInput) {
+  const acceptedAnchors: readonly AnchorKind[] = input.surfaceSnap && ["storage", "workshop", "habitat", "bed", "hearth", "light", "trim"].includes(input.kind)
+    ? [...ACCEPTED_ANCHORS[input.kind], "foundation"] : ACCEPTED_ANCHORS[input.kind];
+  const blueprintAnchors = new Map(input.blueprint.pieces.flatMap((piece) => piece.anchors.map((candidate) => [candidate.id, candidate] as const)));
+  const compatibleAnchors = input.physical.anchors.filter((candidate) => acceptedAnchors.includes(candidate.kind)
+    && canonicalPortableCardJson(blueprintAnchors.get(candidate.id) ?? null) === canonicalPortableCardJson(candidate));
+  // At deck height, finish the room perimeter before offering a stacked wall.
+  // Keep the original anchor selection untouched for historical placements.
+  const deckAnchors = input.snapVersion === 2 && input.surfaceSnap && ["wall", "partition", "solid-wall", "window-wall"].includes(input.kind)
+    ? compatibleAnchors.filter(candidate => candidate.kind === "foundation" && Math.abs(candidate.position.y - input.pointer.y) <= 1)
+    : [];
+  return nearestAnchor(deckAnchors, input.pointer) ?? nearestAnchor(compatibleAnchors, input.pointer);
+}
+
+function placementNeedsGround(input: WildsBlueprintPlacementInput, catalog: WildsConstructionCatalogEntry, anchor: WildsBlueprintAnchor | null) {
+  return catalog.support === 'terrain' || !anchor && (catalog.support === 'terrain-or-structure' || !!input.surfaceSnap && input.kind === 'workshop');
+}
+const GROUND_GRADING_KINDS = new Set<WildsConstructionKind>(['foundation', 'floor', 'path', 'garden', 'workshop']);
+function placementGradesGround(input: WildsBlueprintPlacementInput, catalog: WildsConstructionCatalogEntry, anchor: WildsBlueprintAnchor | null) {
+  return input.physical.groundSupport === 'wildz.build-ground.v2' && GROUND_GRADING_KINDS.has(input.kind) && placementNeedsGround(input, catalog, anchor);
+}
+
+/** Shared v2 grading decision from the exact placement support evidence. Callers
+ * verify that evidence before projecting paid terrain or deriving clearance. */
+export function wildsProductionPlacementGradesGround(evidence: WildsProductionPlacementEvidence, kind: WildsConstructionKind): boolean {
+  const catalog = CATALOG.get(kind);
+  if (!catalog) return false;
+  const input = { ...evidence, blueprint: evidence.sourceBlueprint, kind };
+  return placementGradesGround(input, catalog, placementSupportAnchor(input));
+}
+
 export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInput): WildsBlueprintPlacement {
-  if (input.physical.groundSupport !== undefined && input.physical.groundSupport !== 'wildz.build-ground.v1') throw new Error('wilds_blueprint_surface_invalid');
+  if (input.physical.groundSupport !== undefined && !['wildz.build-ground.v1','wildz.build-ground.v2'].includes(input.physical.groundSupport)) throw new Error('wilds_blueprint_surface_invalid');
   if (!finitePoint(input.pointer)) throw new Error("wilds_blueprint_pointer_invalid");
   if (!Number.isFinite(input.physical.terrainY) || (input.physical.waterline !== null && !Number.isFinite(input.physical.waterline))) throw new Error("wilds_blueprint_surface_invalid");
   if (input.physical.anchors.some((anchor) => !anchor.id || !finitePoint(anchor.position))
@@ -383,17 +415,7 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
   if (input.snapVersion !== undefined && input.snapVersion !== 2) throw new Error("wilds_blueprint_snap_version_invalid");
   let rotationQuarterTurns = quarter(input.rotationQuarterTurns);
   let rotated = rotationQuarterTurns % 2 === 0 ? catalog.halfExtents : { x: catalog.halfExtents.z, y: catalog.halfExtents.y, z: catalog.halfExtents.x };
-  const acceptedAnchors: readonly AnchorKind[] = input.surfaceSnap && ["storage", "workshop", "habitat", "bed", "hearth", "light", "trim"].includes(input.kind)
-    ? [...ACCEPTED_ANCHORS[input.kind], "foundation"] : ACCEPTED_ANCHORS[input.kind];
-  const blueprintAnchors = new Map(input.blueprint.pieces.flatMap((piece) => piece.anchors.map((candidate) => [candidate.id, candidate] as const)));
-  const compatibleAnchors = input.physical.anchors.filter((candidate) => acceptedAnchors.includes(candidate.kind)
-    && canonicalPortableCardJson(blueprintAnchors.get(candidate.id) ?? null) === canonicalPortableCardJson(candidate));
-  // At deck height, finish the room perimeter before offering a stacked wall.
-  // Keep the original anchor selection untouched for historical placements.
-  const deckAnchors = input.snapVersion === 2 && input.surfaceSnap && ["wall", "partition", "solid-wall", "window-wall"].includes(input.kind)
-    ? compatibleAnchors.filter(candidate => candidate.kind === "foundation" && Math.abs(candidate.position.y - input.pointer.y) <= 1)
-    : [];
-  const anchor = nearestAnchor(deckAnchors, input.pointer) ?? nearestAnchor(compatibleAnchors, input.pointer);
+  const anchor = placementSupportAnchor(input);
   const groundWorkbench = input.surfaceSnap && input.kind === "workshop";
   const needsStructure = catalog.support === "structure" && !groundWorkbench;
   const needsWater = catalog.support === "water";
@@ -410,7 +432,7 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
     rotated = rotationQuarterTurns % 2 === 0 ? catalog.halfExtents : { x: catalog.halfExtents.z, y: catalog.halfExtents.y, z: catalog.halfExtents.x };
     if (architectural.baseY !== undefined) baseY = architectural.baseY;
   }
-  const needsGround = catalog.support === 'terrain' || !anchor && (catalog.support === 'terrain-or-structure' || groundWorkbench);
+  const needsGround = placementNeedsGround(input, catalog, anchor);
   const footing = input.physical.groundSupport && needsGround ? projectWildsBuildFootprint({
     center: { x: quantize(input.pointer.x, .5), y: baseY, z: quantize(input.pointer.z, .5) }, halfExtents: rotated, yaw: 0
   }) : null;
@@ -447,8 +469,17 @@ export function previewWildsBlueprintPlacement(input: WildsBlueprintPlacementInp
     }
     return true;
   };
-  if (detailedGeometry.collisionSolids.some((component) => input.physical.solids.some((solid) => collides(component, solid)))) cues.push("blocked");
-  if (detailedGeometry.collisionSolids.some((component) => input.blueprint.pieces.some((piece) => piece.collisionSolids.some((solid) => collides(component, solid))))) cues.push("blueprint-collision");
+  // Only ground-producing pieces buy a grade. Test the resolved bottom solids
+  // and flat apron horizontally so a cut/fill cannot erase a higher neighbour.
+  // Supported attachments retain their existing body collision checks.
+  const bottom = Math.min(...detailedGeometry.collisionSolids.map(solid => solid.center.y - solid.halfExtents.y));
+  const gradingSolids = placementGradesGround(input, catalog, anchor)
+    ? detailedGeometry.collisionSolids.filter(solid => solid.center.y - solid.halfExtents.y <= bottom + .025) : [];
+  const gradeCollides = (solid: Box) => gradingSolids.some(footing =>
+    Math.abs(footing.center.x - solid.center.x) < footing.halfExtents.x + WILDS_BUILD_FLAT_APRON + solid.halfExtents.x - .000001
+    && Math.abs(footing.center.z - solid.center.z) < footing.halfExtents.z + WILDS_BUILD_FLAT_APRON + solid.halfExtents.z - .000001);
+  if (input.physical.solids.some(solid => gradeCollides(solid) || detailedGeometry.collisionSolids.some(component => collides(component, solid)))) cues.push("blocked");
+  if (input.blueprint.pieces.some(piece => piece.collisionSolids.some(solid => gradeCollides(solid) || detailedGeometry.collisionSolids.some(component => collides(component, solid))))) cues.push("blueprint-collision");
   const anchors = placementAnchors(input.kind, placementId, position, geometry.halfExtents, catalog.anchors, rotationQuarterTurns);
   const content = {
     ...(input.snapVersion === 2 ? { snapVersion: 2 as const } : {}),

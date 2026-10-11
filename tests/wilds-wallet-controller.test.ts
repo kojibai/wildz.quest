@@ -137,7 +137,7 @@ test("a verified Receiz ID source remains authoritative when global projection t
   assert.equal(state.summary?.admittedPhiMicro, "42");
 
   state = reduceWildsWalletController(state, { type: "refresh-start", requestId: 9 });
-  state = reduceWildsWalletController(state, { type: "refresh-failed", requestId: 9, reason: "revoked" });
+  state = reduceWildsWalletController(state, { type: "refresh-failed", requestId: 9, reason: "network" });
 
   assert.equal(state.status, "source-verified");
   assert.equal(state.sourceAuthorityVerified, true);

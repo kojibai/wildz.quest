@@ -1,5 +1,6 @@
 "use client";
 
+import {createWildsClearanceRuntimeSlot} from "../../../lib/receiz/wilds-clearance-action-worker-client";
 import { receizKaiNow } from "@receiz/sdk";
 import type { openWildsResourcePackageExchangeBrowserV128 } from "../../../lib/receiz/wilds-resource-exchange-browser-v128";
 import type { WildsWalletCreatureAssetPortInputV128 } from "./wilds-wallet-creature-asset-port-v128";
@@ -50,6 +51,9 @@ export function createWildsWalletAssetPortV128(input: WildsWalletAssetPortInputV
     }
     return opening;
   };
+  const clearanceSlot=createWildsClearanceRuntimeSlot((opened:Runtime)=>opened.openClearanceExchange(assertCurrent),assertCurrent);
+  const disposeClearance=()=>clearanceSlot.dispose();
+  const openClearanceRuntime=()=>clearanceSlot.openAfter(openRuntime);
   let ports: Promise<Readonly<{ creature: ReturnType<typeof import("./wilds-wallet-creature-asset-port-v128")["createWildsWalletCreatureAssetPortV128"]>; resource: ResourcePort }>> | null = null;
   const loadPorts = () => {
     assertCurrent();
@@ -73,7 +77,7 @@ export function createWildsWalletAssetPortV128(input: WildsWalletAssetPortInputV
       return current.acceptSource(leg, descriptor, authority);
     }
   };
-  return { ...port, openRuntime,
+  return { ...port, openRuntime, openClearanceRuntime, disposeClearance,
     qualifyListing: async (asset: WildsWalletAssetSendAsset, summary?: string) => {
       assertCurrent();
       await input.flushGameplay(); assertCurrent();
