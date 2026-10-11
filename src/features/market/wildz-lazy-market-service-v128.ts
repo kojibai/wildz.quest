@@ -53,6 +53,7 @@ export function createLazyWildzMarketServiceV128(input: Readonly<{
     read: () => run(next => next.read()),
     list: request => run(next => next.list(request)),
     cancel: id => run(next => next.cancel(id)),
+    activateListing: id => run(next => next.activateListing ? next.activateListing(id) : Promise.resolve({status:'failed',message:'Reopen Market to activate this listing.'})),
     previewPurchase: id => run(next => next.previewPurchase(id)),
     approvePurchase: id => run(next => next.approvePurchase(id)),
     resume: id => run(next => next.resume(id)),

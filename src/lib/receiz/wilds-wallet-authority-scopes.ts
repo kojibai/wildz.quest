@@ -13,14 +13,17 @@ export function hasExactWildsWalletReadAuthorityScopes(value: readonly string[])
     && WILDS_WALLET_READ_AUTHORITY_SCOPES.every((scope, index) => value[index] === scope);
 }
 
-export type WildsIdentityAuthorityPurpose = "wallet-read" | "artifact-claim";
+export type WildsIdentityAuthorityPurpose = "wallet-read" | "artifact-claim" | "market-funding";
 // The SDK canonicalizes proof-authority scopes in lexical order before signing
 // and validating the response. Keep our exact scope comparison in that order.
 export const WILDS_ARTIFACT_CLAIM_AUTHORITY_SCOPES = Object.freeze([
   "openid", "profile", "receiz:record", "receiz:seal", "receiz:wallet.read"
 ] as const);
+export const WILDZ_MARKET_FUNDING_AUTHORITY_SCOPES = Object.freeze([
+  "openid", "profile", "receiz:payments.create", "receiz:payments.read", "receiz:wallet.read"
+] as const);
 export function wildsIdentityAuthorityScopes(purpose: WildsIdentityAuthorityPurpose) {
-  return purpose === "artifact-claim" ? WILDS_ARTIFACT_CLAIM_AUTHORITY_SCOPES : WILDS_WALLET_READ_AUTHORITY_SCOPES;
+  return purpose === "market-funding" ? WILDZ_MARKET_FUNDING_AUTHORITY_SCOPES : purpose === "artifact-claim" ? WILDS_ARTIFACT_CLAIM_AUTHORITY_SCOPES : WILDS_WALLET_READ_AUTHORITY_SCOPES;
 }
 export function hasExactWildsIdentityAuthorityScopes(value: readonly string[], purpose: WildsIdentityAuthorityPurpose) {
   const expected = wildsIdentityAuthorityScopes(purpose);

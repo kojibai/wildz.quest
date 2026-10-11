@@ -66,7 +66,7 @@ async function introspectOrThrow(
 }
 
 export function wildsWalletAuthorityStatusFor(code: string) {
-  if (code === "receiz_wallet_authority_required" || code === "receiz_wallet_authority_revoked" || code === "receiz_wallet_read_scope_required" || code === "receiz_wallet_phi_scope_required") return 401;
+  if (code === "receiz_wallet_authority_required" || code === "receiz_wallet_authority_revoked" || code === "receiz_wallet_read_scope_required" || code === "receiz_wallet_phi_scope_required" || code === "receiz_wallet_payments_scope_required") return 401;
   if (code === "receiz_wallet_profile_binding_invalid" || code === "receiz_wallet_token_binding_invalid") return 403;
   if (code === "receiz_wallet_profile_resolution_unavailable" || code === "receiz_wallet_introspection_unavailable") return 503;
   return 502;
@@ -86,7 +86,8 @@ export function requireWildsWalletPhiAuthorityScopes(
 
 export async function resolveWildsWalletReadAuthority(
   request: NextRequest,
-  dependencies: WildsWalletRouteAuthorityDependencies = DEFAULT_DEPENDENCIES
+  dependencies: WildsWalletRouteAuthorityDependencies = DEFAULT_DEPENDENCIES,
+  paymentScopes: readonly string[] = []
 ): Promise<WildsWalletReadAuthority> {
   const session = receizRequestSession(request);
   const accessToken = playerReceizAccessToken(session);
@@ -113,10 +114,17 @@ export async function resolveWildsWalletReadAuthority(
   if (!scopesFromIntrospection(introspection).has(WALLET_READ_SCOPE)) {
     throw new Error("receiz_wallet_read_scope_required");
   }
+  if (!paymentScopes.every(scope => session.grantedScopes.includes(scope) && scopesFromIntrospection(introspection).has(scope))) {
+    throw new Error("receiz_wallet_payments_scope_required");
+  }
   return Object.freeze({
     accessToken,
     ownerReceizId: profile.id,
     actorId: proofSession.actorId,
     profileHandle: proofSession.profileHandle
   });
+}
+
+export function resolveWildzMarketFundingAuthority(request: NextRequest, dependencies: WildsWalletRouteAuthorityDependencies = DEFAULT_DEPENDENCIES) {
+  return resolveWildsWalletReadAuthority(request, dependencies, ["receiz:payments.create", "receiz:payments.read"]);
 }

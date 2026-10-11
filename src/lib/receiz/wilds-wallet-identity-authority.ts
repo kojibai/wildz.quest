@@ -107,7 +107,7 @@ export function issueWildsWalletIdentityAuthorityChallenge(input: Readonly<{
     || !/^[a-f0-9]{64}$/.test(input.artifactDigest)) {
     throw new Error("receiz_wallet_identity_authority_challenge_invalid");
   }
-  const statementDigest = sha256Text(purpose === "artifact-claim" ? "Claim the selected complete bearer artifact into this Receiz ID through native Record and Seal, preserving all prior history, and publish its ownership projection. Authority expires after 60 Kai pulses." : "Wildz may identify this Receiz ID and refresh its wallet projection for 60 Kai pulses. Moving value requires a fresh exact edge signature from this Receiz ID.");
+  const statementDigest = sha256Text(purpose === "market-funding" ? "Wildz may create and check a hosted card checkout funding this Receiz ID's own wallet for 60 Kai pulses. Paying a Market seller requires a separate exact purchase approval and fresh edge signature. Card funding grants no asset custody." : purpose === "artifact-claim" ? "Claim the selected complete bearer artifact into this Receiz ID through native Record and Seal, preserving all prior history, and publish its ownership projection. Authority expires after 60 Kai pulses." : "Wildz may identify this Receiz ID and refresh its wallet projection for 60 Kai pulses. Moving value requires a fresh exact edge signature from this Receiz ID.");
   const created = createReceizProofAuthorityChallenge({
     applicationId,
     artifactDigest: input.artifactDigest,

@@ -5,6 +5,7 @@ import type {WildzMarketPurchasePhaseV128,WildzMarketPurchaseReviewV128,WildzMar
 import {createWildzMarketUiActionRuntime,parseWildzMarketUsdInput,readWildzMarketListingUiAttempt,retainWildzMarketListingUiAttempt,releaseWildzMarketListingUiAttempt,type WildzMarketUiActionState,type WildzMarketListingUiAttempt} from './wildz-market-presentation';
 import {formatWildsPhiExact,formatWildsUsdCents} from '../play/wallet/wilds-wallet-format';
 import {shouldRefreshWildzMarket} from './market-refresh-policy';
+import {validateWildzCardCheckoutUrlV128} from '../../lib/receiz/wildz-card-checkout-url-v128';
 import styles from './WildzMarketSheet.module.css';
 
 type Tab='browse'|'sell'|'activity';
@@ -57,7 +58,7 @@ export function WildzMarketSheet({service,connected,initialTab='browse'}:{servic
  const savedAttempt=savedListing?{request:{asset:savedListing.asset,priceUsdCents:savedListing.priceUsdCents,attemptId:savedListing.attemptId},title:savedListing.title,summary:savedListing.summary}:null;
  const held=service?(listingAttempt?.service===service?listingAttempt:readWildzMarketListingUiAttempt(service)??savedAttempt):null;
  const active=snapshot.listings.filter(item=>item.status==='active');
- const own=snapshot.listings.filter(item=>item.sellerHandle===service?.binding.ownerHandle&&(item.status==='active'||item.status==='reserved'));
+ const own=snapshot.listings.filter(item=>item.sellerHandle===service?.binding.ownerHandle&&(item.status==='active'||item.status==='reserved'||item.canCancel));
  const purchases=[...snapshot.purchases];
  if(review?.service===service&&!purchases.some(item=>item.purchaseId===review.value.purchaseId))purchases.unshift(review.value);
  const attention=purchases.filter(item=>item.phase!=='completed').length;
@@ -80,7 +81,14 @@ export function WildzMarketSheet({service,connected,initialTab='browse'}:{servic
  };
  const purchaseAction=(kind:'approvePurchase'|'resume'|'accept',purchaseId:string)=>{
   if(!service)return;
-  void runtime.run(kind==='approvePurchase'?'Approve terms':kind==='accept'?'Accept delivery':'Resume purchase',()=>service[kind](purchaseId)).then(showResult);
+  void runtime.run(kind==='approvePurchase'?'Approve terms':kind==='accept'?'Accept delivery':'Resume purchase',()=>service[kind](purchaseId)).then(result=>{
+   if(live.current.service!==service||!live.current.connected||!mounted.current)return;
+   showResult(result);
+   if(result?.status==='checkout'&&result.checkoutUrl){
+    try{window.location.assign(validateWildzCardCheckoutUrlV128(result.checkoutUrl));}
+    catch{runtime.notice('The hosted card checkout URL could not be opened. Resume this same purchase to check it.',true);}
+   }
+  });
  };
  const list=()=>{
   if(!service||unavailable||busy)return;
@@ -107,7 +115,7 @@ export function WildzMarketSheet({service,connected,initialTab='browse'}:{servic
    <div className={styles.sectionHeading}><h3>On the trail</h3><span>{active.length} listed</span></div>
    {active.length?active.map(listing=><article className={styles.listing} key={listing.listingId}>
     <span className={styles.icon} aria-hidden="true">{icon(listing.kind)}</span><div><h3>{listing.title}</h3><small>{handle(listing.sellerHandle)} · {listing.kind==='creature'?'Creature':'Resource package'}</small></div><strong>{formatWildsUsdCents(listing.priceUsdCents)}</strong>
-    <button type="button" disabled={unavailable||busy||!listing.canBuy} onClick={()=>preview(listing.listingId)}>{listing.sellerHandle===service?.binding.ownerHandle?'Your listing':'Review purchase'}</button>
+    <button type="button" disabled={unavailable||busy||!listing.canBuy} onClick={()=>preview(listing.listingId)}>{listing.sellerHandle===service?.binding.ownerHandle?'Your listing':listing.canBuy?'Review purchase':'Purchase connection pending'}</button>
    </article>):<p className={styles.empty}>{snapshot.status==='loading'?'Checking listings…':'No active listings yet. List a creature or a resource package from your wallet.'}</p>}
    {attention?<button type="button" className={styles.activityLink} onClick={()=>setTab('activity')}>{attention} purchase{attention===1?'':'s'} to review or resume</button>:null}
    {held?<button type="button" className={styles.activityLink} onClick={()=>setTab('sell')}>Check pending listing · {held.title}</button>:null}
@@ -126,9 +134,9 @@ export function WildzMarketSheet({service,connected,initialTab='browse'}:{servic
   </section>:null}
   {tab==='activity'?<section aria-label="Market activity" className={styles.stack}>
    {purchases.length?<><div className={styles.sectionHeading}><h3>Purchases and requests</h3></div>{purchases.map(item=><PurchaseCard key={item.purchaseId} purchase={item} ownerHandle={service?.binding.ownerHandle??''} disabled={unavailable||busy} onApprove={()=>purchaseAction('approvePurchase',item.purchaseId)} onResume={()=>purchaseAction('resume',item.purchaseId)} onAccept={()=>purchaseAction('accept',item.purchaseId)} onReview={()=>preview(item.listingId)} onCancel={()=>{if(service)void runtime.run('Cancel purchase',()=>service.cancel(item.listingId)).then(showResult);}}/>)}</>:null}
-   <div className={styles.sectionHeading}><h3>Your listings</h3><span>{own.length} active or reserved</span></div>
-   {own.length?own.map(item=><article className={styles.ownListing} key={item.listingId}><div><strong>{item.title}</strong><small>{item.status==='reserved'?'Reserved for a buyer':'Active listing'} · {formatWildsUsdCents(item.priceUsdCents)}</small></div>{item.canCancel?<button type="button" disabled={unavailable||busy} onClick={()=>{if(service)void runtime.run('Cancel listing',()=>service.cancel(item.listingId)).then(showResult);}}>Cancel listing</button>:<span className={styles.badge}>Reserved</span>}</article>):<p className={styles.empty}>Your active listings appear here. Purchases stay available to resume if a reply is delayed.</p>}
+   <div className={styles.sectionHeading}><h3>Your listings</h3><span>{own.length} listing{own.length===1?'':'s'}</span></div>
+   {own.length?own.map(item=><article className={styles.ownListing} key={item.listingId}><div><strong>{item.title}</strong><small>{item.status==='reserved'?'Reserved for a buyer':item.status==='cancelled'?'Purchase closed · withdrawal pending':item.canActivate?'Published · purchase connection pending':'Active listing'} · {formatWildsUsdCents(item.priceUsdCents)}</small></div>{item.canActivate&&service?.activateListing?<button type="button" disabled={unavailable||busy} onClick={()=>{if(service?.activateListing)void runtime.run('Enable purchases',()=>service.activateListing!(item.listingId)).then(showResult);}}>Enable purchases</button>:null}{item.canCancel?<button type="button" disabled={unavailable||busy} onClick={()=>{if(service)void runtime.run('Cancel listing',()=>service.cancel(item.listingId)).then(showResult);}}>Cancel listing</button>:<span className={styles.badge}>Reserved</span>}</article>):<p className={styles.empty}>Your active listings appear here. Purchases stay available to resume if a reply is delayed.</p>}
   </section>:null}
-  <p className={styles.footer}>Prices are in USD. Checkout uses the exact Phi amount you review.</p>
+  <p className={styles.footer}>Prices are in USD. Purchases use the exact Phi amount you review. If your wallet is short, card checkout adds funds to your wallet before purchase approval.</p>
  </div>;
 }

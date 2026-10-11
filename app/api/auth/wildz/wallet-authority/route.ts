@@ -31,11 +31,11 @@ function registeredApplicationId() {
 
 function authorityPurpose(request: NextRequest) {
   const purpose = request.nextUrl.searchParams.get("purpose");
-  if (purpose !== null && purpose !== "artifact-claim") throw new Error("receiz_wallet_identity_authority_invalid");
-  return purpose === "artifact-claim" ? "artifact-claim" as const : "wallet-read" as const;
+  if (purpose !== null && purpose !== "artifact-claim" && purpose !== "market-funding") throw new Error("receiz_wallet_identity_authority_invalid");
+  return purpose === "market-funding" ? "market-funding" as const : purpose === "artifact-claim" ? "artifact-claim" as const : "wallet-read" as const;
 }
 function ticketCookie(request: NextRequest) {
-  return authorityPurpose(request) === "artifact-claim" ? "wildz_artifact_claim_authority_ticket" : "wildz_wallet_authority_ticket";
+  return authorityPurpose(request) === "market-funding" ? "wildz_market_funding_authority_ticket" : authorityPurpose(request) === "artifact-claim" ? "wildz_artifact_claim_authority_ticket" : "wildz_wallet_authority_ticket";
 }
 
 function cookieOptions(maxAge = 180) {

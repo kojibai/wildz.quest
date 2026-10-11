@@ -7,7 +7,7 @@ import type { WildsWalletAssetSendAsset } from "../play/wallet/wilds-wallet-asse
 import type { WildzMarketSelectionV128 } from "../../lib/receiz/wildz-market-source-types-v128";
 import { validateWildzMarketSelectionV128 } from "../../lib/receiz/wildz-market-source-journal-v128";
 
-export type WildzMarketListAttemptV128 = Readonly<{attemptId:string;listingId:string;asset:WildsWalletAssetSendAsset;priceUsdCents:string;selection?:WildzMarketSelectionV128;published?:true}>;
+export type WildzMarketListAttemptV128 = Readonly<{attemptId:string;listingId:string;asset:WildsWalletAssetSendAsset;priceUsdCents:string;selection?:WildzMarketSelectionV128;published?:true;nativeSelection?:WildzMarketSelectionV128;nativePublished?:true}>;
 export type WildzMarketPurchaseCheckpointV128 = Readonly<{agreement:WildsWalletTradeAgreement;message:string;reviewRequired?:true;assetRecoveryRequired?:true;noWriteReceipt?:WildsWalletConnectPhiNoWriteReceipt}>;
 export type WildzMarketReservationAttemptV128=Readonly<{listingId:string;listingHead:string;reservationId:string;sellerHandle:string;selection:WildzMarketSelectionV128;quote:WildzMarketConnectQuoteV128}>;
 export type WildzMarketRecoveryV128 = Readonly<{schema:"wildz.market-recovery.v128";ownerHandle:string;keyId:string;lists:readonly WildzMarketListAttemptV128[];purchases:readonly WildzMarketPurchaseCheckpointV128[];pendingReservations:readonly WildzMarketReservationAttemptV128[];listArchiveCursor?:number;reservationReadCursor?:number}>;
@@ -23,10 +23,11 @@ export function admitWildzMarketRecoveryV128(value:unknown,ownerHandle:string,ke
   ||!Array.isArray(value.lists)||value.lists.length>64||!Array.isArray(value.purchases)||value.purchases.length>32||JSON.stringify(value).length>MAX_BYTES)throw wildzMarketStorageErrorV128();
  if(value.listArchiveCursor!==undefined&&(!Number.isSafeInteger(value.listArchiveCursor)||(value.listArchiveCursor as number)<0||(value.listArchiveCursor as number)>=64)||value.reservationReadCursor!==undefined&&(!Number.isSafeInteger(value.reservationReadCursor)||(value.reservationReadCursor as number)<0||(value.reservationReadCursor as number)>=32))throw wildzMarketStorageErrorV128();
  const lists=value.lists.map(raw=>{
-  if(!object(raw)||!exact(raw,["attemptId","listingId","asset","priceUsdCents"],["selection","published"])||typeof raw.attemptId!=="string"||!raw.attemptId||raw.attemptId.length>256
+  if(!object(raw)||!exact(raw,["attemptId","listingId","asset","priceUsdCents"],["selection","published","nativeSelection","nativePublished"])||typeof raw.attemptId!=="string"||!raw.attemptId||raw.attemptId.length>256
    ||typeof raw.listingId!=="string"||!/^market:listing:[a-f0-9]{64}$/.test(raw.listingId)||typeof raw.priceUsdCents!=="string"||!/^[1-9][0-9]{0,15}$/.test(raw.priceUsdCents)||BigInt(raw.priceUsdCents)>BigInt(Number.MAX_SAFE_INTEGER)
-   ||raw.published!==undefined&&raw.published!==true||!object(raw.asset))throw wildzMarketStorageErrorV128();
+   ||raw.published!==undefined&&raw.published!==true||raw.nativePublished!==undefined&&raw.nativePublished!==true||raw.nativePublished===true&&!raw.nativeSelection||!object(raw.asset))throw wildzMarketStorageErrorV128();
   if(raw.selection){validateWildzMarketSelectionV128(raw.selection as WildzMarketSelectionV128);if(!same((raw.selection as WildzMarketSelectionV128).asset,raw.asset))throw wildzMarketStorageErrorV128();}
+  if(raw.nativeSelection){validateWildzMarketSelectionV128(raw.nativeSelection as WildzMarketSelectionV128);if(!same((raw.nativeSelection as WildzMarketSelectionV128).asset,raw.asset))throw wildzMarketStorageErrorV128();}
   return structuredClone(raw) as WildzMarketListAttemptV128;
  });
  const pendingReservations=(value.pendingReservations??[]) as unknown;

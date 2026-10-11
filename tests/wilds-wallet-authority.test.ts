@@ -9,6 +9,7 @@ import {
 } from "../src/lib/receiz/wildz-proof-session";
 import {
   resolveWildsWalletReadAuthority,
+  resolveWildzMarketFundingAuthority,
   requireWildsWalletPhiAuthorityScopes,
   wildsWalletAuthorityStatusFor
 } from "../src/lib/receiz/wilds-wallet-route-authority";
@@ -60,6 +61,13 @@ function dependencies(overrides: Partial<{
 }
 
 describe("authenticated Wilds wallet read authority", () => {
+  it("requires payment scopes in both the same-player cookie and the live token for card funding", async () => {
+    const scopes=["openid","profile","receiz:payments.create","receiz:payments.read","receiz:wallet.read"];
+    const authority=await resolveWildzMarketFundingAuthority(request({scopes}),dependencies({introspection:{active:true,sub:"receiz:owner",scope:scopes.join(" ")}}));
+    assert.equal(authority.profileHandle,"kai_01.receiz.id");
+    await assert.rejects(resolveWildzMarketFundingAuthority(request({scopes}),dependencies()),/payments_scope_required/);
+    await assert.rejects(resolveWildzMarketFundingAuthority(request({scopes:["receiz:wallet.read"]}),dependencies({introspection:{active:true,sub:"receiz:owner",scope:scopes.join(" ")}})),/payments_scope_required/);
+  });
   it("returns only same-account server authority and ignores request-body authority injection", async () => {
     const authority = await resolveWildsWalletReadAuthority(request({
       scopes: ["openid", "profile", "receiz:wallet.read"],

@@ -85,8 +85,8 @@ export function authorizeWildsWalletReadWithIdentity(keyId: string, dependencies
 }
 
 async function completeWildsWalletReadAuthorization(keyId: string, dependencies: ReadAuthorizationDependencies, purpose: WildsIdentityAuthorityPurpose) {
-  const purposeQuery = purpose === "artifact-claim" ? "&purpose=artifact-claim" : "";
-  const completionPath = `/api/auth/wildz/wallet-authority${purpose === "artifact-claim" ? "?purpose=artifact-claim" : ""}`;
+  const purposeQuery = purpose === "wallet-read" ? "" : `&purpose=${purpose}`;
+  const completionPath = `/api/auth/wildz/wallet-authority${purpose === "wallet-read" ? "" : `?purpose=${purpose}`}`;
   const identity = await dependencies.loadIdentity(keyId);
   if (identity.keyId !== keyId) return false;
   const attempt = async (mayReconnect: boolean): Promise<boolean> => {

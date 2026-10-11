@@ -18,6 +18,14 @@ const H = {
 };
 
 describe("Receiz ID wallet read authority", () => {
+  it("separates explicit Market wallet funding from ordinary wallet reads using the same held identity", () => {
+    const input={session:{keyId:H.key,actorId:"explorer",profileHandle:"explorer.receiz.id"},artifactDigest:H.artifact};
+    const read=issueWildsWalletIdentityAuthorityChallenge(input,"s".repeat(32));
+    const funding=issueWildsWalletIdentityAuthorityChallenge({...input,purpose:"market-funding"},"s".repeat(32));
+    assert.deepEqual(funding.challenge.scopes,["openid","profile","receiz:payments.create","receiz:payments.read","receiz:wallet.read"]);
+    assert.equal(funding.challenge.keyId,read.challenge.keyId);
+    assert.notEqual(funding.challenge.unsigned.consent.statementDigest,read.challenge.unsigned.consent.statementDigest);
+  });
   const readAuthorityScopes = ["openid", "profile", "receiz:wallet.read"];
 
   it("authenticates token introspection with the configured OAuth client", () => {

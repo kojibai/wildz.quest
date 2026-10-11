@@ -3,13 +3,13 @@ import type { WildsWalletTradeAgreement } from "../play/wallet/wilds-wallet-trad
 
 export type WildzMarketPurchasePhaseV128 = "review" | "awaiting-approvals" | "payment-pending" | "paid" | "awaiting-acceptance" | "received" | "completed" | "review-required" | "failed";
 export type WildzMarketResultV128 = Readonly<{
-  status: "listed" | "cancelled" | "awaiting-peer" | "awaiting-acceptance" | "review-required" | "pending" | "completed" | "failed";
-  message: string; listingId?: string; purchaseId?: string; assetRecoveryRequired?: true;
+  status: "listed" | "cancelled" | "awaiting-peer" | "awaiting-acceptance" | "review-required" | "pending" | "completed" | "failed" | "checkout";
+  message: string; listingId?: string; purchaseId?: string; assetRecoveryRequired?: true; checkoutUrl?:string;
 }>;
 export type WildzMarketListingViewV128 = Readonly<{
   listingId: string; title: string; kind: WildsWalletAssetSendAsset["kind"]; sellerHandle: string;
   asset: WildsWalletAssetSendAsset;
-  priceUsdCents: string; status: "active" | "reserved" | "sold" | "cancelled"; canBuy: boolean; canCancel: boolean;
+  priceUsdCents: string; status: "active" | "reserved" | "sold" | "cancelled"; canBuy: boolean; canCancel: boolean; canActivate?:boolean;
 }>;
 export type WildzMarketPurchaseReviewV128 = Readonly<{
   purchaseId: string; listingId: string; reservationId: string; title: string; kind: WildsWalletAssetSendAsset["kind"];
@@ -38,6 +38,7 @@ export type WildzMarketServiceV128 = Readonly<{
   read(): Promise<WildzMarketSnapshotV128>;
   list(input: Readonly<{ asset: WildsWalletAssetSendAsset; priceUsdCents: string; attemptId: string }>): Promise<WildzMarketResultV128>;
   cancel(listingId: string): Promise<WildzMarketResultV128>;
+  activateListing?(listingId:string):Promise<WildzMarketResultV128>;
   previewPurchase(listingId: string): Promise<WildzMarketPurchaseReviewV128>;
   approvePurchase(purchaseId: string): Promise<WildzMarketResultV128>;
   resume(purchaseId: string): Promise<WildzMarketResultV128>;

@@ -167,6 +167,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
   const [paintedWorldKey, setPaintedWorldKey] = useState<string | null>(null);
   const [continuity, setContinuity] = useState<WildzContinuitySnapshot | null>(null);
   const [marketService, setMarketService] = useState<WildzMarketServiceV128 | null>(null);
+  const [marketCardReturn, setMarketCardReturn] = useState(false);
   const continuityRef = useRef<WildzContinuitySnapshot | null>(null);
   const playerStateSyncTimerRef = useRef<number | null>(null);
   const playerStateSyncInFlightRef = useRef(false);
@@ -660,6 +661,19 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
     });
     return () => { active = false; };
   }, [overlay, ownerSourceProfile, viewingOwnProfile]);
+
+  useEffect(() => {
+    if (!identity || !worldPainted || !proofSessionConnected || !marketService
+      || marketService.binding.keyId !== identity.keyId
+      || !sameWildzPlayerCoordinate(marketService.binding.ownerHandle, ownerUsername)) return;
+    const url = new URL(window.location.href);
+    if (!/^market:purchase:[a-f0-9]{64}$/.test(url.searchParams.get('marketPurchase') ?? '')) return;
+    setMarketCardReturn(true);
+    openShellOverlay({kind:'market'});
+    url.searchParams.delete('marketPurchase');
+    url.searchParams.delete('cardCheckout');
+    window.history.replaceState(window.history.state,'',`${url.pathname}${url.search}${url.hash}`);
+  }, [identity, ownerUsername, worldPainted, proofSessionConnected, marketService, openShellOverlay]);
 
   useEffect(() => {
     let active = true;
@@ -1486,6 +1500,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             savePreparing={combinedVaultPreparing}
           /> : overlay.kind === "market" ? <WildzMarketSheet
             connected={proofSessionConnected}
+            initialTab={marketCardReturn ? 'activity' : 'browse'}
             service={marketService && marketService.binding.keyId === identity?.keyId
               && sameWildzPlayerCoordinate(marketService.binding.ownerHandle, ownerUsername) ? marketService : null}
           /> : <div className="wildz-shell-overlay-placeholder">
