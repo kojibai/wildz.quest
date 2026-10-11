@@ -1,0 +1,248 @@
+{
+  "date": "2026-10-11",
+  "mode": "local production build",
+  "identity": "synthetic local identity fixture; no live account authorization",
+  "workers": {
+    "result": [
+      {
+        "url": "http://127.0.0.1:3100/_next/static/chunks/4211.126497c455548c89.js?dpl=dpl_worker_qa",
+        "status": "ready",
+        "positions": 864
+      },
+      {
+        "url": "http://127.0.0.1:3100/_next/static/chunks/2750.69be487a2b7ca731.js?dpl=dpl_worker_qa",
+        "status": "unavailable",
+        "reason": "The creation planner is unavailable. Your draft is saved."
+      }
+    ],
+    "requests": [
+      "http://127.0.0.1:3100/_next/static/chunks/4211.126497c455548c89.js?dpl=dpl_worker_qa",
+      "http://127.0.0.1:3100/_next/static/chunks/2750.69be487a2b7ca731.js?dpl=dpl_worker_qa",
+      "http://127.0.0.1:3100/_next/static/chunks/3970.c5b59b6e0502be8d.js?dpl=dpl_worker_qa",
+      "http://127.0.0.1:3100/_next/static/chunks/3970.c5b59b6e0502be8d.js?dpl=dpl_worker_qa",
+      "http://127.0.0.1:3100/_next/static/chunks/4280.ce9a1979804b7691.js?dpl=dpl_worker_qa",
+      "http://127.0.0.1:3100/_next/static/chunks/4280.ce9a1979804b7691.js?dpl=dpl_worker_qa",
+      "http://127.0.0.1:3100/_next/static/chunks/6563.d6ff5eb2e0ca686c.js?dpl=dpl_worker_qa",
+      "http://127.0.0.1:3100/_next/static/chunks/6563.d6ff5eb2e0ca686c.js?dpl=dpl_worker_qa",
+      "http://127.0.0.1:3100/_next/static/chunks/8213.86aa060b0c5f9fd0.js?dpl=dpl_worker_qa",
+      "http://127.0.0.1:3100/_next/static/chunks/8213.86aa060b0c5f9fd0.js?dpl=dpl_worker_qa"
+    ]
+  },
+  "build": {
+    "state": "Worker preview ready · 1 pages · 13 timber · physical: false",
+    "responseBoxes": 1,
+    "response": "Saved creation draft restored.Build here adds this draft to the world.Full design costtimber: need 13 · have 100 · missing 0 · allocated 13Materials allocated automatically up to what you carry. The full design stays saved."
+  },
+  "existing": {
+    "preview": true,
+    "response": "Make this existing room widerSynthetic existing object expansionChanges apply to your selected creation.Full design costtimber: need 18 · have 0 · missing 18 · allocated 18Materials allocated automatically up to what you carry. The full design stays saved.",
+    "errors": [],
+    "messages": [
+      {
+        "url": "http://127.0.0.1:3100/_next/static/chunks/4211.126497c455548c89.js?dpl=dpl_worker_qa",
+        "id": "74a40824-d9b2-409a-9af7-9e372fb11321",
+        "status": "blocked"
+      },
+      {
+        "url": "http://127.0.0.1:3100/_next/static/chunks/4211.126497c455548c89.js?dpl=dpl_worker_qa",
+        "id": "f7eed575-ceda-4e66-b0b1-2ec9d02cfaac",
+        "status": "ready"
+      },
+      {
+        "url": "http://127.0.0.1:3100/_next/static/chunks/4211.126497c455548c89.js?dpl=dpl_worker_qa",
+        "id": "f7eed575-ceda-4e66-b0b1-2ec9d02cfaac",
+        "status": "ready"
+      }
+    ]
+  },
+  "walking": {
+    "start": {
+      "player": {
+        "x": 5000,
+        "z": 5000
+      },
+      "mode": "active",
+      "event": "Onumuhu joined your deck. Walk near another wild companion.",
+      "cardXp": 0,
+      "progress": {
+        "level": 1,
+        "xp": 0,
+        "bond": 0
+      },
+      "beans": 28
+    },
+    "end": {
+      "player": {
+        "x": 5157.048248,
+        "z": 4895.074184
+      },
+      "mode": "active",
+      "event": "Mountain slope too steep. Lead with a creature built to climb higher.",
+      "cardXp": 0,
+      "progress": {
+        "level": 1,
+        "xp": 0,
+        "bond": 0
+      },
+      "beans": 28
+    },
+    "frames": 1792,
+    "median": 16.665000000037253,
+    "p95": 16.670000000158325,
+    "max": 149.9899999999907,
+    "over50": 1,
+    "longTasks": [],
+    "canvas": {
+      "width": 1920,
+      "height": 1080
+    }
+  },
+  "groundAfterCameraTurn": {
+    "start": {
+      "player": {
+        "x": 5000,
+        "z": 5000
+      },
+      "siteSpace": {
+        "version": "wildz.site-space-state.v1",
+        "spaceId": "wildz.space.outer.v1",
+        "siteKey": null,
+        "surfaceId": "mountain-field:wildz.site.v1:39:39:0:9418d9d9c7b08ac7:west",
+        "position": {
+          "x": 5000,
+          "y": 12.992614,
+          "z": 5000
+        },
+        "flooded": false
+      },
+      "event": "Signal cold. Try another point and keep moving."
+    },
+    "startStatus": [
+      "Flight ready · 85%"
+    ],
+    "end": {
+      "player": {
+        "x": 5027.435779,
+        "z": 5015.389054
+      },
+      "siteSpace": {
+        "version": "wildz.site-space-state.v1",
+        "spaceId": "wildz.space.outer.v1",
+        "siteKey": null,
+        "surfaceId": "mountain-field:wildz.site.v1:39:39:0:9418d9d9c7b08ac7:east",
+        "position": {
+          "x": 5027.435779,
+          "y": 12.113482,
+          "z": 5015.389054
+        },
+        "flooded": false
+      },
+      "event": "Mountain slope too steep. Lead with a creature built to climb higher."
+    },
+    "frames": 1806,
+    "median": 16.665000000037253,
+    "p95": 16.670000000158325,
+    "max": 66.66499999980442,
+    "over50": 1,
+    "longTasks": [
+      {
+        "start": 1373706.2400000095,
+        "duration": 51
+      }
+    ],
+    "gaps": [
+      {
+        "time": 1373743.66,
+        "duration": 66.66499999980442,
+        "player": "{\"player\":{\"x\":5000,\"z\":5000},\"siteSpace\":{\"version\":\"wildz.site-space-state.v1\",\"spaceId\":\"wildz.space.outer.v1\",\"siteKey\":null,\"surfaceId\":\"mountain-field:wildz.site.v1:39:39:0:9418d9d9c7b08ac7:west\",\"position\":{\"x\":5000,\"y\":12.992614,\"z\":5000},\"flooded\":false},\"event\":\"Signal cold. Try another point and keep moving.\"}"
+      }
+    ],
+    "renderer": {
+      "render": {
+        "frame": 10368,
+        "calls": 123,
+        "triangles": 223380,
+        "points": 294,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 79,
+        "textures": 16
+      },
+      "programs": 81,
+      "dpr": 1.5
+    },
+    "status": [
+      "Flight ready · 85%"
+    ],
+    "facing": "Facing S, 180 degrees"
+  },
+  "flight": {
+    "start": {
+      "player": {
+        "x": 5027.435779,
+        "z": 5015.389054
+      },
+      "siteSpace": {
+        "version": "wildz.site-space-state.v1",
+        "spaceId": "wildz.space.outer.v1",
+        "siteKey": null,
+        "surfaceId": "mountain-field:wildz.site.v1:39:39:0:9418d9d9c7b08ac7:east",
+        "position": {
+          "x": 5027.435779,
+          "y": 12.113482,
+          "z": 5015.389054
+        },
+        "flooded": false
+      },
+      "event": "Mountain slope too steep. Lead with a creature built to climb higher."
+    },
+    "startStatus": [
+      "Flight energy · 80%"
+    ],
+    "end": {
+      "player": {
+        "x": 5173.389951,
+        "z": 5095.156962
+      },
+      "siteSpace": {
+        "version": "wildz.site-space-state.v1",
+        "spaceId": "wildz.space.outer.v1",
+        "siteKey": null,
+        "surfaceId": null,
+        "position": {
+          "x": 5173.389951,
+          "y": -1.296007,
+          "z": 5095.156962
+        },
+        "flooded": false
+      },
+      "event": "Flying with Voltray."
+    },
+    "frames": 1201,
+    "median": 16.665000000037253,
+    "p95": 16.670000000158325,
+    "max": 16.670000000158325,
+    "over50": 0,
+    "longTasks": [],
+    "renderer": {
+      "render": {
+        "frame": 16161,
+        "calls": 67,
+        "triangles": 189257,
+        "points": 240,
+        "lines": 0
+      },
+      "memory": {
+        "geometries": 85,
+        "textures": 16
+      },
+      "programs": 82,
+      "dpr": 1.5
+    },
+    "status": [
+      "Flight energy · 45%"
+    ]
+  },
+  "workerErrors": []
+}

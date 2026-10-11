@@ -192,13 +192,13 @@
 .composer button { position: absolute; right: 7px; bottom: 8px; width: 44px; padding: 0; display: grid; place-items: center; color: #152618; background: linear-gradient(145deg, #dce5b7, #a9c480); border-color: #e1e6b366; box-shadow: inset 0 1px #fff4, 0 2px 6px #0003; }
 .composer button:disabled { opacity: .45; }
 .binding { display: block; flex-shrink: 0; margin-top: 0; font-size: 11px; color: #aebfae; }
-.status { padding: 9px 10px; margin: 8px 0 0; border: 1px solid #b8cb9c33; border-radius: 10px; background: #21392b; color: #f3f4e9; font-size: 12px; line-height: 1.5; max-height: 120px; overflow-y: auto; overflow-wrap: anywhere; }
-.status[aria-label="Saved construction goal"], .status[aria-label="Creation material quote"] { flex-shrink: 0; max-height: none; }
-.history { max-height: 100px; overflow: auto; overscroll-behavior: contain; }
-.history p { font-size: 12px; margin: 0 0 10px; overflow-wrap: anywhere; }
-.history [data-speaker=user] { padding: 10px; background: #c4d4ae10; border: 1px solid #c4d4ae15; border-radius: 12px; }
-.costs { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-.costs ~ .composerArea { flex-shrink: 0; }
+.response { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 10px 12px; margin: 8px 0; border: 1px solid #b8cb9c33; border-radius: 12px; background: #21392b; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.response p { margin: 0 0 8px; }
+.response [data-speaker=user] { color: #b7cfab; }
+.response:focus-visible { outline: 2px solid #d5e7a8; outline-offset: 2px; }
+.status { margin: 8px 0 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.costs { margin-top: 8px; }
+.response ~ .composerArea { flex-shrink: 0; }
 .costs:focus-visible { outline: 2px solid #d5e7a8; outline-offset: 2px; border-radius: 10px; }
 .previewActions { margin-top: 12px; flex-shrink: 0; }
 .previewActions > div { display: flex; justify-content: space-between; align-items: center; }
@@ -218,7 +218,6 @@
 }
 @media (max-width: 600px) {
   .panel { bottom: calc(126px + env(safe-area-inset-bottom)); right: max(12px, env(safe-area-inset-right)); width: calc(100% - 24px); border-radius: 17px; }
-  .history { max-height: 80px; }
 }
 @media (max-width: 340px) {
   .menus { gap: 4px; }
@@ -229,7 +228,6 @@
   .panel { bottom: calc(88px + env(safe-area-inset-bottom)); max-height: calc(100svh - 116px); }
   .body { padding: 10px; }
   .welcome small { display: none; }
-  .status { max-height: 80px; }
   .composer textarea { min-height: 96px; max-height: 140px; }
   .menus details > div { bottom: auto; top: calc(100% + 9px); max-height: min(180px, calc(100svh - 210px)); }
 }
