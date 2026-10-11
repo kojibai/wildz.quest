@@ -18,6 +18,7 @@ import type { WildzMarketServiceV128, WildzMarketSnapshotV128, WildzMarketPurcha
 import {createWildzMarketArchiveStoreV128,type WildzMarketArchiveStoreV128} from "./wildz-market-archive-v128";
 import {wildsWalletBrowserStagedTradeArchiveStore} from "../play/wallet/wilds-wallet-staged-trade-archive";
 import type { WildsWalletAssetSendAsset } from "../play/wallet/wilds-wallet-asset-send";
+import type {WildzMarketPublicationSourceV128} from '../../lib/receiz/wildz-market-publication-v128';
 
 type Transition=Extract<WildzMarketSourceEventV128,{kind:"approved"|"progress"|"terminal-consent"}>;
 export type WildzMarketServiceInputV128=Readonly<{
@@ -26,6 +27,9 @@ export type WildzMarketServiceInputV128=Readonly<{
  /** Locally verified public source for browsing/review recovery. This opens
   * no write grant; explicit actions still re-admit current native custody. */
  openReadSource?():Promise<Pick<WildzMarketSourceRepositoryV128,'load'|'observe'|'verifyReservation'>>;
+ /** Identity-signed public advertisements use Profile's publication rail.
+  * This port has no reservation, payment or asset authority. */
+ publication?:Readonly<{open():Promise<WildzMarketPublicationSourceV128>;selection(asset:WildsWalletAssetSendAsset):Promise<WildzMarketSelectionV128>}>;
  qualifySelection(asset:WildsWalletAssetSendAsset):Promise<WildzMarketSelectionV128>;
  readSelections:WildzMarketReadSelectionsV128;
  staged:Omit<WildsWalletStagedTradeAdapterInput,"keyId"|"ownerHandle"|"currentIdentity"|"phi"|"marketExecution">;
@@ -56,6 +60,9 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
  const verifyApproval=native.verifyApproval??verifyWildsWalletStagedTradeIdentityApproval;
  const listeners=new Set<(snapshot:WildzMarketSnapshotV128)=>void>();
  let sourceSnapshot:WildzMarketSourceSnapshotV128|null=null;
+ let publicationSnapshot:WildzMarketSourceSnapshotV128|null=null;
+ const includePublications=()=>{if(publicationSnapshot&&Object.keys(publicationSnapshot.state.listings).length)sourceSnapshot={head:null,proof:null,
+  state:{...sourceSnapshot?.state??publicationSnapshot.state,listings:{...publicationSnapshot.state.listings,...sourceSnapshot?.state.listings}}};};
  let snapshot:WildzMarketSnapshotV128={status:"ready",message:"Open the market to check current source listings.",listings:[],purchases:[],sellables:[]};
  let sourceOpening:Promise<WildzMarketSourceRepositoryV128>|null=null;
  const current=()=>{const binding=input.currentIdentity();if(binding.keyId!==input.keyId||binding.ownerHandle!==input.ownerHandle)throw Error("The Explorer changed. Reopen the same marketplace action.");};
@@ -283,6 +290,21 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
  };
  const makeListRoom=async()=>{
   const record=load();if(record.lists.length<64)return;
+  if(archive&&input.publication){
+   const publication=await input.publication.open(),publicState=await publication.load();current();
+   const eligible=record.lists.filter(attempt=>attempt.published&&attempt.selection),cursor=record.listArchiveCursor??0;
+   const ordered=Array.from({length:eligible.length},(_,index)=>eligible[(cursor+index)%eligible.length]!);
+   const candidates=[...eligible.filter(attempt=>publicState.state.listings[attempt.listingId]?.status==='cancelled'),
+    ...ordered.filter(attempt=>!publicState.state.listings[attempt.listingId])].slice(0,3);
+   if(eligible.length)save({...record,listArchiveCursor:(cursor+3)%eligible.length});
+   const terminal=await Promise.allSettled(candidates.map(async attempt=>({attempt,actual:(await publication.observe(attempt.listingId)).listing})));current();
+   for(const result of terminal)if(result.status==='fulfilled'){
+    const {attempt,actual}=result.value;
+    if(actual.status!=='cancelled'||actual.sellerHandle!==input.ownerHandle||!same(actual.selection,attempt.selection))continue;
+    await archive.retainList(archiveOwner,attempt);current();save({...load(),lists:record.lists.filter(item=>item.attemptId!==attempt.attemptId)});return;
+   }
+   if(terminal.every(result=>result.status==='fulfilled'))throw Error("The listing continuation queue is full. Keep and resolve its original uncertain publications.");
+  }
   if(archive){const repo=await source();sourceSnapshot=await repo.load();current();
    const eligible=record.lists.filter(attempt=>attempt.published&&attempt.selection);
    const retainTerminal=async(attempt:(typeof record.lists)[number],actual:WildzMarketListingV128|undefined)=>{
@@ -314,6 +336,7 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
   binding:Object.freeze({keyId:input.keyId,ownerHandle:input.ownerHandle}),snapshot:()=>snapshot,
   subscribe(listener){current();listeners.add(listener);return()=>listeners.delete(listener);},
   async read(){return locked(async()=>{current();const repo=input.openReadSource?await input.openReadSource():await source();sourceSnapshot=await repo.load();current();
+   if(input.publication){publicationSnapshot=await (await input.publication.open()).load();current();includePublications();}
    const recovered=load();
    for(const attempt of recovered.lists.filter(item=>!item.published)){
     const listed=sourceSnapshot.state.listings[attempt.listingId];
@@ -352,7 +375,7 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
       await makePurchaseRoom();replacePurchase({agreement:context.plan.agreement,message:"Review the named buyer, actual USD quote, exact Phi and native asset before approving this purchase."});
      }
     }catch{/* Unverified transport cannot create purchase authority. */}
-   }return emit("Current source listings checked. Purchases settle as separate payment and recipient acceptance stages.");
+   }includePublications();return emit("Public listings checked. Purchases settle as separate payment and recipient acceptance stages.");
   });},
   async list(request){let dispatched=false;
    try{return await locked(async()=>{
@@ -360,14 +383,20 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
     let record=load(),attempt=record.lists.find(item=>item.attemptId===request.attemptId);
     if(attempt&&(!same(attempt.asset,request.asset)||attempt.priceUsdCents!==request.priceUsdCents))throw Error("This listing attempt already has different source or price terms.");
     if(!attempt){await makeListRoom();record=load();attempt={...request,listingId:`market:listing:${digest({ownerHandle:input.ownerHandle,keyId:input.keyId,request})}`};save({...record,lists:[...record.lists,attempt]});}
-    if(!attempt.selection){const selection=await input.qualifySelection(request.asset);current();validateWildzMarketSelectionV128(selection);if(!same(selection.asset,request.asset))throw Error("The qualified source differs from this selected asset.");attempt={...attempt,selection};record=load();save({...record,lists:record.lists.map(item=>item.attemptId===request.attemptId?attempt!:item)});}
-    const repo=await source();dispatched=true;
-    const actual=await repo.list({attemptId:attempt.attemptId,listingId:attempt.listingId,selection:attempt.selection!,priceUsdCents:Number(attempt.priceUsdCents)});current();sourceSnapshot=actual.snapshot;
-    record=load();save({...record,lists:record.lists.map(item=>item.attemptId===request.attemptId?{...item,published:true}:item)});emit("The SDK source listing is confirmed.");
-    return {status:actual.listing.status==="cancelled"?"cancelled":"listed",listingId:actual.listing.listingId,message:"The exact source listing is confirmed."};
+    if(!attempt.selection){const selection=await (input.publication?.selection??input.qualifySelection)(request.asset);current();validateWildzMarketSelectionV128(selection);if(!same(selection.asset,request.asset))throw Error("The selected advertisement differs from this held asset.");attempt={...attempt,selection};record=load();save({...record,lists:record.lists.map(item=>item.attemptId===request.attemptId?attempt!:item)});}
+    const repo=input.publication?await input.publication.open():await source();dispatched=true;
+    const actual=await repo.list({attemptId:attempt.attemptId,listingId:attempt.listingId,selection:attempt.selection!,priceUsdCents:Number(attempt.priceUsdCents)});current();
+    if(input.publication){publicationSnapshot=actual.snapshot;sourceSnapshot={head:null,proof:null,state:{...actual.snapshot.state,listings:{...sourceSnapshot?.state.listings,...actual.snapshot.state.listings}}};}else sourceSnapshot=actual.snapshot;
+    record=load();save({...record,lists:record.lists.map(item=>item.attemptId===request.attemptId?{...item,published:true}:item)});emit("The public listing is confirmed.");
+    return {status:actual.listing.status==="cancelled"?"cancelled":"listed",listingId:actual.listing.listingId,message:input.publication?"The signed public listing is confirmed.":"The exact source listing is confirmed."};
    });}catch(cause){try{emit();}catch{}return dispatched?{status:"pending",message:"Check the same listing attempt. Its source publication response is uncertain."}:failure(cause);}
   },
   async cancel(listingId){let dispatched=false;try{return await locked(async()=>{
+   if(input.publication){const publication=await input.publication.open(),publicState=await publication.load();current();const advertised=publicState.state.listings[listingId];
+    if(advertised&&sourceSnapshot?.state.listings[listingId]?.status!=='reserved'&&sourceSnapshot?.state.listings[listingId]?.status!=='sold'){dispatched=true;const result=await publication.cancel({attemptId:`${listingId}:cancel`,listingId,expectedListingHead:advertised.listingHead});current();
+     publicationSnapshot=result.snapshot;sourceSnapshot={head:null,proof:null,state:{...result.snapshot.state,listings:{...sourceSnapshot?.state.listings,...result.snapshot.state.listings}}};
+     emit("The public listing withdrawal is confirmed.");return {status:'cancelled',listingId,message:'The public listing is withdrawn.'};}
+   }
    const repo=await source();let actual=await repo.observe({listingId});current();let listing=actual.listing;
    if(listing.status==="reserved"){
     const reservation=listing.reservation!;

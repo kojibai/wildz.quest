@@ -1362,8 +1362,8 @@ export function PlayCampaign({
       return {keyId, ownerHandle};
     };
     return createLazyWildzMarketServiceV128({binding: {keyId, ownerHandle}, currentBinding: currentIdentity, open: async () => {
-      const [{createWildzMarketServiceV128}, {openWildzMarketSourceBrowserV128}, {createWildzMarketPublicReadSourceV128}] = await Promise.all([
-        import("../market/wildz-market-service-v128"), import("../../lib/receiz/wildz-market-source-browser-v128"), import("../../lib/receiz/wildz-market-public-read-v128")
+      const [{createWildzMarketServiceV128}, {openWildzMarketSourceBrowserV128}, {createWildzMarketPublicReadSourceV128}, {openWildzMarketPublicationBrowserV128,selectWildzMarketAdvertisementV128}] = await Promise.all([
+        import("../market/wildz-market-service-v128"), import("../../lib/receiz/wildz-market-source-browser-v128"), import("../../lib/receiz/wildz-market-public-read-v128"), import("../../lib/receiz/wildz-market-publication-browser-v128")
       ]);
       currentIdentity();
       const qualifySelection = (asset: WildsWalletAssetSendRequest["asset"]) => walletAssetPort.qualifyListing(asset,
@@ -1371,6 +1371,8 @@ export function PlayCampaign({
       return createWildzMarketServiceV128({keyId, ownerHandle, currentIdentity,
         readSelections: () => marketReadSelectionsRef.current(), qualifySelection,
         openReadSource: async () => createWildzMarketPublicReadSourceV128(),
+        publication:{open:async()=>openWildzMarketPublicationBrowserV128({keyId,ownerHandle,currentIdentity}),
+          selection:async asset=>{currentIdentity();return selectWildzMarketAdvertisementV128(asset,marketReadSelectionsRef.current(),ownerHandle);}},
         openSource: async ({verifyTransition}) => openWildzMarketSourceBrowserV128({resourceRuntime: await walletAssetPort.openRuntime(),
           qualifySelection: async selection => walletAssetPort.qualifyListing(selection.asset, selection.summary), verifyTransition}),
         staged: {assetPort: walletAssetPort, readConversations: readTradeConversations, publish: sendStagedTrade,
