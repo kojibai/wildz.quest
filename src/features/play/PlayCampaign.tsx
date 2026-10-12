@@ -93,7 +93,7 @@ import {
 } from "@/features/play/game-state";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
-import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
+import { canonicalPortableCardJson, sha256PortableBasis, verifyAnyWildsCard, type PortableCardAsset } from "@/features/play/portable-card";
 import { WildsCaptureReward } from "@/features/play/WildsCaptureReward";
 import { WildsBattle } from "@/features/play/WildsBattle";
 import { WildsTransformation } from "@/features/play/WildsTransformation";
@@ -1107,7 +1107,7 @@ export function PlayCampaign({
   const walletTradeOwnerHandle = walletPublicUsername ? `${walletPublicUsername.replace(/\.receiz\.id$/, "").toLowerCase()}.receiz.id` : null;
   const walletTradeIdentityRef = useRef({keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle, incarnation: walletObservationEpoch ?? "legacy"});
   walletTradeIdentityRef.current = {keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle, incarnation: walletObservationEpoch ?? "legacy"};
-  const {readTradeConversations, sendBearerGift, sendResourceSource, sendStagedTrade} = messenger;
+  const {readTradeConversations, sendBearerGift, sendResourceSource, sendStagedTrade, sendMarketOffer} = messenger;
   const [walletSourceRows, setWalletSourceRows] = useState<{keyId: string; actorId: string; owner: string; incarnation: string; pending?: boolean; rows: readonly WildsWalletResourceProjectionRowV128[]} | null>(() => admittedWalletPresentation && walletTradeOwnerHandle ? {keyId: admittedWalletPresentation.keyId, actorId: walletIdentityKey, owner: walletTradeOwnerHandle, incarnation: admittedWalletPresentation.incarnation, rows: admittedWalletPresentation.resourceRows, pending: admittedWalletPresentation.resourceRowsPending} : null);
   const scopedWalletSourceRows = walletSourceRows && walletSourceRows.keyId === walletReadIdentityKey && walletSourceRows.actorId === walletIdentityKey && walletSourceRows.owner === walletTradeOwnerHandle && walletSourceRows.incarnation === (walletObservationEpoch ?? "legacy") ? walletSourceRows : null;
   const currentWalletSourceRows = scopedWalletSourceRows?.rows ?? admittedWalletPresentation?.resourceRows ?? EMPTY_WALLET_SOURCE_ROWS;
@@ -1362,16 +1362,29 @@ export function PlayCampaign({
       return {keyId, ownerHandle};
     };
     return createLazyWildzMarketServiceV128({binding: {keyId, ownerHandle}, currentBinding: currentIdentity, open: async () => {
-      const [{createWildzMarketServiceV128}, {openWildzMarketSourceBrowserV128}, {createWildzMarketPublicReadSourceV128}, {openWildzMarketPublicationBrowserV128,selectWildzMarketAdvertisementV128}, {createWildzMarketFundingBrowserV128}] = await Promise.all([
-        import("../market/wildz-market-service-v128"), import("../../lib/receiz/wildz-market-source-browser-v128"), import("../../lib/receiz/wildz-market-public-read-v128"), import("../../lib/receiz/wildz-market-publication-browser-v128"), import("../market/wildz-market-funding-browser-v128")
+      const [{createWildzMarketServiceV128}, {openWildzMarketSourceBrowserV128}, {createWildzMarketPublicReadSourceV128}, {openWildzMarketPublicationBrowserV128,selectWildzMarketAdvertisementV128}, {createWildzMarketFundingBrowserV128}, {withWildzMarketCommunity,readWildzMarketCollection}, {createWildzMarketPublicValuePublisherV129}, {createWildzMarketValueBrowserPortV129}] = await Promise.all([
+        import("../market/wildz-market-service-v128"), import("../../lib/receiz/wildz-market-source-browser-v128"), import("../../lib/receiz/wildz-market-public-read-v128"), import("../../lib/receiz/wildz-market-publication-browser-v128"), import("../market/wildz-market-funding-browser-v128"), import("../market/wildz-market-community-service"), import("../../lib/receiz/wildz-market-public-value-publisher-v129"), import("../market/wildz-market-value-browser-v129")
       ]);
       currentIdentity();
       const qualifySelection = (asset: WildsWalletAssetSendRequest["asset"]) => walletAssetPort.qualifyListing(asset,
         marketReadSelectionsRef.current().find(selection => JSON.stringify(selection.asset) === JSON.stringify(asset))?.label);
-      return createWildzMarketServiceV128({keyId, ownerHandle, currentIdentity,
+      const base = createWildzMarketServiceV128({keyId, ownerHandle, currentIdentity,
         readSelections: () => marketReadSelectionsRef.current(), qualifySelection,
         funding:createWildzMarketFundingBrowserV128({keyId,ownerHandle,currentIdentity}),
         activatePublicListings:true,
+        publishCardValue:async(asset,sourceDigest)=>{
+          if(asset.kind!=="creature")return;
+          const resourceRuntime=await walletAssetPort.openRuntime();currentIdentity();
+          const publisher=createWildzMarketPublicValuePublisherV129({sdk:resourceRuntime.sdk,database:resourceRuntime.database,
+            sourceAuthor:resourceRuntime.sourceAuthor,assertCurrent:()=>{currentIdentity();}});
+          const currentCard=walletSourceLive.current.state.inventory.find(card=>card.id===asset.assetId);
+          if(!currentCard||!sourceDigest)throw Error("Reopen this listed creature in your Vault before enabling its value chart.");
+          if(await publisher.resume(currentCard,sourceDigest)){currentIdentity();return;}
+          const qualified=await walletAssetPort.qualifyValueProof(asset);currentIdentity();
+          if(!sourceDigest||qualified.selection.sourceDigest!==sourceDigest)throw Error("The creature source changed. Relist the current card from Sell before enabling its value chart.");
+          await publisher.publish(qualified.card,qualified.projectionOriginal);
+          currentIdentity();
+        },
         openReadSource: async () => createWildzMarketPublicReadSourceV128(),
         publication:{open:async()=>openWildzMarketPublicationBrowserV128({keyId,ownerHandle,currentIdentity}),
           selection:async asset=>{currentIdentity();return selectWildzMarketAdvertisementV128(asset,marketReadSelectionsRef.current(),ownerHandle);}},
@@ -1380,8 +1393,19 @@ export function PlayCampaign({
         staged: {assetPort: walletAssetPort, readConversations: readTradeConversations, publish: sendStagedTrade,
           sendWalletAsset: async () => ({status: "failed", message: "Review the exact native asset in Market."}), ensureReady: ensureWalletTradeReady, observeSubmission: markWalletObservationPending}
       });
+      const community:WildzMarketServiceV128=withWildzMarketCommunity(base,{currentIdentity,readCollection:()=>readWildzMarketCollection(),readConversations:readTradeConversations,publish:sendMarketOffer,
+        value:createWildzMarketValueBrowserPortV129({ownerHandle,current:()=>{currentIdentity();},ensureReady:ensureWalletTradeReady,
+          card:async assetId=>{
+            const selected=community.snapshot().collection?.find(card=>card.assetId===assetId);
+            if(!selected)return null;
+            const response=await fetch(`/api/cards/${encodeURIComponent(assetId)}?profile=${encodeURIComponent(selected.ownerHandle)}`,{credentials:"omit",cache:"no-store",signal:AbortSignal.timeout(10_000)});
+            const value=await response.json() as {ok?:boolean;record?:{asset?:PortableCardAsset}};currentIdentity();
+            const card=value.record?.asset;
+            return response.ok&&value.ok===true&&card?.id===assetId&&card.proof.digest===selected.proofDigest&&verifyAnyWildsCard(card).ok?card:null;
+          }})});
+      return community;
     }});
-  }, [walletReadIdentityKey, walletTradeOwnerHandle, walletAssetPort, readTradeConversations, sendStagedTrade, ensureWalletTradeReady, markWalletObservationPending]);
+  }, [walletReadIdentityKey, walletTradeOwnerHandle, walletAssetPort, readTradeConversations, sendStagedTrade, sendMarketOffer, ensureWalletTradeReady, markWalletObservationPending]);
   useEffect(() => {
     marketActiveRef.current = true;
     onMarketServiceChange?.(lazyMarket?.service ?? null);
@@ -4107,6 +4131,7 @@ export function PlayCampaign({
               kaiMoment={kaiMoment}
               modalOwned={exclusiveOwner === "multiplayer"}
               messenger={messenger}
+              onOpenMarket={onOpenMarket}
               multiplayer={multiplayer}
               onEnterRaid={enterLivingRaid}
               onOpenCommandCenter={() => {

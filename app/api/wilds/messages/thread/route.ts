@@ -1,3 +1,4 @@
+import {admitWildzMarketOfferMessage,wildzMarketOfferMessageId} from '@/features/market/wildz-market-offers';
 import { admitWildsWalletResourceSourceMessageV128, wildsWalletResourceSourceMessageIdV128 } from "@/features/play/wallet/wilds-wallet-resource-source-messaging-v128";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -73,6 +74,12 @@ export async function POST(request: NextRequest) {
     const peer = peerFrom(body.peer);
     await hydrateWildsConversation(request, actor, peer);
     const action = body.action;
+    let marketOfferContext;
+    if(action==='market-offer'){
+      if(!actor.accessToken||actor.practice)throw Error('receiz_wallet_authority_required');
+      marketOfferContext=admitWildzMarketOfferMessage(body.context,actor.handle,peer.handle);
+      if(body.clientMessageId!==wildzMarketOfferMessageId(marketOfferContext))throw Error('wildz_market_offer_invalid');
+    }
     let tradeContext;
     let stagedTradeContext;
     let bearerGiftContext;
@@ -109,14 +116,14 @@ export async function POST(request: NextRequest) {
       const inspection = await rail.inspectBearerTransferInstrument(claim.carrier.offer.instrument);
       if (!inspection.valid || !inspection.offlineVerified || inspection.instrument.artifactDigest !== claim.carrier.offer.instrument.artifactDigest) throw Error('wilds_message_resource_claim_invalid');
     }
-    const conversation = action === "send" || action === "phi-transfer" || action === "resource-offer" || action === "trade-package" || action === "trade-staged" || action === "trade-bearer" || action === "trade-resource-source"
+    const conversation = action === "market-offer" || action === "send" || action === "phi-transfer" || action === "resource-offer" || action === "trade-package" || action === "trade-staged" || action === "trade-bearer" || action === "trade-resource-source"
       ? appendWildsDirectMessage({
           sender: self,
           recipient: peer,
           body: String(body.message ?? ""),
           clientMessageId: String(body.clientMessageId ?? ""),
           replyToId: typeof body.replyToId === "string" ? body.replyToId : null,
-          ...(action === "phi-transfer" ? { context: phiTransferContext(body.context) } : resourceContext ? { context: resourceContext } : resourceSourceContext ? {context:resourceSourceContext} : bearerGiftContext ? {context:bearerGiftContext} : stagedTradeContext ? {context: stagedTradeContext} : tradeContext ? {context: tradeContext} : {})
+          ...(action === "phi-transfer" ? { context: phiTransferContext(body.context) } : resourceContext ? { context: resourceContext } : resourceSourceContext ? {context:resourceSourceContext} : bearerGiftContext ? {context:bearerGiftContext} : stagedTradeContext ? {context: stagedTradeContext} : tradeContext ? {context: tradeContext} : marketOfferContext ? {context: marketOfferContext} : {})
         }).conversation
       : action === "read"
         ? markWildsConversationRead({ left: self, right: peer, actorId: actor.playerId, through: typeof body.through === "string" ? body.through : undefined })

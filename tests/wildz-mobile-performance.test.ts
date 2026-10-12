@@ -57,7 +57,10 @@ test("cards arrive prepainted and movement emits on initial touch", () => {
 
   assert.match(card, /export const WildsCard = memo/);
   assert.match(card, /useMemo\(\(\) => wildsCardArtwork/);
-  assert.match(source("src/features/play/wilds-card-artwork.ts"), /renderHeartboundSvg/);
+  const artwork = source("src/features/play/wilds-card-artwork.ts");
+  assert.match(artwork, /renderWildsCollectibleArt/);
+  assert.match(artwork, /new WeakMap/);
+  assert.match(artwork, /artwork\.get\(asset\)/);
   assert.match(dpad, /const next = update\(event\);\s*emitMovement\(next\);/s);
   assert.match(css, /\.wilds-card-face-front\s*\{[^}]*transform:\s*translateZ\(0\.1px\)/s);
   const cardRule = css.match(/\.wilds-collectible-card\s*\{([^}]*)\}/s)?.[1] ?? "";

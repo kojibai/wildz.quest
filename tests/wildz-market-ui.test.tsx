@@ -22,7 +22,7 @@ function fixture(input:Partial<WildzMarketSnapshotV128>={},ownerHandle=buyer){
 
 test('Market paints cached listings without opening SDK, quote, source or payment work during render',()=>{
  const f=fixture(),html=renderToStaticMarkup(<WildzMarketSheet service={f.service} connected/>);
- assert.match(html,/Ember Cub/);assert.match(html,/\$12\.34/);assert.match(html,/Review purchase/);assert.equal(f.calls(),0);
+ assert.match(html,/Ember Cub/);assert.match(html,/\$12\.34/);assert.match(html,/View listing/);assert.equal(f.calls(),0);
  const offline=renderToStaticMarkup(<WildzMarketSheet service={null} connected={false}/>);
  assert.match(offline,/Connect your Receiz ID/);assert.doesNotMatch(offline,/Approve purchase|Approve sale|Accept delivery/);
 });
@@ -48,6 +48,13 @@ test('Sell displays the real package selection and keeps reserved own listings o
  assert.match(sell,/Trail provisions/);assert.match(sell,/2 wild fruit/);assert.match(sell,/Living Honey/);assert.match(sell,/Price in USD/);
  const activity=renderToStaticMarkup(<WildzMarketSheet service={f.service} connected initialTab="activity"/>);
  assert.match(activity,/Reserved harvest/);assert.match(activity,/Reserved/);assert.doesNotMatch(activity,/>Cancel listing<\/button>/);
+});
+
+test('native-active seller can explicitly retry a public value proof without reconnecting purchases',()=>{
+ const f=fixture({listings:[{listingId:'mine',title:'Value pending cub',kind:'creature',asset,sellerHandle:buyer,priceUsdCents:'200',status:'active',canBuy:false,canActivate:false,canCancel:true}]});
+ const service={...f.service,activateListing:async()=>({status:'listed' as const,message:'Recovered the same listing.'})};
+ const html=renderToStaticMarkup(<WildzMarketSheet service={service} connected initialTab="activity"/>);
+ assert.match(html,/>Enable value chart<\/button>/);assert.doesNotMatch(html,/>Enable purchases<\/button>/);assert.equal(f.calls(),0);
 });
 
 test('reopened pending listing remains visible with the original asset and price even after holdings refresh',()=>{

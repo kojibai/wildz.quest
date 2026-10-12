@@ -9,7 +9,7 @@ import { describeWildzMarketSourceArchivePageV128, type WildzMarketSourceArchive
 import {describeWildzMarketSourceBytesPageV128} from "./wildz-market-source-original-locator-v128";
 import {describeWildsResourceSourceArchivePageV128} from "./wilds-resource-source-archive-v128";
 import { normalizeWildsWalletPublicUsername } from "./wilds-wallet-projections";
-import { WILDZ_RECEIZ_APPLICATION_ID } from "./wildz-application";
+import { wildzNativeApplicationId } from "./wildz-native-application";
 
 const MAX_BYTES = 2_000_000;
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
@@ -35,7 +35,7 @@ async function context(request: NextRequest) {
 export async function wildsWalletSourceSdkConfigV128(request: NextRequest,
   resolveSession: (request: NextRequest) => Promise<WildzReceizChatSession> = async request => (await context(request)).session) {
   const session = await resolveSession(request);
-  return { applicationId: WILDZ_RECEIZ_APPLICATION_ID, baseUrl: session.origin };
+  return { applicationId: wildzNativeApplicationId(), baseUrl: session.origin };
 }
 
 /** A bounded transport for actual published source APIs. Current account/key
@@ -58,7 +58,7 @@ export async function proxyWildsWalletSourceSdkV128(request: NextRequest): Promi
     ({ path, query, method, body } = wire as { path: string; query: string; method: string; body: unknown });
   }
   if (!isWildsWalletSourceSdkPathV128(path, method, query) || path.length > 400 || query.length > 800) throw Error("wildz_resource_sdk_path_invalid");
-  const applicationId = WILDZ_RECEIZ_APPLICATION_ID, params = new URLSearchParams(query);
+  const applicationId = wildzNativeApplicationId(), params = new URLSearchParams(query);
   if (params.has("applicationId") && params.get("applicationId") !== applicationId || object(body) && typeof body.applicationId === "string" && body.applicationId !== applicationId) throw Error("The native source request names another application.");
   const headers = new Headers({ accept: request.headers.get("accept") ?? "application/json" });
   for (const name of ["x-idempotency-key", "idempotency-key"]) {

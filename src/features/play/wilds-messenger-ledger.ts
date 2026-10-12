@@ -1,3 +1,4 @@
+import {admitWildzMarketOfferMessage,wildzMarketOfferMessageId} from '../market/wildz-market-offers';
 import { admitWildsWalletResourceSourceMessageV128, wildsWalletResourceSourceMessageIdV128 } from "./wallet/wilds-wallet-resource-source-messaging-v128";
 import { validateResourceOfferMessage } from './wilds-resource-messaging';
 import {
@@ -114,7 +115,9 @@ export function appendWildsDirectMessage(input: {
   const clientMessageId = input.clientMessageId.trim().slice(0, 160);
   if (!clientMessageId) throw new Error("wilds_client_message_id_required");
   const body = sanitizeWildsDirectMessage(input.body);
-  const context = input.context?.kind === "trade-package"
+  const context = input.context?.kind === 'market-offer' || input.context?.kind === 'market-offer-response'
+    ? admitWildzMarketOfferMessage(input.context, sender.handle, recipient.handle)
+    : input.context?.kind === "trade-package"
     ? validateWildsWalletTradeMessage(input.context, sender.handle, recipient.handle)
     : input.context?.kind === "trade-staged-approval" || input.context?.kind === "trade-staged-progress"
       ? admitWildsWalletStagedTradeMessage(input.context, sender.handle, recipient.handle)
@@ -140,6 +143,19 @@ export function appendWildsDirectMessage(input: {
       && canonicalPortableCardJson(message.context.draft) === canonicalPortableCardJson(context.inReplyTo?.draft))) {
       throw Error("wilds_wallet_trade_original_offer_required");
     }
+  }
+
+  if(context?.kind==='market-offer'||context?.kind==='market-offer-response'){
+    if(clientMessageId!==wildzMarketOfferMessageId(context))throw Error('wildz_market_offer_invalid');
+    if(context.kind==='market-offer-response'){
+      const original=conversation.messages.find(message=>!message.deletedAt&&!message.editedAt&&message.context?.kind==='market-offer'
+        &&canonicalPortableCardJson(message.context.offer)===canonicalPortableCardJson(context.offer));
+      if(!original)throw Error('wildz_market_original_offer_required');
+      const prior=conversation.messages.find(message=>message.context?.kind==='market-offer-response'&&message.context.offer.offerId===context.offer.offerId);
+      if(prior&&canonicalPortableCardJson(prior.context)!==canonicalPortableCardJson(context))throw Error('wildz_market_offer_already_resolved');
+    }
+    const prior=conversation.messages.find(message=>message.clientMessageId===clientMessageId);
+    if(prior&&canonicalPortableCardJson(prior.context)!==canonicalPortableCardJson(context))throw Error('wildz_market_offer_attempt_conflict');
   }
 
   if (context?.kind === "phi-transfer" && (

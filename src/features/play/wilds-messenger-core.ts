@@ -1,3 +1,4 @@
+import type {WildzMarketOfferMessage} from '../market/wildz-market-offers';
 import type { WildsWalletResourceSourceMessageV128 } from "./wallet/wilds-wallet-resource-source-messaging-v128";
 import type { WildsResourceOfferMessage } from './wilds-resource-messaging';
 import type { WildsWalletTradeMessage } from "./wallet/wilds-wallet-trade-messaging";
@@ -37,7 +38,7 @@ export type WildsDirectMessage = {
   deletedAt: string | null;
   replyToId: string | null;
   reactions: WildsDirectMessageReaction[];
-  context?: WildsWalletResourceSourceMessageV128 | WildsResourceOfferMessage | WildsWalletTradeMessage | WildsWalletStagedTradeMessage | WildsWalletBearerGiftMessage | {
+  context?: WildzMarketOfferMessage | WildsWalletResourceSourceMessageV128 | WildsResourceOfferMessage | WildsWalletTradeMessage | WildsWalletStagedTradeMessage | WildsWalletBearerGiftMessage | {
     kind: "group-invite";
     roomId: string;
     roomName: string;

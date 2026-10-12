@@ -22,7 +22,7 @@ test("market construction and cached subscriptions do not enroll sources or touc
 const digest=(value:unknown)=>sha256PortableBasis(canonicalPortableCardJson(value)).slice(7);
 const clone=<T>(value:T):T=>structuredClone(value);
 function memory(){let value:unknown=null;return {load:()=>clone(value),write:(_key:string,next:unknown)=>{value=clone(next);},withLock:async<T>(_key:string,action:()=>Promise<T>)=>action()};}
-async function fixture(funding?:{ensure(input:unknown,allowCheckout:boolean):Promise<any>},publicListings=false){
+async function fixture(funding?:{ensure(input:unknown,allowCheckout:boolean):Promise<any>},publicListings=false,publishCardValue?: (asset: {kind:'creature';assetId:string})=>Promise<void>){
  const marketModule=await import(path);
  const asset={kind:"creature" as const,assetId:"card:one"};
  const selection={asset,semanticIds:[`creature:profile:bob:${"b".repeat(64)}`],sourceDigest:"d".repeat(64),summary:"Bob's creature",resourceUnits:0,creatureCount:1};
@@ -69,7 +69,7 @@ async function fixture(funding?:{ensure(input:unknown,allowCheckout:boolean):Pro
    return {approve:async(agreement:any)=>{const plan=createWildsWalletStagedTradePlan(agreement);await input.marketExecution.assert(plan,"approve");await ingest(plan);const approved=await controller.approve(agreement,ports);return approved.status==="awaiting-peer"?controller.advance(plan.tradeId,ports):approved;},resume:async(agreement:any)=>{const plan=createWildsWalletStagedTradePlan(agreement);await ingest(plan);return controller.advance(plan.tradeId,ports);},acceptIncomingAsset:async(legId:string)=>{const plan=admitWildsWalletStagedTradeRecovery(stores.staged.load(),binding).trades.find(item=>item.plan.legs.some(leg=>leg.legId===legId))!.plan;return controller.acceptIncomingAsset(plan.tradeId,legId,ports);},receive:async(context:any)=>{const plan=context.plan??admitWildsWalletStagedTradeRecovery(stores.staged.load(),binding).trades.find(item=>item.plan.tradeId===context.tradeId)!.plan;if(context.kind==="trade-staged-approval")await controller.receiveApproval(plan,context.approval,ports);return controller.advance(plan.tradeId,ports);},incomingAssets:async()=>[]};
   };
   const publication=publicListings?{selection:async()=>({...clone(selection),sourceDigest:'e'.repeat(64)}),open:async()=>({load:async()=>({state:clone(publicState),head:null,proof:null}),observe:async(listingId:string)=>{const listing=publicState.listings[listingId];if(!listing)throw Error('wildz_market_publication_listing_missing');return {listing:clone(listing),snapshot:{state:clone(publicState),head:null,proof:null}};},list:async(request:any)=>{publicState=reduceWildzMarketSourceV128(publicState,{schema:'wildz.market-source-command.v128',kind:'list',actorHandle:handle,...request},handle);return {listing:clone(publicState.listings[request.listingId]),snapshot:{state:clone(publicState),head:null,proof:null}};},cancel:async(request:any)=>{if(publicCancelLost){publicCancelLost=false;throw Error("public withdrawal response uncertain");}publicState=reduceWildzMarketSourceV128(publicState,{schema:'wildz.market-source-command.v128',kind:'cancel',actorHandle:handle,...request},handle);return {listing:clone(publicState.listings[request.listingId]),snapshot:{state:clone(publicState),head:null,proof:null}};}})}:undefined;
-  const service=marketModule.createWildzMarketControllerV128({keyId,ownerHandle:handle,currentIdentity:()=>({keyId,ownerHandle:actualOwner}),store:stores.market,archiveStore:createWildzMarketArchiveStoreV128(stores.database),currentKai:()=>currentKai,qualifySelection:async()=>{if(qualifierUnavailable)throw Error("The listed source legitimately changed.");return clone(selection);},readSelections:()=>[{id:"card:one",label:"Creature",quantity:1,asset}],fetcher,funding,publication,activatePublicListings:publicListings,
+  const service=marketModule.createWildzMarketControllerV128({keyId,ownerHandle:handle,currentIdentity:()=>({keyId,ownerHandle:actualOwner}),store:stores.market,archiveStore:createWildzMarketArchiveStoreV128(stores.database),currentKai:()=>currentKai,qualifySelection:async()=>{if(qualifierUnavailable)throw Error("The listed source legitimately changed.");return clone(selection);},readSelections:()=>[{id:"card:one",label:"Creature",quantity:1,asset}],fetcher,funding,publication,activatePublicListings:publicListings,...(publishCardValue?{publishCardValue:async(asset:unknown)=>publishCardValue(asset as {kind:'creature';assetId:string})}:{}),
    openSource:async({verifyTransition}:any)=>({load:async()=>sourceSnapshot(),observe:async({listingId}:any)=>result(listingId),verifyReservation:async(request:any)=>{const actual=result(request.listingId),r=actual.listing.reservation;if(!r||r.reservationId!==request.reservationId||r.buyerHandle!==request.buyerHandle||r.sellerHandle!==request.sellerHandle||r.listingHead!==request.listingHead)throw Error("native reservation admission denied");return actual;},list:async(request:any)=>{const event={schema:"wildz.market-source-command.v128",kind:"list",actorHandle:handle,...request};if(nativeListDeferred){nativeListDeferred=false;throw Error("native list reply unknown before observation");}const original=nativeListEvents.get(request.attemptId);if(original){assert.deepEqual(event,original);return result(request.listingId);}sourceState=reduceWildzMarketSourceV128(sourceState,event as any,handle);nativeListEvents.set(request.attemptId,clone(event));nativeListWrites++;if(nativeListLost){nativeListLost=false;throw Error("native list committed reply lost");}return result(request.listingId);},reserve:async(request:any)=>{if(reserveUnobserved){reserveUnobserved=false;throw Error("original source reservation is unobserved");}const event={schema:"wildz.market-source-command.v128",kind:"reserve",actorHandle:handle,...request};sourceState=reduceWildzMarketSourceV128(sourceState,event as any,handle);if(reserveLost){reserveLost=false;throw Error("native reserve committed reply lost");}return result(request.listingId);},cancel:async(request:any)=>{sourceState=reduceWildzMarketSourceV128(sourceState,{schema:"wildz.market-source-command.v128",kind:"cancel",actorHandle:handle,...request},handle);return result(request.listingId);},transition:async(event:any)=>{if(["approved","progress","terminal-consent"].includes(event.kind))await verifyTransition(event,sourceState.listings[event.listingId]);sourceState=reduceWildzMarketSourceV128(sourceState,event,handle);events.push(event.kind==="progress"?event.phase:event.kind);return result(event.listingId);}}),
    staged:{observeSubmission:async()=>{events.push("observation-pending");throw Error("optional display cache quota");},recoveryStore:stores.staged,archiveStore:tradeArchive,sendWalletAsset:async()=>({status:"failed",message:"baseline send is not the market rail"}),assetPort:assetPort as any,readConversations:async()=>[{messages:clone(messages)}] as any,publish:async()=>{},ensureReady:async()=>true}},
    {verifyApproval:verifyApproval as any,createAdapter:createAdapter as any,createPhi:(parameters:Parameters<typeof createWildsWalletConnectPhiPort>[0])=>createWildsWalletConnectPhiPort({...parameters,store:stores.phi,authorization:{authorize:async()=>({artifact:{},challenge:{}})},fetcher})});
@@ -235,6 +235,73 @@ test("market capacity re-admits completed full native history from the shared st
  const archive=createWildzMarketArchiveStoreV128(buyer.stores.database),retained=await archive.readPurchase({ownerHandle:"alice.receiz.id",keyId:"a".repeat(64)},review.purchaseId);assert.deepEqual(retained?.entry,completed);
  const before=f.executeCount();assert.equal((await buyer.service.resume(review.purchaseId)).status,"completed");assert.equal(f.executeCount(),before,"historical check cannot issue another financial send");
 });
+
+async function archivedCompletedPair() {
+ const f=await fixture(),{buyer,seller,review}=await reviewedPair(f),peer=f.messages.find(message=>message.senderHandle==="bob.receiz.id"&&(message.context as any).kind==="trade-staged-approval")!;
+ await buyer.service.receive(peer.context,"bob.receiz.id");await seller.service.resume(review.purchaseId);await buyer.service.accept(review.purchaseId);await seller.service.resume(review.purchaseId);await buyer.service.resume(review.purchaseId);
+ const market=buyer.stores.market.load() as any,staged=buyer.stores.staged.load() as any;
+ const value={checkpoint:market.purchases.find((row:any)=>row.agreement.market.purchaseId===review.purchaseId),binding:staged.binding,entry:staged.trades[0]};
+ await createWildzMarketArchiveStoreV128(buyer.stores.database).retainPurchase({ownerHandle:"alice.receiz.id",keyId:"a".repeat(64)},value);
+ const receiptDigests={payment:f.sourceState().listings["market:listing:one"]!.reservation!.paymentReceiptDigest,asset:f.sourceState().listings["market:listing:one"]!.reservation!.assetReceiptDigest};
+ // This terminal has left the bounded native projection. Its exact archive stays retained.
+ delete (f.sourceState().listings as Record<string,unknown>)["market:listing:one"];
+ (f.sourceState().terminalOrder as string[]).splice(0);
+ f.addListing("market:listing:next");
+ const key=JSON.stringify(["wildz.market.private-archive.v128","alice.receiz.id","a".repeat(64),"purchase",review.purchaseId]);
+ return {f,buyer,review,value,key,receiptDigests};
+}
+
+test("automatic market browsing never treats self-hashed archive receipts as a completed sale",async()=>{
+ const {f,buyer,key}=await archivedCompletedPair();
+ const envelope=await buyer.stores.database.read<any>("meta",key);envelope.value.entry.legs[1].receipt={nativeSuccessor:"forged-local-delivery"};
+ envelope.digest=sha256PortableBasis(canonicalPortableCardJson(envelope.value));
+ await buyer.stores.database.transaction(["meta"],"readwrite",tx=>tx.put("meta",envelope,key));
+ const before=f.executeCount(),reads=await buyer.service.read();
+ assert.equal(reads.status,"ready");assert.equal(reads.listings.some((row:any)=>row.listingId==="market:listing:next"&&row.canBuy),true);
+ assert.deepEqual(reads.history,[],"raw local completion status and recomputed archive SHA cannot admit a sale");
+ assert.equal(f.executeCount(),before);
+});
+
+test("explicit older-history read independently admits the original approvals, payment and accepted source without dispatch",async()=>{
+ const {f,buyer,review,key,receiptDigests}=await archivedCompletedPair();
+ assert.equal(typeof buyer.service.readHistory,"function");
+ const before=f.executeCount(),accepted=f.events.filter(event=>event==="asset-accept").length;
+ await buyer.service.read();
+ const verified=await buyer.service.readHistory();
+ assert.equal(verified.history.length,1);assert.equal(verified.history[0].id,review.reservationId);
+ assert.equal(verified.history[0].paymentReceiptDigest,receiptDigests.payment);assert.equal(verified.history[0].assetReceiptDigest,receiptDigests.asset);
+ assert.equal(f.executeCount(),before);assert.equal(f.events.filter(event=>event==="asset-accept").length,accepted);
+ const envelope=await buyer.stores.database.read<any>("meta",key);envelope.value.entry.approvals[0].evidence="forged-native-approval";
+ envelope.digest=sha256PortableBasis(canonicalPortableCardJson(envelope.value));
+ await buyer.stores.database.transaction(["meta"],"readwrite",tx=>tx.put("meta",envelope,key));
+ const cold=await f.make("alice"),rejected=await cold.service.readHistory();
+ assert.equal(rejected.status,"ready");assert.deepEqual(rejected.history,[]);
+ assert.match(rejected.message,/could not be verified/i);assert.equal(f.executeCount(),before);
+});
+
+test("a forged archived accepted-delivery receipt and optional history outage leave current purchases usable",async()=>{
+ const {f,buyer,key}=await archivedCompletedPair();
+ assert.equal(typeof buyer.service.readHistory,"function");
+ const envelope=await buyer.stores.database.read<any>("meta",key);envelope.value.entry.legs[1].receipt={nativeSuccessor:"forged-local-delivery"};
+ envelope.digest=sha256PortableBasis(canonicalPortableCardJson(envelope.value));
+ await buyer.stores.database.transaction(["meta"],"readwrite",tx=>tx.put("meta",envelope,key));
+ await buyer.service.read();
+ const rejected=await buyer.service.readHistory();assert.deepEqual(rejected.history,[]);assert.match(rejected.message,/could not be verified/i);
+ buyer.stores.database.failNextTransaction();
+ const read=await buyer.service.read();assert.equal(read.status,"ready");assert.equal(read.listings.some((row:any)=>row.listingId==="market:listing:next"),true);
+ const unavailable=await buyer.service.readHistory();assert.equal(unavailable.status,"ready");assert.match(unavailable.message,/could not be loaded/i);
+ assert.equal((await buyer.service.previewPurchase("market:listing:next")).phase,"review");assert.equal(f.executeCount(),1);
+});
+
+test("a rewritten archived payment locator cannot substitute for the independently observed original transfer",async()=>{
+ const {f,buyer,key}=await archivedCompletedPair();
+ const envelope=await buyer.stores.database.read<any>("meta",key);envelope.value.entry.legs[0].receipt.attempt=`v3.${"f".repeat(64)}`;
+ envelope.digest=sha256PortableBasis(canonicalPortableCardJson(envelope.value));
+ await buyer.stores.database.transaction(["meta"],"readwrite",tx=>tx.put("meta",envelope,key));
+ const cold=await f.make("alice"),read=await cold.service.readHistory();
+ assert.equal(read.status,"ready");assert.deepEqual(read.history,[]);assert.match(read.message,/could not be verified/i);
+ assert.equal(f.executeCount(),1);assert.equal(f.events.filter(event=>event==="asset-accept").length,1);
+});
 test("listing capacity checks exact terminal history after native recent projection pruning",async()=>{
  const f=await fixture(),seller=await f.make("bob");await seller.service.cancel("market:listing:one");const rows=f.cancelledHistory();seller.stores.market.write("",{schema:"wildz.market-recovery.v128",ownerHandle:"bob.receiz.id",keyId:"b".repeat(64),lists:rows,purchases:[],pendingReservations:[]});
  assert.equal(f.sourceState().listings[rows[0].listingId],undefined,"native recent display projection no longer contains the terminal listing");
@@ -258,4 +325,21 @@ test("actual committed payment supersedes an earlier voluntary zero-write closin
  await buyer.service.receive(peer.context,"bob.receiz.id");f.kai(201);assert.equal((await buyer.service.cancel(review.listingId)).status,"pending");assert.equal(f.sourceState().listings[review.listingId]!.reservation?.terminalConsent?.outcome,"zero-write");
  f.commitInflight();assert.equal((await seller.service.cancel(review.listingId)).status,"failed");await buyer.service.resume(review.purchaseId);
  const actual=f.sourceState().listings[review.listingId]!;assert.equal(actual.reservation?.phase,"paid");assert.equal(actual.reservation?.terminalConsent,undefined);assert.equal(actual.status,"reserved");assert.equal(f.executeCount(),1,"only the original request was dispatched by this app");
+});
+
+
+test('public value proof publication follows native seller activation and never a browse or buyer review',async()=>{
+ const published:string[]=[],f=await fixture(undefined,true,async asset=>{published.push(asset.assetId);}),seller=await f.make('bob'),buyer=await f.make('alice');
+ await seller.service.read();await buyer.service.read();assert.equal(published.length,0);
+ const result=await seller.service.list({asset:{kind:'creature',assetId:'card:one'},priceUsdCents:'125',attemptId:'public:value:one'});
+ assert.equal(result.status,'listed');assert.deepEqual(published,['card:one']);
+ await buyer.service.read();assert.equal(buyer.service.snapshot().listings[0]!.canBuy,true);
+ await buyer.service.previewPurchase(result.listingId!);assert.deepEqual(published,['card:one']);assert.equal(f.executeCount(),0);
+});
+
+test('an unavailable public valuation proof cannot disable an already admitted purchase listing',async()=>{
+ const f=await fixture(undefined,true,async()=>{throw Error('public value proof publication unavailable');}),seller=await f.make('bob'),buyer=await f.make('alice');
+ const result=await seller.service.list({asset:{kind:'creature',assetId:'card:one'},priceUsdCents:'125',attemptId:'public:value:pending'});
+ assert.equal(result.status,'listed');assert.match(result.message,/value proof pending/);assert.doesNotMatch(result.message,/Purchase connection pending/);
+ await buyer.service.read();assert.equal(buyer.service.snapshot().listings[0]!.canBuy,true);assert.equal(f.executeCount(),0);
 });

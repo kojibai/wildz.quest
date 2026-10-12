@@ -1,5 +1,5 @@
 import {
-  canonicalizeReceizV122, digestReceizCanonicalV122,
+  canonicalizeReceizV122, createReceizProofAuthorityChallenge, digestReceizCanonicalV122, signReceizIdentityLoginProof,
   parseReceizPortableAssetDocument, prepareReceizDomainReplaySegmentProofObjectCandidateV124,
   proofAuthorityChallengeBasisV123, readReceizIdentityArtifact, verifyReceizIdentityLoginProof,
   prepareReceizSubjectSourceProofObjectCandidateV124, receizBase64UrlDecode, receizBase64UrlEncode, receizKaiNow,
@@ -169,6 +169,26 @@ export function createWildsResourceSourceClientV128(input: Readonly<{
   };
 }
 
+/** Session opening is a distinct signed ceremony. Reuse the approved scopes
+ * and statement, while preserving the exchange's nonce as a consumed intent. */
+export async function createWildsResourceSessionChallengeV129(input: Readonly<{
+  keyFile: ReceizKeyFile;
+  passphrase?: string;
+  grant: Pick<ReceizProofAuthorityV123, "applicationId" | "artifactDigest" | "keyId" | "grantedScopes" | "nonce">;
+  signedGrantChallenge: ReceizProofAuthorityChallengeV123;
+}>) {
+  const {grant, signedGrantChallenge: challenge} = input;
+  if (grant.keyId !== input.keyFile.keyId || challenge.proof.keyId !== input.keyFile.keyId
+    || challenge.audience !== grant.applicationId || challenge.nonce !== grant.nonce || !challenge.consent.approved)
+    throw Error("wilds_resource_source_identity_mismatch");
+  const created = createReceizProofAuthorityChallenge({applicationId: grant.applicationId,
+    artifactDigest: grant.artifactDigest, scopes: grant.grantedScopes,
+    consentStatementDigest: challenge.consent.statementDigest, ttlPulses: 60});
+  const proof = await signReceizIdentityLoginProof({keyFile: input.keyFile, challengeB64Url: created.challengeB64Url,
+    ...(input.passphrase === undefined ? {} : {passphrase: input.passphrase})});
+  return {...created.challenge, proof};
+}
+
 /** A lawful non-value actor genesis. The production SDK verifies actual owner,
  * root seal, subject admission, public source and device grant before opening
  * the authority session. No subject ID is synthesized from a player handle. */
@@ -220,8 +240,9 @@ export async function openWildsResourceSourceAuthorityV128(input: Readonly<{
     { idempotencyKey: `wildz:resource-actor-source:${actorSubject.stateDigest}`, filename: `wildz-resource-subject-${actorSubject.stateDigest}.receizbundle` });
   const subjectSourceArtifact = await transportReceizSealedArtifactV124(sealedSubject);
   await input.sdk.sources.publishSealedSourceV124({ applicationId: input.grant.applicationId, authoritySessionHandle: null, sourceArtifact: subjectSourceArtifact });
+  const signedSessionChallenge = await createWildsResourceSessionChallengeV129(input);
   const session = await input.sdk.runtime.openAuthoritySessionV124({ applicationId: input.grant.applicationId, actorSubjectId: actorSubject.subjectId,
-    subjectSourceArtifact, proofArtifact: input.identityArtifact, signedChallenge: input.signedGrantChallenge,
+    subjectSourceArtifact, proofArtifact: input.identityArtifact, signedChallenge: signedSessionChallenge,
     requestedRails: [], requiredNamespaces: [], audience: input.grant.applicationId });
   return { session, subjectSourceArtifact, author: { grant: input.grant, keyFile: input.keyFile,
     ...(input.passphrase === undefined ? {} : { passphrase: input.passphrase }), ownerReceizId, actorSubjectId: actorSubject.subjectId, actorSubjectHead: actorSubject.head } satisfies WildsResourceSourceAuthorV128 };

@@ -391,7 +391,6 @@ export function WildzWorldControls({
             title={onOpenCreation ? "Create with creatures · tap or swipe up" : "Living Construction · tap or swipe up"}
             type="button"
           >
-            <span className="wildz-construction-label"><Icons.construction aria-hidden="true" size={16} />Build</span>
             <span aria-hidden="true" className="wildz-construction-counts">
               <b key={`hay-${materialCounts.hay}`}><Icons.products size={11} />{materialCounts.hay}</b>
               <b key={`timber-${materialCounts.timber}`}><Icons.timber size={11} />{materialCounts.timber}</b>

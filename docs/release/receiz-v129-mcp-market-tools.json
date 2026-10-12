@@ -1,0 +1,542 @@
+{
+  "schema": "wildz.receiz-market-tool-evidence.v1",
+  "releaseVersion": "129.0.0",
+  "evidenceKind": "installed-full-library-descriptors",
+  "deploymentQualified": false,
+  "tools": [
+    {
+      "name": "receiz_connect_wallet",
+      "description": "Compose Receiz SDK connect.wallet. Current HTTP route implementation is present; authentication and operation admission still apply. MCP is not authority. MCP transport and confirmation are not proof authority. Existing SDK admission, delegated permissions, sealed artifacts, and verified appends govern the result.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "required": []
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "receiz_connect_transfer",
+      "description": "Compose Receiz SDK connect.transfer. Current HTTP route implementation is present; authentication and operation admission still apply. Returns a mutation preview; execute only after explicit user confirmation of its exact digest. MCP is not authority. MCP transport and confirmation are not proof authority. Existing SDK admission, delegated permissions, sealed artifacts, and verified appends govern the result.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "recipientUserId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "unit": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "recipientUserId",
+              "unit"
+            ]
+          },
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "idempotencyKey": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "confirmation": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact single-use confirmationDigest from this tool's preview with identical arguments."
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "receiz_connect_checkout",
+      "description": "Compose Receiz SDK connect.checkout. Current HTTP route implementation is present; authentication and operation admission still apply. Creates a card checkout session; session creation is not completed payment or Settlement. Returns a mutation preview; execute only after explicit user confirmation of its exact digest. MCP is not authority. MCP transport and confirmation are not proof authority. Existing SDK admission, delegated permissions, sealed artifacts, and verified appends govern the result.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "amountUsd": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "amountUsd"
+            ]
+          },
+          "confirmation": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact single-use confirmationDigest from this tool's preview with identical arguments."
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "receiz_connect_checkout_session",
+      "description": "Compose Receiz SDK connect.checkoutSession. Current HTTP route implementation is present; authentication and operation admission still apply. Projects provider session status and receipt identity; an open session is not completed payment or Settlement. MCP is not authority. MCP transport and confirmation are not proof authority. Existing SDK admission, delegated permissions, sealed artifacts, and verified appends govern the result.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "checkoutSessionId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "sessionId": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "receiz_payments_embedded_checkout",
+      "description": "Compose Receiz SDK payments.embeddedCheckout. Current HTTP route implementation is present; authentication and operation admission still apply. Creates a merchant card checkout session; session creation is not completed payment or Settlement. Returns a mutation preview; execute only after explicit user confirmation of its exact digest. MCP is not authority. MCP transport and confirmation are not proof authority. Existing SDK admission, delegated permissions, sealed artifacts, and verified appends govern the result.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "amountUsd": {
+                "type": "string",
+                "minLength": 1
+              },
+              "username": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "amountUsd",
+              "username"
+            ]
+          },
+          "confirmation": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact single-use confirmationDigest from this tool's preview with identical arguments."
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "receiz_commerce_one_click_checkout",
+      "description": "Compose Receiz SDK commerce.oneClickCheckout. Current HTTP route implementation is present; authentication and operation admission still apply. Checkout session creation only. Proposed wallet use requires admitted settlement execution. Returns a mutation preview; execute only after explicit user confirmation of its exact digest. MCP is not authority. MCP transport and confirmation are not proof authority. Existing SDK admission, delegated permissions, sealed artifacts, and verified appends govern the result.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "tenantHost": {
+                "type": "string",
+                "minLength": 1
+              },
+              "amountUsd": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "tenantHost",
+              "amountUsd"
+            ]
+          },
+          "confirmation": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact single-use confirmationDigest from this tool's preview with identical arguments."
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "receiz_bearer_artifact_claim",
+      "description": "Claim a selected canonical bearer artifact using a device-held artifactReference. Verify the complete enclosing artifact and retain its SDK-issued sealed object during preview. Execute the existing ownership.claimBearerAsset coordinator only with this preview's exact single-use confirmationDigest. Reverify the returned enclosing artifact and retain exact claimed bytes privately. Raw model proof bytes, serialized custody and retired claim aliases do not grant admission. MCP is not authority. MCP consent and file locators are not proof authority. Existing enclosing sealed artifact verification, delegated scopes, carried ownership continuity and canonical claim coordination govern admission.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifactReference": {
+            "type": "string",
+            "pattern": "^receiz:file:[a-f0-9]{64}:.+$"
+          },
+          "confirmation": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "artifactReference"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "ui": {
+          "resourceUri": "ui://receiz/sealed-output-v22.html"
+        },
+        "openai/outputTemplate": "ui://receiz/sealed-output-v22.html"
+      }
+    },
+    {
+      "name": "receiz_v123_value_execute_settlement",
+      "description": "Execute exact Phi through one explicit Settlement or Reserve rail. Requires confirmation; committed, zero-write, and unknown are preserved exactly. USD is deterministic display only. MCP is not authority.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "type": "object",
+            "description": "Exact SDK input. Secret fields remain process-local and are redacted from MCP output."
+          },
+          "confirmation": {
+            "type": "string",
+            "description": "Exact confirmation digest returned by the preview call."
+          }
+        },
+        "required": [
+          "input"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "receiz_v123_value_execute_reserve",
+      "description": "Execute exact Phi through one explicit Settlement or Reserve rail. Requires confirmation; committed, zero-write, and unknown are preserved exactly. USD is deterministic display only. MCP is not authority.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "type": "object",
+            "description": "Exact SDK input. Secret fields remain process-local and are redacted from MCP output."
+          },
+          "confirmation": {
+            "type": "string",
+            "description": "Exact confirmation digest returned by the preview call."
+          }
+        },
+        "required": [
+          "input"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "receiz_v123_value_execution_by_idempotency",
+      "description": "Receiz v123 universal execution operation projected through the canonical SDK. The proof object and accepted append remain authority. MCP is not authority.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "type": "object",
+            "description": "Exact canonical SDK input."
+          }
+        },
+        "required": [
+          "input"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "receiz_proof_value_inspect",
+      "description": "Inspect the selected exact local enclosing proof with SDK projectReceizProofValueV129 at the explicit valuationKaiUPulse. Return its complete source-bound projection and transaction/math trace or precise unavailable boundary. MCP is not authority. Only actual SDK-issued verification or portable-state admission supplies source custody. Explicit Kai coordinates are required; no implicit current time or model metadata is accepted. Intrinsic value, market reference, and executed sale remain distinct. No network, custody transition, settlement, payment, approval or file write occurs. Inputs are bounded to 64 MiB per referenced file, 256 KiB arguments, 256 samples/recoveries; output over 8 MiB fails without truncation.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifactReference": {
+            "type": "string",
+            "pattern": "^receiz:file:[a-f0-9]{64}:.+$",
+            "description": "Digest-bound exact local workspace file locator; the SDK verifies the enclosing proof before projection."
+          },
+          "valuationKaiUPulse": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "maxLength": 128
+          },
+          "includeReplay": {
+            "type": "boolean",
+            "description": "Include the SDK's complete public replay package when valuation is available; no file is written."
+          },
+          "expectedProofDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "expectedHistoryHead": {
+            "type": "string",
+            "minLength": 1
+          },
+          "policy": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "algorithm": {
+                "type": "string"
+              },
+              "checksum": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "algorithm",
+              "checksum"
+            ]
+          },
+          "rarityPolicy": {
+            "type": "object",
+            "description": "Exact declared policy; the SDK requires its digest and operands in the verified sealed issuance."
+          },
+          "marketReferenceRule": {
+            "type": "string",
+            "enum": [
+              "last-executed-sale-v129"
+            ]
+          },
+          "saleRecoveryReferences": {
+            "type": "array",
+            "maxItems": 256,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^receiz:file:[a-f0-9]{64}:.+$",
+              "description": "Digest-bound exact local workspace file locator; the SDK verifies the enclosing proof before projection."
+            }
+          },
+          "usdBasis": {
+            "type": "object",
+            "description": "Explicit reproducible USD display basis, independently checked by the SDK; no settlement effect."
+          },
+          "askingPricePhiMicro": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "artifactReference",
+          "valuationKaiUPulse"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "receiz_proof_value_sample",
+      "description": "Recompute a bounded ordered list of model samples using SDK sampleReceizProofValueV129 on the same selected exact local proof and explicit valuationKaiUPulses. These are calculated samples, not measured historical prices. MCP is not authority. Only actual SDK-issued verification or portable-state admission supplies source custody. Explicit Kai coordinates are required; no implicit current time or model metadata is accepted. Intrinsic value, market reference, and executed sale remain distinct. No network, custody transition, settlement, payment, approval or file write occurs. Inputs are bounded to 64 MiB per referenced file, 256 KiB arguments, 256 samples/recoveries; output over 8 MiB fails without truncation.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifactReference": {
+            "type": "string",
+            "pattern": "^receiz:file:[a-f0-9]{64}:.+$",
+            "description": "Digest-bound exact local workspace file locator; the SDK verifies the enclosing proof before projection."
+          },
+          "valuationKaiUPulses": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 256,
+            "items": {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]*)$",
+              "maxLength": 128
+            }
+          },
+          "includeReplay": {
+            "type": "boolean",
+            "description": "Include the SDK's complete public replay package when valuation is available; no file is written."
+          },
+          "expectedProofDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "expectedHistoryHead": {
+            "type": "string",
+            "minLength": 1
+          },
+          "policy": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "algorithm": {
+                "type": "string"
+              },
+              "checksum": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "algorithm",
+              "checksum"
+            ]
+          },
+          "rarityPolicy": {
+            "type": "object",
+            "description": "Exact declared policy; the SDK requires its digest and operands in the verified sealed issuance."
+          },
+          "marketReferenceRule": {
+            "type": "string",
+            "enum": [
+              "last-executed-sale-v129"
+            ]
+          },
+          "saleRecoveryReferences": {
+            "type": "array",
+            "maxItems": 256,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^receiz:file:[a-f0-9]{64}:.+$",
+              "description": "Digest-bound exact local workspace file locator; the SDK verifies the enclosing proof before projection."
+            }
+          },
+          "usdBasis": {
+            "type": "object",
+            "description": "Explicit reproducible USD display basis, independently checked by the SDK; no settlement effect."
+          },
+          "askingPricePhiMicro": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "artifactReference",
+          "valuationKaiUPulses"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "receiz_proof_value_replay_verify",
+      "description": "Verify an exact local public proof-value replay package with SDK verifyReceizProofValueReplayV129. The SDK verifies every enclosing proof, source/history/policy/coordinate binding and recomputed expected projection. Return verified-replay or invalid-replay; a locator, checksum or model JSON alone grants no authority. MCP is not authority. Only actual SDK-issued verification or portable-state admission supplies source custody. Explicit Kai coordinates are required; no implicit current time or model metadata is accepted. Intrinsic value, market reference, and executed sale remain distinct. No network, custody transition, settlement, payment, approval or file write occurs. Inputs are bounded to 64 MiB per referenced file, 256 KiB arguments, 256 samples/recoveries; output over 8 MiB fails without truncation.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "replayReference": {
+            "type": "string",
+            "pattern": "^receiz:file:[a-f0-9]{64}:.+$",
+            "description": "Digest-bound exact local workspace file locator; the SDK verifies the enclosing proof before projection."
+          }
+        },
+        "required": [
+          "replayReference"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "openWorldHint": false
+      }
+    }
+  ]
+}

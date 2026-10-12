@@ -6,18 +6,29 @@ import { WildsCard } from "./WildsCard";
 import { WildsCardBack } from "./WildsCardBack";
 import type { AdventureCardCondition } from "./adventure/card-condition";
 
-export function WildsCardScene({ asset, origin, qr, condition, onSaveProof, tapToFlip = false, speaking = false }: { asset: PortableCardAsset; origin: string; qr: string; condition?: AdventureCardCondition | null; tapToFlip?: boolean; speaking?: boolean; onSaveProof?: () => Promise<void> }) {
+export function WildsCardScene({ asset, origin, qr, condition, onSaveProof, tapToFlip = false, speaking = false, flipped:controlledFlipped,onFlippedChange,interactive=true,front }: { asset: PortableCardAsset; origin: string; qr: string; condition?: AdventureCardCondition | null; tapToFlip?: boolean; speaking?: boolean; onSaveProof?: () => Promise<void>;flipped?:boolean;onFlippedChange?(flipped:boolean):void;interactive?:boolean;front?:React.ReactNode }) {
   const scene = useRef<HTMLDivElement>(null);
+  const lastGesture = useRef(-Infinity);
   const swipeStart = useRef<{ x: number; y: number; pointerId: number; startedAt: number; interactive: boolean } | null>(null);
-  const [flipped, setFlipped] = useState(false);
-  const flip = () => setFlipped((value) => !value);
+  const [localFlipped, setFlipped] = useState(false);
+  const flipped=controlledFlipped??localFlipped;
+  const flip = () => {if(onFlippedChange)onFlippedChange(!flipped);else setFlipped(value=>!value);};
   return (
     <div
       aria-label={`Two-sided ${asset.manifest.name} card. Swipe horizontally to flip.`}
       className={`wilds-card-scene${speaking ? " is-speaking" : ""}`}
+      onClick={(event) => {
+        // Screen readers activate through a click without pointer events.
+        // Ordinary pointer clicks are already handled by the gesture below.
+        if (!tapToFlip || event.detail !== 0 || performance.now() - lastGesture.current < 400) return;
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest("button, a, input, select, textarea, summary, [role='button']")) return;
+        flip();
+      }}
       onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
+        if (event.target===event.currentTarget&&(event.key === "Enter" || event.key === " ")) {
           event.preventDefault();
+          lastGesture.current = performance.now();
           flip();
         }
       }}
@@ -53,14 +64,18 @@ export function WildsCardScene({ asset, origin, qr, condition, onSaveProof, tapT
       onPointerUp={(event) => {
         const start = swipeStart.current;
         swipeStart.current = null;
-        if (!start || start.pointerId !== event.pointerId) return;
+        if (!start || start.pointerId !== event.pointerId || start.interactive) return;
         const deltaX = event.clientX - start.x;
         const deltaY = event.clientY - start.y;
         if (Math.abs(deltaX) >= 28 && Math.abs(deltaX) > Math.abs(deltaY) * 1.2) {
+          lastGesture.current = performance.now();
           flip();
           return;
         }
-        if (tapToFlip && !start.interactive && performance.now() - start.startedAt <= 360 && Math.hypot(deltaX, deltaY) <= 9) flip();
+        if (tapToFlip && !start.interactive && performance.now() - start.startedAt <= 360 && Math.hypot(deltaX, deltaY) <= 9) {
+          lastGesture.current = performance.now();
+          flip();
+        }
       }}
       ref={scene}
       role="group"
@@ -69,7 +84,7 @@ export function WildsCardScene({ asset, origin, qr, condition, onSaveProof, tapT
       <div className="wilds-card-orbit" aria-hidden="true"><i /><i /><i /></div>
       <div className="wilds-card-float">
         <div className={`wilds-card-flipper${flipped ? " is-flipped" : ""}`}>
-          <div aria-hidden={flipped} className="wilds-card-face wilds-card-face-front" inert={flipped ? true : undefined}><WildsCard asset={asset} condition={condition} speaking={speaking} /></div>
+          <div aria-hidden={flipped} className="wilds-card-face wilds-card-face-front" inert={flipped ? true : undefined}>{front??<WildsCard asset={asset} condition={condition} speaking={speaking} interactive={interactive}/>}</div>
           <div aria-hidden={!flipped} className="wilds-card-face wilds-card-face-back" inert={!flipped ? true : undefined}><WildsCardBack onSaveProof={onSaveProof} asset={asset} condition={condition} origin={origin} qr={qr} /></div>
         </div>
       </div>

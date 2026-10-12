@@ -30,15 +30,15 @@ test('Market and Build source metadata opens the native SDK with an OAuth client
  const previous=process.env.RECEIZ_CLIENT_ID;
  const session={origin:expected.baseUrl} as WildzReceizChatSession;
  try{
-  for(const client of ['rc_SyntheticClient_ABC-123','another-registered-client']){
+  for(const client of ['rc_PtuBxB_Gbm9OkFeflZiwCz-d','another-registered-client']){
    process.env.RECEIZ_CLIENT_ID=client;
    const configuration=await wildsWalletSourceSdkConfigV128(new NextRequest('https://wildz.quest/api/wilds/wallet/source-sdk'),async()=>session);
    // Use the real SDK: plausible slug-only fixtures hid the production failure.
    const sdk=createReceizClient({...configuration,fetchImpl:async()=>{assert.fail('configuration must not perform a source write');}});
    assert.ok(sdk);
-   assert.deepEqual(configuration,{applicationId:'wildz',baseUrl:expected.baseUrl});
+   assert.deepEqual(configuration,{applicationId:client,baseUrl:expected.baseUrl});
    const challenge=createReceizProofAuthorityChallenge({applicationId:configuration.applicationId,artifactDigest:'b'.repeat(64),scopes:['receiz:domains.read'],consentStatementDigest:'c'.repeat(64),ttlPulses:60});
-   assert.equal(challenge.challenge.audience,'wildz');
+   assert.equal(challenge.challenge.audience,client);
   }
  }finally{if(previous===undefined)delete process.env.RECEIZ_CLIENT_ID;else process.env.RECEIZ_CLIENT_ID=previous;}
 });
@@ -54,7 +54,7 @@ test('Market and Build carry the native application through real identity signin
  const {keyFile}=await createReceizIdentityKeyFile({owner:{uid:'source_application_fixture',username:'source_application_fixture',displayName:'Synthetic'}});
  const calls:Array<{url:string;wire:Record<string,unknown>}>=[];
  try{
-  process.env.RECEIZ_CLIENT_ID='rc_SyntheticClient_ABC-123';
+  process.env.RECEIZ_CLIENT_ID='rc_PtuBxB_Gbm9OkFeflZiwCz-d';
   const dependencies:WildsResourceExchangeBrowserDependenciesV128={
    configuration:async()=>wildsWalletSourceSdkConfigV128(new NextRequest('https://wildz.quest/api/wilds/wallet/source-sdk'),async()=>({origin:'https://receiz.com'} as WildzReceizChatSession)),
    loadIdentity:async()=>keyFile,
@@ -68,9 +68,9 @@ test('Market and Build carry the native application through real identity signin
   assert.equal(calls.length,1);assert.equal(calls[0].url,'/api/wilds/wallet/source-sdk');
   assert.equal(calls[0].wire.path,'/api/sdk/v1/identity/proof-authority/exchange');
   const body=calls[0].wire.body as {applicationId:string;challenge:{audience:string;proof:{challengeB64Url:string;signatureB64Url:string}}};
-  assert.equal(body.applicationId,'wildz');assert.equal(body.challenge.audience,'wildz');
+  assert.equal(body.applicationId,process.env.RECEIZ_CLIENT_ID);assert.equal(body.challenge.audience,process.env.RECEIZ_CLIENT_ID);
   const basis=JSON.parse(new TextDecoder().decode(receizBase64UrlDecode(body.challenge.proof.challengeB64Url)));
-  assert.equal(basis.applicationId,'wildz');assert.equal(basis.audience,'wildz');
+  assert.equal(basis.applicationId,process.env.RECEIZ_CLIENT_ID);assert.equal(basis.audience,process.env.RECEIZ_CLIENT_ID);
   assert.equal(await verifyReceizIdentityLoginProof({keyFile,...body.challenge.proof}),true);
  }finally{if(previous===undefined)delete process.env.RECEIZ_CLIENT_ID;else process.env.RECEIZ_CLIENT_ID=previous;}
 });
@@ -107,7 +107,7 @@ test('read-renewal challenges retain the same registered wallet audience',async(
  const previousSecret=process.env.RECEIZ_OAUTH_STATE_SECRET;
  try{
   process.env.RECEIZ_OAUTH_STATE_SECRET='source-config-synthetic-fixture-secret-only';
-  for(const client of ['rc_SyntheticClient_ABC-123','another-registered-client']){
+  for(const client of ['rc_PtuBxB_Gbm9OkFeflZiwCz-d','another-registered-client']){
    process.env.RECEIZ_CLIENT_ID=client;
    const response=await walletAuthorityChallenge(new NextRequest(`https://wildz.quest/api/auth/wildz/wallet-authority?keyId=${keyId}&artifactDigest=${'b'.repeat(64)}`));
    assert.equal(response.status,200);

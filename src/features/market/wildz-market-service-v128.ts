@@ -1,5 +1,10 @@
 import type { WildsWalletAssetSendAsset, WildsWalletAssetSendSelection } from "../play/wallet/wilds-wallet-asset-send";
 import type { WildsWalletTradeAgreement } from "../play/wallet/wilds-wallet-trade";
+import type {WildzMarketOwnedCard,WildzMarketTransfer} from '../../lib/receiz/wildz-market-collection';
+import type {WildzMarketSale} from './wildz-market-history';
+import type {WildzMarketValueRead} from './wildz-market-value';
+import type {WildzMarketOfferView} from './wildz-market-offers';
+import type {WildzMarketOffer} from './wildz-market-offers';
 
 export type WildzMarketPurchasePhaseV128 = "review" | "awaiting-approvals" | "payment-pending" | "paid" | "awaiting-acceptance" | "received" | "completed" | "review-required" | "failed";
 export type WildzMarketResultV128 = Readonly<{
@@ -26,6 +31,12 @@ export type WildzMarketSnapshotV128 = Readonly<{
   status: "ready" | "loading" | "unavailable"; message: string;
   listings: readonly WildzMarketListingViewV128[]; purchases: readonly WildzMarketPurchaseReviewV128[];
   sellables: readonly WildzMarketSellableV128[];
+  collection?:readonly WildzMarketOwnedCard[];
+  collectionMessage?:string;
+  offers?:readonly WildzMarketOfferView[];
+  pendingOffers?:readonly WildzMarketOffer[];
+  history?:readonly WildzMarketSale[];
+  transfers?:readonly WildzMarketTransfer[];
   /** Exact local continuation coordinates; these grant no listing/custody authority. */
   pendingListings?: readonly Readonly<{asset:WildsWalletAssetSendAsset;priceUsdCents:string;attemptId:string;listingId:string;title:string;summary:string}>[];
 }>;
@@ -36,9 +47,14 @@ export type WildzMarketServiceV128 = Readonly<{
   snapshot(): WildzMarketSnapshotV128;
   subscribe(listener: (snapshot: WildzMarketSnapshotV128) => void): () => void;
   read(): Promise<WildzMarketSnapshotV128>;
+  /** Explicit older receipt qualification; browsing never bootstraps this work. */
+  readHistory?(): Promise<WildzMarketSnapshotV128>;
+  readValue?(assetId:string):Promise<WildzMarketValueRead>;
   list(input: Readonly<{ asset: WildsWalletAssetSendAsset; priceUsdCents: string; attemptId: string }>): Promise<WildzMarketResultV128>;
   cancel(listingId: string): Promise<WildzMarketResultV128>;
   activateListing?(listingId:string):Promise<WildzMarketResultV128>;
+  makeOffer?(input:Readonly<{assetId:string;priceUsdCents:string;attemptId:string}>):Promise<WildzMarketResultV128>;
+  respondToOffer?(offerId:string,outcome:'accepted'|'declined'|'withdrawn'):Promise<WildzMarketResultV128>;
   previewPurchase(listingId: string): Promise<WildzMarketPurchaseReviewV128>;
   approvePurchase(purchaseId: string): Promise<WildzMarketResultV128>;
   resume(purchaseId: string): Promise<WildzMarketResultV128>;

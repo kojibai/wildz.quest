@@ -20,6 +20,8 @@ import {wildsWalletBrowserStagedTradeArchiveStore} from "../play/wallet/wilds-wa
 import type { WildsWalletAssetSendAsset } from "../play/wallet/wilds-wallet-asset-send";
 import type {WildzMarketPublicationSourceV128} from '../../lib/receiz/wildz-market-publication-v128';
 import type {WildzMarketFundingPortV128} from './wildz-market-funding-port-v128';
+import {projectWildzMarketSales,projectWildzMarketVerifiedArchivedSale,type WildzMarketSale} from './wildz-market-history';
+import type {WildzMarketArchivedPurchaseV128} from './wildz-market-archive-v128';
 
 type Transition=Extract<WildzMarketSourceEventV128,{kind:"approved"|"progress"|"terminal-consent"}>;
 export type WildzMarketServiceInputV128=Readonly<{
@@ -32,6 +34,9 @@ export type WildzMarketServiceInputV128=Readonly<{
   * This port has no reservation, payment or asset authority. */
  publication?:Readonly<{open():Promise<WildzMarketPublicationSourceV128>;selection(asset:WildsWalletAssetSendAsset):Promise<WildzMarketSelectionV128>}>;
  activatePublicListings?:boolean;
+ /** Optional public valuation proof publication after an explicit seller action.
+  * Its outcome grants no payment/asset authority and cannot gate a purchase. */
+ publishCardValue?(asset:WildsWalletAssetSendAsset,sourceDigest?:string):Promise<void>;
  qualifySelection(asset:WildsWalletAssetSendAsset):Promise<WildzMarketSelectionV128>;
  readSelections:WildzMarketReadSelectionsV128;
  funding?:WildzMarketFundingPortV128;
@@ -58,6 +63,7 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
  const ownerKey=JSON.stringify([input.ownerHandle,input.keyId]),store=input.store??wildzMarketBrowserRecoveryStoreV128;
  const archive=input.archiveStore??(input.store===undefined?createWildzMarketArchiveStoreV128():undefined),archiveOwner={keyId:input.keyId,ownerHandle:input.ownerHandle};
  const archivedEntries=new Map<string,WildsWalletStagedTradeRecoveryEntry>();
+ let completedHistory:readonly WildzMarketSale[]=[];
  const stagedArchive=input.staged.archiveStore??(input.staged.recoveryStore===undefined?wildsWalletBrowserStagedTradeArchiveStore:undefined);
  const stagedStore=input.staged.recoveryStore??wildsWalletBrowserStagedTradeRecoveryStore;
  const verifyApproval=native.verifyApproval??verifyWildsWalletStagedTradeIdentityApproval;
@@ -239,7 +245,7 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
  };
  const emit=(message=snapshot.message)=>{
   current();includePublications();const record=load(),listings=Object.values(sourceSnapshot?.state.listings??{});
-  snapshot={status:"ready",message,listings:listings.map(listing=>({listingId:listing.listingId,title:listing.selection.summary,kind:listing.selection.asset.kind,asset:listing.selection.asset,sellerHandle:listing.sellerHandle,priceUsdCents:String(listing.priceUsdCents),status:listing.status,canBuy:listing.status==="active"&&listing.sellerHandle!==input.ownerHandle&&(!input.publication||nativeListingIds.has(listing.listingId))&&publicationSnapshot?.state.listings[listing.listingId]?.status!=='cancelled',canActivate:!!input.publication&&listing.sellerHandle===input.ownerHandle&&listing.status==='active'&&!nativeListingIds.has(listing.listingId),canCancel:listing.sellerHandle===input.ownerHandle&&(listing.status==="active"||listing.status==="cancelled"&&publicationSnapshot?.state.listings[listing.listingId]?.status==='active')||listing.status==="reserved"&&[listing.reservation?.buyerHandle,listing.reservation?.sellerHandle].includes(input.ownerHandle)&&["reserved","approved"].includes(listing.reservation!.phase)})),purchases:record.purchases.map(view),pendingListings:record.lists.filter(attempt=>!attempt.published).map(attempt=>({...attempt,title:attempt.selection?.summary??"Saved source listing",summary:attempt.selection?.summary??"Check this exact source and price."})),sellables:input.readSelections().map(selection=>{
+  snapshot={status:"ready",message,history:projectWildzMarketSales(sourceSnapshot,completedHistory),listings:listings.map(listing=>({listingId:listing.listingId,title:listing.selection.summary,kind:listing.selection.asset.kind,asset:listing.selection.asset,sellerHandle:listing.sellerHandle,priceUsdCents:String(listing.priceUsdCents),status:listing.status,canBuy:listing.status==="active"&&listing.sellerHandle!==input.ownerHandle&&(!input.publication||nativeListingIds.has(listing.listingId))&&publicationSnapshot?.state.listings[listing.listingId]?.status!=='cancelled',canActivate:!!input.publication&&listing.sellerHandle===input.ownerHandle&&listing.status==='active'&&!nativeListingIds.has(listing.listingId),canCancel:listing.sellerHandle===input.ownerHandle&&(listing.status==="active"||listing.status==="cancelled"&&publicationSnapshot?.state.listings[listing.listingId]?.status==='active')||listing.status==="reserved"&&[listing.reservation?.buyerHandle,listing.reservation?.sellerHandle].includes(input.ownerHandle)&&["reserved","approved"].includes(listing.reservation!.phase)})),purchases:record.purchases.map(view),pendingListings:record.lists.filter(attempt=>!attempt.published).map(attempt=>({...attempt,title:attempt.selection?.summary??"Saved source listing",summary:attempt.selection?.summary??"Check this exact source and price."})),sellables:input.readSelections().map(selection=>{
  const locked=listings.some(listing=>["active","reserved"].includes(listing.status)&&same(listing.selection.asset,selection.asset))||record.lists.some(attempt=>!attempt.published&&same(attempt.asset,selection.asset));
    return {id:selection.id,title:selection.label,kind:selection.asset.kind,asset:selection.asset,summary:selection.detail??selection.label,...(locked?{disabledReason:"This source has an active listing or an exact listing continuation."}:{})};
   })};for(const listener of listeners)listener(snapshot);return snapshot;
@@ -281,14 +287,25 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
   }
   throw Error("The market continuation queue is full. Resolve its original pending purchases before reserving another listing.");
  };
+ const verifyArchivedPurchase=async(value:WildzMarketArchivedPurchaseV128)=>{
+  const plan=createWildsWalletStagedTradePlan(value.checkpoint.agreement);
+  if(value.binding.ownerHandle!==input.ownerHandle||value.binding.keyId!==input.keyId||!same(value.entry.plan,plan))throw Error("The archived purchase belongs to another Explorer or plan.");
+  const identities=await Promise.all(value.entry.approvals.map(approval=>verifyApproval(approval,plan)));current();
+   identities.forEach((identity,index)=>{const approval=value.entry.approvals[index]!;if(identity.ownerHandle!==approval.ownerHandle||identity.keyId!==approval.keyId||identity.identityArtifactDigest!==approval.identityArtifactDigest||approval.ownerHandle===input.ownerHandle&&approval.keyId!==input.keyId)throw Error("The archived approval belongs to another Explorer.");});const leg=plan.legs[0]!;if(leg.kind!=="phi")throw Error("The exact archived payment is required.");await phi.verifyPhiReceipt(leg,{status:"committed",receipt:value.entry.legs[0]!.receipt});
+   current();
+   const asset=plan.legs[1]!;if(asset.kind!=="asset")throw Error("The exact archived asset is required.");const descriptor=value.entry.approvals.find(approval=>approval.ownerHandle===asset.senderHandle)?.sourceHeads.find(head=>head.legId===asset.legId);if(!descriptor)throw Error("The exact archived descriptor is required.");
+   await input.staged.assetPort.verifyAccepted(asset,descriptor,{status:"accepted",receipt:value.entry.legs[1]!.receipt},{plan,approvals:value.entry.approvals,acceptedNotBeforeKai:identities.reduce((max,identity)=>BigInt(identity.approvalKai)>max?BigInt(identity.approvalKai):max,0n).toString()});
+   current();return plan;
+ };
+ const rememberVerifiedArchive=(value:WildzMarketArchivedPurchaseV128)=>{
+  const sale=projectWildzMarketVerifiedArchivedSale(value);if(!sale)throw Error("The archived purchase is not fully completed.");
+  completedHistory=[...completedHistory.filter(prior=>prior.id!==sale.id),sale].slice(-32);
+ };
  const restorePurchase=async(id:string)=>{
   if(load().purchases.some(item=>item.agreement.market!.purchaseId===id))return;
   const value=await archive?.readPurchase(archiveOwner,id);current();if(!value)throw Error("This exact private market history is unavailable.");
   const plan=createWildsWalletStagedTradePlan(value.checkpoint.agreement);archivedEntries.clear();archivedEntries.set(plan.tradeId,value.entry);
-  try{const identities=await Promise.all(value.entry.approvals.map(approval=>verifyApproval(approval,plan)));current();
-   identities.forEach((identity,index)=>{const approval=value.entry.approvals[index]!;if(identity.ownerHandle!==approval.ownerHandle||identity.keyId!==approval.keyId||identity.identityArtifactDigest!==approval.identityArtifactDigest||approval.ownerHandle===input.ownerHandle&&approval.keyId!==input.keyId)throw Error("The archived approval belongs to another Explorer.");});const leg=plan.legs[0]!;if(leg.kind!=="phi")throw Error("The exact archived payment is required.");await phi.verifyPhiReceipt(leg,{status:"committed",receipt:value.entry.legs[0]!.receipt});
-   const asset=plan.legs[1]!;if(asset.kind!=="asset")throw Error("The exact archived asset is required.");const descriptor=value.entry.approvals.find(approval=>approval.ownerHandle===asset.senderHandle)?.sourceHeads.find(head=>head.legId===asset.legId);if(!descriptor)throw Error("The exact archived descriptor is required.");
-   await input.staged.assetPort.verifyAccepted(asset,descriptor,{status:"accepted",receipt:value.entry.legs[1]!.receipt},{plan,approvals:value.entry.approvals,acceptedNotBeforeKai:identities.reduce((max,identity)=>BigInt(identity.approvalKai)>max?BigInt(identity.approvalKai):max,0n).toString()});
+  try{await verifyArchivedPurchase(value);rememberVerifiedArchive(value);
    const active=load();if(active.purchases.length+active.pendingReservations.length>=32)return true;
    replacePurchase(value.checkpoint);
   }catch(cause){archivedEntries.delete(plan.tradeId);throw cause;}
@@ -331,6 +348,11 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
   }throw Error("The listing continuation queue is full. Keep and resolve its original uncertain publications.");
  };
  const nativeAttemptId=(listingId:string)=>`market:native:${digest({listingId,ownerHandle:input.ownerHandle})}`;
+ const publishCardValue=async(asset:WildsWalletAssetSendAsset,sourceDigest?:string)=>{
+  if(asset.kind!=='creature'||!input.publishCardValue)return '';
+  try{await input.publishCardValue(asset,sourceDigest);current();return '';}
+  catch{current();return ' Public value proof pending. Retry this listing from Activity.';}
+ };
  const activatePublicListing=async(listingId:string)=>{
   if(!input.publication)throw Error("This listing already uses the native purchase connection.");
   const advertised=await (await input.publication.open()).observe(listingId);current();publicationSnapshot=advertised.snapshot;
@@ -424,6 +446,18 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
     }catch{/* Unverified transport cannot create purchase authority. */}
    }includePublications();return emit("Public listings checked. Purchases settle as separate payment and recipient acceptance stages.");
   });},
+  async readHistory(){return locked(async()=>{
+   if(!archive?.readPurchases)return emit("Older archived trade history is unavailable. Current listings and purchases remain available.");
+   let values:readonly WildzMarketArchivedPurchaseV128[];
+   try{values=await archive.readPurchases(archiveOwner);current();}
+   catch{current();return emit("Older archived trade history could not be loaded. Current listings and purchases remain available.");}
+   let unavailable=0;
+   for(const value of values.slice(0,32)){
+    try{await verifyArchivedPurchase(value);rememberVerifiedArchive(value);}
+    catch{current();unavailable++;}
+   }
+   return emit(unavailable?"Some older trades could not be verified. Only independently verified sales are shown; current purchases remain available.":"Up to 32 archived trades independently verified. Older retained purchases remain available by their exact reference.");
+  });},
   async list(request){let dispatched=false;
    try{return await locked(async()=>{
     if(!request.attemptId||request.attemptId.length>256||!/^[1-9][0-9]{0,15}$/.test(request.priceUsdCents)||BigInt(request.priceUsdCents)>1_000_000_000n)throw Error("Enter a positive whole USD-cent price and retain this exact listing attempt.");
@@ -436,14 +470,14 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
     if(input.publication){publicationSnapshot=actual.snapshot;includePublications();}else rememberNative(actual.snapshot);
     record=load();save({...record,lists:record.lists.map(item=>item.attemptId===request.attemptId?{...item,published:true}:item)});
     if(input.publication&&input.activatePublicListings&&actual.listing.status==='active'){
-     try{const connected=await activatePublicListing(actual.listing.listingId),message=connected.listing.status==='active'?'Your listing is published and purchases are enabled.':'The original purchase connection was recovered.';emit(message);return {status:connected.listing.status==='cancelled'?'cancelled':'listed',listingId:actual.listing.listingId,message};}
+     try{const connected=await activatePublicListing(actual.listing.listingId),message=(connected.listing.status==='active'?'Your listing is published and purchases are enabled.':'The original purchase connection was recovered.')+(connected.listing.status==='active'?await publishCardValue(connected.listing.selection.asset,connected.listing.selection.sourceDigest):'');emit(message);return {status:connected.listing.status==='cancelled'?'cancelled':'listed',listingId:actual.listing.listingId,message};}
      catch(cause){const message=`Your listing is published. Purchase connection pending: ${cause instanceof Error?cause.message:'Retry this listing from Activity.'}`;emit(message);return {status:'listed',listingId:actual.listing.listingId,message};}
     }
     emit("The public listing is confirmed.");
     return {status:actual.listing.status==="cancelled"?"cancelled":"listed",listingId:actual.listing.listingId,message:input.publication?"The signed public listing is confirmed.":"The exact source listing is confirmed."};
    });}catch(cause){try{emit();}catch{}return dispatched?{status:"pending",message:"Check the same listing attempt. Its source publication response is uncertain."}:failure(cause);}
   },
-  async activateListing(listingId){try{return await locked(async()=>{const actual=await activatePublicListing(listingId);const message=actual.listing.status==='active'?'Purchases are enabled for this exact listing.':'The original purchase connection was recovered.';emit(message);return {status:actual.listing.status==='cancelled'?'cancelled':'listed',listingId,message};});}
+  async activateListing(listingId){try{return await locked(async()=>{const actual=await activatePublicListing(listingId);const message=(actual.listing.status==='active'?'Purchases are enabled for this exact listing.':'The original purchase connection was recovered.')+(actual.listing.status==='active'?await publishCardValue(actual.listing.selection.asset,actual.listing.selection.sourceDigest):'');emit(message);return {status:actual.listing.status==='cancelled'?'cancelled':'listed',listingId,message};});}
    catch(cause){try{emit();}catch{}return {status:'pending',listingId,message:`Purchase connection pending: ${cause instanceof Error?cause.message:'Check this same listing again.'}`};}},
   async cancel(listingId){let dispatched=false;try{return await locked(async()=>{
    if(input.publication){const publication=await input.publication.open();let advertised:WildzMarketListingV128|undefined;

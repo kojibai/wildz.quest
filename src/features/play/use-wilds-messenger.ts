@@ -1,5 +1,6 @@
 "use client";
 
+import {admitWildzMarketOfferMessage,wildzMarketOfferMessageId,type WildzMarketOfferMessage} from '../market/wildz-market-offers';
 import { admitWildsWalletResourceSourceMessageV128, wildsWalletResourceSourceMessageIdV128, type WildsWalletResourceSourceMessageV128 } from "./wallet/wilds-wallet-resource-source-messaging-v128";
 
 import { registerMessagePush, supportsMessagePush, readMessagePushConfig, type MessagePushConfig, WILDZ_MESSAGE_PUSH } from "@/features/pwa/message-push-client";
@@ -425,6 +426,20 @@ export function useWildsMessenger(input: {
     return admitted.draft.attemptId;
   }, [input.guestId, input.selfHandle, input.selfId, rememberPeer]);
 
+  const sendMarketOffer=useCallback(async(context:WildzMarketOfferMessage,peerHandle:string)=>{
+    if(!input.selfId||input.selfId.startsWith('guest:'))throw Error('Sign in to send an offer.');
+    const actor=input.selfId,peer={id:peerHandle,handle:peerHandle};
+    const admitted=admitWildzMarketOfferMessage(context,input.selfHandle,peerHandle);
+    const result=await messengerRequest<{conversation:WildsConversation;publication?:unknown}>('/api/wilds/messages/thread',{
+      method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({action:'market-offer',guestId:input.guestId,peer,
+        message:admitted.kind==='market-offer'?`New offer for ${admitted.offer.title}. Review it in Market.`:admitted.outcome==='accepted'?`Your offer for ${admitted.offer.title} was accepted. Review the purchase in Market.`:`Offer for ${admitted.offer.title} ${admitted.outcome}.`,
+        clientMessageId:wildzMarketOfferMessageId(admitted),context:admitted})
+    });
+    if(hydratedActorRef.current!==actor)throw Error('The signed-in Explorer changed. Reopen Market.');
+    rememberPeer(peer);setConversations(current=>admitConversationState(current,result.conversation));
+    assertWildsPrivateMessagePublished(result.publication);
+  },[input.guestId,input.selfHandle,input.selfId,rememberPeer]);
+
   const sendStagedTrade = useCallback(async (context: WildsWalletStagedTradeMessage, peerHandle: string) => {
     if (!input.selfId || input.selfId.startsWith("guest:")) throw Error("Sign in to approve a trade.");
     const actor = input.selfId;
@@ -595,6 +610,7 @@ export function useWildsMessenger(input: {
     sendResourceClaim,
     sendTradePackage,
     sendStagedTrade,
+    sendMarketOffer,
     sendBearerGift,
     sendResourceSource,
     readTradeConversations,

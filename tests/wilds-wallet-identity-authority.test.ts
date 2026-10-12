@@ -280,18 +280,18 @@ describe("registered wallet application binding", () => {
   it("signs the configured Receiz client instead of the Wildz namespace", () => {
     const issued = issueWildsWalletIdentityAuthorityChallenge({
       session: { keyId: H.key }, artifactDigest: H.artifact,
-      applicationId: "rc_registered-Wildz_client"
+      applicationId: "rc_PtuBxB_Gbm9OkFeflZiwCz-d"
     }, "s".repeat(32));
-    assert.equal(issued.challenge.applicationId, "rc_registered-Wildz_client");
-    assert.equal(issued.challenge.unsigned.audience, "rc_registered-Wildz_client");
+    assert.equal(issued.challenge.applicationId, "rc_PtuBxB_Gbm9OkFeflZiwCz-d");
+    assert.equal(issued.challenge.unsigned.audience, "rc_PtuBxB_Gbm9OkFeflZiwCz-d");
   });
   it("rejects a ticket issued to a different application before exchange", async () => {
     const issued = issueWildsWalletIdentityAuthorityChallenge({
-      session: { keyId: H.key }, artifactDigest: H.artifact, applicationId: "rc_original"
+      session: { keyId: H.key }, artifactDigest: H.artifact, applicationId: "rc_PtuBxB_Gbm9OkFeflZiwCz-d"
     }, "s".repeat(32));
     let exchanged = false;
     await assert.rejects(completeWildsWalletIdentityAuthority({ticket: issued.ticket, body: {}}, {
-      secret: "s".repeat(32), applicationId: "rc_other",
+      secret: "s".repeat(32), applicationId: "rc_JtTHw4BrHKXqtISBZcGUvlQd",
       exchange: async () => { exchanged = true; return null; },
       validate: async () => { throw new Error("unexpected"); },
       loadProfile: async () => null, introspect: async () => null,

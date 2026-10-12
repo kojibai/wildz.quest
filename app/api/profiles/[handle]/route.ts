@@ -13,6 +13,7 @@ import {
 } from "@/lib/receiz/wildz-public-ownership";
 import { publishPublicWildzProfile, resolvePublicWildzProfile } from "@/lib/receiz/wildz-profile-adapter";
 import { parseSignedWildzProfilePublication } from "@/lib/receiz/wildz-profile-publication-envelope";
+import {parseSignedWildzMarketCollection} from '@/lib/receiz/wildz-market-collection';
 import { resolveSdkPublicWildzCard } from "@/lib/receiz/wildz-market-public-card";
 import { WILDZ_PRODUCT } from "@/lib/wildz/product";
 import { canonicalWildzProfilePath } from "@/features/profile/public-profile";
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ha
     const profile = sanitizePublicWildzProfile(body.signedPublication ? body.profile : body);
     if (profile.username !== requestedHandle) throw new Error("wildz_public_profile_owner_mismatch");
     const signed = body.signedPublication ? parseSignedWildzProfilePublication(body.signedPublication, profile) : null;
+    const collection = body.marketCollectionPublication && signed ? parseSignedWildzMarketCollection(body.marketCollectionPublication,signed.record) : null;
     const actor = signed ? null : await resolveWildzCookieActor(request);
     // A proof session identifies the player but does not supply a registry write token.
     // Let a matching local Identity Seal sign, including after switching Connect accounts.
@@ -117,7 +119,12 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ha
         sourceUrl: `${WILDZ_PRODUCT.origin}${canonicalWildzProfilePath(requestedHandle)}`
       });
     }
-    return json({ ok: true, published: true, profile }, 201);
+    let collectionPublished=false;
+    if(collection)try{
+      const result=await adapter.client.publicStore.publishSigned(collection,{idempotencyKey:`wildz-collection:${requestedHandle.slice(1)}:${signed!.record.publishedAt}`});
+      collectionPublished=result.ok===true&&!!result.appendAnchorId&&result.knownHead?.appendAnchorId===result.appendAnchorId;
+    }catch{/* Profile is published; the independent collection directory can retry. */}
+    return json({ ok: true, published: true, profile, ...(collection?{collectionPublished}:{}) }, 201);
   } catch (cause) {
     return profileError(cause);
   }

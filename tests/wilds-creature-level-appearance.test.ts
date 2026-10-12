@@ -20,10 +20,14 @@ function train(asset = birth, xpDelta = 100, sequence = 1) {
   } });
 }
 
-test("birth and legacy level-one art remain byte-for-byte unchanged", () => {
+test("the portrait edition preserves birth growth and the original proof renderer", () => {
   assert.deepEqual(projectCardCreatureLevelAppearance(legacy), { level: 1, head: 1, torso: 1, limb: 1 });
   assert.deepEqual(projectCardCreatureLevelAppearance(birth), projectCardCreatureLevelAppearance(legacy));
-  assert.equal(wildsCardArtwork(birth), renderHeartboundSvg(currentLivingGenome(birth), "card", { width: 640, height: 405, title: birth.manifest.name, fit: "full-body" }));
+  const original=renderHeartboundSvg(currentLivingGenome(birth), "card", { width: 640, height: 405, title: birth.manifest.name, fit: "full-body" });
+  assert.doesNotMatch(original,/data-art-edition/);
+  assert.match(wildsCardArtwork(birth),/data-art-edition="wildz.collectible-portrait.v1"/);
+  assert.equal(wildsCardArtwork(JSON.parse(canonicalPortableCardJson(birth))),wildsCardArtwork(birth));
+  assert.equal(verifyLivingCard(birth).ok,true);
 });
 
 test("actual XP history grows the same creature at level two without changing its genesis or stage", () => {

@@ -156,7 +156,7 @@ function clearWildzAuthQuery() {
   window.history.replaceState(window.history.state, "", next);
 }
 
-export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOverlay }) {
+export function WildzApp({ initialOverlay = null, marketPresentation = "popover" }: { initialOverlay?: WildzOverlay; marketPresentation?: "popover" | "page" }) {
   const [overlay, setOverlay] = useState<WildzOverlay>(initialOverlay);
   const [retainedOwnerProfile, setRetainedOwnerProfile] = useState(false);
   const shellOverlayRef = useRef<HTMLElement | null>(null);
@@ -617,13 +617,14 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
           signal,
           onProgress: progress,
           confirmExisting: true,
+          confirmMarketCollection: identity?.localAuthority === "verified",
           proofObjects: profilePublicationRequest.proofObjects,
           // A connected proof session is not necessarily a delegated registry
           // write token. Publish the complete collection with the active seal,
           // just as world bootstrap signs an identity-proof publication draft.
           // Standalone card indexing must never gate this source projection.
           publishSourceProfile: identity?.localAuthority === "verified"
-            ? (profile, assets, signal) => publishWildzProfileWithIdentityProof(profile, { assets, signal })
+            ? (profile, assets, signal) => publishWildzProfileWithIdentityProof(profile, { assets, signal, publishMarketCollection: true })
             : undefined,
           prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
             ?? wildzGameplayBackground.run(() => JSON.stringify(value))
@@ -1454,10 +1455,10 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
       </nav> : null}
 
       {overlay || retainedOwnerProfile ? (
-        <section className="wildz-shell-overlay" ref={shellOverlayRef} hidden={!overlay} inert={!overlay ? true : undefined} aria-hidden={!overlay ? true : undefined} role={overlay ? 'dialog' : undefined} aria-modal={overlay ? true : undefined} aria-label={`${overlay?.kind ?? 'profile'} panel`}>
-          <button type="button" className="wildz-overlay-dismiss" onClick={closeShellOverlay} aria-label="Return to world">
+        <section className="wildz-shell-overlay" data-surface={overlay?.kind} data-presentation={overlay?.kind === "market" ? marketPresentation : undefined} ref={shellOverlayRef} hidden={!overlay} inert={!overlay ? true : undefined} aria-hidden={!overlay ? true : undefined} role={overlay ? 'dialog' : undefined} aria-modal={overlay ? true : undefined} aria-label={`${overlay?.kind ?? 'profile'} panel`}>
+          {overlay?.kind!=='market'?<button type="button" className="wildz-overlay-dismiss" onClick={closeShellOverlay} aria-label="Return to world">
             <span aria-hidden="true">×</span>
-          </button>
+          </button>:null}
           {overlay?.kind === "profile" || retainedOwnerProfile ? (viewingOwnProfile ? ownerSourceProfile : remoteProfile) ? <WildzProfileSheet
             key={viewingOwnProfile ? `owner:${identity?.keyId}` : `public:${overlay?.kind === 'profile' ? overlay.username : ''}`}
             active={overlay?.kind === 'profile'}
@@ -1499,6 +1500,7 @@ export function WildzApp({ initialOverlay = null }: { initialOverlay?: WildzOver
             onSaveVault={saveCombinedVault}
             savePreparing={combinedVaultPreparing}
           /> : overlay.kind === "market" ? <WildzMarketSheet
+            onClose={closeShellOverlay}
             connected={proofSessionConnected}
             initialTab={marketCardReturn ? 'activity' : 'browse'}
             service={marketService && marketService.binding.keyId === identity?.keyId

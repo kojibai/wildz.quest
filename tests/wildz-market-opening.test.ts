@@ -35,6 +35,7 @@ test('the real Market SDK public reader opens without cookies, tokens or an appl
 });
 
 test('public Market transport cannot open unrelated URLs, SDK write edges, or trust caller-shaped source state',async()=>{
+ const client=process.env.RECEIZ_CLIENT_ID;process.env.RECEIZ_CLIENT_ID='rc_PtuBxB_Gbm9OkFeflZiwCz-d';
  let calls=0;
  const fetcher:typeof fetch=async()=>{calls++;return Response.json({ok:true,record:{schema:'receiz.app.public_store_state_projection.v1',state:'published',
   data:{storeStateRecord:{schema:'wildz.market-source-locator.v128',proof:{schema:'wildz.market-source-proof.v128',sourceArtifacts:[]}}}}});};
@@ -42,8 +43,8 @@ test('public Market transport cannot open unrelated URLs, SDK write edges, or tr
  await assert.rejects(sdk.publicStore.restoreLatest({url:'https://attacker.example/source'}),/public_path_invalid/);
  await assert.rejects(sdk.request('/api/sdk/v1/subjects/admit',{method:'POST',body:{}}),/public_path_invalid/);
  assert.equal(calls,0);
- await assert.rejects(createWildzMarketPublicReadSourceV128(fetcher).load(),/source_proof_invalid/);
- assert.equal(calls,1);
+ try{await assert.rejects(createWildzMarketPublicReadSourceV128(fetcher).load(),/source_proof_invalid/);assert.equal(calls,1);}
+ finally{if(client===undefined)delete process.env.RECEIZ_CLIENT_ID;else process.env.RECEIZ_CLIENT_ID=client;}
 });
 
 test('public Market route fixes its upstream host and never forwards caller credentials',async()=>{

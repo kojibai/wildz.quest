@@ -33,6 +33,7 @@ export function WildsBalancedStatusHud({
   resourceExchange,
   onClaimResource,
   onClaimCard,
+  onOpenMarket,
   onRosterOpenChange,
   player,
   wallet,
@@ -61,6 +62,7 @@ export function WildsBalancedStatusHud({
   onClaimResource?: (claimProof: string) => Promise<void>;
   onSendPhi: (peer: { id: string; handle: string }) => void;
   onClaimCard: (offer: WildsCardTransferOffer) => Promise<unknown>;
+  onOpenMarket?: (origin: HTMLElement | null) => void;
   onRosterOpenChange?: (open: boolean) => void;
   player: { x: number; z: number };
   wallet: WildsWalletPresentationState;
@@ -128,6 +130,7 @@ export function WildsBalancedStatusHud({
       resourceExchange={resourceExchange}
       onClaimResource={onClaimResource}
       onClaimCard={onClaimCard}
+      onOpenMarket={onOpenMarket}
       roomChat={{
         messages: multiplayer.snapshot?.messages ?? [],
         onSend: multiplayer.sendMessage

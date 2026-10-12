@@ -5,6 +5,7 @@ import { createPublicWildzProfileRecord, verifiedWildzProfileCards } from "./wil
 import { WILDZ_PRODUCT } from "../wildz/product";
 import { parseWildzPlayerCoordinate, sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import type { WildzIdentitySession } from "./wildz-identity-repository";
+import {wildzMarketCollectionInput} from './wildz-market-collection';
 
 export type WildzProfileSigningInput = {
   profile: PublicWildzProfile;
@@ -12,6 +13,7 @@ export type WildzProfileSigningInput = {
   session: WildzIdentitySession;
   keyFile: ReceizKeyFile;
   occurredAt?: string;
+  publishMarketCollection?: boolean;
 };
 
 /** Pure SDK signing work; the browser runs verification, hashing and JSON in a worker. */
@@ -44,5 +46,8 @@ export async function signWildzProfilePublication(input: WildzProfileSigningInpu
     namespace: `wildz-profile:${record.handle.slice(1)}`, projectionState: "published",
     platform: WILDZ_PRODUCT.name, storeStateRecord: record as unknown as JsonObject, keyFile
   });
-  return { profile: record.profile, body: JSON.stringify({ profile: record.profile, signedPublication }) };
+  const marketCollectionPublication = input.publishMarketCollection
+    ? await createReceizClient().publicStore.signPublish({...wildzMarketCollectionInput(record),keyFile})
+    : undefined;
+  return { profile: record.profile, body: JSON.stringify({ profile: record.profile, signedPublication, ...(marketCollectionPublication?{marketCollectionPublication}:{}) }) };
 }

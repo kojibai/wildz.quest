@@ -13,6 +13,7 @@ export async function publishWildzProfileWithIdentityProof(profile: PublicWildzP
   signal?: AbortSignal;
   occurredAt?: string;
   assets?: readonly PortableCardAsset[];
+  publishMarketCollection?: boolean;
 } = {}) {
   options.signal?.throwIfAborted();
   const repository = options.repository ?? defaultIdentityRepository;
@@ -24,7 +25,7 @@ export async function publishWildzProfileWithIdentityProof(profile: PublicWildzP
   if (!session || session.localAuthority !== "verified") throw new Error("wildz_profile_identity_seal_required");
   if (!owner || !sameWildzPlayerCoordinate(owner.actorId, session.actorId)) throw new Error("wildz_public_profile_owner_mismatch");
   const prepared = await withKeyFile(session.keyId, keyFile => prepareWildzProfilePublication({
-    profile, session, keyFile, assets: options.assets, occurredAt: options.occurredAt
+    profile, session, keyFile, assets: options.assets, occurredAt: options.occurredAt, publishMarketCollection: options.publishMarketCollection
   }, options.signal));
   options.signal?.throwIfAborted();
   const response = await (options.fetcher ?? globalThis.fetch)(`/api/profiles/${encodeURIComponent(owner.actorId)}`, {
@@ -35,5 +36,6 @@ export async function publishWildzProfileWithIdentityProof(profile: PublicWildzP
   if (!response.ok || result?.ok !== true || canonicalPortableCardJson(result.profile) !== canonicalPortableCardJson(prepared.profile)) {
     throw new Error(result?.error ?? "wildz_public_profile_publication_unconfirmed");
   }
+  if(options.publishMarketCollection&&result.collectionPublished!==true)throw Error('wildz_market_collection_sync_pending');
   return prepared.profile;
 }

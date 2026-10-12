@@ -604,9 +604,9 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(inventory, /type: "evolve"/);
     assert.match(card, /wilds-card-foil/);
     assert.match(card, /wildsCardArtwork/);
-    assert.match(await readFile("src/features/play/wilds-card-artwork.ts", "utf8"), /renderHeartboundSvg/);
-    assert.match(await readFile("src/features/play/wilds-card-artwork.ts", "utf8"), /fit:\s*"full-body"/);
-    assert.match(cardExport, /renderHeartboundSvg/);
+    assert.match(await readFile("src/features/play/wilds-card-artwork.ts", "utf8"), /renderWildsCollectibleArt/);
+    assert.match(await readFile("src/features/play/wilds-collectible-art.ts", "utf8"), /fit:\s*['"]full-body['"]/);
+    assert.match(cardExport, /renderWildsCollectibleArt/);
     assert.match(growth, /What remains/);
     assert.match(growth, /Growth history/);
     assert.match(transformation, /aria-label="Living card transformation"/);

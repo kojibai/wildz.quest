@@ -78,6 +78,10 @@ export function createWildsWalletAssetPortV128(input: WildsWalletAssetPortInputV
     }
   };
   return { ...port, openRuntime, openClearanceRuntime, disposeClearance,
+    qualifyValueProof:async(asset:WildsWalletAssetSendAsset)=>{
+      assertCurrent();
+      const source=await (await loadPorts()).creature.qualifyValueProof(asset);assertCurrent();return source;
+    },
     qualifyListing: async (asset: WildsWalletAssetSendAsset, summary?: string) => {
       assertCurrent();
       await input.flushGameplay(); assertCurrent();

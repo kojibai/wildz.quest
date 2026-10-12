@@ -2,7 +2,7 @@
 
 The complete V124 production-runtime composition and its latency/authority boundaries are documented in [`RECEIZ_V124_RUNTIME.md`](./RECEIZ_V124_RUNTIME.md).
 
-Wildz targets the exact `@receiz/sdk@128.0.0` release. Application code uses SDK identity, artifact, durable subject admission, proof-authority exchange, authority sessions, durable execution, recipient resolution, and executable Phi clients. `@receiz/mcp-server@128.0.0` and `@receiz/ai-skills@128.0.0` are operator tooling only; neither can replace proof verification or independently admit a mutation. The packages resolve from the public npm registry, and their published SHA-512 lockfile integrity values keep installation reproducible. This release adopts the v128 registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `940c316b5b7d6212240e699d03b3c1fd419cbbecc6ee51ddd7aa7783d9e523b0`.
+Wildz targets the exact `@receiz/sdk@129.0.0` release. Application code uses SDK identity, artifact, durable subject admission, proof-authority exchange, authority sessions, durable execution, recipient resolution, and executable Phi clients. `@receiz/mcp-server@129.0.0` and `@receiz/ai-skills@129.0.0` are operator tooling only; neither can replace proof verification or independently admit a mutation. The packages resolve from the public npm registry, and their published SHA-512 lockfile integrity values keep installation reproducible. This release adopts the v129 registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1`.
 
 ## Authority map
 
@@ -53,9 +53,9 @@ Wildz can carry Phi, resources, exact card or creature custody, experience acces
 
 The claim representation is never proof authority and cannot commit. Successful edge execution prepares the recipient's sealed source addition immediately; global source publication and message projection are asynchronous distribution. Missing projection therefore cannot demote a lawful local result, while malformed, expired, wrong-recipient, replayed, or unverified claims fail closed. Card offers are the first live producer; Phi, resource, access, and world-operation producers plug into the same carrier whenever their source operation emits the canonical V124 transition set.
 
-## V128 constitutional application boundary
+## V129 constitutional application boundary
 
-`receiz.app.json` is compiled by the official v128 compiler with artifact-first authority and `allowDatabaseAuthority: false`. The release is bound to registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `940c316b5b7d6212240e699d03b3c1fd419cbbecc6ee51ddd7aa7783d9e523b0`. Canonical changes are command-only and must carry same-runtime verified admission/history/actor evidence, the discovered registry law, named commit domain, exact plan-bound capability, expected head, canonical event, idempotency identity, and bounded effects. `pnpm receiz:check` runs the v128 repository checker and is included in the local release gate.
+`receiz.app.json` is compiled by the official v129 compiler with artifact-first authority and `allowDatabaseAuthority: false`. The release is bound to registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1`. Canonical changes are command-only and must carry same-runtime verified admission/history/actor evidence, the discovered registry law, named commit domain, exact plan-bound capability, expected head, canonical event, idempotency identity, and bounded effects. `pnpm receiz:check` runs the v129 repository checker and is included in the local release gate.
 
 V123 is one coordinated SDK/MCP/AI/ruleset/registry/matrix/package-range/runtime release identity. Durable proof memory is first admission only, then append forever. V123 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
 
@@ -80,7 +80,7 @@ The versioned service worker caches the app shell, its route chunks, previously 
 The default doctor reports package compatibility and configured capability presence without exposing values. `--strict-live` is a separate release gate and must verify configured authenticated reads. Missing production credentials remain an explicit pending external gate; they are never rewritten as a pass. Local release qualification must still fail closed on code, proof, PWA, browser, or secret-scan regressions.
 
 
-## v128 offline saves
+## v129 offline saves
 
 All game-bearing image saves use the public SDK offline runtime and packaged
 proof resources. Device enrollment is the one-time network operation; sealed
@@ -88,6 +88,6 @@ payloads and recovery keys remain local. Complete payloads are canonically
 verified before saving, with independent inner identity/game verification on
 restore. A document seal never substitutes for native ownership or settlement
 admission. See [save verification](game-image-export-verification.md) and
-[v128 release evidence](release/receiz-v128-integration.md).
+[v129 release evidence](release/receiz-v129-integration.md).
 
-Receiz package release 128.0.0 retains constitutional ruleset 127.0.0; package and ruleset versions are deliberately distinct.
+Receiz package release 129.0.0 retains constitutional ruleset 127.0.0; package and ruleset versions are deliberately distinct.

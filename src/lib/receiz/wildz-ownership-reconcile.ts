@@ -7,7 +7,7 @@ export const WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS = 1_000;
 export const WILDZ_OWNERSHIP_SYNC_NAMESPACE = "wildz.quest:ownership:v119";
 export const WILDZ_OWNERSHIP_SYNC_SCHEMA = "receiz.wilds_ownership_sync.v119";
 
-type WildzOwnershipSyncProjection = Readonly<{
+export type WildzOwnershipSyncProjection = Readonly<{
   assetId: string;
   artifactId: string;
   previousOwnerReceizId: string;
@@ -16,6 +16,7 @@ type WildzOwnershipSyncProjection = Readonly<{
   historyDigestSha256: string;
   appendCount: number;
   witnessedKaiPulse: string;
+  witnessedKaiUPulse?: string;
   witnessedAt: string;
 }>;
 
@@ -45,7 +46,7 @@ function nonEmpty(value: unknown): value is string {
   return typeof value === "string" && value.trim() === value && value.length > 0;
 }
 
-function ownershipSyncProjection(value: unknown): WildzOwnershipSyncProjection | null {
+export function ownershipSyncProjection(value: unknown): WildzOwnershipSyncProjection | null {
   if (!isRecord(value)
     || value.namespace !== WILDZ_OWNERSHIP_SYNC_NAMESPACE
     || value.schema !== WILDZ_OWNERSHIP_SYNC_SCHEMA
@@ -66,7 +67,11 @@ function ownershipSyncProjection(value: unknown): WildzOwnershipSyncProjection |
     || !/^[a-f0-9]{64}$/.test(data.historyDigestSha256)
     || !Number.isSafeInteger(data.appendCount)
     || Number(data.appendCount) < 1
-    || !nonEmpty(data.witnessedKaiPulse)
+    || typeof data.witnessedKaiPulse !== "string"
+    || !/^(?:0|[1-9][0-9]{0,39})$/.test(data.witnessedKaiPulse)
+    || data.witnessedKaiUPulse !== undefined && (typeof data.witnessedKaiUPulse !== 'string'
+      || !/^(?:0|[1-9][0-9]{0,39})$/.test(data.witnessedKaiUPulse)
+      || BigInt(data.witnessedKaiUPulse) / 1_000_000n !== BigInt(data.witnessedKaiPulse))
     || !nonEmpty(data.witnessedAt)
     || !Number.isFinite(Date.parse(data.witnessedAt))
     || !isRecord(data.authority)
@@ -81,8 +86,31 @@ function ownershipSyncProjection(value: unknown): WildzOwnershipSyncProjection |
     historyDigestSha256: data.historyDigestSha256,
     appendCount: Number(data.appendCount),
     witnessedKaiPulse: data.witnessedKaiPulse,
+    ...(typeof data.witnessedKaiUPulse === "string" ? {witnessedKaiUPulse: data.witnessedKaiUPulse} : {}),
     witnessedAt: data.witnessedAt
   };
+}
+
+/** Public routing projection only. A later verified claim wins by exact Kai uPulse;
+ * equal-pulse conflicting heads remain unresolved. Native custody is re-admitted
+ * independently before selling or accepting delivery. */
+export function latestWildzOwnershipClaims(records: readonly unknown[]) {
+  const order = (claim:WildzOwnershipSyncProjection) => claim.witnessedKaiUPulse ? BigInt(claim.witnessedKaiUPulse) : BigInt(claim.witnessedKaiPulse) * 1_000_000n;
+  const heads = new Map<string, WildzOwnershipSyncProjection>();
+  const conflicts = new Set<string>();
+  for (const record of records) {
+    const next = ownershipSyncProjection(record);
+    if (!next) continue;
+    const prior = heads.get(next.assetId);
+    if (!prior || order(next) > order(prior)) {
+      heads.set(next.assetId, next);
+      conflicts.delete(next.assetId);
+    } else if (order(next) === order(prior) && !sameSyncHead(prior, next)) {
+      conflicts.add(next.assetId);
+    }
+  }
+  for (const id of conflicts) heads.delete(id);
+  return { heads, conflicts };
 }
 
 function sameSyncHead(left: WildzOwnershipSyncProjection, right: WildzOwnershipSyncProjection) {
@@ -98,30 +126,10 @@ export function lostWildzOwnershipAssetIdsFromSync(
   assetIds: readonly string[]
 ) {
   if (!Array.isArray(records) || records.length > 100_000) return [];
-  const requested = new Set(assetIds);
-  const heads = new Map<string, { projection: WildzOwnershipSyncProjection; divergent: boolean }>();
-  for (const record of records) {
-    const projection = ownershipSyncProjection(record);
-    if (!projection || !requested.has(projection.assetId)) continue;
-    const current = heads.get(projection.assetId);
-    if (!current) {
-      heads.set(projection.assetId, { projection, divergent: false });
-      continue;
-    }
-    if (current.projection.artifactId !== projection.artifactId) {
-      current.divergent = true;
-      continue;
-    }
-    if (projection.appendCount > current.projection.appendCount) {
-      current.projection = projection;
-      continue;
-    }
-    if (projection.appendCount === current.projection.appendCount
-      && !sameSyncHead(current.projection, projection)) current.divergent = true;
-  }
+  const {heads} = latestWildzOwnershipClaims(records);
   return assetIds.filter((assetId) => {
     const head = heads.get(assetId);
-    return Boolean(head && !head.divergent && !sameWildzPlayerCoordinate(head.projection.ownerReceizId, actorId));
+    return Boolean(head && !sameWildzPlayerCoordinate(head.ownerReceizId, actorId));
   });
 }
 
@@ -136,6 +144,7 @@ function syncData(assetId: string, witness: WildzOwnershipWitness): JsonObject {
     historyDigestSha256: witness.historyDigestSha256,
     appendCount: witness.appendCount,
     witnessedKaiPulse: witness.witnessedKaiPulse,
+    ...(witness.witnessedKaiUPulse ? {witnessedKaiUPulse: witness.witnessedKaiUPulse} : {}),
     witnessedAt: witness.witnessedAt,
     authority: {
       claim: "witnessed-kai-pulse-in-sealed-artifact",

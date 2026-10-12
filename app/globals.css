@@ -1234,6 +1234,21 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
   }
 }
 
+.wildz-shell-overlay[data-surface="market"] {
+  inset: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  z-index: 2200;
+  width: auto;
+  min-height: 0;
+  border: 1px solid #35503e;
+  border-radius: 24px;
+  overflow: hidden;
+  background: #080f0d;
+  box-shadow: 0 24px 100px #0009;
+  backdrop-filter: none;
+}
+.wildz-shell-overlay[data-surface="market"][data-presentation="page"] {inset:0;border:0;border-radius:0;box-shadow:none;}
+@media(min-width:760px){.wildz-shell-overlay[data-surface="market"] {inset:24px max(24px, calc((100vw - 1280px) / 2));}}
+
 .verify-surface-shell {
   align-items: center;
   display: flex;
@@ -16087,7 +16102,6 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   color: #e7fff6;
   background: radial-gradient(circle at 50% 12%, rgba(110, 238, 199, .2), transparent 52%), linear-gradient(145deg, rgba(14, 55, 47, .96), rgba(7, 27, 27, .98));
 }
-.wildz-construction-label { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 11px; font-weight: 800; line-height: 1; }
 .wildz-construction-counts { display: grid; width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
 .wildz-construction-counts b { display: grid; min-width: 0; min-height: 32px; place-items: center; align-content: center; gap: 3px; color: #dffff4; border: 1px solid rgba(171, 255, 230, .17); border-radius: 5px; background: rgba(2, 21, 19, .76); font-size: 9px; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
 .wildz-construction-counts svg { flex: 0 0 auto; color: #7ff0c5; }
@@ -17656,10 +17670,9 @@ body:has(.wilds-stage.is-creation-placement) .wildz-pwa-notice { visibility: hid
 @media(max-height:560px) and (orientation:landscape){.wildz-construction-home.wildz-quick-utilities{bottom:calc(max(var(--wildz-bottom-home-gap,14px),env(safe-area-inset-bottom)) + 78px + 8px);width:78px;}}
 @media(display-mode:standalone) and (pointer:coarse){@supports not (-webkit-touch-callout:none){.wildz-construction-home.wildz-quick-utilities{bottom:calc(max(56px,calc(env(safe-area-inset-bottom) + 12px)) + clamp(72px,22vw,94px) + 8px);}}}
 .wildz-construction-home.wildz-quick-utilities > button:not(.wildz-construction-control){width:44px;justify-self:center;}
-.wildz-construction-home > .wildz-construction-control { min-height:54px; gap:5px; padding:7px 6px; border-radius:15px; }
+.wildz-construction-home > .wildz-construction-control { width:112px; min-height:44px; justify-self:end; gap:0; padding:6px; border-radius:22px; }
 .wildz-construction-home .wildz-construction-counts { gap:2px; }
 .wildz-construction-home .wildz-construction-counts b { display:flex; justify-content:center; min-height:17px; padding:0 1px; gap:3px; border:0; background:transparent; }
-.wildz-construction-home .wildz-construction-label { gap:4px; font-size:10px; }
 .wildz-player-action-pad { display: grid; grid-template-columns: repeat(2,44px); gap: 4px 6px; width: 112px; padding: 8px; justify-self: end; border: 1px solid #8ed8bd55; border-radius: 32px 32px 26px 26px; background: linear-gradient(155deg,#1b3739e8,#0a1c23f2); box-shadow: inset 0 1px #ffffff12,0 7px 20px #0005; pointer-events: auto; touch-action: none; }
 .wildz-player-action-pad > button { position: relative; display: grid; place-items: center; width:44px; height:44px; min-height:44px; padding:0; border:1px solid #a2e7ce40; border-radius:50%; color:#d6f7e9; background:linear-gradient(145deg,#2f5754,#162e34); box-shadow:inset 0 1px #ffffff1f,0 2px 3px #0007; touch-action:none; -webkit-tap-highlight-color:transparent; }
 .wildz-player-action-pad > .wildz-player-jump { grid-column:1/-1; justify-self:center; color:#f7dfad; border-color:#dfc18155; }

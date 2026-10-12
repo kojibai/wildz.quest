@@ -16,6 +16,7 @@ export type WildzOwnershipWitness = Readonly<{
   historyDigestSha256: string;
   appendCount: number;
   witnessedKaiPulse: string;
+  witnessedKaiUPulse?: string;
   witnessedAt: string;
 }>;
 
@@ -91,6 +92,10 @@ function ownershipWitness(opened: ReceizOpenedArtifact): WildzOwnershipWitness |
   const historyDigestSha256 = nonEmptyField(continuity?.historyDigestSha256);
   const witnessedKaiPulse = nonEmptyField(bundle?.kaiPulseEternal);
   const witnessedAt = bundle ? witnessedIso(bundle) : null;
+  const exactUpulse = bundle?.kaiUpulse ?? bundle?.kaiUPulse;
+  const witnessedKaiUPulse = typeof exactUpulse === 'string' && /^(?:0|[1-9][0-9]{0,39})$/.test(exactUpulse)
+    && witnessedKaiPulse && /^(?:0|[1-9][0-9]{0,39})$/.test(witnessedKaiPulse)
+    && BigInt(exactUpulse) / 1_000_000n === BigInt(witnessedKaiPulse) ? exactUpulse : undefined;
 
   if (!continuity
     || continuity.state !== "verified"
@@ -138,6 +143,7 @@ function ownershipWitness(opened: ReceizOpenedArtifact): WildzOwnershipWitness |
     historyDigestSha256,
     appendCount: Number(appendCount),
     witnessedKaiPulse,
+    ...(witnessedKaiUPulse ? {witnessedKaiUPulse} : {}),
     witnessedAt
   };
 }

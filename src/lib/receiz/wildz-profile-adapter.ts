@@ -148,7 +148,7 @@ export async function publishCurrentWildzProfile(
   profile: PublicWildzProfile,
   assetsOrFetcher: readonly PortableCardAsset[] | typeof fetch = [],
   suppliedFetcher: typeof fetch = globalThis.fetch,
-  options: { confirmExisting?: boolean; signal?: AbortSignal; onProgress?: () => void; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string>; publishSourceProfile?: (profile: PublicWildzProfile, assets: readonly PortableCardAsset[], signal?: AbortSignal) => Promise<PublicWildzProfile>; publishWithIdentityProof?: (profile: PublicWildzProfile, signal?: AbortSignal) => Promise<PublicWildzProfile> } = {}
+  options: { confirmExisting?: boolean; confirmMarketCollection?: boolean; signal?: AbortSignal; onProgress?: () => void; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string>; publishSourceProfile?: (profile: PublicWildzProfile, assets: readonly PortableCardAsset[], signal?: AbortSignal) => Promise<PublicWildzProfile>; publishWithIdentityProof?: (profile: PublicWildzProfile, signal?: AbortSignal) => Promise<PublicWildzProfile> } = {}
 ) {
   const assets = typeof assetsOrFetcher === "function" ? [] : assetsOrFetcher;
   const fetcher = typeof assetsOrFetcher === "function" ? assetsOrFetcher : suppliedFetcher;
@@ -165,7 +165,13 @@ export async function publishCurrentWildzProfile(
   if (options.confirmExisting) {
     const existing = await fetchPublicWildzProfile(profile.username, fetcher, { signal: options.signal }).catch(() => null);
     options.signal?.throwIfAborted();
-    if (existing && canonicalPortableCardJson(existing) === canonicalPortableCardJson(sanitizePublicWildzProfile(profile))) {
+    let collectionConfirmed = !options.confirmMarketCollection;
+    if (existing && options.confirmMarketCollection) {
+      const directory = await fetcher(`/api/wilds/market/collection?owner=${encodeURIComponent(profile.username)}`, {credentials: 'omit', cache: 'no-store', signal: options.signal}).then(response => response.ok ? response.json() : null).catch(() => null);
+      options.signal?.throwIfAborted();
+      collectionConfirmed = directory?.ok === true && canonicalPortableCardJson(directory.profile) === canonicalPortableCardJson(existing);
+    }
+    if (existing && collectionConfirmed && canonicalPortableCardJson(existing) === canonicalPortableCardJson(sanitizePublicWildzProfile(profile))) {
       pendingSourceProfiles.get(fetcher)?.delete(profile.username);
       return existing;
     }

@@ -230,8 +230,12 @@ class FakeObjectStore {
     });
   }
 
-  getAll() {
-    return this.transaction.request(() => [...this.values.values()].map((value) => clone(value)));
+  getAll(range?: IDBKeyRange, count?: number) {
+    return this.transaction.request(() => range
+      ? [...this.values.entries()].filter(([key]) => range.includes(key))
+        .sort(([left], [right]) => String(left) < String(right) ? -1 : String(left) > String(right) ? 1 : 0)
+        .slice(0, count).map(([,value]) => clone(value))
+      : [...this.values.values()].map((value) => clone(value)));
   }
 
   put(value: unknown, key?: IDBValidKey) {

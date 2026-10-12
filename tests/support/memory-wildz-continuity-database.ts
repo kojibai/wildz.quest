@@ -83,6 +83,12 @@ export function createMemoryWildzContinuityDatabase(): MemoryWildzContinuityData
             if (!selected.has(store)) throw new Error("wildz_memory_store_not_in_transaction");
             return [...working[store].values()].map((value) => clone(value as TValue));
           },
+          async getAllByPrefix<TValue>(store: WildzStoreName, prefix: string, limit: number) {
+            if (!selected.has(store)) throw new Error("wildz_memory_store_not_in_transaction");
+            return [...working[store].entries()].filter(([key]) => typeof key === "string" && key.startsWith(prefix))
+              .sort(([left], [right]) => String(left) < String(right) ? -1 : String(left) > String(right) ? 1 : 0)
+              .slice(0, limit).map(([,value]) => clone(value as TValue));
+          },
           async put<TValue>(store: WildzStoreName, value: TValue, key?: IDBValidKey) {
             if (mode !== "readwrite") throw new Error("wildz_memory_transaction_readonly");
             if (!selected.has(store)) throw new Error("wildz_memory_store_not_in_transaction");

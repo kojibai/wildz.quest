@@ -7,10 +7,8 @@ import { pngCrc32 as crc32 } from "../../lib/png-crc32";
 import { creatureForm } from "./creature-catalog";
 import { wildzSealedDownloadFilename } from "../../lib/receiz/wildz-sealed-document";
 import QRCode from "qrcode";
-import { deriveBirthGenome } from "./heartbound-genome";
-import { renderHeartboundSvg } from "./heartbound-renderer";
-import { projectCardCreatureLevelAppearance } from "./wilds-creature-level-appearance";
-import { currentLivingGenome, currentCreatureHistoryProjection } from "./living-card-proof";
+import {renderWildsCollectibleArt} from "./wilds-collectible-art";
+import { currentCreatureHistoryProjection } from "./living-card-proof";
 import { isLivingCardAsset } from "./living-card-types";
 import { projectLivingCardStory } from "./living-card-dossier";
 import { parseWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
@@ -183,10 +181,7 @@ export function renderWildsCardSvg(asset: PortableCardAsset, options: { origin?:
   if (!form) throw new Error("wilds_card_form_unknown");
   const stats = asset.manifest.stats;
   const palette = asset.manifest.variant.traits.palette;
-  const genome = isLivingCardAsset(asset)
-    ? currentLivingGenome(asset)
-    : deriveBirthGenome({ formId: asset.manifest.formId, proofDigest: asset.proof.digest, variant: asset.manifest.variant.traits });
-  const heartboundArt = renderHeartboundSvg(genome, "card", { width: 640, height: 405, title: asset.manifest.name, levelAppearance: projectCardCreatureLevelAppearance(asset) });
+  const heartboundArt = renderWildsCollectibleArt(asset,{width:640,height:405});
   const foilOpacity = form.foil === "standard" ? 0.08 : form.foil === "shimmer" ? 0.2 : 0.32;
   const statRows = [
     statRow("HEALTH", stats.health, 0, palette.primary),
@@ -211,7 +206,7 @@ export function renderWildsCardSvg(asset: PortableCardAsset, options: { origin?:
   <rect x="12" y="12" width="726" height="1026" rx="50" fill="url(#bg)" stroke="${xml(palette.accent)}" stroke-width="18"/>
   <rect x="35" y="35" width="680" height="980" rx="34" fill="none" stroke="#fff" stroke-opacity=".2" stroke-width="2"/>
   <path d="M55 132h640" stroke="${xml(palette.primary)}" stroke-width="4"/>
-  <text x="58" y="94" fill="#fff" font-family="system-ui,sans-serif" font-size="42" font-weight="900">${xml(asset.manifest.name)}</text>
+  <text x="58" y="94" fill="#fff" font-family="system-ui,sans-serif" font-size="${Math.max(20,Math.min(42,Math.floor(540/(Math.max(1,asset.manifest.name.length)*.6))))}" font-weight="900">${xml(asset.manifest.name)}</text>
   <text x="692" y="75" text-anchor="end" fill="${xml(palette.accent)}" font-family="system-ui,sans-serif" font-size="18" font-weight="800">STAGE ${asset.manifest.stage}</text>
   <text x="692" y="102" text-anchor="end" fill="${xml(palette.accent)}" font-family="system-ui,sans-serif" font-size="18" font-weight="800">LV. ${level}</text>
   <text x="692" y="124" text-anchor="end" fill="#b9d1da" font-family="system-ui,sans-serif" font-size="14" font-weight="700">${xml(asset.manifest.cardNumber)}</text>

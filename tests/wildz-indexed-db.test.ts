@@ -189,3 +189,25 @@ test("a stalled mobile write is aborted without publishing its uncommitted mater
   assert.equal(await database.read("meta", "harvest"), null);
   assert.equal(fake.abortedTransactions, 1);
 });
+
+test("production prefix reads select only a bounded owner archive range before cloning values", async () => {
+  const originalRange = globalThis.IDBKeyRange;
+  globalThis.IDBKeyRange = {bound: (lower: string, upper: string) => ({includes: (key: IDBValidKey) => typeof key === "string" && key >= lower && key <= upper})} as unknown as typeof IDBKeyRange;
+  try {
+    const fake = createFakeIndexedDb();
+    const database = createWildzContinuityDatabase({factory: fake.factory, name: "archive-prefix-read"});
+    await database.transaction(["meta"], "readwrite", async tx => {
+      await tx.put("meta", "other source", "source:large");
+      await tx.put("meta", "alice:3", "archive:alice:3");
+      await tx.put("meta", "other identity", "archive:bob:1");
+      await tx.put("meta", "alice:1", "archive:alice:1");
+      await tx.put("meta", "alice:2", "archive:alice:2");
+    });
+    const selected = await database.transaction(["meta"], "readonly", tx => {
+      assert.equal(typeof tx.getAllByPrefix, "function");
+      return tx.getAllByPrefix!<string>("meta", "archive:alice:", 2);
+    });
+    assert.deepEqual(selected, ["alice:1", "alice:2"]);
+    assert.equal(fake.dump("meta").length, 5);
+  } finally { globalThis.IDBKeyRange = originalRange; }
+});

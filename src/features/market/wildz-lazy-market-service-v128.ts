@@ -51,9 +51,13 @@ export function createLazyWildzMarketServiceV128(input: Readonly<{
       return () => { listeners.delete(listener); if (!listeners.size) { unsubscribe?.(); unsubscribe = null; } };
     },
     read: () => run(next => next.read()),
+    readHistory: () => run(next => next.readHistory ? next.readHistory() : Promise.resolve(next.snapshot())),
+    readValue: id => run(next => next.readValue ? next.readValue(id) : Promise.resolve({status:'unavailable',message:'No verified valuation is available for this card yet.'})),
     list: request => run(next => next.list(request)),
     cancel: id => run(next => next.cancel(id)),
     activateListing: id => run(next => next.activateListing ? next.activateListing(id) : Promise.resolve({status:'failed',message:'Reopen Market to activate this listing.'})),
+    makeOffer: request => run(next => next.makeOffer ? next.makeOffer(request) : Promise.resolve({status:'failed',message:'Reopen Market to make an offer.'})),
+    respondToOffer: (id,outcome) => run(next => next.respondToOffer ? next.respondToOffer(id,outcome) : Promise.resolve({status:'failed',message:'Reopen Market to respond to an offer.'})),
     previewPurchase: id => run(next => next.previewPurchase(id)),
     approvePurchase: id => run(next => next.approvePurchase(id)),
     resume: id => run(next => next.resume(id)),

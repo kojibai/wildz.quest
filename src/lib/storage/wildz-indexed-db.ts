@@ -3,6 +3,8 @@ export type WildzStoreName = "wrappingKeys" | "identities" | "ownerStates" | "me
 export interface WildzContinuityTransaction {
   get<T>(store: WildzStoreName, key: IDBValidKey): Promise<T | null>;
   getAll<T>(store: WildzStoreName): Promise<T[]>;
+  /** Bounded string-key range; filtering happens before IndexedDB clones values. */
+  getAllByPrefix?<T>(store: WildzStoreName, prefix: string, limit: number): Promise<T[]>;
   put<T>(store: WildzStoreName, value: T, key?: IDBValidKey): Promise<void>;
   delete(store: WildzStoreName, key: IDBValidKey): Promise<void>;
   /** Optional for in-memory adapters. Production deletes by expiry keys without cloning upload bytes. */
@@ -45,6 +47,12 @@ function transactionPort(transaction: IDBTransaction): WildzContinuityTransactio
     },
     async getAll<T>(store: WildzStoreName) {
       return requestResult(transaction.objectStore(store).getAll()) as Promise<T[]>;
+    },
+    async getAllByPrefix<T>(store: WildzStoreName, prefix: string, limit: number) {
+      if (!prefix || prefix.length > 1024 || !Number.isInteger(limit) || limit < 1 || limit > 256)
+        throw Error("wildz_indexed_db_range_invalid");
+      if (typeof IDBKeyRange === "undefined") throw Error("wildz_indexed_db_key_range_unavailable");
+      return requestResult(transaction.objectStore(store).getAll(IDBKeyRange.bound(prefix, `${prefix}\uffff`), limit)) as Promise<T[]>;
     },
     async put<T>(store: WildzStoreName, value: T, key?: IDBValidKey) {
       const objectStore = transaction.objectStore(store);

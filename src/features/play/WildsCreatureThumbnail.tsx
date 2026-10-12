@@ -1,29 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { deriveBirthGenome } from "./heartbound-genome";
-import { renderHeartboundSvg } from "./heartbound-renderer";
-import { currentLivingGenome } from "./living-card-proof";
-import { isLivingCardAsset } from "./living-card-types";
+import {renderWildsCollectibleArt} from "./wilds-collectible-art";
 import type { PortableCardAsset } from "./portable-card";
-import { projectCardCreatureLevelAppearance } from "./wilds-creature-level-appearance";
 
 export function renderPortableCreatureThumbnail(asset: PortableCardAsset) {
-  const genome = isLivingCardAsset(asset)
-    ? currentLivingGenome(asset)
-    : deriveBirthGenome({
-      formId: asset.manifest.formId,
-      proofDigest: asset.proof.digest,
-      variant: asset.manifest.variant.traits
-    });
-
-  return renderHeartboundSvg(genome, "idle", {
-    width: 180,
-    height: 180,
-    title: `${asset.manifest.name} deck portrait`,
-    fit: "full-body",
-    levelAppearance: projectCardCreatureLevelAppearance(asset)
-  });
+  return renderWildsCollectibleArt(asset,{width:180,height:180,pose:"idle",habitat:false});
 }
 
 export function WildsCreatureThumbnail({ asset, className = "" }: { asset: PortableCardAsset; className?: string }) {

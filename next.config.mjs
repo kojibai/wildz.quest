@@ -48,6 +48,10 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // The application coordinate is public; client secrets and tokens stay server-only.
+  env: {
+    NEXT_PUBLIC_RECEIZ_NATIVE_APPLICATION_ID: process.env.RECEIZ_CLIENT_ID ?? process.env.RECEIZ_APPLICATION_ID ?? ""
+  },
   outputFileTracingRoot: root,
   outputFileTracingExcludes: {
     "/*": [

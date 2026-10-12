@@ -8,10 +8,13 @@ export type WildzMarketArchivedPurchaseV128=Readonly<{checkpoint:WildzMarketPurc
 export type WildzMarketArchiveStoreV128=Readonly<{
  retainPurchase(owner:Readonly<{ownerHandle:string;keyId:string}>,value:WildzMarketArchivedPurchaseV128):Promise<void>;
  readPurchase(owner:Readonly<{ownerHandle:string;keyId:string}>,purchaseId:string):Promise<WildzMarketArchivedPurchaseV128|null>;
+ readPurchases?(owner:Readonly<{ownerHandle:string;keyId:string}>):Promise<readonly WildzMarketArchivedPurchaseV128[]>;
  retainList(owner:Readonly<{ownerHandle:string;keyId:string}>,value:WildzMarketListAttemptV128):Promise<void>;
 }>;
 const same=(a:unknown,b:unknown)=>canonicalPortableCardJson(a)===canonicalPortableCardJson(b);
 const schema="wildz.market.private-archive.v128";
+/** Older purchases remain addressable individually; discovery is a bounded page. */
+export const WILDZ_MARKET_ARCHIVE_READ_LIMIT_V128=32;
 /** Retains exact private bytes only. The controller must independently verify
  * every native approval/receipt before retention and again before reuse. */
 export function createWildzMarketArchiveStoreV128(database?:WildzContinuityDatabase):WildzMarketArchiveStoreV128{
@@ -31,6 +34,17 @@ export function createWildzMarketArchiveStoreV128(database?:WildzContinuityDatab
  };
  return {
   async retainPurchase(owner,value){const admitted=closed(owner,value);await retain(owner,"purchase",admitted.checkpoint.agreement.market!.purchaseId,admitted);},
+  async readPurchases(owner){
+   const prefix=JSON.stringify([schema,owner.ownerHandle,owner.keyId,'purchase']).slice(0,-1)+',';
+   const rows=await (await db()).transaction(['meta'],'readonly',tx=>{
+    if(!tx.getAllByPrefix)throw Error('The bounded archived trade read is unavailable.');
+    return tx.getAllByPrefix<{schema:string;owner:typeof owner;kind:string;id:string;value:WildzMarketArchivedPurchaseV128;digest:string}>('meta',prefix,WILDZ_MARKET_ARCHIVE_READ_LIMIT_V128);
+   });
+   return rows.filter(raw=>raw?.schema===schema&&raw.kind==='purchase'&&same(raw.owner,owner)).map(raw=>{
+    if(raw.digest!==sha256PortableBasis(canonicalPortableCardJson(raw.value)))throw Error('The archived market bytes changed.');
+    const value=closed(owner,raw.value);if(value.checkpoint.agreement.market!.purchaseId!==raw.id)throw Error('The archived market coordinate changed.');return value;
+   });
+  },
   async readPurchase(owner,id){
    const raw=await(await db()).read<{schema:string;owner:typeof owner;kind:string;id:string;value:WildzMarketArchivedPurchaseV128;digest:string}>("meta",coordinate(owner,"purchase",id));
    if(!raw)return null;

@@ -2,7 +2,7 @@ import {createReceizClient} from '@receiz/sdk';
 import {initialWildzMarketSourceV128,WILDZ_MARKET_SOURCE_DOMAIN_V128} from './wildz-market-source-journal-v128';
 import {readWildzMarketPublicSourceProofV128,verifyWildzMarketSourceProofV128} from './wildz-market-source-repository-v128';
 import type {WildzMarketSourceRepositoryV128,WildzMarketSourceResultV128} from './wildz-market-source-types-v128';
-import {WILDZ_RECEIZ_APPLICATION_ID} from './wildz-application';
+import {wildzNativeApplicationId} from './wildz-native-application';
 
 const sourceUrl='https://wildz.quest/receiz/market-source-v128';
 export const isWildzMarketPublicSourceUrlV128=(url:string)=>url===sourceUrl||/^https:\/\/wildz\.quest\/receiz\/market-source-v128\/pages\/[a-f0-9]{64}$/.test(url);
@@ -26,7 +26,7 @@ export function createWildzMarketPublicReadSourceV128(fetcher:typeof fetch=fetch
  const snapshot=()=>({state:opened?.state??initialWildzMarketSourceV128(),head:opened?.predecessor.head.head??null,proof:opened?.proof??null});
  async function load(){
   const proof=await readWildzMarketPublicSourceProofV128(sdk);
-  opened=proof?await verifyWildzMarketSourceProofV128(sdk,proof,{applicationId:WILDZ_RECEIZ_APPLICATION_ID,historical:true}):null;
+  opened=proof?await verifyWildzMarketSourceProofV128(sdk,proof,{applicationId:wildzNativeApplicationId(),historical:true}):null;
   loaded=true;return snapshot();
  }
  async function observe(request:Readonly<{listingId:string;reservationId?:string}>):Promise<WildzMarketSourceResultV128>{

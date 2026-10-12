@@ -63,9 +63,7 @@ export function createWildsWalletCreatureAssetPortV128(input: WildsWalletCreatur
       if(input.onAcceptedOutgoing) await input.onAcceptedOutgoing(leg,source,runtime); current();
     },
   });
-  return {
-    ...controller,
-    async qualifyListing(asset: WildsWalletAssetSendAsset, summary?: string): Promise<WildzMarketSelectionV128> {
+  async function qualifyValueProof(asset: WildsWalletAssetSendAsset, summary?: string) {
       if (asset.kind !== "creature") throw Error("Choose an owned creature for this listing.");
       const {runtime,producer}=await open(), source=await producer.prepareAsset(asset); current();
       const opened=await readWildsWalletCreatureBearerV128(source.original,source.originProof as WildsResourceSourceProofV128,runtime.sdk,runtime.applicationId);
@@ -73,9 +71,11 @@ export function createWildsWalletCreatureAssetPortV128(input: WildsWalletCreatur
       if(opened.derived.ownerReceizId!==input.ownerHandle || projection.card.id!==asset.assetId) throw Error("This exact listing is no longer held by this Explorer.");
       const description=summary?.trim() || projection.card.manifest.name || "Creature";
       if(description.length>800) throw Error("The listing summary is too long.");
-      return Object.freeze({asset:Object.freeze({...asset}),semanticIds:Object.freeze([`creature:${opened.derived.namespace}:${opened.derived.artifactId}`]),
+      const selection:WildzMarketSelectionV128=Object.freeze({asset:Object.freeze({...asset}),semanticIds:Object.freeze([`creature:${opened.derived.namespace}:${opened.derived.artifactId}`]),
         sourceDigest:sha256PortableBasis(canonicalPortableCardJson({schema:"wildz.market.creature-selection.v128",original:source.original.artifactSha256,projection:source.projectionOriginal.artifactSha256,head:opened.headReference,asset})).replace(/^sha256:/,""),
         summary:description,resourceUnits:0,creatureCount:1});
-    }
-  };
+      return {selection,card:projection.card,projectionOriginal:source.projectionOriginal};
+  }
+  return {...controller,qualifyValueProof,
+    qualifyListing:async(asset:WildsWalletAssetSendAsset,summary?:string)=>(await qualifyValueProof(asset,summary)).selection};
 }

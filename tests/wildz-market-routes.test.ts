@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { initialPlayState } from "../src/features/play/game-state";
 import {
@@ -10,8 +10,13 @@ import {
 import { createWildzListing } from "../src/features/market/wildz-market";
 import { emptyWildzMarketState } from "../src/lib/receiz/wildz-market-state";
 
-test("market remains embedded and every mutation trusts only the scoped cookie actor", () => {
-  assert.equal(existsSync("app/market/page.tsx"), false);
+test("market shares the persistent game shell in its page and popover and mutations trust only the scoped cookie actor", () => {
+  const page = readFileSync("app/market/page.tsx", "utf8");
+  assert.match(page, /<WildzApp initialOverlay=\{\{kind:'market'\}\} marketPresentation="page"/);
+  const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
+  assert.match(shell, /marketPresentation = "popover"/);
+  assert.match(shell, /<WildzMarketSheet/);
+  assert.match(shell, /onClose=\{closeShellOverlay\}/);
   const actorSource = readFileSync("src/lib/receiz/wildz-cookie-actor.ts", "utf8");
   assert.match(actorSource, /cookieAccessToken/);
   assert.match(actorSource, /loadReceizConnectProfile/);
