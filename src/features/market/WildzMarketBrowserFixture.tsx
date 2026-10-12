@@ -35,7 +35,7 @@ function createFixtureService(ownerHandle:string,onCall:(value:string)=>void,car
  const review:WildzMarketPurchaseReviewV128={purchaseId:'fixture:purchase:ember',listingId:`market:listing:${'a'.repeat(64)}`,reservationId:'fixture:reservation:ember',title:marketFixtureCards[0]!.manifest.name,kind:'creature',buyerHandle:buyer,sellerHandle:seller,priceUsdCents:'1234',amountPhiMicro:'1234567',usdPerPhiMicrocents:'1000000000',expiresAtKai:999,phase:'review',agreement,canApprove:true,canResume:false,canAccept:false,message:'Review the named players and exact terms.'};
  if(ownerHandle===seller)snapshot={...snapshot,offers:[{offer:{schema:'wildz.market-offer.v1',offerId:'market:offer:fixture-incoming',assetId:marketFixtureCards[1]!.id,title:marketFixtureCards[1]!.manifest.name,proofDigest:marketFixtureCards[1]!.proof.digest,buyerHandle:buyer,ownerHandle:seller,claimKaiUPulse:'16000000100001',claimHead:'fixture:claim:head',priceUsdCents:'1800'},status:'pending',createdAt:'2026-10-11T16:00:00.000Z'}],purchases:[{...review,phase:'awaiting-approvals',message:'The buyer approved. Your seller approval is still required.'}]};
  // An explicit fixture display basis, never used by production payment or quotes.
- const valuePort=createWildzMarketValueBrowserPortV129({card:id=>cards.find(card=>card.id===id)??null,usdPerPhiMicrocents:()=> '100000000'});
+ const valuePort=createWildzMarketValueBrowserPortV129({card:id=>cards.find(card=>card.id===id)??null});
  return {
   binding:{ownerHandle,keyId:(ownerHandle===buyer?'a':'c').repeat(64)},snapshot:()=>snapshot,
   releaseValue:()=>valuePort.release?.(),

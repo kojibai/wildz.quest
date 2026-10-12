@@ -24,11 +24,12 @@ import { createMemoryWildzContinuityDatabase } from "./support/memory-wildz-cont
 // v102 compatibility includes deliberate readback of earlier proof-memory
 // snapshots; those fixtures remain named for their original source version.
 
-function runtimeSourceText(directory: string): string {
+function runtimeSourceText(directory: string, excludedPath?: string): string {
   return readdirSync(directory, { withFileTypes: true })
     .flatMap((entry) => {
       const path = join(directory, entry.name);
-      if (entry.isDirectory()) return runtimeSourceText(path);
+      if (path === excludedPath) return [];
+      if (entry.isDirectory()) return runtimeSourceText(path, excludedPath);
       return /\.[cm]?[jt]sx?$/.test(entry.name) ? [readFileSync(path, "utf8")] : [];
     })
     .join("\n");
@@ -230,14 +231,23 @@ test("v102 keeps valid manifests inspection-only instead of admitting incomplete
   }
 });
 
-test("v102 keeps MCP and authenticated proof-object creation out of browser feature modules", () => {
+test("v102 keeps MCP server-side and native issuance within its bounded source adapter", () => {
   const browserRuntime = runtimeSourceText("src/features");
+  // The released native source SDK adapter may wrap official issuance for
+  // per-operation diagnostics. All issuance still crosses its bounded server
+  // transport; feature components cannot introduce another creation path.
+  const sourceAdapterPath = "src/features/play/wallet/wilds-wallet-source-sdk-v128.ts";
+  const browserOutsideSourceAdapter = runtimeSourceText("src/features", sourceAdapterPath);
+  const sourceAdapter = readFileSync(sourceAdapterPath, "utf8");
   const productionRuntime = `${runtimeSourceText("app")}\n${runtimeSourceText("src")}`;
   const proofObjectRoute = readFileSync("app/api/receiz/proof-object/route.ts", "utf8");
   const artifactTransport = readFileSync("src/lib/receiz/wildz-http-artifact.ts", "utf8");
   const compatibilityRoute = readFileSync("app/api/receiz/seal/route.ts", "utf8");
   assert.doesNotMatch(productionRuntime, /@receiz\/mcp-server/);
-  assert.doesNotMatch(browserRuntime, /\bcreateProofObject\s*\(/);
+  assert.doesNotMatch(browserOutsideSourceAdapter, /\bcreateProofObject\s*\(/);
+  assert.match(sourceAdapter, /issuer\.assets\.createProofObject\(payload,options\)/);
+  assert.match(sourceAdapter, /\/api\/wilds\/wallet\/source-sdk/);
+  assert.doesNotMatch(sourceAdapter, /RECEIZ_CLIENT_SECRET|\/api\/document-seal/);
   assert.match(proofObjectRoute, /resolveWildzCookieActor/);
   assert.match(proofObjectRoute, /createWildzExportProofObject/);
   assert.doesNotMatch(proofObjectRoute, /verifyReceizArtifact/);

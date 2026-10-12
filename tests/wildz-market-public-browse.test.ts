@@ -12,6 +12,15 @@ import type {WildzMarketLocalValueEvaluationV129} from '../src/features/market/w
 const asset=initialPlayState.inventory[0]!;
 const empty=():WildzMarketSourceSnapshotV128=>({state:initialWildzMarketSourceV128(),head:null,proof:null});
 const collection={cards:[{assetId:asset.id,title:asset.manifest.name,proofDigest:asset.proof.digest,ownerHandle:'publicseller.receiz.id',claimKaiUPulse:null,claimHead:null,asset}],transfers:[]};
+class LocalCalculationWorker extends EventTarget {
+ constructor(){super();queueMicrotask(()=>this.dispatchEvent(new MessageEvent('message',{data:{type:'value-ready'}})));}
+ postMessage(request:{requestId:number;card:PortableCardAsset;evaluation:WildzMarketLocalValueEvaluationV129}){
+  void calculateWildzMarketLocalValueV129(structuredClone(request.card),request.evaluation).then(result=>{
+   this.dispatchEvent(new MessageEvent('message',{data:{type:'value-result',requestId:request.requestId,result}}));
+  });
+ }
+ terminate(){}
+}
 
 test('anonymous browsing reads public cards without an identity or write port and coalesces entry reads',async()=>{
  let reads=0;
@@ -31,14 +40,6 @@ test('public collection remains browsable when a listing source is temporarily u
 
 test('public browse forwards an already held USD rate to its default local value port',async()=>{
  const previous=Object.getOwnPropertyDescriptor(globalThis,'Worker');
- class LocalCalculationWorker extends EventTarget {
-  postMessage(request:{requestId:number;card:PortableCardAsset;evaluation:WildzMarketLocalValueEvaluationV129}){
-   void calculateWildzMarketLocalValueV129(structuredClone(request.card),request.evaluation).then(result=>{
-    this.dispatchEvent(new MessageEvent('message',{data:{type:'value-result',requestId:request.requestId,result}}));
-   });
-  }
-  terminate(){}
- }
  Object.defineProperty(globalThis,'Worker',{configurable:true,value:LocalCalculationWorker});
  let rate='40750000000';
  const options={readNative:async()=>empty(),readAdvertisements:async()=>empty(),readCollection:async()=>collection,
@@ -53,6 +54,24 @@ test('public browse forwards an already held USD rate to its default local value
   assert.equal(changed.status,'ready');if(changed.status!=='ready')return;
   assert.equal(changed.value.displayUsdCents,quoteReceizDisplayUsdV122(changed.value.proofValuePhiMicro,rate));
   assert.notEqual(changed.value.priceBasisDigest,result.value.priceBasisDigest);
+ }finally{
+  service.releaseValue?.();if(previous)Object.defineProperty(globalThis,'Worker',previous);else Reflect.deleteProperty(globalThis,'Worker');
+ }
+});
+
+test('the first anonymous /market collection value is already USD without opening or connecting Wallet',async()=>{
+ const previous=Object.getOwnPropertyDescriptor(globalThis,'Worker');
+ Object.defineProperty(globalThis,'Worker',{configurable:true,value:LocalCalculationWorker});
+ const service=createWildzMarketPublicBrowseService({readNative:async()=>empty(),readAdvertisements:async()=>empty(),readCollection:async()=>collection});
+ try{
+  // No identity, held USD callback or Wallet port exists in this service.
+  assert.equal(service.binding.keyId,'');await service.read();
+  const result=await service.readValue!(asset.id);
+  assert.equal(result.status,'ready');if(result.status!=='ready')return;
+  assert.match(result.value.displayUsdCents!,/^[1-9][0-9]*$/);
+  const firstCard=service.snapshot().collection![0]!;
+  assert.equal(firstCard.value?.displayUsdCents,result.value.displayUsdCents);
+  assert.equal(JSON.parse(result.value.replay!.json).inputs.usdBasis.source,'receiz-local-wallet-display-policy');
  }finally{
   service.releaseValue?.();if(previous)Object.defineProperty(globalThis,'Worker',previous);else Reflect.deleteProperty(globalThis,'Worker');
  }

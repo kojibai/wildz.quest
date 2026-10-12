@@ -17,7 +17,8 @@ export function createWildzMarketValueBrowserPortV129(input:Readonly<{
  ownerHandle?:string;
  current?():void;
  card(assetId:string):PortableCardAsset|null|Promise<PortableCardAsset|null>;
- /** A rate already carried by Wallet/receipts; this callback does no refresh. */
+ /** Optional replay/display override; absent it the worker derives Receiz's
+  * canonical public Wallet display rate locally for every identity. */
  usdPerPhiMicrocents?():string|null;
  now?():string;
  /** Retained for callers migrating from the old port. Neither is invoked. */
@@ -26,25 +27,31 @@ export function createWildzMarketValueBrowserPortV129(input:Readonly<{
  worker?():Worker;
 }>):WildzMarketValuePort {
  const cache=new Map<string,WildzMarketValueRead>(),running=new Map<string,Promise<WildzMarketValueRead>>();
- let queue:Promise<unknown>=Promise.resolve(),worker:Worker|null=null,disposed=false,requestId=0,generation=0;
+ let queue:Promise<unknown>=Promise.resolve(),worker:Worker|null=null,workerReady=false,disposed=false,requestId=0,generation=0;
  let idle:ReturnType<typeof setTimeout>|null=null,cancelActive:(()=>void)|null=null;
- function stopWorker(){if(idle)clearTimeout(idle);idle=null;worker?.terminate();worker=null;}
+ function stopWorker(){if(idle)clearTimeout(idle);idle=null;worker?.terminate();worker=null;workerReady=false;}
  function idleWorker(){if(idle)clearTimeout(idle);idle=setTimeout(stopWorker,WORKER_IDLE_MS);}
  function release(){generation++;cancelActive?.();stopWorker();cache.clear();running.clear();queue=Promise.resolve();}
  function compute(assetId:string,card:PortableCardAsset,evaluation:WildzMarketLocalValueEvaluationV129,selectedGeneration:number):Promise<WildzMarketValueRead>{
   if(disposed||selectedGeneration!==generation)return Promise.resolve(unavailable('Market value reading has closed.'));
   input.current?.();if(idle)clearTimeout(idle);idle=null;
-  worker??=input.worker?.()??new Worker(new URL('./wildz-market-value.worker.ts',import.meta.url),{type:'module'});
+  worker??=input.worker?.()??new Worker(new URL('./wildz-market-value.worker.ts',import.meta.url),{type:'module',name:'wildz-market-value'});
   const activeWorker=worker,id=++requestId;
   return new Promise(resolve=>{
-   let active=true;
+   let active=true,sent=false;
    const finish=(result:WildzMarketValueRead,stop=false)=>{
     if(!active)return;active=false;clearTimeout(timer);
     activeWorker.removeEventListener('message',message);activeWorker.removeEventListener('error',failure);cancelActive=null;
     if(stop)stopWorker();else idleWorker();resolve(result);
    };
    const failure=()=>finish(unavailable('The local card value could not refresh. Reopen this card to retry.'),true);
+   const send=()=>{
+    if(!active||sent)return;
+    try{input.current?.();sent=true;activeWorker.postMessage({type:'read-value',requestId:id,assetId,card,evaluation});}catch{failure();}
+   };
    const message=(event:MessageEvent)=>{
+    if(event.data?.type==='value-ready'){workerReady=true;send();return;}
+    if(!sent)return;
     if(event.data?.type!=='value-result'||event.data.requestId!==id)return;
     const result=event.data.result as WildzMarketValueRead;
     if(result?.status==='ready'&&(result.value.assetId!==assetId||result.value.proofDigest!==card.proof.digest
@@ -55,7 +62,9 @@ export function createWildzMarketValueBrowserPortV129(input:Readonly<{
    const timer=setTimeout(()=>finish(unavailable('The local card value calculation timed out. Reopen this card to retry.'),true),10_000);
    cancelActive=()=>finish(unavailable('Market value reading has closed.'),true);
    activeWorker.addEventListener('message',message);activeWorker.addEventListener('error',failure);
-   try{activeWorker.postMessage({type:'read-value',requestId:id,assetId,card,evaluation});}catch{failure();}
+   // Webpack's production worker entry can finish loading shared modules
+   // asynchronously. Its message listener must exist before the first input.
+   if(workerReady)send();
   });
  }
  return {release,dispose(){if(disposed)return;disposed=true;release();},async read(assetId){

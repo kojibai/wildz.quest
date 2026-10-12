@@ -8,6 +8,8 @@ const card=sealCollectedCard({formId:'mintcub-1',ownerReceizId:'buyer.receiz.id'
 class PublicWorker extends EventTarget {
   request!: {requestId:number;assetId:string;card:typeof card;evaluation:{valuationKaiUPulse:string;usdBasis?:unknown}};
   stopped=false;
+ constructor(){super();queueMicrotask(()=>this.signalReady());}
+ signalReady(){this.dispatchEvent(new MessageEvent('message',{data:{type:'value-ready'}}));}
   postMessage(request:PublicWorker['request']){this.request=request;}
   terminate(){this.stopped=true;}
   reply(result:WildzMarketValueRead){this.dispatchEvent(new MessageEvent('message',{data:{type:'value-result',requestId:this.request.requestId,result}}));}
@@ -31,6 +33,21 @@ test('visible-card reads calculate without fetch or wallet readiness and reuse a
  assert.deepEqual(await f.port.read(card.id),await a);assert.equal(f.workers.length,1);assert.equal(f.requests.length,0);assert.equal(f.readyCalls(),0);
  const disposable=f.port as typeof f.port & {dispose?:()=>void};
  assert.equal(typeof disposable.dispose,'function');disposable.dispose?.();assert.equal(worker.stopped,true);
+});
+test('first card input waits for the actual worker listener instead of disappearing during asynchronous module startup',async()=>{
+ class DelayedWorker extends PublicWorker {
+  ready=false;posts=0;
+  signalReady(){if(this.ready)super.signalReady();}
+  postMessage(request:PublicWorker['request']){this.posts++;super.postMessage(request);}
+  begin(){this.ready=true;super.signalReady();}
+ }
+ const worker=new DelayedWorker(),port=createWildzMarketValueBrowserPortV129({card:()=>card,now:()=> '16000000123456',worker:()=>worker as unknown as Worker});
+ try{
+  const first=port.read(card.id);await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(worker.posts,0,'input must remain pending until the worker declares its listener ready');
+  worker.begin();assert.equal(worker.posts,1);worker.reply(ready(worker));assert.equal((await first).status,'ready');
+  assert.equal((await port.read(card.id)).status,'ready');assert.equal(worker.posts,1);
+ }finally{port.dispose?.();}
 });
 test('a cross-card worker reply cannot supply a value; error cleanup terminates and allows retry',async()=>{
  const f=fixture(),read=f.port.read(card.id);await opened(f.workers,1);const worker=f.workers[0]!,value=ready(worker);

@@ -1,10 +1,10 @@
-import { createReceizClient, readReceizIdentityArtifact, receizBase64UrlDecode, sha256ReceizBytes } from "@receiz/sdk";
+import { createReceizClient, ReceizHttpError, readReceizIdentityArtifact, receizBase64UrlDecode, sha256ReceizBytes } from "@receiz/sdk";
 import type { NextRequest } from "next/server";
 import {assertWildsSourceBearerAuthorityV128} from './wilds-source-bearer-authority-v128';
 import { resolveWildsWalletReadAuthority } from "./wilds-wallet-route-authority";
 import { readWildzProofSessionCookie } from "./wildz-proof-session";
 import { readWildzReceizChatSession, type WildzReceizChatSession } from "./wildz-receiz-chat-session";
-import { isWildsWalletSourceSdkPathV128, isWildsWalletMarketSourcePageUrlV128, isWildsWalletResourceSourcePageUrlV128, WILDS_WALLET_RESOURCE_SOURCE_URL_V128, WILDS_WALLET_MARKET_SOURCE_URL_V128 } from "../../features/play/wallet/wilds-wallet-source-sdk-v128";
+import { isWildsWalletSourceSdkPathV128, isWildsWalletMarketSourcePageUrlV128, isWildsWalletResourceSourcePageUrlV128, WILDS_WALLET_RESOURCE_SOURCE_URL_V128, WILDS_WALLET_MARKET_SOURCE_URL_V128, readWildsWalletSourceSdkDiagnosticV128, wildsWalletSourceSealStageV128, wildsWalletSourceFailureCodeV128, type WildsWalletSourceSdkDiagnosticV128 } from "../../features/play/wallet/wilds-wallet-source-sdk-v128";
 import { describeWildzMarketSourceArchivePageV128, type WildzMarketSourceArchivePageV128 } from "./wildz-market-source-archive-v128";
 import {describeWildzMarketSourceBytesPageV128} from "./wildz-market-source-original-locator-v128";
 import {describeWildsResourceSourceArchivePageV128} from "./wilds-resource-source-archive-v128";
@@ -32,6 +32,13 @@ async function context(request: NextRequest) {
   const authority = await resolveWildsWalletReadAuthority(request), proof = readWildzProofSessionCookie(request);
   return { authority, proof, session: readWildzReceizChatSession(request, { ...authority, keyId: proof.keyId }) };
 }
+export type WildsWalletSourceSdkProxyDependenciesV128=Readonly<{
+  resolveContext:typeof context;applicationId:typeof wildzNativeApplicationId;
+  assertBearer:typeof assertWildsSourceBearerAuthorityV128;fetcher:typeof fetch;
+  reportFailure(diagnostic:WildsWalletSourceSdkDiagnosticV128):void;
+}>;
+const proxyDependencies:WildsWalletSourceSdkProxyDependenciesV128={resolveContext:context,applicationId:wildzNativeApplicationId,assertBearer:assertWildsSourceBearerAuthorityV128,
+  fetcher:(...args)=>fetch(...args),reportFailure:diagnostic=>console.warn('wildz_source_sdk_failure',diagnostic)};
 export async function wildsWalletSourceSdkConfigV128(request: NextRequest,
   resolveSession: (request: NextRequest) => Promise<WildzReceizChatSession> = async request => (await context(request)).session) {
   const session = await resolveSession(request);
@@ -41,8 +48,12 @@ export async function wildsWalletSourceSdkConfigV128(request: NextRequest,
 /** A bounded transport for actual published source APIs. Current account/key
  * and real scoped token admission happen before proxying any edge. The native
  * host independently enforces its signed authority/source-head laws. */
-export async function proxyWildsWalletSourceSdkV128(request: NextRequest): Promise<Response> {
-  const { authority, proof, session } = await context(request);
+export async function proxyWildsWalletSourceSdkV128(request: NextRequest,dependencies:WildsWalletSourceSdkProxyDependenciesV128=proxyDependencies): Promise<Response> {
+  let stage:WildsWalletSourceSdkDiagnosticV128['stage']='source-session';
+  const report=(diagnostic:WildsWalletSourceSdkDiagnosticV128)=>{try{dependencies.reportFailure(diagnostic);}catch{/* Diagnostics grant no source authority and cannot change the native outcome. */}};
+  try{
+  const { authority, proof, session } = await dependencies.resolveContext(request);
+  stage='source-request';
   if (Number(request.headers.get("content-length") ?? 0) > MAX_BYTES) throw Error("The exact source SDK request is too large.");
   let path: string, query: string, method: string, body: unknown;
   if (request.headers.get("content-type")?.startsWith("multipart/form-data")) {
@@ -58,7 +69,7 @@ export async function proxyWildsWalletSourceSdkV128(request: NextRequest): Promi
     ({ path, query, method, body } = wire as { path: string; query: string; method: string; body: unknown });
   }
   if (!isWildsWalletSourceSdkPathV128(path, method, query) || path.length > 400 || query.length > 800) throw Error("wildz_resource_sdk_path_invalid");
-  const applicationId = wildzNativeApplicationId(), params = new URLSearchParams(query);
+  const applicationId = dependencies.applicationId(), params = new URLSearchParams(query);
   if (params.has("applicationId") && params.get("applicationId") !== applicationId || object(body) && typeof body.applicationId === "string" && body.applicationId !== applicationId) throw Error("The native source request names another application.");
   const headers = new Headers({ accept: request.headers.get("accept") ?? "application/json" });
   for (const name of ["x-idempotency-key", "idempotency-key"]) {
@@ -98,28 +109,42 @@ export async function proxyWildsWalletSourceSdkV128(request: NextRequest): Promi
       assertWildsWalletSourceArchivePageV128(String(body.feed.namespace),pageUrl,body.storeStateRecord.page);
     }
   } else if (!publicRead) {
+    stage='source-grant';
     const bearer = request.headers.get("authorization")?.match(/^Bearer ([^\s]{1,12000})$/)?.[1];
     if (!bearer) throw Error("An actual scoped device grant is required for this source edge.");
     const required = nativeSeal ? ["receiz:record","receiz:seal"] : [path.includes("/domains/") ? "receiz:domains.read" : path === "/api/sdk/v1/sources/publish" ? "receiz:domains.write" : method === "GET" ? "receiz:subjects.read" : "receiz:subjects.write"];
-    await assertWildsSourceBearerAuthorityV128({bearer,applicationId,baseUrl:session.origin,ownerReceizId:authority.ownerReceizId,keyId:proof.keyId,requiredScopes:required});
+    await dependencies.assertBearer({bearer,applicationId,baseUrl:session.origin,ownerReceizId:authority.ownerReceizId,keyId:proof.keyId,requiredScopes:required});
     headers.set("authorization", `Bearer ${bearer}`);
   }
   if (nativeSeal) { if (!(body instanceof FormData)) throw Error("The native source seal requires its exact file."); headers.set("cookie", `receiz_session=${session.cookie}`); }
   if (body !== null && !(body instanceof FormData)) headers.set("content-type", "application/json");
+  stage='source-request';
   // SDK constructs the exact route/body; this bridge never reinterprets amounts,
   // custody, heads or proofs. For multipart, the public SDK generated FormData
   // is forwarded unchanged after removing only local routing fields.
   const sdk = createReceizClient({ baseUrl: session.origin, applicationId, fetchImpl: async (input, init) => {
     const url = new URL(String(input)); if (url.origin !== session.origin || !isWildsWalletSourceSdkPathV128(url.pathname, method, url.search.slice(1))) throw Error("wildz_resource_sdk_path_invalid");
     const forwarded = new Headers(init?.headers); for (const [key, value] of headers) forwarded.set(key, value);
-    return fetch(url, { ...init, headers: forwarded, redirect: "error", cache: "no-store" });
+    return dependencies.fetcher(url, { ...init, headers: forwarded, redirect: "error", cache: "no-store" });
   } });
   if (nativeSeal) {
     // Public SDK request() serializes JSON only; its native sealer already made
     // this exact multipart file, so use that same bounded transport directly.
-    return fetch(`${session.origin}${path}${query ? `?${query}` : ""}`, { method, headers, body: body as FormData, redirect: "error", cache: "no-store" });
+    const file=(body as FormData).get('file');stage=wildsWalletSourceSealStageV128(file instanceof File?file.name:'');
+    const response=await dependencies.fetcher(`${session.origin}${path}${query ? `?${query}` : ""}`, { method, headers, body: body as FormData, redirect: "error", cache: "no-store" });
+    if(!response.ok){
+      const diagnostic=await readWildsWalletSourceSdkDiagnosticV128(response,stage);report(diagnostic);
+      const responseHeaders=new Headers(response.headers);responseHeaders.set('x-wildz-source-stage',diagnostic.stage);
+      return new Response(response.body,{status:response.status,statusText:response.statusText,headers:responseHeaders});
+    }
+    return response;
   }
   if (body !== null && !object(body)) throw Error("The exact SDK source body must be an object.");
   const result = await sdk.request<unknown>(`${path}${query ? `?${query}` : ""}`, { method, ...(body === null ? {} : { body }) });
   return Response.json(result, { headers: { "cache-control": "private, no-store" } });
+  }catch(cause){
+    const status=cause instanceof ReceizHttpError?cause.status:stage.endsWith('-seal')?502:409;
+    const diagnostic:WildsWalletSourceSdkDiagnosticV128={stage,status,code:(cause instanceof ReceizHttpError?wildsWalletSourceFailureCodeV128(cause.payload):undefined)??wildsWalletSourceFailureCodeV128(cause)??(stage==='source-session'?'source_session_rejected':stage==='source-grant'?'source_grant_rejected':stage==='source-request'?'source_request_rejected':'native_source_transport_failed')};report(diagnostic);
+    return Response.json({error:diagnostic.code},{status,headers:{'cache-control':'private, no-store','x-wildz-source-stage':stage}});
+  }
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {test} from 'node:test';
+import {test,beforeEach} from 'node:test';
 import {appendWildsDirectMessage} from '../src/features/play/wilds-messenger-ledger';
 import {admitWildzMarketOfferMessage,projectWildzMarketOffers,wildzMarketOfferMessageId,type WildzMarketOffer,type WildzMarketOfferMessage} from '../src/features/market/wildz-market-offers';
 import {withWildzMarketCommunity} from '../src/features/market/wildz-market-community-service';
@@ -8,6 +8,7 @@ import type {WildzMarketServiceV128,WildzMarketSnapshotV128} from '../src/featur
 import type {WildsConversation} from '../src/features/play/wilds-messenger-core';
 
 const buyer={id:'market-offers-buyer',handle:'offerbuyer.receiz.id'},seller={id:'market-offers-owner',handle:'offerowner.receiz.id'};
+beforeEach(()=>{Reflect.deleteProperty(globalThis,Symbol.for('receiz.wilds.messenger-ledger.v1'));});
 const card:WildzMarketOwnedCard={assetId:`wilds:${'a'.repeat(24)}`,title:'Companion',proofDigest:`sha256:${'b'.repeat(64)}`,ownerHandle:seller.handle,claimKaiUPulse:'100000001',claimHead:'claim:head'};
 const offer=(id:string):WildzMarketOffer=>({schema:'wildz.market-offer.v1',offerId:`market:offer:${id}`,assetId:card.assetId,title:card.title,proofDigest:card.proofDigest,buyerHandle:buyer.handle,ownerHandle:seller.handle,claimKaiUPulse:card.claimKaiUPulse,claimHead:card.claimHead,priceUsdCents:'1234'});
 const notice=(message:WildzMarketOfferMessage,at='2026-10-11T12:00:00.000Z')=>appendWildsDirectMessage({sender:message.kind==='market-offer-response'&&message.outcome!=='withdrawn'?seller:buyer,recipient:message.kind==='market-offer-response'&&message.outcome!=='withdrawn'?buyer:seller,body:'Market offer',context:message,clientMessageId:wildzMarketOfferMessageId(message),now:at});
@@ -41,11 +42,12 @@ test('offers stop targeting a prior ownership claim and exclude forged cached pa
 });
 
 function runtime(owner=buyer.handle){
- let snap:WildzMarketSnapshotV128={status:'ready',message:'',listings:[],sellables:[],purchases:[]},conversations:readonly WildsConversation[]=[],currentCard=card,stored:readonly WildzMarketOffer[]=[],publicationCalls=0,listCalls=0,failReply=false;
+ let snap:WildzMarketSnapshotV128={status:'ready',message:'',listings:[],sellables:[],purchases:[]},conversations:readonly WildsConversation[]=[],currentCard=card,stored:readonly WildzMarketOffer[]=[],publicationCalls=0,listCalls=0,failReply=false,activationPending=false,activationUnobserved=false;
+ const activations:string[]=[],listingAttempts:string[]=[];
  const binding={ownerHandle:owner,keyId:'f'.repeat(64)},failed=async()=>({status:'failed' as const,message:'No purchase operation in this test.'});
- const base:WildzMarketServiceV128={binding,snapshot:()=>snap,subscribe:()=>()=>{},read:async()=>snap,cancel:failed,list:async input=>{listCalls++;const listingId=`market:listing:${'d'.repeat(64)}`;snap={...snap,listings:[{listingId,asset:input.asset,title:card.title,kind:'creature',sellerHandle:seller.handle,priceUsdCents:input.priceUsdCents,status:'active',canBuy:false,canCancel:true}]};return {status:'listed',listingId,message:'Listed'};},previewPurchase:async()=>{throw Error('No preview authorized.');},approvePurchase:failed,resume:failed,accept:failed,receive:failed};
+ const base:WildzMarketServiceV128={binding,snapshot:()=>snap,subscribe:()=>()=>{},read:async()=>snap,cancel:failed,list:async input=>{listCalls++;listingAttempts.push(input.attemptId);const listingId=`market:listing:${'d'.repeat(64)}`;snap={...snap,listings:[{listingId,asset:input.asset,title:card.title,kind:'creature',sellerHandle:seller.handle,priceUsdCents:input.priceUsdCents,status:'active',canBuy:false,canCancel:true,canActivate:true}]};return {status:'listed',listingId,message:'Public listing confirmed. Purchase connection pending.'};},activateListing:async listingId=>{activations.push(listingId);if(activationPending)return {status:'pending',listingId,message:'Purchase connection pending: artifact_seal_failed'};if(!activationUnobserved)snap={...snap,listings:snap.listings.map(v=>v.listingId===listingId?{...v,canActivate:false}:v)};return {status:'listed',listingId,message:'Purchases enabled.'};},previewPurchase:async()=>{throw Error('No preview authorized.');},approvePurchase:failed,resume:failed,accept:failed,receive:failed};
  const service=withWildzMarketCommunity(base,{currentIdentity:()=>binding,readCollection:async()=>({cards:[currentCard],transfers:[]}),readConversations:async()=>conversations,offerAttempts:{load:()=>stored,write:v=>{stored=structuredClone(v);}},publish:async context=>{publicationCalls++;conversations=[notice(context).conversation];if(failReply){failReply=false;throw Error('Lost acknowledgement.');}}});
- return {service,setCards:(value:WildzMarketOwnedCard)=>{currentCard=value;},setConversations:(value:readonly WildsConversation[])=>{conversations=value;},fail:()=>{failReply=true;},counts:()=>({publicationCalls,listCalls}),stored:()=>stored};
+ return {service,setCards:(value:WildzMarketOwnedCard)=>{currentCard=value;},setConversations:(value:readonly WildsConversation[])=>{conversations=value;},setListings:(listings:WildzMarketSnapshotV128['listings'])=>{snap={...snap,listings};},connectionPending:(value=true)=>{activationPending=value;},connectionUnobserved:()=>{activationUnobserved=true;},activations:()=>activations,listingAttempts:()=>listingAttempts,fail:()=>{failReply=true;},counts:()=>({publicationCalls,listCalls}),stored:()=>stored};
 }
 
 test('a failed local value read keeps a valid owned card and reports a retryable display state',async()=>{
@@ -72,8 +74,58 @@ test('accepting an offer prepares the exact listing but never approves or pays t
  const result=await r.service.respondToOffer!(proposal.offer.offerId,'accepted');
  assert.equal(result.status,'listed');assert.deepEqual(r.counts(),{publicationCalls:1,listCalls:1});
  assert.equal(r.service.snapshot().listings[0]!.priceUsdCents,proposal.offer.priceUsdCents);
+ assert.equal(r.service.snapshot().listings[0]!.canActivate,false);
+ assert.deepEqual(r.activations(),[result.listingId]);
  assert.equal(r.service.snapshot().purchases.length,0);
  const again=await r.service.respondToOffer!(proposal.offer.offerId,'accepted');assert.equal(again.status,'completed');assert.equal(r.counts().listCalls,1);
+});
+
+test('acceptance stays pending until the same exact native listing is available, then retry sends one accepted reply',async()=>{
+ const proposal={kind:'market-offer' as const,offer:offer('pending-activation-001')},r=runtime(seller.handle);r.setConversations([notice(proposal).conversation]);r.connectionPending();
+ const first=await r.service.respondToOffer!(proposal.offer.offerId,'accepted');
+ assert.equal(first.status,'pending');assert.match(first.message,/artifact_seal_failed/);assert.equal(r.service.snapshot().offers?.find(v=>v.offer.offerId===proposal.offer.offerId)?.status,'pending');assert.equal(r.counts().publicationCalls,0);
+ r.connectionPending(false);const retry=await r.service.respondToOffer!(proposal.offer.offerId,'accepted');
+ assert.equal(retry.status,'listed');assert.equal(retry.listingId,first.listingId);assert.deepEqual(r.counts(),{publicationCalls:1,listCalls:1});assert.deepEqual(r.listingAttempts(),[`${proposal.offer.offerId}:accept`]);assert.deepEqual(r.activations(),[first.listingId,first.listingId]);assert.equal(r.service.snapshot().purchases.length,0);
+});
+
+test('an activation acknowledgement without independently projected readiness cannot resolve an offer',async()=>{
+ const proposal={kind:'market-offer' as const,offer:offer('unobserved-activation-001')},r=runtime(seller.handle);r.setConversations([notice(proposal).conversation]);r.connectionUnobserved();
+ assert.equal((await r.service.respondToOffer!(proposal.offer.offerId,'accepted')).status,'pending');assert.equal(r.counts().publicationCalls,0);assert.equal(r.service.snapshot().offers?.find(v=>v.offer.offerId===proposal.offer.offerId)?.status,'pending');
+});
+
+test('acceptance cannot infer native readiness from an omitted connection flag',async()=>{
+ const proposal={kind:'market-offer' as const,offer:offer('unknown-readiness-001')},r=runtime(seller.handle);r.setConversations([notice(proposal).conversation]);
+ r.setListings([{listingId:`market:listing:${'c'.repeat(64)}`,asset:{kind:'creature',assetId:card.assetId},kind:'creature',title:card.title,sellerHandle:seller.handle,priceUsdCents:proposal.offer.priceUsdCents,status:'active',canBuy:false,canCancel:true}]);
+ assert.equal((await r.service.respondToOffer!(proposal.offer.offerId,'accepted')).status,'pending');assert.equal(r.counts().publicationCalls,0);
+});
+
+function acceptedRuntime(owner=seller.handle,status:WildzMarketSnapshotV128['listings'][number]['status']='active'){
+ const proposed={kind:'market-offer' as const,offer:offer('legacy-pending-001')},listingId=`market:listing:${'e'.repeat(64)}`,r=runtime(owner);
+ notice(proposed);r.setConversations([notice({kind:'market-offer-response',offer:proposed.offer,outcome:'accepted',listingId}).conversation]);
+ r.setListings([{listingId,asset:{kind:'creature',assetId:card.assetId},kind:'creature',title:card.title,sellerHandle:seller.handle,priceUsdCents:proposed.offer.priceUsdCents,status,canBuy:false,canCancel:status==='active',canActivate:status==='active'}]);
+ return {r,proposed,listingId};
+}
+
+test('seller retry recovers the original accepted public listing without another listing or message',async()=>{
+ const {r,proposed,listingId}=acceptedRuntime();r.connectionPending();
+ assert.equal((await r.service.respondToOffer!(proposed.offer.offerId,'accepted')).status,'pending');r.connectionPending(false);
+ assert.equal((await r.service.respondToOffer!(proposed.offer.offerId,'accepted')).status,'completed');assert.deepEqual(r.activations(),[listingId,listingId]);assert.deepEqual(r.counts(),{publicationCalls:0,listCalls:0});assert.equal(r.service.snapshot().listings[0]?.canActivate,false);
+});
+
+test('buyer retry of an accepted offer never activates the seller source',async()=>{
+ const {r,proposed}=acceptedRuntime(buyer.handle);assert.equal((await r.service.respondToOffer!(proposed.offer.offerId,'accepted')).status,'completed');assert.deepEqual(r.activations(),[]);assert.deepEqual(r.counts(),{publicationCalls:0,listCalls:0});
+});
+
+test('checking a missing accepted original leaves it pending and never creates or activates a replacement',async()=>{
+ const {r,proposed}=acceptedRuntime();r.setListings([]);assert.equal((await r.service.respondToOffer!(proposed.offer.offerId,'accepted')).status,'pending');assert.deepEqual(r.activations(),[]);assert.deepEqual(r.counts(),{publicationCalls:0,listCalls:0});assert.equal(r.service.snapshot().listings.length,0);
+});
+
+test('accepted originals that are reserved, sold or cancelled are never activated or replaced',async()=>{
+ for(const status of ['reserved','sold','cancelled'] as const){const {r,proposed}=acceptedRuntime(seller.handle,status);await r.service.respondToOffer!(proposed.offer.offerId,'accepted');assert.deepEqual(r.activations(),[]);assert.deepEqual(r.counts(),{publicationCalls:0,listCalls:0});assert.equal(r.service.snapshot().listings[0]?.status,status);}
+});
+
+test('legacy accepted recovery checks the original current ownership claim before a native write',async()=>{
+ const {r,proposed}=acceptedRuntime();r.setCards({...card,claimHead:'changed-claim'});await r.service.respondToOffer!(proposed.offer.offerId,'accepted');assert.deepEqual(r.activations(),[]);assert.deepEqual(r.counts(),{publicationCalls:0,listCalls:0});assert.equal(r.service.snapshot().listings[0]?.canActivate,true);
 });
 
 test('acceptance is unavailable after an exact claim changes and performs no listing write',async()=>{

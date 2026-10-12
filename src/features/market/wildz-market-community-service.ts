@@ -75,19 +75,43 @@ export function withWildzMarketCommunity(base:WildzMarketServiceV128,input:Reado
   respondToOffer:(id,outcome)=>locked(async()=>{
    if(!await refreshCommunity())throw Error('Refresh the current owner and Messages before responding.');
    const item=project().offers?.find(item=>item.offer.offerId===id);if(!item)throw Error('The original offer is unavailable.');
-   if(item.status===outcome)return {status:'completed',message:`This offer is already ${outcome}.`,...(item.listingId?{listingId:item.listingId}:{})};
-   if(item.status!=='pending')throw Error('This offer is no longer available.');
    const offer=item.offer,owner=base.binding.ownerHandle;
+   const acceptedRetry=item.status==='accepted'&&outcome==='accepted';
+   // A buyer's duplicate reply grants no seller source authority. The named
+   // seller may explicitly recover the original accepted purchase connection.
+   if(item.status===outcome&&(!acceptedRetry||owner!==offer.ownerHandle))return {status:'completed',message:`This offer is already ${outcome}.`,...(item.listingId?{listingId:item.listingId}:{})};
+   if(item.status!=='pending'&&!acceptedRetry)throw Error('This offer is no longer available.');
    if(outcome==='withdrawn'?owner!==offer.buyerHandle:owner!==offer.ownerHandle)throw Error('Only the named participant may respond to this offer.');
    if(outcome==='accepted'){
     const card=cards.find(card=>card.assetId===offer.assetId);if(!card||!sameWildzMarketOfferOwner(card,offer))throw Error('The owner changed. A new offer is required.');
     await base.read();current();
+    const exactListing=(listingId:string)=>base.snapshot().listings.find(listing=>listing.listingId===listingId&&listing.asset.kind==='creature'&&listing.asset.assetId===offer.assetId&&listing.sellerHandle===owner&&listing.priceUsdCents===offer.priceUsdCents);
+    const enablePurchases=async(listingId:string):Promise<WildzMarketResultV128|undefined>=>{
+     const original=exactListing(listingId);
+     if(!original||original.status!=='active')return {status:'pending',listingId,message:'Check the original listing. Its exact purchase connection is not available.'};
+     if(original.canActivate){
+      if(!base.activateListing)return {status:'pending',listingId,message:'Reopen this same offer to finish its purchase connection.'};
+      const connected=await base.activateListing(listingId);current();
+      if(connected.status!=='listed')return connected;
+      if(connected.listingId!==listingId)return {status:'pending',listingId,message:'The original purchase connection could not be confirmed. Retry this same offer.'};
+     }
+     const ready=exactListing(listingId);
+     if(!ready||ready.status!=='active'||ready.canActivate!==false)return {status:'pending',listingId,message:'Purchase connection pending. Retry this same offer to check the original native listing.'};
+    };
+    if(acceptedRetry){
+     if(!item.listingId)throw Error('The original accepted listing is unavailable.');
+     const original=exactListing(item.listingId);
+     if(original&&original.status!=='active')return {status:'completed',listingId:item.listingId,message:'This offer is already accepted. Keep the original purchase and its current listing state.'};
+     const pending=await enablePurchases(item.listingId);if(pending)return pending;
+     return {status:'completed',listingId:item.listingId,message:'The original accepted offer is ready for purchase review. Payment and delivery still require the normal purchase approvals.'};
+    }
     const active=base.snapshot().listings.find(listing=>listing.asset.kind==='creature'&&listing.asset.assetId===offer.assetId&&listing.sellerHandle===owner&&(listing.status==='active'||listing.status==='reserved'));
     if(active?.status==='reserved')throw Error('Resolve the existing purchase before accepting another offer.');
     let listingId=active?.priceUsdCents===offer.priceUsdCents?active.listingId:undefined;
     if(active&&!listingId){const cancelled=await base.cancel(active.listingId);current();if(cancelled.status!=='cancelled')return cancelled;}
     if(!listingId){const result=await base.list({asset:{kind:'creature',assetId:offer.assetId},priceUsdCents:offer.priceUsdCents,attemptId:`${offer.offerId}:accept`});current();
      if(result.status!=='listed'||!result.listingId)return result;listingId=result.listingId;}
+    const pending=await enablePurchases(listingId);if(pending)return pending;
     await publish({kind:'market-offer-response',offer,outcome,listingId});return {status:'listed',listingId,message:'Offer accepted. The buyer can review this exact price; payment and delivery still require the normal purchase approvals.'};
    }
    await publish({kind:'market-offer-response',offer,outcome});return {status:'completed',message:outcome==='declined'?'Offer declined. The buyer has been notified.':'Offer withdrawn. The owner has been notified.'};

@@ -7,6 +7,8 @@ import {createWildsWalletTradeAgreement,createWildsWalletTradeDraft} from '../sr
 import {retainWildzMarketListingUiAttempt} from '../src/features/market/wildz-market-presentation';
 import {initialPlayState} from '../src/features/play/game-state';
 import {MarketCardArtwork} from '../src/features/market/WildzMarketDiscovery';
+import {WildzMarketOffers} from '../src/features/market/WildzMarketCommunity';
+import type {WildzMarketOfferView} from '../src/features/market/wildz-market-offers';
 
 const buyer='buyer.receiz.id',seller='seller.receiz.id',asset={kind:'creature' as const,assetId:'creature:ember'};
 const agreement=createWildsWalletTradeAgreement(
@@ -84,6 +86,25 @@ test('an active listing does not require publishing another proof to calculate i
  const service={...f.service,activateListing:async()=>({status:'listed' as const,message:'Recovered the same listing.'})};
  const html=renderToStaticMarkup(<WildzMarketSheet service={service} connected initialTab="activity"/>);
  assert.doesNotMatch(html,/>Enable value chart<\/button>/);assert.doesNotMatch(html,/>Enable purchases<\/button>/);assert.equal(f.calls(),0);
+});
+
+test('Activity offers one explicit seller retry for the exact accepted listing that still needs native activation',()=>{
+ const listingId=`market:listing:${'d'.repeat(64)}`,accepted:WildzMarketOfferView={offer:{schema:'wildz.market-offer.v1',offerId:'market:offer:pending-native-001',assetId:asset.assetId,title:'Ember Cub',proofDigest:'sha256:'+ 'b'.repeat(64),buyerHandle:buyer,ownerHandle:seller,claimKaiUPulse:null,claimHead:null,priceUsdCents:'1234'},status:'accepted',listingId,createdAt:'2026-10-12T00:00:00Z'};
+ const f=fixture({offers:[accepted],listings:[{listingId,title:'Ember Cub',kind:'creature',asset,sellerHandle:seller,priceUsdCents:'1234',status:'active',canBuy:false,canCancel:true,canActivate:true}]},seller);
+ const html=renderToStaticMarkup(<WildzMarketSheet service={{...f.service,respondToOffer:async()=>{throw Error('No render write authorized.');}}} connected initialTab="activity"/>);
+ assert.match(html,/>Retry accepted offer<\/button>/);assert.match(html,/Purchase connection pending/);assert.equal(f.calls(),0);
+ for(const status of ['reserved','sold','cancelled'] as const){const props={offers:[accepted],owner:seller,busy:false,listings:f.service.snapshot().listings.map(v=>({...v,status})),onReview:()=>assert.fail('No render action'),onRespond:()=>assert.fail('No render action')};assert.doesNotMatch(renderToStaticMarkup(<WildzMarketOffers {...props}/>),/>Retry accepted offer<\/button>/);}
+ const changed={...f.service.snapshot().listings[0]!,listingId:`market:listing:${'e'.repeat(64)}`};assert.doesNotMatch(renderToStaticMarkup(<WildzMarketOffers {...{offers:[accepted],owner:seller,busy:false,listings:[changed],onReview:()=>{},onRespond:()=>{}}}/>),/>Retry accepted offer<\/button>/);
+ const missing=renderToStaticMarkup(<WildzMarketOffers {...{offers:[accepted],owner:seller,busy:false,listings:[],onReview:()=>assert.fail('No render action'),onRespond:()=>assert.fail('No render action')}}/>);assert.match(missing,/>Check purchase connection<\/button>/);
+ const disabled=renderToStaticMarkup(<WildzMarketOffers {...{offers:[accepted],owner:seller,busy:true,listings:f.service.snapshot().listings,onReview:()=>{},onRespond:()=>{}}}/>);assert.match(disabled,/<button[^>]*disabled[^>]*>Retry accepted offer<\/button>/);
+});
+
+test('an accepted offer buyer sees purchase review disabled until the exact native listing can be bought',()=>{
+ const listingId=`market:listing:${'c'.repeat(64)}`,accepted:WildzMarketOfferView={offer:{schema:'wildz.market-offer.v1',offerId:'market:offer:buyer-native-001',assetId:asset.assetId,title:'Ember Cub',proofDigest:'sha256:'+ 'b'.repeat(64),buyerHandle:buyer,ownerHandle:seller,claimKaiUPulse:null,claimHead:null,priceUsdCents:'1234'},status:'accepted',listingId,createdAt:'2026-10-12T00:00:00Z'};
+ const listing={listingId,title:'Ember Cub',kind:'creature' as const,asset,sellerHandle:seller,priceUsdCents:'1234',status:'active' as const,canBuy:false,canCancel:false};
+ const props={offers:[accepted],owner:buyer,busy:false,listings:[listing],onReview:()=>assert.fail('No render action'),onRespond:()=>assert.fail('No render action')};
+ assert.match(renderToStaticMarkup(<WildzMarketOffers {...props}/>),/<button[^>]*disabled[^>]*>Review purchase/);
+ assert.doesNotMatch(renderToStaticMarkup(<WildzMarketOffers {...{...props,listings:[{...listing,canBuy:true}]}}/>),/<button[^>]*disabled[^>]*>Review purchase/);
 });
 
 test('an unavailable local value shows its retry state instead of a silent empty price',async()=>{

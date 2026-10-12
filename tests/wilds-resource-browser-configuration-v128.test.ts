@@ -46,7 +46,11 @@ test('Market and Build source metadata opens the native SDK with an OAuth client
 test('source metadata and actual source edges still require admitted current-account authority',async()=>{
  const request=new NextRequest('https://wildz.quest/api/wilds/wallet/source-sdk');
  await assert.rejects(wildsWalletSourceSdkConfigV128(request),/receiz_wallet_read_scope_required/);
- await assert.rejects(proxyWildsWalletSourceSdkV128(request),/receiz_wallet_read_scope_required/);
+ const rejected=await proxyWildsWalletSourceSdkV128(request);
+ assert.equal(rejected.status,409);
+ assert.equal(rejected.headers.get('x-wildz-source-stage'),'source-session');
+ assert.equal(rejected.headers.get('cache-control'),'private, no-store');
+ assert.deepEqual(await rejected.json(),{error:'receiz_wallet_read_scope_required'});
 });
 
 test('Market and Build carry the native application through real identity signing and SDK exchange transport',async()=>{

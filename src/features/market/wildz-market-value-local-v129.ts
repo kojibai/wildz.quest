@@ -4,10 +4,12 @@ import {computeIntrinsicUnsigned,stableStringify,SIGIL_VALUATION_ALGORITHM,SIGIL
 import {verifyAnyWildsCard,type PortableCardAsset} from '../play/portable-card';
 import {deriveKaiKlokMoment,deriveKaiKlokMomentFromUPulse} from '../play/kai-klok-moment';
 import type {WildzMarketValueRead,WildzMarketValuePoint,WildzMarketValueProjection} from './wildz-market-value';
+import {calculateReceizLocalDisplayRateV129} from './receiz-local-display-rate-v129';
 
 export type WildzMarketLocalValueEvaluationV129=Readonly<{
  valuationKaiUPulse:string;
- /** Already held explicit Receiz conversion rate. Reading a value never fetches a quote. */
+ /** Optional pinned display basis for replay. Otherwise use Receiz's local
+  * Wallet display policy; neither path fetches a quote or opens Wallet. */
  usdPerPhiMicrocents?:string|null;
 }>;
 const MAX_SAMPLES=32;
@@ -69,12 +71,14 @@ export async function calculateWildzMarketLocalValueV129(card:PortableCardAsset,
  try{
   const at=coordinate(evaluation.valuationKaiUPulse),{metadata,source,rarity}=sourceInput(card),origin=coordinate(source.originKaiUPulse);
   if(at<origin)throw Error('LOCAL_VALUE_EVALUATION_BEFORE_ORIGIN');
-  const rate=evaluation.usdPerPhiMicrocents??null;
-  if(rate!==null&&(typeof rate!=='string'||!/^[1-9][0-9]{0,29}$/.test(rate)))throw Error('LOCAL_VALUE_USD_RATE_INVALID');
-  const usdBasis=rate===null?null:{algorithm:'receiz.display-usd.v122',version:'1',usdPerPhiMicrocents:rate,
-   source:'held-receiz-display-rate',authority:'display-conversion-only'};
-  const priceBasisDigest=usdBasis?await digestReceizCanonicalV122(usdBasis):null;
-  const convert=(amount:string)=>rate===null?null:amount==='0'?'0':quoteReceizDisplayUsdV122(amount,rate);
+  const rateProjection=evaluation.usdPerPhiMicrocents==null?await calculateReceizLocalDisplayRateV129(evaluation.valuationKaiUPulse):null;
+  const rate=evaluation.usdPerPhiMicrocents??rateProjection!.usdPerPhiMicrocents;
+  if(typeof rate!=='string'||!/^[1-9][0-9]{0,29}$/.test(rate))throw Error('LOCAL_VALUE_USD_RATE_INVALID');
+  const usdBasis={algorithm:'receiz.display-usd.v122',version:'1',usdPerPhiMicrocents:rate,
+   source:rateProjection?'receiz-local-wallet-display-policy':'held-receiz-display-rate',authority:'display-conversion-only',
+   ...(rateProjection?{rateProjection}:{})};
+  const priceBasisDigest=await digestReceizCanonicalV122(usdBasis);
+  const convert=(amount:string)=>amount==='0'?'0':quoteReceizDisplayUsdV122(amount,rate);
   const rarityMultiplierBps=RARITY_POLICY.multipliersBps[rarity];
   const modelPolicyChecksum=await digestReceizCanonicalV122(RARITY_POLICY);
   const adjust=(sdkPhiMicro:string)=>((BigInt(sdkPhiMicro)*BigInt(rarityMultiplierBps)+5000n)/10000n).toString();
@@ -104,7 +108,14 @@ export async function calculateWildzMarketLocalValueV129(card:PortableCardAsset,
    {id:'proofValuePhiMicro',label:'Wildz rarity-adjusted value',formula:RARITY_POLICY.rounding.formula,
     operands:{sdkProofValuePhiMicro,rarityMultiplierBps,roundingOffset:'5000',basisPointDenominator:'10000'},
     result:proofValuePhiMicro,unit:'microPhi',sourceReferences:[source.cardProofDigest,modelPolicyChecksum]}];
-  if(rate!==null)calculation.push({id:'displayUsdCents',label:'USD display conversion',
+  if(rateProjection)calculation.push({id:'usdPerPhiMicrocents',label:'Receiz local USD/Φ rate',
+   formula:'quotePhiForUsd(anonymousWalletContext, DEFAULT_ISSUANCE_POLICY) -> toFixed(8) * 100000000',
+   operands:{valuationKaiPulse:rateProjection.valuationKaiPulse,usdSample:String(rateProjection.context.usd),
+    phiPerUsd:String(rateProjection.quote.phiPerUsd),issuanceMultiplier:String(rateProjection.quote.issuanceMultiplier),
+    ...Object.fromEntries(Object.entries(rateProjection.quote.multipliers).map(([key,value])=>[key,String(value)]))},
+   result:rate,unit:'microcents/Φ',sourceReferences:[rateProjection.policySourceSha256,rateProjection.policyChecksum,
+    'receiz/app/utils/phi-issuance.ts#quotePhiForUsd','receiz/app/lib/wallet/amounts.ts#deterministicUsdPerPhiNow']});
+  calculation.push({id:'displayUsdCents',label:'USD display conversion',
    formula:'floor((proofValuePhiMicro * usdPerPhiMicrocents + 500000000000) / 1000000000000)',
    operands:{proofValuePhiMicro,usdPerPhiMicrocents:rate},result:displayUsdCents!,unit:'USD cents',
    sourceReferences:[priceBasisDigest!,'@receiz/sdk#quoteReceizDisplayUsdV122']});

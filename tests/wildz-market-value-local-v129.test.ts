@@ -122,12 +122,32 @@ test('rarity uses integer half-up on SDK-rounded microPhi before USD conversion'
  assert.equal(eternal.value.displayUsdCents,'7142');
 });
 
-test('legacy birth uses its sealed timestamp and USD absence keeps a ready Phi projection',async()=>{
+test('a fresh identity needs no held Wallet rate to get deterministic USD from its sealed card',async()=>{
  const legacy=sealCollectedCard({formId:'mintcub-1',ownerReceizId:owner,encounterId:'local-value:legacy',capturedAt});
  const result=await calculate(legacy,{valuationKaiUPulse:evaluation.valuationKaiUPulse});
  assert.equal(result.status,'ready');if(result.status!=='ready')return;
  assert.equal(result.value.originKaiUPulse,'13789278183603');assert.equal(result.value.originKaiPulse,'13789278');
- assert.equal(result.value.displayUsdCents,null);assert.notEqual(result.value.proofValuePhiMicro,'0');
+ assert.notEqual(result.value.displayUsdCents,null);assert.notEqual(result.value.proofValuePhiMicro,'0');
+ // Receiz Wallet's original policy produces this rate at pulse 14063111;
+ // this is an independent upstream vector, not a fixed app conversion.
+ const rate='9158758842';
+ assert.equal(result.value.displayUsdCents,quoteReceizDisplayUsdV122(result.value.proofValuePhiMicro,rate));
+ const replay=JSON.parse(result.value.replay!.json);
+ assert.equal(replay.inputs.usdBasis.usdPerPhiMicrocents,rate);
+ assert.equal(replay.inputs.usdBasis.source,'receiz-local-wallet-display-policy');
+ assert.equal(replay.inputs.usdBasis.rateProjection.valuationKaiPulse,'14063111');
+ assert.equal(replay.inputs.usdBasis.rateProjection.valuationKaiUPulse,evaluation.valuationKaiUPulse);
+ assert.equal(replay.inputs.usdBasis.rateProjection.context.usd,100);
+ assert.equal(replay.inputs.usdBasis.rateProjection.context.currentStreakDays,0);
+ assert.equal(replay.inputs.usdBasis.rateProjection.context.lifetimeUsdSoFar,0);
+ assert.equal(replay.inputs.usdBasis.rateProjection.context.plannedHoldBeats,0);
+ assert.equal(replay.inputs.usdBasis.rateProjection.policy.basePhiPerUsd,0.1);
+ assert.match(replay.inputs.usdBasis.rateProjection.policySourceSha256,/^[0-9a-f]{64}$/);
+ assert.equal(replay.inputs.usdBasis.rateProjection.policyChecksum,await digestReceizCanonicalV122(replay.inputs.usdBasis.rateProjection.policy));
+ assert.equal(result.value.priceBasisDigest,await digestReceizCanonicalV122(replay.inputs.usdBasis));
+ assert.equal(replay.writesPerformed,0);
+ for(const point of result.value.samples)assert.equal(point.usdCents,quoteReceizDisplayUsdV122(point.phiMicro,rate));
+ assert.deepEqual(await calculate(legacy,{valuationKaiUPulse:evaluation.valuationKaiUPulse}),result);
  assert.ok(result.value.localModel);assert.equal(result.value.localModel.source.originKind,'sealed-birth-timestamp-projection');
  assert.ok(!result.value.localModel.appliedDefaults.some(row=>row.field==='originPulse'));
 });

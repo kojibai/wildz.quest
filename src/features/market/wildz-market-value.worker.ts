@@ -19,3 +19,5 @@ scope.addEventListener('message',event=>{
  },()=>scope.postMessage({type:'value-result',requestId:request.requestId,result:{status:'unavailable',message:'The local card value could not be calculated.'}}))
   .finally(()=>{running=false;});
 });
+// Signal only after the calculation imports and request listener are ready.
+scope.postMessage({type:'value-ready'});
