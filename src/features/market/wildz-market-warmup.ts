@@ -2,11 +2,12 @@ import type {WildzMarketServiceV128,WildzMarketSnapshotV128} from './wildz-marke
 import {createWildzMarketCardPreparer} from './wildz-market-card-preparation';
 import {discoverWildzOwnedCards,initialMarketDiscovery} from './wildz-market-discovery';
 import {sameWildzPlayerCoordinate} from '../../lib/receiz/wildz-player-coordinate';
+import {wildzMarketGalleryRows} from './wildz-market-gallery-layout';
 
 export const WILDZ_MARKET_PAGE_SIZE=6;
 const sessions=new WeakMap<WildzMarketServiceV128,ReturnType<typeof createWildzMarketWarmup>>();
 
-function browseCards(snapshot:WildzMarketSnapshotV128,from=0,to=WILDZ_MARKET_PAGE_SIZE){
+function browseCards(snapshot:WildzMarketSnapshotV128,from=0,to=3){
  const collection=snapshot.collection??[],byId=new Map(collection.map(card=>[card.assetId,card]));
  const active=snapshot.listings.filter(listing=>listing.status==='active');
  const listed=active.flatMap(listing=>{
@@ -16,7 +17,8 @@ function browseCards(snapshot:WildzMarketSnapshotV128,from=0,to=WILDZ_MARKET_PAG
  const resources=active.filter(listing=>listing.kind!=='creature').map(()=>null);
  const unlisted=discoverWildzOwnedCards(collection,snapshot.listings,initialMarketDiscovery);
  const seen=new Set<string>();
- return [...listed,...resources,...unlisted].slice(from,to).flatMap(card=>{if(!card||seen.has(card.assetId))return [];seen.add(card.assetId);return [card];});
+ const columns=typeof window==='undefined'||window.matchMedia('(max-width:759px)').matches?2:3;
+ return wildzMarketGalleryRows([...listed,...resources,...unlisted],columns,card=>columns===2&&card===null).slice(from,to).flat().flatMap(card=>{if(!card||seen.has(card.assetId))return [];seen.add(card.assetId);return [card];});
 }
 
 /** One read and one small first-screen preparation per Explorer service.
@@ -26,7 +28,7 @@ export function createWildzMarketWarmup(service:WildzMarketServiceV128,preparer=
  let ahead:Promise<unknown>|null=null,aheadController:AbortController|null=null,aheadIdentity='';
  const update=()=>preparer.pin(browseCards(service.snapshot()));
  const prefetch=(snapshot:WildzMarketSnapshotV128,generation:number)=>{
-  const cards=browseCards(snapshot,WILDZ_MARKET_PAGE_SIZE,3*WILDZ_MARKET_PAGE_SIZE),identity=cards.map(card=>`${card.assetId}:${card.proofDigest}:${card.ownerHandle}`).join('|');
+  const cards=browseCards(snapshot,3,15),identity=cards.map(card=>`${card.assetId}:${card.proofDigest}:${card.ownerHandle}`).join('|');
   if(!cards.length||generation!==cancellation||ahead&&aheadIdentity===identity)return;
   aheadController?.abort();aheadController=new AbortController();aheadIdentity=identity;
   const operation=preparer.prepare(cards,aheadController.signal).catch(()=>undefined).finally(()=>{if(ahead===operation)ahead=null;});ahead=operation;

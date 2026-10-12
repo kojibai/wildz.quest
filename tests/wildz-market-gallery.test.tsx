@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {WildzMarketDiscovery} from '../src/features/market/WildzMarketDiscovery';
-import {WildzMarketGalleryPage,wildzMarketGalleryLookahead} from '../src/features/market/WildzMarketGalleryPage';
+import {WildzMarketGalleryPage} from '../src/features/market/WildzMarketGalleryPage';
 import {createWildzMarketCardPreparer} from '../src/features/market/wildz-market-card-preparation';
 import {sealCollectedCard,wildsCardVerificationDiagnostics} from '../src/features/play/portable-card';
 import type {WildzMarketOwnedCard} from '../src/lib/receiz/wildz-market-collection';
 import {initialMarketDiscovery} from '../src/features/market/wildz-market-discovery';
+import type {WildzMarketListingViewV128} from '../src/features/market/wildz-market-service-v128';
 import {mountMutableReact} from './helpers/react-mutation-renderer';
 
 const owned=(index:number):WildzMarketOwnedCard=>{
@@ -16,21 +17,47 @@ const owned=(index:number):WildzMarketOwnedCard=>{
 };
 const noOp=()=>{};
 
+test('the two-column feed reserves every row immediately and keeps resources out of creature pairs',async context=>{
+ const originalWindow=Object.getOwnPropertyDescriptor(globalThis,'window');
+ Object.defineProperty(globalThis,'window',{configurable:true,value:{location:{href:'http://127.0.0.1:3100/test-fixtures/market'},matchMedia:()=>({matches:true,addEventListener(){},removeEventListener(){}})}});
+ context.after(()=>{if(originalWindow)Object.defineProperty(globalThis,'window',originalWindow);else Reflect.deleteProperty(globalThis,'window');});
+ const rows=Array.from({length:72},(_,i)=>owned(i)),preparer=createWildzMarketCardPreparer({decodeImage:async()=>{}});
+ const listings:WildzMarketListingViewV128[]=[{listingId:'gallery:resource',title:'Trail supplies',kind:'inventory',asset:{kind:'inventory',foodItemIds:[],materialLotIds:[],resourceLotIds:[]},sellerHandle:'seller.receiz.id',priceUsdCents:'100',status:'active',canBuy:true,canCancel:false}];
+ await preparer.prepare(rows.slice(0,18));
+ const view=await mountMutableReact(<WildzMarketDiscovery cardPreparer={preparer} collection={rows} listings={listings} selection={initialMarketDiscovery} onChange={noOp} onView={noOp} loading={false} onRefresh={noOp} refreshing={false}/>);context.after(()=>view.unmount());
+ for(let frame=0;frame<8;frame++)await view.flush();
+ const pages=view.nodes().filter(node=>node.props?.['data-gallery-page']!==undefined);
+ assert.equal(pages.length,37);assert.match(view.text(),/73 cards/);
+ const articles=(node:typeof pages[number]):typeof pages=>[...(node.type==='article'?[node]:[]),...node.children.flatMap(articles)];
+ assert.ok(pages.filter(page=>page.props?.['data-rendered']).every(page=>{const tiles=articles(page);return tiles.length===2||tiles.length===1&&tiles[0]!.props?.['data-listing-id']==='gallery:resource';}));
+});
+
+test('a ready next row renders before a slower later row finishes',async context=>{
+ const saved=new Map(['window','IntersectionObserver','ResizeObserver'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
+ Object.defineProperty(globalThis,'window',{configurable:true,value:{location:{href:'http://127.0.0.1:3100/test-fixtures/market'},matchMedia:()=>({matches:true,addEventListener(){},removeEventListener(){}})}});
+ Object.defineProperty(globalThis,'IntersectionObserver',{configurable:true,value:class {
+  constructor(private callback:(entries:{isIntersecting:boolean}[])=>void,private options:{rootMargin?:string}={}){}
+  observe(target:{props?:Record<string,unknown>}){const index=target.props?.['data-gallery-page'];if(typeof index==='number')this.callback([{isIntersecting:index<(this.options.rootMargin==='650px 0px'?4:8)}]);}disconnect(){}
+ }});
+ Object.defineProperty(globalThis,'ResizeObserver',{configurable:true,value:class {observe(){}disconnect(){}}});
+ context.after(()=>{for(const [key,descriptor] of saved){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else Reflect.deleteProperty(globalThis,key);}});
+ const rows=Array.from({length:30},(_,i)=>owned(i));let release!:()=>void;
+ const stalled=new Promise<void>(resolve=>{release=resolve;});context.after(release);
+ const preparer=createWildzMarketCardPreparer({decodeImage:async url=>{if(url.includes(encodeURIComponent(rows[10]!.proofDigest)))await stalled;}});
+ await preparer.prepare(rows.slice(0,6));
+ const root={clientHeight:844,getBoundingClientRect:()=>({height:844,top:0,bottom:844})};
+ const view=await mountMutableReact(<WildzMarketDiscovery cardPreparer={preparer} collection={rows} listings={[]} selection={initialMarketDiscovery} onChange={noOp} onView={noOp} loading={false} onRefresh={noOp} refreshing={false}/>,{publicInstance:node=>node.type==='div'||node.type==='section'?{props:node.props,closest:()=>root,getBoundingClientRect:()=>({height:450,top:0,bottom:450})}:null});context.after(()=>view.unmount());
+ for(let frame=0;frame<16;frame++)await view.flush();
+ const next=view.nodes().find(node=>node.props?.['data-gallery-page']===3);
+ assert.ok(next);assert.equal(next.props?.['data-rendered'],true);
+ const images=(node:typeof next):number=>(node.type==='img'?1:0)+node.children.reduce((sum,child)=>sum+images(child),0);
+ assert.equal(images(next),2);assert.equal(preparer.peek([rows[10]!]).size,0);
+});
+
 test('a rarity filter stays loading while unseen legacy revisions are being indexed',()=>{
  const {asset,...row}=owned(71);void asset;
  const html=renderToStaticMarkup(<WildzMarketDiscovery collection={[row]} listings={[]} selection={{...initialMarketDiscovery,rarity:'rare'}} onChange={noOp} onView={noOp} loading={false} onRefresh={noOp} refreshing={false}/>);
  assert.match(html,/Loading Market/);assert.doesNotMatch(html,/No matching cards|0 cards match/);
-});
-
-test('lookahead decodes exactly the next two groups before they are mounted',async()=>{
- const rows=Array.from({length:72},(_,i)=>owned(i)),decoded:string[]=[];
- const preparer=createWildzMarketCardPreparer({decodeImage:async url=>{decoded.push(url);}});
- const ahead=wildzMarketGalleryLookahead(rows,6);
- const prepared=await preparer.prepare(ahead);
- assert.deepEqual(prepared.map(card=>card.card.title),Array.from({length:12},(_,i)=>`Card ${i+6}`));
- assert.equal(decoded.length,12);assert.equal(preparer.peek(rows.slice(0,6)).size,0);assert.equal(preparer.peek(rows.slice(18)).size,0);
- const html=renderToStaticMarkup(<WildzMarketGalleryPage active index={1} columns={2}>{ahead.map(row=><img key={row.assetId} alt={row.title} src="/card.webp"/>)}</WildzMarketGalleryPage>);
- assert.doesNotMatch(html,/<img/);assert.match(html,/height:900px/);
 });
 
 test('a prepared first screen renders six cards while all remaining groups preserve scroll space without images',async()=>{
@@ -41,7 +68,7 @@ test('a prepared first screen renders six cards while all remaining groups prese
  assert.deepEqual(wildsCardVerificationDiagnostics(),before);
  assert.equal((html.match(/complete creature card/g)??[]).length,6);assert.doesNotMatch(html,/View creature · Card 6|View creature · Card 71/);
  const distant=renderToStaticMarkup(<>{Array.from({length:11},(_,i)=><WildzMarketGalleryPage key={i} active index={i+1} columns={2}><img alt={`Distant ${i}`} src="/card.webp"/></WildzMarketGalleryPage>)}</>);
- assert.doesNotMatch(distant,/<img/);assert.equal((distant.match(/height:900px/g)??[]).length,11);
+ assert.doesNotMatch(distant,/<img/);assert.equal((distant.match(/height:450px/g)??[]).length,11);
 });
 
 test('a transient preparation failure cannot shrink an 86-card catalogue as effects settle',async context=>{
@@ -87,20 +114,17 @@ test('scrolling back restores evicted whole cards before mounting their images w
  const view=await mountMutableReact(<WildzMarketDiscovery cardPreparer={preparer} collection={rows} listings={[]} selection={initialMarketDiscovery} onChange={noOp} onView={noOp} loading={false} onRefresh={noOp} refreshing={false}/>,{publicInstance:node=>node.type==='div'||node.type==='section'?{props:node.props,closest:()=>root,getBoundingClientRect:()=>({height:900,top:0,bottom:900})}:null});
  context.after(()=>view.unmount());
  for(let frame=0;frame<6;frame++)await view.flush();
- const sentinel=watches.find(watch=>watch.target.props?.className==='loadSentinel'&&watch.margin.includes('2200'));
- assert.ok(sentinel,JSON.stringify(watches.map(watch=>({className:watch.target.props?.className,page:watch.target.props?.['data-gallery-page'],hidden:watch.target.props?.['aria-hidden'],margin:watch.margin}))));sentinel.notify(true);
- for(let frame=0;frame<6;frame++)await view.flush();
- const page=watches.find(watch=>watch.target.props?.['data-gallery-page']===1&&watch.margin==='650px 0px');
+ const page=[...watches].reverse().find(watch=>watch.target.props?.['data-gallery-page']===3&&watch.margin==='650px 0px');
  assert.ok(page);page.notify(true);
  for(let frame=0;frame<6;frame++)await view.flush();
  page.notify(false);await view.flush();
- await preparer.prepare(rows.slice(18));assert.equal(preparer.peek(rows.slice(6,12)).size,0);
- const approach=watches.find(watch=>watch.target.props?.['data-gallery-page']===1&&watch.margin==='2200px 0px');
+ await preparer.prepare(rows.slice(18));assert.equal(preparer.peek(rows.slice(6,8)).size,0);
+ const approach=[...watches].reverse().find(watch=>watch.target.props?.['data-gallery-page']===3&&watch.margin==='2200px 0px');
  approach?.notify(false);await view.flush();approach?.notify(true);page.notify(true);
  for(let frame=0;frame<12;frame++)await view.flush();
- assert.equal(preparer.peek(rows.slice(6,12)).size,6);
- assert.ok(rows.slice(6,12).every(row=>(reads.get(row.assetId)??0)>=2));assert.ok(preparer.peek(rows).size<=48);
- const secondPage=view.nodes().find(node=>node.props?.['data-gallery-page']===1)!;
+ assert.equal(preparer.peek(rows.slice(6,8)).size,2);
+ assert.ok(rows.slice(6,8).every(row=>(reads.get(row.assetId)??0)>=2));assert.ok(preparer.peek(rows).size<=48);
+ const secondPage=view.nodes().find(node=>node.props?.['data-gallery-page']===3)!;
  const images=(node:typeof secondPage):string[]=>[...(node.type==='img'?[String(node.props?.src)]:[]),...node.children.flatMap(images)];
- assert.equal(images(secondPage).length,6);assert.ok(images(secondPage).every(src=>src.startsWith('data:image/svg+xml')));
+ assert.equal(images(secondPage).length,2);assert.ok(images(secondPage).every(src=>src.startsWith('data:image/svg+xml')));
 });
