@@ -81,6 +81,24 @@ test('an unavailable local value shows its retry state instead of a silent empty
  assert.match(html,/Value unavailable/);assert.match(html,/Open the chart to retry/);
 });
 
+test('mobile Explore offers two columns by default and a single-column view without loading the service',()=>{
+ const f=fixture(),html=renderToStaticMarkup(<WildzMarketSheet service={f.service} connected/>);
+ const two=html.match(/<button[^>]+aria-label="Two-column view"[^>]*>/)?.[0]??'';
+ const one=html.match(/<button[^>]+aria-label="Single-column view"[^>]*>/)?.[0]??'';
+ assert.match(two,/aria-pressed="true"/);assert.match(one,/aria-pressed="false"/);
+ assert.equal(f.calls(),0);
+});
+
+test('compact card taps open the full view while the larger preview keeps its flip gesture',async()=>{
+ const {WildzMarketCardPreview}=await import('../src/features/market/WildzMarketCardPreview');
+ const card={assetId:'wilds:'+ 'a'.repeat(24),title:'Companion',proofDigest:'sha256:'+ 'b'.repeat(64),ownerHandle:seller,claimKaiUPulse:null,claimHead:null};
+ let opens=0;
+ const compact=renderToStaticMarkup(<WildzMarketCardPreview card={card} front={<span>Complete card</span>} openOnTap onOpen={()=>{opens++;}}/>);
+ assert.match(compact,/aria-label="Open Companion"/);assert.doesNotMatch(compact,/aria-label="Flip Companion"/);assert.equal(opens,0);
+ const expanded=renderToStaticMarkup(<WildzMarketCardPreview card={card} front={<span>Complete card</span>}/>);
+ assert.match(expanded,/aria-label="Flip Companion"/);
+});
+
 test('reopened pending listing remains visible with the original asset and price even after holdings refresh',()=>{
  const f=fixture({sellables:[]});
  retainWildzMarketListingUiAttempt(f.service,{request:{attemptId:'listing:same',asset:{kind:'inventory',foodItemIds:['fruit:one'],materialLotIds:[],resourceLotIds:[]},priceUsdCents:'1234'},title:'Saved harvest',summary:'One exact wild fruit'});
