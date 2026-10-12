@@ -1,10 +1,18 @@
-import type { ReceizProofValueProjectionV129 } from '@receiz/sdk/valuation';
+import type { ReceizProofValueProjectionV129, SigilMetadataLite, UnsignedSeal, ValuationLegacyDefault, SIGIL_VALUATION_ROUNDING } from '@receiz/sdk/valuation';
 
-/** Display DTO at the SDK boundary. A value projection grants no custody,
- * payment or approval. The v129 adapter must admit proof/history first. */
+/** Display DTO for a canonical SDK projection or an explicitly labeled local
+ * game-card model using the SDK law. A value grants no custody or payment. */
 export type WildzMarketValuePoint=Readonly<{kaiUPulse:string;phiMicro:string;usdCents:string|null}>;
 export type WildzMarketValueProjection=Readonly<{
  assetId:string;proofDigest:string;historyHead:string|null;algorithm:string;policyChecksum:string;projectionDigest:string;
+ /** The local display runs the SDK law over the game's sealed card inputs.
+  * It does not claim SDK native artifact admission or spendable Settlement. */
+ valueSource?:'local-card-model';
+ localModel?:Readonly<{
+  source:Readonly<{originKind:'sealed-discovery-upulse'|'sealed-birth-timestamp-projection';originReference:string;cardSealKind:string;cardProofDigest:string;originKaiUPulse:string;originKaiPulse:string}>;
+  metadata:SigilMetadataLite;unsigned:UnsignedSeal;appliedDefaults:readonly ValuationLegacyDefault[];
+  unknownInputs:readonly string[];rounding:typeof SIGIL_VALUATION_ROUNDING;
+ }>;
  /** Local proofDigest above selects the card; these identify its canonical seal. */
  proofArtifactDigest?:string;originProofDigest?:string;originKaiPulse?:string;
  sampleKind?:'recomputed-model-samples';sdkProjection?:ReceizProofValueProjectionV129;
@@ -15,7 +23,7 @@ export type WildzMarketValueProjection=Readonly<{
  replay?:Readonly<{filename:string;json:string}>;
 }>;
 export type WildzMarketValueRead=Readonly<{status:'ready';value:WildzMarketValueProjection}>|Readonly<{status:'unavailable';message:string}>;
-export type WildzMarketValuePort=Readonly<{read(assetId:string):Promise<WildzMarketValueRead>}>;
+export type WildzMarketValuePort=Readonly<{read(assetId:string):Promise<WildzMarketValueRead>;release?():void;dispose?():void}>;
 export function formatWildzMarketKai(upulse:string){
  if(!/^(?:0|[1-9][0-9]{0,39})$/.test(upulse))return '☤KAI —';
  return `☤KAI ${(BigInt(upulse)/1_000_000n).toLocaleString('en-US')}`;

@@ -2,7 +2,7 @@
 
 import {marketFixtureCards} from './market-fixture-cards';
 import type {WildzMarketOffer} from './wildz-market-offers';
-import type {WildzMarketValueProjection} from './wildz-market-value';
+import {createWildzMarketValueBrowserPortV129} from './wildz-market-value-browser-v129';
 import {wildzMarketValueChange} from './wildz-market-value';
 import {useMemo,useState} from 'react';
 import {WildzMarketSheet} from './WildzMarketSheet';
@@ -12,25 +12,19 @@ import {createWildsWalletTradeAgreement,createWildsWalletTradeDraft} from '../pl
 const buyer='forestwanderer.receiz.id',seller='trailkeeper.receiz.id';
 const creature={kind:'creature' as const,assetId:marketFixtureCards[0]!.id};
 const resources={kind:'inventory' as const,foodItemIds:['fixture:fruit:1','fixture:fruit:2','fixture:vegetable','fixture:meat'],materialLotIds:['fixture:timber'],resourceLotIds:['fixture:honey']};
-function fixtureSamples(index:number){
- const finalUsd=993+index*207,startUsd=index===1?finalUsd+15:finalUsd-93;
- const finalPhi=1168100+index*200000,startPhi=index===1?finalPhi+17000:finalPhi-168100;
- return Array.from({length:32},(_,i)=>({kaiUPulse:String(16000000000000n+BigInt(i)*1000000n),phiMicro:String(startPhi+Math.floor((finalPhi-startPhi)*i/31)),usdCents:String(startUsd+Math.floor((finalUsd-startUsd)*i/31))}));
-}
-function fixtureValueSummary(index:number){const samples=fixtureSamples(index),last=samples.at(-1)!;return {proofValuePhiMicro:last.phiMicro,displayUsdCents:last.usdCents,valuationKaiUPulse:last.kaiUPulse,algorithm:'Preview model · simulated values',changeBps:wildzMarketValueChange(samples,'usd')};}
 const agreement=createWildsWalletTradeAgreement(
  {senderHandle:seller,draft:createWildsWalletTradeDraft({attemptId:'fixture:sale',recipient:buyer,selfHandle:seller,phiMicro:'0',requestedPhiMicro:'1234567',requestNote:'Market fixture',selections:[{selection:{id:'ember',label:'Ember Cub',quantity:1,asset:creature},quantity:1}]})},
  {senderHandle:buyer,draft:createWildsWalletTradeDraft({attemptId:'fixture:buy',recipient:seller,selfHandle:buyer,phiMicro:'1234567',requestedPhiMicro:'0',requestNote:'Market fixture',selections:[]})}
 );
 
-/** Development-only display simulation. No SDK, source publication, payment or claim. */
+/** Development-only trade simulation with the actual local SDK calculator. No publication, payment or claim. */
 function createFixtureService(ownerHandle:string,onCall:(value:string)=>void):WildzMarketServiceV128{
  const listeners=new Set<(snapshot:WildzMarketSnapshotV128)=>void>();
  let pendingList:Parameters<WildzMarketServiceV128['list']>[0]|null=null;
  let snapshot:WildzMarketSnapshotV128={status:'ready',message:'Simulated UI only · no assets or Phi are sent.',listings:[
   {listingId:`market:listing:${'a'.repeat(64)}`,title:marketFixtureCards[0]!.manifest.name,kind:'creature',asset:creature,sellerHandle:seller,priceUsdCents:'1234',status:'active',canBuy:ownerHandle===buyer,canCancel:ownerHandle===seller},
   {listingId:'fixture:listing:harvest',title:'Wild harvest basket',kind:'inventory',asset:resources,sellerHandle:ownerHandle,priceUsdCents:'500',status:'active',canBuy:false,canCancel:true}
- ],collection:marketFixtureCards.map((asset,index)=>({assetId:asset.id,title:asset.manifest.name,proofDigest:asset.proof.digest,ownerHandle:seller,asset,value:fixtureValueSummary(index),claimKaiUPulse:'16000000100001',claimHead:'fixture:claim:head',artworkUrl:`/test-fixtures/market/cards/${encodeURIComponent(asset.id)}/image`})),offers:[],history:[],transfers:[{id:'fixture:transfer:1',assetId:marketFixtureCards[0]!.id,fromHandle:'wayfinder.receiz.id',toHandle:seller,kaiUPulse:'15999999991234',headReference:'fixture:verified-claim-reference'}],purchases:[],sellables:[
+ ],collection:marketFixtureCards.map(asset=>({assetId:asset.id,title:asset.manifest.name,proofDigest:asset.proof.digest,ownerHandle:seller,asset,claimKaiUPulse:'16000000100001',claimHead:'fixture:claim:head',artworkUrl:`/test-fixtures/market/cards/${encodeURIComponent(asset.id)}/image`})),offers:[],history:[],transfers:[{id:'fixture:transfer:1',assetId:marketFixtureCards[0]!.id,fromHandle:'wayfinder.receiz.id',toHandle:seller,kaiUPulse:'15999999991234',headReference:'fixture:verified-claim-reference'}],purchases:[],sellables:[
   {id:'fixture:provisions',title:'Trail provisions',kind:'inventory',asset:resources,summary:'2 fruit · 1 vegetable · 1 meat · 1 timber · 1 Living Honey'},
   {id:'fixture:package',title:'Packed harvest',kind:'package',asset:{kind:'package',packageId:`wildz:package:${'b'.repeat(64)}`},summary:'One complete resource package · 6 items'},
   {id:'fixture:creature',title:marketFixtureCards[0]!.manifest.name,kind:'creature',asset:creature,summary:'One creature · its complete history'}
@@ -40,9 +34,16 @@ function createFixtureService(ownerHandle:string,onCall:(value:string)=>void):Wi
  const getPurchase=()=>{const current=snapshot.purchases[0];if(!current)throw Error('Review a purchase first.');return current;};
  const review:WildzMarketPurchaseReviewV128={purchaseId:'fixture:purchase:ember',listingId:`market:listing:${'a'.repeat(64)}`,reservationId:'fixture:reservation:ember',title:marketFixtureCards[0]!.manifest.name,kind:'creature',buyerHandle:buyer,sellerHandle:seller,priceUsdCents:'1234',amountPhiMicro:'1234567',usdPerPhiMicrocents:'1000000000',expiresAtKai:999,phase:'review',agreement,canApprove:true,canResume:false,canAccept:false,message:'Review the named players and exact terms.'};
  if(ownerHandle===seller)snapshot={...snapshot,offers:[{offer:{schema:'wildz.market-offer.v1',offerId:'market:offer:fixture-incoming',assetId:marketFixtureCards[1]!.id,title:marketFixtureCards[1]!.manifest.name,proofDigest:marketFixtureCards[1]!.proof.digest,buyerHandle:buyer,ownerHandle:seller,claimKaiUPulse:'16000000100001',claimHead:'fixture:claim:head',priceUsdCents:'1800'},status:'pending',createdAt:'2026-10-11T16:00:00.000Z'}],purchases:[{...review,phase:'awaiting-approvals',message:'The buyer approved. Your seller approval is still required.'}]};
+ // An explicit fixture display basis, never used by production payment or quotes.
+ const valuePort=createWildzMarketValueBrowserPortV129({card:id=>marketFixtureCards.find(card=>card.id===id)??null,usdPerPhiMicrocents:()=> '100000000'});
  return {
   binding:{ownerHandle,keyId:(ownerHandle===buyer?'a':'c').repeat(64)},snapshot:()=>snapshot,
-  readValue:async assetId=>{const card=marketFixtureCards.find(c=>c.id===assetId)!;onCall(`read-value ${assetId}`);const samples=fixtureSamples(marketFixtureCards.indexOf(card));const value:WildzMarketValueProjection={assetId,proofDigest:card.proof.digest,historyHead:'fixture:history:head',algorithm:'Preview model · simulated values',policyChecksum:'fixture:policy',projectionDigest:'fixture:projection',originKaiUPulse:'16000000000000',valuationKaiUPulse:samples.at(-1)!.kaiUPulse,proofValuePhiMicro:samples.at(-1)!.phiMicro,marketReferenceValuePhiMicro:null,displayUsdCents:samples.at(-1)!.usdCents,priceBasisDigest:'fixture:usd-basis',samples,calculation:[{id:'base',label:'Base proof value (UI example)',formula:'basePhiMicro + exampleIncrementPhiMicro',operands:{basePhiMicro:samples[0]!.phiMicro,exampleIncrementPhiMicro:String(BigInt(samples.at(-1)!.phiMicro)-BigInt(samples[0]!.phiMicro))},result:samples.at(-1)!.phiMicro,unit:'micro-Phi',sourceReferences:['fixture:proof']}],replay:{filename:'market-preview-replay.json',json:JSON.stringify({simulation:true,samples})}};return {status:'ready',value};},
+  releaseValue:()=>valuePort.release?.(),
+  readValue:async assetId=>{
+   onCall(`local-value ${assetId}`);const result=await valuePort.read(assetId);
+   if(result.status==='ready'){const value=result.value;snapshot={...snapshot,collection:snapshot.collection!.map(card=>card.assetId===assetId?{...card,value:{proofValuePhiMicro:value.proofValuePhiMicro,displayUsdCents:value.displayUsdCents,valuationKaiUPulse:value.valuationKaiUPulse,algorithm:value.algorithm,changeBps:wildzMarketValueChange(value.samples,value.displayUsdCents===null?'phi':'usd')}}:card)};publish();}
+   return result;
+  },
   makeOffer:async request=>{onCall(`offer ${request.attemptId}`);const card=snapshot.collection!.find(c=>c.assetId===request.assetId)!;const offer:WildzMarketOffer={schema:'wildz.market-offer.v1',offerId:request.attemptId,assetId:card.assetId,title:card.title,proofDigest:card.proofDigest,buyerHandle:buyer,ownerHandle:seller,claimKaiUPulse:card.claimKaiUPulse,claimHead:card.claimHead,priceUsdCents:request.priceUsdCents};if(!snapshot.offers!.some(v=>v.offer.offerId===offer.offerId))snapshot={...snapshot,offers:[...snapshot.offers!,{offer,status:'pending',createdAt:'2026-10-11T16:00:00.000Z'}]};publish();return {status:'completed',message:'Simulated offer sent.'};},
   respondToOffer:async (id,outcome)=>{onCall(`offer-response ${id} ${outcome}`);snapshot={...snapshot,offers:snapshot.offers!.map(v=>v.offer.offerId===id?{...v,status:outcome,...(outcome==='accepted'?{listingId:`market:listing:${'a'.repeat(64)}`}:{})}:v)};publish();return {status:'completed',message:`Simulated offer ${outcome}.`};},
   subscribe:listener=>{listeners.add(listener);return()=>listeners.delete(listener);},read:async()=>{onCall('read');return snapshot;},
@@ -64,9 +65,9 @@ function createFixtureService(ownerHandle:string,onCall:(value:string)=>void):Wi
 
 export function WildzMarketBrowserFixture(){
  const [owner,setOwner]=useState(buyer),[open,setOpen]=useState(true),[calls,setCalls]=useState<readonly string[]>([]);
- const service=useMemo(()=>createFixtureService(owner,value=>setCalls(previous=>[...previous,value])),[owner]);
+ const service=useMemo(()=>createFixtureService(owner,value=>setCalls(previous=>[...previous.slice(-49),value])),[owner]);
  return <main className="wildz-app" style={{minHeight:'100dvh',padding:20,background:'radial-gradient(circle at 20% 20%,#385c37,#0c211b 70%)',color:'#eff1db'}}>
-  <h1 style={{fontSize:20}}>Market UI fixture</h1><p>Simulated display only. No publication, asset transfer or payment.</p>
+  <h1 style={{fontSize:20}}>Market UI fixture</h1><p>Local SDK values · Simulated trades. No publication, asset transfer or payment.</p>
   <div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button type="button" onClick={()=>setOwner(current=>current===buyer?seller:buyer)}>Switch to {owner===buyer?'seller':'buyer'}</button><button type="button" onClick={()=>setOpen(value=>!value)}>{open?'Close market':'Open market'}</button></div>
   <p data-testid="fixture-account">Viewing {owner}</p>
   <details><summary>Simulated service calls ({calls.length})</summary><pre data-testid="fixture-calls" style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{calls.join('\n')}</pre></details>

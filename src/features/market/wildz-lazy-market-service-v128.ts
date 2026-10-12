@@ -53,6 +53,7 @@ export function createLazyWildzMarketServiceV128(input: Readonly<{
     read: () => run(next => next.read()),
     readHistory: () => run(next => next.readHistory ? next.readHistory() : Promise.resolve(next.snapshot())),
     readValue: id => run(next => next.readValue ? next.readValue(id) : Promise.resolve({status:'unavailable',message:'No verified valuation is available for this card yet.'})),
+    releaseValue: () => service?.releaseValue?.(),
     list: request => run(next => next.list(request)),
     cancel: id => run(next => next.cancel(id)),
     activateListing: id => run(next => next.activateListing ? next.activateListing(id) : Promise.resolve({status:'failed',message:'Reopen Market to activate this listing.'})),
@@ -64,5 +65,5 @@ export function createLazyWildzMarketServiceV128(input: Readonly<{
     accept: id => run(next => next.accept(id)),
     receive: (context, sender) => run(next => next.receive(context, sender)),
   };
-  return { service: lazy, opened: () => service !== null, dispose() { disposed = true; unsubscribe?.(); unsubscribe = null; listeners.clear(); } };
+  return { service: lazy, opened: () => service !== null, dispose() { disposed = true; service?.releaseValue?.(); unsubscribe?.(); unsubscribe = null; listeners.clear(); } };
 }

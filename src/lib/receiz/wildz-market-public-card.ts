@@ -2,6 +2,7 @@ import { verifyAnyWildsCard, type PortableCardAsset } from "../../features/play/
 import { parsePublicWildsCardRecord } from "../../features/play/public-card-registry";
 import { WILDZ_PRODUCT } from "../wildz/product";
 import { restoreWildzPublicState } from "./wildz-public-state";
+import { parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
 
 export type WildzPublicCardReadAdapter = {
   readAppStateByUrl(url: string): Promise<unknown>;
@@ -55,8 +56,8 @@ export async function resolveSdkPublicWildzCard(
   options: { adapter: WildzPublicCardReadAdapter; requestOrigin: string; profileHandle?: string }
 ) {
   if (!/^wilds:[a-f0-9]{24}$/.test(assetId)) return null;
-  const handle = options.profileHandle?.replace(/^@/, "").toLowerCase();
-  if (handle && /^[a-z0-9_]{3,64}$/.test(handle)) {
+  const handle = options.profileHandle ? parseWildzPlayerCoordinate(options.profileHandle)?.actorId : undefined;
+  if (handle) {
     const url = `${WILDZ_PRODUCT.origin}/u/${handle}/cards/${encodeURIComponent(assetId)}`;
     try {
       const scoped = parseExactPublicAsset(await options.adapter.readAppStateByUrl(url), assetId);

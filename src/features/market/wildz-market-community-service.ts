@@ -3,7 +3,7 @@ import type {WildzMarketOwnedCard,WildzMarketTransfer} from '../../lib/receiz/wi
 import {admitWildzMarketOfferMessage,projectWildzMarketOffers,sameWildzMarketOfferOwner,type WildzMarketOfferMessage} from './wildz-market-offers';
 import type {WildsConversation} from '../play/wilds-messenger-core';
 import {canonicalPortableCardJson} from '../play/portable-card';
-import type {WildzMarketValuePort} from './wildz-market-value';
+import type {WildzMarketValuePort,WildzMarketValueRead} from './wildz-market-value';
 import {wildzMarketValueChange} from './wildz-market-value';
 import {createWildzMarketOfferAttemptStore,type WildzMarketOfferAttemptStore} from './wildz-market-offer-attempts';
 import type {WildzMarketOffer} from './wildz-market-offers';
@@ -29,7 +29,7 @@ export function withWildzMarketCommunity(base:WildzMarketServiceV128,input:Reado
  const emit=()=>{current();const next=project();for(const listener of listeners)listener(next);return next;};
  const refreshCommunity=async()=>{
   const results=await Promise.allSettled([input.readCollection(),input.readConversations()]);current();
-  if(results[0].status==='fulfilled'){cards=results[0].value.cards;transfers=results[0].value.transfers;communityLoaded=true;collectionMessage='';}
+  if(results[0].status==='fulfilled'){const prior=new Map(cards.map(card=>[`${card.assetId}:${card.proofDigest}:${card.ownerHandle}`,card.value]));cards=results[0].value.cards.map(card=>{const value=prior.get(`${card.assetId}:${card.proofDigest}:${card.ownerHandle}`);return value?{...card,value}:card;});transfers=results[0].value.transfers;communityLoaded=true;collectionMessage='';}
   else collectionMessage=cards.length?'Showing saved collection. Refresh to check current owners.':'The owned creature collection could not refresh. Listings remain available.';
   if(results[1].status==='fulfilled')conversations=results[1].value;
   return results[0].status==='fulfilled'&&results[1].status==='fulfilled';
@@ -45,9 +45,10 @@ export function withWildzMarketCommunity(base:WildzMarketServiceV128,input:Reado
  };
  const service:WildzMarketServiceV128={...base,
   snapshot:()=>project(),
+  releaseValue:()=>input.value?.release?.(),
   ...(base.readHistory?{async readHistory(){await base.readHistory!();current();return emit();}}:{}),
- async readValue(id){current();const result=input.value?await input.value.read(id):{status:'unavailable' as const,message:'No verified valuation is available for this card yet.'};current();
-  if(result.status==='ready'){const projection=result.value;cards=cards.map(card=>card.assetId===id&&card.proofDigest===projection.proofDigest?{...card,value:{proofValuePhiMicro:projection.proofValuePhiMicro,displayUsdCents:projection.displayUsdCents,valuationKaiUPulse:projection.valuationKaiUPulse,algorithm:projection.algorithm,changeBps:wildzMarketValueChange(projection.samples,projection.displayUsdCents===null?'phi':'usd')}}:card);emit();}return result;},
+ async readValue(id){current();let result:WildzMarketValueRead;try{result=input.value?await input.value.read(id):{status:'unavailable',message:'No local valuation is available for this card yet.'};}catch{result={status:'unavailable',message:'Value could not refresh. Open the chart to retry.'};}current();
+  if(result.status==='ready'){const projection=result.value;cards=cards.map(card=>card.assetId===id&&card.proofDigest===projection.proofDigest?{...card,valueUnavailable:undefined,value:{proofValuePhiMicro:projection.proofValuePhiMicro,displayUsdCents:projection.displayUsdCents,valuationKaiUPulse:projection.valuationKaiUPulse,algorithm:projection.algorithm,changeBps:wildzMarketValueChange(projection.samples,projection.displayUsdCents===null?'phi':'usd')}}:card);}else{const message=result.message;cards=cards.map(card=>card.assetId===id?{...card,valueUnavailable:message}:card);}emit();return result;},
   subscribe(listener){current();listeners.add(listener);if(!unsubscribe)unsubscribe=base.subscribe(next=>{try{current();project(next);for(const listener of listeners)listener(snapshot);}catch{/* disposed identity */}});
    return()=>{listeners.delete(listener);if(!listeners.size){unsubscribe?.();unsubscribe=null;}};},
   async read(){const results=await Promise.allSettled([base.read(),refreshCommunity()]);current();

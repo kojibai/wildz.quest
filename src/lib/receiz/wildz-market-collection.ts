@@ -1,5 +1,5 @@
 import {createReceizAppStateFeed,createReceizPublicStoreStateRecord,RECEIZ_PUBLIC_STORE_STATE_FEED_SCHEMA,type JsonObject,type ReceizPublicStoreSignedPublish} from '@receiz/sdk';
-import {canonicalPortableCardJson} from '../../features/play/portable-card';
+import {canonicalPortableCardJson,verifyAnyWildsCard} from '../../features/play/portable-card';
 import {parsePublicWildzProfileRecord,type PublicWildzProfileRecord} from './wildz-profile-record';
 import {latestWildzOwnershipClaims,ownershipSyncProjection} from './wildz-ownership-reconcile';
 import {parseWildzPlayerCoordinate,sameWildzPlayerCoordinate} from './wildz-player-coordinate';
@@ -7,7 +7,7 @@ import {WILDZ_PRODUCT} from '../wildz/product';
 import type {PortableCardAsset} from '../../features/play/portable-card';
 
 export const WILDZ_MARKET_COLLECTION_NAMESPACE='wildz.market-collection.v1';
-export type WildzMarketOwnedCard=Readonly<{assetId:string;title:string;proofDigest:string;ownerHandle:string;claimKaiUPulse:string|null;claimHead:string|null;artworkUrl?:string;asset?:PortableCardAsset;
+export type WildzMarketOwnedCard=Readonly<{assetId:string;title:string;proofDigest:string;ownerHandle:string;claimKaiUPulse:string|null;claimHead:string|null;artworkUrl?:string;asset?:PortableCardAsset;valueUnavailable?:string;
  value?:Readonly<{proofValuePhiMicro:string;displayUsdCents:string|null;valuationKaiUPulse:string;algorithm:string;changeBps?:string|null}>}>;
 export type WildzMarketTransfer=Readonly<{id:string;assetId:string;fromHandle:string;toHandle:string;kaiUPulse:string|null;headReference:string}>;
 
@@ -57,7 +57,8 @@ export function projectWildzMarketCollection(profiles:readonly PublicWildzProfil
   const claim=heads.get(card.id);
   if(claim&&!sameWildzPlayerCoordinate(claim.ownerReceizId,owner))continue;
   const rows=candidates.get(card.id)??[];
-  rows.push({assetId:card.id,title:card.name,proofDigest:card.proofDigest,ownerHandle:owner,claimKaiUPulse:claim?.witnessedKaiUPulse??null,claimHead:claim?.headReference??null});
+  const asset=record.vaultCards?.find(asset=>asset.id===card.id&&asset.proof.digest===card.proofDigest&&verifyAnyWildsCard(asset).ok);
+  rows.push({assetId:card.id,title:card.name,proofDigest:card.proofDigest,ownerHandle:owner,claimKaiUPulse:claim?.witnessedKaiUPulse??null,claimHead:claim?.headReference??null,...(asset?{asset}:{})});
   candidates.set(card.id,rows);
  }
  return [...candidates.values()].flatMap(rows=>new Set(rows.map(row=>row.ownerHandle)).size===1?[rows[0]!]:[]).sort((a,b)=>{

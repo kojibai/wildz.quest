@@ -10,8 +10,20 @@ import {
   projectWildsWalletSummary
 } from "../src/lib/receiz/wilds-wallet-projections";
 import { receizOidcScopesForRails } from "@receiz/sdk";
+import { admitWildsWalletReadResponse } from "../src/features/play/wallet/wilds-wallet-controller";
 
 describe("Wilds wallet projections", () => {
+  it("retains only an explicit display rate for offline card conversion, including an empty wallet", () => {
+    const summary = projectWildsWalletSummary({ok:true,wallet:{balancePhiMicro:"0",quote:{usdPerPhiMicrocents:"0850000000",private:"not carried"}}});
+    assert.equal(Reflect.get(summary, "displayUsdPerPhiMicrocents"), "850000000");
+    assert.equal(summary.displayUsdCents, null);
+    assert.doesNotMatch(JSON.stringify(summary), /private|not carried/);
+    assert.equal(Reflect.get(admitWildsWalletReadResponse({summary,capabilities:projectWildsWalletCapabilities(),ledger:null}).summary, "displayUsdPerPhiMicrocents"), "850000000");
+    for (const rate of [undefined,"0","-1","1.25","1e8",123,"9".repeat(31)]) {
+      const unknown = projectWildsWalletSummary({ok:true,wallet:{balancePhiMicro:"0",quote:{usdPerPhiMicrocents:rate}}});
+      assert.equal(Reflect.get(unknown, "displayUsdPerPhiMicrocents"), undefined);
+    }
+  });
   it("keeps absent SDK asset counts explicitly unknown instead of claiming zero inventory", () => {
     const projection = projectWildsWalletSummary({
       ok: true,

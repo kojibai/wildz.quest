@@ -5,6 +5,8 @@ import {WildzMarketSheet} from '../src/features/market/WildzMarketSheet';
 import type {WildzMarketPurchaseReviewV128,WildzMarketServiceV128,WildzMarketSnapshotV128} from '../src/features/market/wildz-market-service-v128';
 import {createWildsWalletTradeAgreement,createWildsWalletTradeDraft} from '../src/features/play/wallet/wilds-wallet-trade';
 import {retainWildzMarketListingUiAttempt} from '../src/features/market/wildz-market-presentation';
+import {initialPlayState} from '../src/features/play/game-state';
+import {MarketCardArtwork} from '../src/features/market/WildzMarketDiscovery';
 
 const buyer='buyer.receiz.id',seller='seller.receiz.id',asset={kind:'creature' as const,assetId:'creature:ember'};
 const agreement=createWildsWalletTradeAgreement(
@@ -20,11 +22,27 @@ function fixture(input:Partial<WildzMarketSnapshotV128>={},ownerHandle=buyer){
  return {service,calls:()=>calls};
 }
 
-test('Market paints cached listings without opening SDK, quote, source or payment work during render',()=>{
+test('Market omits creatures without their real card and paints cached resources without SDK work during render',()=>{
  const f=fixture(),html=renderToStaticMarkup(<WildzMarketSheet service={f.service} connected/>);
- assert.match(html,/Ember Cub/);assert.match(html,/\$12\.34/);assert.match(html,/View listing/);assert.equal(f.calls(),0);
+ assert.doesNotMatch(html,/Ember Cub|View listing|creature-collection\.webp/);assert.equal(f.calls(),0);
+ const resource=fixture({listings:[{listingId:'listing:provisions',title:'Trail provisions',kind:'package',asset:{kind:'package',packageId:`wildz:package:${'b'.repeat(64)}`},sellerHandle:seller,priceUsdCents:'1234',status:'active',canBuy:true,canCancel:false}]});
+ const resources=renderToStaticMarkup(<WildzMarketSheet service={resource.service} connected/>);
+ assert.match(resources,/Trail provisions/);assert.match(resources,/\$12\.34/);assert.match(resources,/View listing/);assert.match(resources,/resource-collection\.webp/);assert.equal(resource.calls(),0);
  const offline=renderToStaticMarkup(<WildzMarketSheet service={null} connected={false}/>);
  assert.match(offline,/Connect your Receiz ID/);assert.doesNotMatch(offline,/Approve purchase|Approve sale|Accept delivery/);
+});
+
+test('a cached owned creature waits for decoded artwork and value preparation before its tile is painted',()=>{
+ const asset=initialPlayState.inventory[0]!;
+ const f=fixture({listings:[],collection:[{assetId:asset.id,title:'Exact owned companion',proofDigest:asset.proof.digest,ownerHandle:seller,claimKaiUPulse:null,claimHead:null,asset}]});
+ const html=renderToStaticMarkup(<WildzMarketSheet service={f.service} connected/>);
+ assert.match(html,/Preparing cards/);assert.doesNotMatch(html,/View creature · Exact owned companion|Flip Exact owned companion|creature-collection\.webp|wilds-card-face-back/);assert.equal(f.calls(),0);
+});
+
+test('a prepared card consumes its decoded exact artwork eagerly with an actor profile coordinate',()=>{
+ const asset=initialPlayState.inventory[0]!;
+ const html=renderToStaticMarkup(<MarketCardArtwork card={{assetId:asset.id,title:asset.manifest.name,proofDigest:asset.proof.digest,ownerHandle:'seller.receiz.id',claimKaiUPulse:null,claimHead:null,asset}}/>);
+ assert.match(html,/loading="eager"/);assert.match(html,/profile=seller&amp;digest=/);assert.doesNotMatch(html,/loading="lazy"|profile=seller\.receiz\.id|creature-collection\.webp/);
 });
 
 test('buyer and named seller approval display the exact USD and Phi terms',()=>{
@@ -50,11 +68,17 @@ test('Sell displays the real package selection and keeps reserved own listings o
  assert.match(activity,/Reserved harvest/);assert.match(activity,/Reserved/);assert.doesNotMatch(activity,/>Cancel listing<\/button>/);
 });
 
-test('native-active seller can explicitly retry a public value proof without reconnecting purchases',()=>{
+test('an active listing does not require publishing another proof to calculate its value',()=>{
  const f=fixture({listings:[{listingId:'mine',title:'Value pending cub',kind:'creature',asset,sellerHandle:buyer,priceUsdCents:'200',status:'active',canBuy:false,canActivate:false,canCancel:true}]});
  const service={...f.service,activateListing:async()=>({status:'listed' as const,message:'Recovered the same listing.'})};
  const html=renderToStaticMarkup(<WildzMarketSheet service={service} connected initialTab="activity"/>);
- assert.match(html,/>Enable value chart<\/button>/);assert.doesNotMatch(html,/>Enable purchases<\/button>/);assert.equal(f.calls(),0);
+ assert.doesNotMatch(html,/>Enable value chart<\/button>/);assert.doesNotMatch(html,/>Enable purchases<\/button>/);assert.equal(f.calls(),0);
+});
+
+test('an unavailable local value shows its retry state instead of a silent empty price',async()=>{
+ const {CardValue}=await import('../src/features/market/WildzMarketDiscovery');
+ const html=renderToStaticMarkup(<CardValue card={{assetId:'wilds:'+ 'a'.repeat(24),title:'Companion',proofDigest:'sha256:'+ 'b'.repeat(64),ownerHandle:seller,claimKaiUPulse:null,claimHead:null,valueUnavailable:'Open the chart to retry.'}}/>);
+ assert.match(html,/Value unavailable/);assert.match(html,/Open the chart to retry/);
 });
 
 test('reopened pending listing remains visible with the original asset and price even after holdings refresh',()=>{

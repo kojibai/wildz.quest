@@ -13,6 +13,8 @@ export type WalletSummaryProjection = Readonly<{
   status: "verified";
   admittedPhiMicro: string;
   displayUsdCents: string | null;
+  /** Explicit held display rate; neither a payment quote nor inferred from balance. */
+  displayUsdPerPhiMicrocents?: string;
   assetCountsStatus: "available" | "unknown";
   transferableResourceCount: number | null;
   transferableCardCount: number | null;
@@ -188,10 +190,14 @@ export function projectWildsWalletSummary(value: unknown): WalletSummaryProjecti
     ? (summary.balanceUsd === undefined || summary.balanceUsd === null ? null : exactUsdCents(summary.balanceUsd))
     : parseWildsWalletMicroPhi(summary.balanceUsdCents);
   const assetCounts = projectAssetCounts(summary);
+  const displayRate = summary.displayUsdPerPhiMicrocents ?? asRecord(summary.quote).usdPerPhiMicrocents;
+  const displayUsdPerPhiMicrocents = typeof displayRate === "string" && /^[0-9]{1,30}$/.test(displayRate) && BigInt(displayRate) > 0n
+    ? BigInt(displayRate).toString() : undefined;
   return Object.freeze({
     status: "verified" as const,
     admittedPhiMicro: balancePhiMicro,
     displayUsdCents,
+    ...(displayUsdPerPhiMicrocents ? {displayUsdPerPhiMicrocents} : {}),
     ...assetCounts
   });
 }

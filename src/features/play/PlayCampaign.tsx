@@ -655,6 +655,8 @@ export function PlayCampaign({
     readAuthorization: walletReadAuthorization
   });
   const { cancelForExclusiveOwner: cancelWalletForExclusiveOwner, markObservationPending: markWalletObservationPending } = walletController;
+  const marketHeldDisplayRate = useRef(walletController.summary?.displayUsdPerPhiMicrocents ?? null);
+  marketHeldDisplayRate.current = walletController.summary?.displayUsdPerPhiMicrocents ?? null;
   const cameraHeadingRef = useRef(0);
   const playerFacingRef = useRef(0);
   const updateCameraHeading = useCallback((heading: number) => {
@@ -1362,8 +1364,8 @@ export function PlayCampaign({
       return {keyId, ownerHandle};
     };
     return createLazyWildzMarketServiceV128({binding: {keyId, ownerHandle}, currentBinding: currentIdentity, open: async () => {
-      const [{createWildzMarketServiceV128}, {openWildzMarketSourceBrowserV128}, {createWildzMarketPublicReadSourceV128}, {openWildzMarketPublicationBrowserV128,selectWildzMarketAdvertisementV128}, {createWildzMarketFundingBrowserV128}, {withWildzMarketCommunity,readWildzMarketCollection}, {createWildzMarketPublicValuePublisherV129}, {createWildzMarketValueBrowserPortV129}] = await Promise.all([
-        import("../market/wildz-market-service-v128"), import("../../lib/receiz/wildz-market-source-browser-v128"), import("../../lib/receiz/wildz-market-public-read-v128"), import("../../lib/receiz/wildz-market-publication-browser-v128"), import("../market/wildz-market-funding-browser-v128"), import("../market/wildz-market-community-service"), import("../../lib/receiz/wildz-market-public-value-publisher-v129"), import("../market/wildz-market-value-browser-v129")
+      const [{createWildzMarketServiceV128}, {openWildzMarketSourceBrowserV128}, {createWildzMarketPublicReadSourceV128}, {openWildzMarketPublicationBrowserV128,selectWildzMarketAdvertisementV128}, {createWildzMarketFundingBrowserV128}, {withWildzMarketCommunity,readWildzMarketCollection}, {readWildzMarketCard}, {createWildzMarketValueBrowserPortV129}] = await Promise.all([
+        import("../market/wildz-market-service-v128"), import("../../lib/receiz/wildz-market-source-browser-v128"), import("../../lib/receiz/wildz-market-public-read-v128"), import("../../lib/receiz/wildz-market-publication-browser-v128"), import("../market/wildz-market-funding-browser-v128"), import("../market/wildz-market-community-service"), import("../market/wildz-market-card-preparation"), import("../market/wildz-market-value-browser-v129")
       ]);
       currentIdentity();
       const qualifySelection = (asset: WildsWalletAssetSendRequest["asset"]) => walletAssetPort.qualifyListing(asset,
@@ -1372,19 +1374,6 @@ export function PlayCampaign({
         readSelections: () => marketReadSelectionsRef.current(), qualifySelection,
         funding:createWildzMarketFundingBrowserV128({keyId,ownerHandle,currentIdentity}),
         activatePublicListings:true,
-        publishCardValue:async(asset,sourceDigest)=>{
-          if(asset.kind!=="creature")return;
-          const resourceRuntime=await walletAssetPort.openRuntime();currentIdentity();
-          const publisher=createWildzMarketPublicValuePublisherV129({sdk:resourceRuntime.sdk,database:resourceRuntime.database,
-            sourceAuthor:resourceRuntime.sourceAuthor,assertCurrent:()=>{currentIdentity();}});
-          const currentCard=walletSourceLive.current.state.inventory.find(card=>card.id===asset.assetId);
-          if(!currentCard||!sourceDigest)throw Error("Reopen this listed creature in your Vault before enabling its value chart.");
-          if(await publisher.resume(currentCard,sourceDigest)){currentIdentity();return;}
-          const qualified=await walletAssetPort.qualifyValueProof(asset);currentIdentity();
-          if(!sourceDigest||qualified.selection.sourceDigest!==sourceDigest)throw Error("The creature source changed. Relist the current card from Sell before enabling its value chart.");
-          await publisher.publish(qualified.card,qualified.projectionOriginal);
-          currentIdentity();
-        },
         openReadSource: async () => createWildzMarketPublicReadSourceV128(),
         publication:{open:async()=>openWildzMarketPublicationBrowserV128({keyId,ownerHandle,currentIdentity}),
           selection:async asset=>{currentIdentity();return selectWildzMarketAdvertisementV128(asset,marketReadSelectionsRef.current(),ownerHandle);}},
@@ -1394,14 +1383,12 @@ export function PlayCampaign({
           sendWalletAsset: async () => ({status: "failed", message: "Review the exact native asset in Market."}), ensureReady: ensureWalletTradeReady, observeSubmission: markWalletObservationPending}
       });
       const community:WildzMarketServiceV128=withWildzMarketCommunity(base,{currentIdentity,readCollection:()=>readWildzMarketCollection(),readConversations:readTradeConversations,publish:sendMarketOffer,
-        value:createWildzMarketValueBrowserPortV129({ownerHandle,current:()=>{currentIdentity();},ensureReady:ensureWalletTradeReady,
+        value:createWildzMarketValueBrowserPortV129({current:()=>{currentIdentity();},
+          usdPerPhiMicrocents:()=>marketHeldDisplayRate.current??community.snapshot().purchases.find(p=>/^[1-9][0-9]{0,29}$/.test(p.usdPerPhiMicrocents))?.usdPerPhiMicrocents??null,
           card:async assetId=>{
             const selected=community.snapshot().collection?.find(card=>card.assetId===assetId);
             if(!selected)return null;
-            const response=await fetch(`/api/cards/${encodeURIComponent(assetId)}?profile=${encodeURIComponent(selected.ownerHandle)}`,{credentials:"omit",cache:"no-store",signal:AbortSignal.timeout(10_000)});
-            const value=await response.json() as {ok?:boolean;record?:{asset?:PortableCardAsset}};currentIdentity();
-            const card=value.record?.asset;
-            return response.ok&&value.ok===true&&card?.id===assetId&&card.proof.digest===selected.proofDigest&&verifyAnyWildsCard(card).ok?card:null;
+            const card=await readWildzMarketCard(selected);currentIdentity();return card;
           }})});
       return community;
     }});

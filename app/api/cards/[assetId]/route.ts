@@ -113,9 +113,16 @@ export async function GET(request: NextRequest, context: { params: Promise<{ ass
   try {
     const { assetId: rawAssetId } = await context.params;
     const { assetId } = parsePublicCardParam(rawAssetId);
+    const expectedDigest = request.nextUrl.searchParams.get("digest");
+    if (expectedDigest !== null && !/^sha256:[a-f0-9]{64}$/.test(expectedDigest)) {
+      return NextResponse.json({ ok: false, error: "wildz_public_card_digest_invalid" }, { status: 400, headers: { "cache-control": "no-store" } });
+    }
     const record = await resolvePublicWildsCardRecord(assetId, requestOrigin(request), request.nextUrl.searchParams.get("profile") ?? undefined);
     if (!record) {
       return NextResponse.json({ ok: false, error: "wildz_public_card_not_found" }, { status: 404 });
+    }
+    if (expectedDigest !== null && record.asset.proof.digest !== expectedDigest) {
+      return NextResponse.json({ ok: false, error: "wildz_public_card_revision_changed" }, { status: 409, headers: { "cache-control": "no-store" } });
     }
     return NextResponse.json({ ok: true, record }, {
       headers: { "cache-control": "public, max-age=60, stale-while-revalidate=300" }

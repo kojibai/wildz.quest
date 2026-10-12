@@ -50,6 +50,7 @@ export type WildzMarketServiceV128 = Readonly<{
   /** Explicit older receipt qualification; browsing never bootstraps this work. */
   readHistory?(): Promise<WildzMarketSnapshotV128>;
   readValue?(assetId:string):Promise<WildzMarketValueRead>;
+  releaseValue?():void;
   list(input: Readonly<{ asset: WildsWalletAssetSendAsset; priceUsdCents: string; attemptId: string }>): Promise<WildzMarketResultV128>;
   cancel(listingId: string): Promise<WildzMarketResultV128>;
   activateListing?(listingId:string):Promise<WildzMarketResultV128>;

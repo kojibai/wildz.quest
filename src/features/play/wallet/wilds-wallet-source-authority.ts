@@ -37,6 +37,7 @@ export function projectWildsWalletFromIdentityAccount(
   const summary = projectWildsWalletSummary({
     ok: true,
     balancePhiMicro,
+    displayUsdPerPhiMicrocents: sourceSummary?.displayUsdPerPhiMicrocents ?? record(sourceSummary?.quote)?.usdPerPhiMicrocents,
     balanceUsdCents: sourceSummary?.balanceUsdCents
       ?? usdCentsFromExactUsd(sourceSummary?.balanceUsd ?? walletAccount?.balance_usd)
       ?? snapshot?.balanceUsdCents,

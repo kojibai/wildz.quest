@@ -48,6 +48,17 @@ function runtime(owner=buyer.handle){
  return {service,setCards:(value:WildzMarketOwnedCard)=>{currentCard=value;},setConversations:(value:readonly WildsConversation[])=>{conversations=value;},fail:()=>{failReply=true;},counts:()=>({publicationCalls,listCalls}),stored:()=>stored};
 }
 
+test('a failed local value read keeps a valid owned card and reports a retryable display state',async()=>{
+ const base=runtime().service;
+ const service=withWildzMarketCommunity(base,{currentIdentity:()=>base.binding,readCollection:async()=>({cards:[card],transfers:[]}),readConversations:async()=>[],publish:async()=>{throw Error('No write authorized.');},value:{read:async()=>{throw Error('worker failed');}}});
+ await service.read();
+ const result=await service.readValue!(card.assetId);
+ assert.equal(result.status,'unavailable');
+ assert.equal(service.snapshot().collection?.[0]?.assetId,card.assetId);
+ assert.match(service.snapshot().collection?.[0]?.valueUnavailable??'',/Open the chart to retry/);
+ assert.equal(service.snapshot().purchases.length,0);
+});
+
 test('a lost offer reply retains exact terms across retry and never starts a payment or listing',async()=>{
  const r=runtime(),request={assetId:card.assetId,priceUsdCents:'1234',attemptId:'market:offer:lost-reply-001'};
  r.fail();assert.equal((await r.service.makeOffer!(request)).status,'pending');assert.equal(r.stored().length,1);
