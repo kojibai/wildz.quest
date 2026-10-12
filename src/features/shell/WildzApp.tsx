@@ -12,6 +12,9 @@ import {readWildzProfileDisplayName,saveWildzProfileDisplayName} from "../profil
 import { emitWildsPlaytestEvent } from "@/features/play/wilds-playtest-events";
 import { WildzMarketSheet } from "@/features/market/WildzMarketSheet";
 import type { WildzMarketServiceV128 } from "@/features/market/wildz-market-service-v128";
+import {createWildzMarketPublicBrowseService} from "@/features/market/wildz-market-public-browse";
+import {getWildzMarketWarmup} from "@/features/market/wildz-market-warmup";
+import {revealPreparedWildzMarket} from "@/features/market/wildz-market-entry";
 import { PlayCampaign } from "@/features/play/PlayCampaign";
 import { generateIdentityBoundWildzCharacter, type WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { applyWildsInput, createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
@@ -69,6 +72,7 @@ import {
 import {
   bootstrapWildzSharedWorld,
   wildzProofSessionGeneration,
+  wildzRemoteMessengerPrincipal,
   wildzRemoteSessionMatchesIdentity
 } from "@/lib/receiz/wildz-session-bridge";
 import { publishWildsWorldWithIdentityProof } from "@/lib/receiz/wilds-world-identity-publication";
@@ -109,6 +113,7 @@ import { createWildzRuntimeCheckpointStore } from '@/features/play/wildz-runtime
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {useRouter} from "next/navigation";
 
 const loadWildzProfileSheet = () => import("@/features/profile/WildzProfileSheet").then((module) => module.WildzProfileSheet);
 const loadWildzVaultSheet = () => import("@/features/profile/WildzVaultSheet").then((module) => module.WildzVaultSheet);
@@ -157,16 +162,23 @@ function clearWildzAuthQuery() {
 }
 
 export function WildzApp({ initialOverlay = null, marketPresentation = "popover" }: { initialOverlay?: WildzOverlay; marketPresentation?: "popover" | "page" }) {
+  const router = useRouter();
+  const standaloneMarket = marketPresentation === "page";
+  const [publicMarketService] = useState(() => standaloneMarket ? createWildzMarketPublicBrowseService() : null);
   const [overlay, setOverlay] = useState<WildzOverlay>(initialOverlay);
   const [retainedOwnerProfile, setRetainedOwnerProfile] = useState(false);
   const shellOverlayRef = useRef<HTMLElement | null>(null);
   const shellOverlayOriginRef = useRef<HTMLElement | null>(null);
   const shellFocusFrameRef = useRef<number | null>(null);
   const priorShellOverlayOpenRef = useRef(Boolean(initialOverlay));
+  const marketEntryGeneration = useRef(0);
+  useEffect(()=>()=>{marketEntryGeneration.current++;},[]);
   const [identityActivationRevision, setIdentityActivationRevision] = useState(0);
   const [paintedWorldKey, setPaintedWorldKey] = useState<string | null>(null);
   const [continuity, setContinuity] = useState<WildzContinuitySnapshot | null>(null);
   const [marketService, setMarketService] = useState<WildzMarketServiceV128 | null>(null);
+  const marketServiceRef=useRef(marketService);marketServiceRef.current=marketService;
+  const [pendingMarketEntry,setPendingMarketEntry]=useState(false);
   const [marketCardReturn, setMarketCardReturn] = useState(false);
   const continuityRef = useRef<WildzContinuitySnapshot | null>(null);
   const playerStateSyncTimerRef = useRef<number | null>(null);
@@ -240,6 +252,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
   const [initializedWorldKey, setInitializedWorldKey] = useState<string | null>(null);
   const [proofSessionConnected, setProofSessionConnected] = useState(false);
   const [proofSessionGeneration, setProofSessionGeneration] = useState("");
+  const [marketMessengerPrincipal,setMarketMessengerPrincipal]=useState<{keyId:string;actorId:string;principal:string}|null>(null);
   const [worldBootstrap, setWorldBootstrap] = useState<{
     projection: WildsWorldProjection;
     mode: "receiz_live" | "kai_live";
@@ -255,12 +268,14 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
   const retryProfilePublicationRef = useRef<(() => void) | null>(null);
   const identity = continuity?.session ?? null;
   const worldKey = identity ? `${identity.keyId}:${identity.actorId}:${identityActivationRevision}` : null;
-  const worldPainted = worldKey !== null && paintedWorldKey === worldKey;
+  // Standalone Market recovers the same local account without creating or
+  // waiting for a 3D renderer. Its public catalogue can open before recovery.
+  const worldPainted = worldKey !== null && (standaloneMarket || paintedWorldKey === worldKey);
   const openingProgress = identity ? initializedWorldKey === worldKey ? 5 : 4 : Math.min(openingStage, 3);
   useEffect(() => {
     // Optional surfaces must not compete with identity recovery and the first
     // world draw. Directly opening a surface still loads it immediately.
-    if (!worldPainted) return;
+    if (!worldPainted || standaloneMarket) return;
     let active = true;
     void (async () => {
       for (const load of [cleanupWildzPendingVaultRestores, loadWildzProfileSheet, loadWildzVaultSheet,
@@ -272,7 +287,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
       }
     })();
     return () => { active = false; };
-  }, [worldPainted]);
+  }, [worldPainted, standaloneMarket]);
   const campaignExplorer = useMemo(() => continuity ? projectWildzContinuityExplorer(continuity) : null, [continuity]);
   const campaignCharacter = campaignExplorer?.character ?? null;
   const profilePublicationReadiness = wildzProfilePublicationReadiness({
@@ -360,16 +375,37 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
   const profilePublicationKey = profilePublicationRequest?.key ?? "";
   const profilePublicationRequestRef = useRef<typeof profilePublicationRequest>(null);
   profilePublicationRequestRef.current = profilePublicationRequest;
-  const shellOverlayOwner = overlay?.kind === "profile" ? "profile" : overlay?.kind === "market" ? "market" : "none";
+  const shellOverlayOwner = overlay?.kind === "profile" ? "profile" : overlay?.kind === "market" || pendingMarketEntry ? "market" : "none";
 
   const openShellOverlay = useCallback((next: Exclude<WildzOverlay, null>, fallbackOrigin?: HTMLElement | null) => {
+    const entry=++marketEntryGeneration.current;
+    setPendingMarketEntry(next.kind==='market'&&!standaloneMarket&&Boolean(marketService));
     if (next.kind === "profile" || next.kind === "market") emitWildsPlaytestEvent(next.kind, "start");
     shellOverlayOriginRef.current = fallbackOrigin
       ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     if (next.kind === 'profile' && next.mode !== 'public' && next.username.toLowerCase() === `@${ownerUsername}`.toLowerCase()) setRetainedOwnerProfile(true);
-    setOverlay(next);
-  }, [ownerUsername]);
-  const closeShellOverlay = useCallback(() => setOverlay(null), []);
+    if(next.kind==='market'&&marketService&&!standaloneMarket){
+      const owner=continuityRef.current?.session;
+      const cancel=(event:KeyboardEvent)=>{if(event.key==='Escape'){marketEntryGeneration.current++;setPendingMarketEntry(false);}};
+      window.addEventListener('keydown',cancel);
+      // The game starts this same small preparation after its first draw.
+      // Reveal the overlay atomically; its first render can consume the decoded
+      // first page instead of painting an empty gallery and filling it later.
+      const isCurrent=()=>{
+        const current=continuityRef.current?.session;
+        return entry===marketEntryGeneration.current&&current?.keyId===owner?.keyId&&current?.actorId===owner?.actorId;
+      };
+      void revealPreparedWildzMarket({service:marketService,current:()=>marketServiceRef.current,isCurrent,
+        ready:service=>getWildzMarketWarmup(service).ready(),reveal:()=>setOverlay(next)
+      }).finally(()=>{window.removeEventListener('keydown',cancel);if(entry===marketEntryGeneration.current)setPendingMarketEntry(false);});
+    }else setOverlay(next);
+  }, [ownerUsername,marketService,standaloneMarket]);
+  const closeShellOverlay = useCallback(() => {
+    marketEntryGeneration.current++;
+    setPendingMarketEntry(false);
+    if (standaloneMarket) router.push('/');
+    else setOverlay(null);
+  }, [standaloneMarket,router]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile" && overlay?.kind !== "market") return;
@@ -457,6 +493,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     setContinuity(snapshot);
     setCharacter(snapshot.character);
     if (!isCurrentWildzGameplaySource(previous, snapshot)) {
+      marketEntryGeneration.current++;setPendingMarketEntry(false);
       playerStateMutationRef.current = 0;
       playerStateSubmittedMutationRef.current = 0;
       lastRemotePlayerDigestRef.current = "";
@@ -467,9 +504,13 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     }
     // A same-player Vault merge keeps its authenticated world session. Only
     // delayed sync saves and remembered remote heads belong to the old restore.
+    const sameMessagingSource=previous?.session.keyId===snapshot.session.keyId
+      && previous.session.localAuthority===snapshot.session.localAuthority;
+    if (!sameMessagingSource) setMarketMessengerPrincipal(null);
     if (!previous || !sameWildzPlayerCoordinate(previous.session.actorId, snapshot.session.actorId)) {
       setProofSessionConnected(false);
       setProofSessionGeneration("");
+      setMarketMessengerPrincipal(null);
     }
   }, []);
 
@@ -550,7 +591,9 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
         }
         setProofSessionConnected(true);
         setProofSessionGeneration(wildzProofSessionGeneration(session));
-        void bootstrapWildzSharedWorld().then(async (world) => {
+        const principal=wildzRemoteMessengerPrincipal(session);
+        setMarketMessengerPrincipal(principal?{keyId:identity.keyId,actorId:identity.actorId,principal}:null);
+        if (!standaloneMarket) void bootstrapWildzSharedWorld().then(async (world) => {
           let admitted = world;
           if (world.publication?.required === "identity_proof" && identity.localAuthority === "verified") {
             await publishWildsWorldWithIdentityProof(identity, world.publication.draft);
@@ -587,7 +630,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
       window.removeEventListener("online", reconnect.wake);
       window.removeEventListener("offline", reconnect.wake);
     };
-  }, [worldPainted, acceptSnapshot, identity, vaultAdmission, identityActivationRevision]);
+  }, [worldPainted, acceptSnapshot, identity, vaultAdmission, identityActivationRevision, standaloneMarket]);
 
   useEffect(() => {
     setOwnerPublicationFailure(null);
@@ -865,10 +908,6 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     if (continuityRef.current?.session.keyId !== current.session.keyId) return;
     await combinedVaultCoordinator.current!.prepare(current, false);
   }, []);
-  useEffect(() => {
-    if (overlay?.kind !== "vault" && overlay?.kind !== "profile") return;
-    return scheduleAfterPaint(() => { void prewarmCombinedVault().catch(() => undefined); });
-  }, [overlay?.kind, prewarmCombinedVault]);
   // Seal and Vault reuse the exact prepared snapshot; movement never queues backups.
   const prepareCombinedVaultForSave = async (current: WildzContinuitySnapshot) => {
     try { return await combinedVaultCoordinator.current!.prepare(current, false, { explicit: true }); }
@@ -990,11 +1029,11 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
       throw new Error("wildz_identity_activation_failed");
     }
 
-    setOverlay({ kind: "profile", username: `@${outcome.session.username ?? outcome.session.actorId}` });
+    if (!standaloneMarket) setOverlay({ kind: "profile", username: `@${outcome.session.username ?? outcome.session.actorId}` });
     // Identity and Vault admission changes are reconciled by the shared
     // connection effect. Starting a second admission/alignment pass here made
     // Seal imports perform the same hash, network, and persistence work twice.
-  }, [restoreArtifact]);
+  }, [restoreArtifact, standaloneMarket]);
 
   const claimAndRestoreVaultArtifact = useCallback(async (
     file: File,
@@ -1393,7 +1432,9 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
           campaignName="Wildz"
           creationLibrary={creationAccountLibrary}
           character={campaignCharacter}
-          enabled={true}
+          enabled={!standaloneMarket}
+          marketOnly={standaloneMarket}
+          marketMessengerPrincipal={marketMessengerPrincipal?.keyId===identity.keyId&&marketMessengerPrincipal.actorId===identity.actorId?marketMessengerPrincipal.principal:undefined}
           interactionEnabled={Boolean(campaignCharacter)}
           networkEnabled={Boolean(character) && proofSessionConnected}
           walletAuthorityGeneration={proofSessionGeneration || identity.keyId}
@@ -1501,10 +1542,11 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
             savePreparing={combinedVaultPreparing}
           /> : overlay.kind === "market" ? <WildzMarketSheet
             onClose={closeShellOverlay}
-            connected={proofSessionConnected}
+            connected={standaloneMarket || identity?.localAuthority === 'verified' || proofSessionConnected}
             initialTab={marketCardReturn ? 'activity' : 'browse'}
             service={marketService && marketService.binding.keyId === identity?.keyId
-              && sameWildzPlayerCoordinate(marketService.binding.ownerHandle, ownerUsername) ? marketService : null}
+              && sameWildzPlayerCoordinate(marketService.binding.ownerHandle, ownerUsername) ? marketService : publicMarketService}
+            identityControl={standaloneMarket ? {username:ownerUsername,onImport:activateIdentitySeal} : undefined}
           /> : <div className="wildz-shell-overlay-placeholder">
             <Image src="/brand/wildz-mark.svg" alt="" width={48} height={48} />
             <strong>{overlay.kind}</strong>

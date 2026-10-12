@@ -99,7 +99,9 @@ test("actual SDK insufficient rejection yields a bounded retry witness that cann
  const early=await f.create().noWrite(f.authority,exact);assert.equal(early.terminal,false);assert.equal(early.retryAfterKai,staged.expiresAtKai);
  f.setKai(staged.expiresAtKai);assert.equal((await f.create().noWrite(f.authority,exact)).terminal,true);
  await assert.rejects(f.create().noWrite(f.authority,{...exact,amountPhiMicro:"1"}),/binding_invalid/);
- await assert.rejects(f.create().noWrite(f.authority,{...exact,noWriteWitness:outcome.noWriteWitness.slice(0,-2)+"ab"}),/invalid/);
+ // Change a complete encoded byte, not the trailing base64 padding bits.
+ const damaged=outcome.noWriteWitness.slice(0,4)+(outcome.noWriteWitness[4]==='A'?'B':'A')+outcome.noWriteWitness.slice(5);
+ await assert.rejects(f.create().noWrite(f.authority,{...exact,noWriteWitness:damaged}),/invalid/);
  await assert.rejects(f.create().execute(f.authority,{attempt:staged.attempt,consent:await f.consent(staged.attempt)}),/review_expired/);assert.equal(f.debitCount(),0);
 });
 

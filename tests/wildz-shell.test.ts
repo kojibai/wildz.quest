@@ -13,7 +13,8 @@ test("root page renders one persistent Wildz app", () => {
 test("Wildz app owns the game and overlay state", () => {
   const source = read("src/features/shell/WildzApp.tsx");
   assert.equal(source.match(/<PlayCampaign\b/g)?.length, 1);
-  assert.match(source, /enabled=\{true\}/);
+  assert.match(source, /enabled=\{!standaloneMarket\}/);
+  assert.match(source, /marketOnly=\{standaloneMarket\}/);
   assert.match(source, /initialOverlay/);
   assert.match(source, /wildz-app/);
 });
@@ -28,7 +29,7 @@ test("optional shell surfaces stay off the first-world-draw path", () => {
   // failed to present during the real browser smoke test.
   assert.match(source, /import \{ WildzMarketSheet \} from/);
   const surfaceWarmup = source.slice(source.indexOf("// Optional surfaces"), source.indexOf("const campaignExplorer"));
-  assert.match(surfaceWarmup, /if \(!worldPainted\) return/);
+  assert.match(surfaceWarmup, /if \(!worldPainted \|\| standaloneMarket\) return/);
   assert.match(surfaceWarmup, /for \(const load of[\s\S]*await wildzGameplayBackground\.run/);
   assert.doesNotMatch(surfaceWarmup, /Promise\.all/);
 });

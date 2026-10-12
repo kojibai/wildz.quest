@@ -15,7 +15,7 @@ import type { PortableCardAsset } from "./portable-card";
 import type { WildsSiteRuntimeProjection } from "./wilds-site-runtime";
 import type { WildsTerrainObstacle } from "./wilds-terrain-obstacles";
 
-type Scope = { owner:string; cards:readonly PortableCardAsset[]; custody?:WildzCrewCustody|null };
+type Scope = { owner:string; cards:readonly PortableCardAsset[]; custody?:WildzCrewCustody|null; enabled?:boolean };
 type CrewReports = Readonly<Record<string,string>>;
 const scopeKey=(scope:Scope)=>JSON.stringify([scope.owner,...scope.cards.map(c=>[c.id,c.proof.digest,c.manifest.ownerReceizId])]);
 const EMPTY_REPORTS: CrewReports=Object.freeze({});
@@ -30,6 +30,7 @@ export function createWildsCrewExpeditionGuard(readScope:()=>Scope) {
   let cardsById=new Map<string,PortableCardAsset>();
   const context=(assetId:string)=>{
     const scope=readScope();
+    if(scope.enabled===false)return null;
     if(scope.cards!==cachedCards){cachedCards=scope.cards;cardsById=new Map(scope.cards.map(card=>[card.id,card]));}
     const card=cardsById.get(assetId);
     return card&&canOperateWildzCrewCard(card,scope.owner,scope.custody)
@@ -55,11 +56,12 @@ export function createWildsCrewExpeditionGuard(readScope:()=>Scope) {
   };
 }
 
-export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;cards:readonly PortableCardAsset[];custody?:WildzCrewCustody|null;
+export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;cards:readonly PortableCardAsset[];custody?:WildzCrewCustody|null;enabled?:boolean;
   accompanyingAssetIds?:readonly string[];
   siteRuntime:WildsSiteRuntimeProjection;obstacles:readonly WildsTerrainObstacle[];
   feedback:(message:string)=>void;onFinished:(assetId:string)=>void;onResumed?:(assetId:string)=>void}) {
   const latest=useRef(input);latest.current=input;
+  const enabled=input.enabled!==false;
   const battleReports=useMemo(()=>createWildsRoamingReportStore(),[]);
   const store=useRef<ReturnType<typeof createWildsCrewExpeditions>|null>(null);
   const [runtimeMembershipRevision,setRuntimeMembershipRevision]=useState(0);
@@ -141,6 +143,7 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
   };
   const rosterKey=useMemo(()=>scopeKey({owner:input.owner,cards:input.cards}),[input.owner,input.cards]);
   useEffect(()=>{
+    if(!enabled)return;
     const current=latest.current,g=guard.current!;
     const before=restoredScope.current,proofs=new Map(current.cards.map(card=>[card.id,card.proof.digest]));
     if(before.owner!==current.owner){
@@ -174,12 +177,14 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     }})();
     // Only changed creatures are invalidated; another card's care or selection cannot restart a trip.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[input.owner,rosterKey]);
+  },[enabled,input.owner,rosterKey]);
   useEffect(()=>{
     const g=guard.current!,trips=activeTrips.current;
+    if(!enabled){g.clear();trips.clear();rows.current.clear();runtime.current.clear();restoredScope.current={owner:"",proofs:new Map()};return;}
     return()=>{g.clear();trips.clear();restoredScope.current={owner:"",proofs:new Map()};};
-  },[]);
+  },[enabled]);
   useEffect(()=>{
+    if(!enabled)return;
     // A visit to another space pauses independent trips; returning does not relocate them.
     for(const [assetId,row] of rows.current){
       const ticket=guard.current!.current(assetId);
@@ -194,9 +199,10 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     }
     // Space transitions are infrequent and do not append fabricated travel.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[input.state.siteSpace.spaceId]);
+  },[enabled,input.state.siteSpace.spaceId]);
   const travelRevision=useRef(input.state.partyTravelRevision??0);
   useEffect(()=>{
+    if(!enabled)return;
     if(travelRevision.current===(input.state.partyTravelRevision??0))return;
     travelRevision.current=input.state.partyTravelRevision??0;
     const current=latest.current,g=guard.current!,destination=origin(current),spaceId=current.state.siteSpace.spaceId;
@@ -213,8 +219,9 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
       }).catch(()=>{if(g.valid(ticket))latest.current.feedback("Travel history is waiting to reconcile; your companion travelled with you.");}).finally(()=>releaseUnlessActive(ticket));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[input.state.partyTravelRevision]);
+  },[enabled,input.state.partyTravelRevision]);
   useEffect(()=>{
+    if(!enabled)return;
     let busy=false,cancelled=false,iterator=runtime.current.keys();
     const tick=async()=>{
       if(busy||cancelled||!rows.current.size)return;busy=true;
@@ -297,7 +304,7 @@ export function useWildsCrewExpeditions(input:{owner:string;state:PlayState;card
     const timer=window.setInterval(()=>void tick(),500);
     return()=>{cancelled=true;window.clearInterval(timer);};
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[]);
+  },[enabled]);
   const releaseUnlessActive=(ticket:WildsCrewExpeditionTicket)=>{
     const row=rows.current.get(ticket.assetId);
     if(!row||!matches(row,ticket)||row.phase==="completed"||row.phase==="blocked"||row.spaceId!==latest.current.state.siteSpace.spaceId)release(ticket);

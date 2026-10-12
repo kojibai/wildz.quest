@@ -44,9 +44,11 @@ for (const file of files(root)) {
     .replaceAll("'next/link'", "'next/link.js'")
     .replaceAll('"next/image"', '"next/image.js"')
     .replaceAll("'next/image'", "'next/image.js'")
+    .replaceAll('"next/dynamic"', '"next/dynamic.js"')
+    .replaceAll("'next/dynamic'", "'next/dynamic.js'")
     // Native Node ESM keeps Next's CommonJS default wrapper. Unwrap it for
     // SSR tests; Next's application bundler already performs this interop.
-    .replace(/import\s+(\w+)\s+from\s+(["']next\/(?:image|link)\.js["']);?/g,
+    .replace(/import\s+(\w+)\s+from\s+(["']next\/(?:image|link|dynamic)\.js["']);?/g,
       (match, name, specifier) => name.endsWith('Module') ? match : `import ${name}Module from ${specifier};\nconst ${name} = ${name}Module.default ?? ${name}Module;`)
     .replace(
       /(from\s+["'])((?:\.|@\/)[^"']+)(["'])/g,

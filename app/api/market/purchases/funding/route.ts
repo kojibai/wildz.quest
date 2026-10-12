@@ -16,8 +16,11 @@ export async function POST(request:NextRequest){
   const authority=await resolveWildzMarketFundingAuthority(request);
   const text=await request.text();if(text.length>4096)throw Error('The saved purchase checkout request is too large.');
   const adapter=createReceizCommerceAdapter({accessToken:authority.accessToken});
+  // A display destination never changes the saved purchase or funding
+  // authority. Restrict it to the two same-origin Market entry surfaces.
+  const returnPath=request.headers.get('x-wildz-market-return')==='/market'?'/market':'/';
   const result=await prepareWildzMarketFundingV128(JSON.parse(text) as WildzMarketFundingRequestV128,authority,{
-   origin,currentKai:()=>receizKaiNow().pulse,walletSummary:()=>adapter.walletSummary(),checkoutSession:input=>adapter.checkoutSession(input),
+   origin,returnPath,currentKai:()=>receizKaiNow().pulse,walletSummary:()=>adapter.walletSummary(),checkoutSession:input=>adapter.checkoutSession(input),
    checkout:input=>{checkoutDispatched=true;return adapter.checkout(input);}
   });
   return NextResponse.json(result,{headers});

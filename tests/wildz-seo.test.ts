@@ -1,8 +1,42 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { test } from "node:test";
 import sharp from "sharp";
 import { publicPageMetadata } from "../src/lib/wildz/search-metadata";
+
+test("page-specific previews override the shared artwork for Open Graph and Twitter", () => {
+  const metadata = publicPageMetadata(
+    "Wildz Market", "Find your legend.", "/market",
+    { url: "/social/wildz-market-open-graph.png", alt: "Wildz Market creature cards in a living forest" }
+  );
+  assert.deepEqual(metadata.openGraph?.images, [{
+    url: "https://wildz.quest/social/wildz-market-open-graph.png",
+    secureUrl: "https://wildz.quest/social/wildz-market-open-graph.png",
+    width: 1200, height: 630, type: "image/png",
+    alt: "Wildz Market creature cards in a living forest"
+  }]);
+  assert.deepEqual(metadata.twitter?.images, [{
+    url: "https://wildz.quest/social/wildz-market-open-graph.png",
+    alt: "Wildz Market creature cards in a living forest"
+  }]);
+  assert.equal(metadata.alternates?.canonical, "/market");
+  assert.equal(metadata.openGraph?.url, "/market");
+  assert.notDeepEqual(publicPageMetadata("Explorer guide", "Explore.", "/guide").openGraph?.images, metadata.openGraph?.images);
+});
+
+test("JPEG page previews declare the matching Open Graph media type", () => {
+  const metadata = publicPageMetadata("Wildz Market", "Find your legend.", "/market", {
+    url: "/social/wildz-market-open-graph.jpg", alt: "Wildz Market creature cards"
+  });
+  assert.deepEqual(metadata.openGraph?.images, [{
+    url: "https://wildz.quest/social/wildz-market-open-graph.jpg",
+    secureUrl: "https://wildz.quest/social/wildz-market-open-graph.jpg",
+    width: 1200, height: 630, type: "image/jpeg", alt: "Wildz Market creature cards"
+  }]);
+  assert.deepEqual(metadata.twitter?.images, [{
+    url: "https://wildz.quest/social/wildz-market-open-graph.jpg", alt: "Wildz Market creature cards"
+  }]);
+});
 
 test("Wildz ships crawlable canonical metadata and honest game structured data", () => {
   const layout = readFileSync("app/layout.tsx", "utf8");
@@ -41,6 +75,17 @@ test("social and discovery masters have exact fast-preview dimensions", async ()
   assert.deepEqual([social.width, social.height], [1200, 630]);
   assert.deepEqual([messageFallback.width, messageFallback.height], [1200, 630]);
   assert.deepEqual([discovery.width, discovery.height], [1280, 720]);
+});
+
+test("Market preview files are public raster images sized for large social cards", async () => {
+  for (const [extension, format] of [["png", "png"], ["jpg", "jpeg"]]) {
+    const path = `public/social/wildz-market-open-graph.${extension}`;
+    const image = await sharp(path).metadata();
+    assert.deepEqual([image.width, image.height], [1200, 630]);
+    assert.equal(image.format, format);
+    assert.equal(image.hasAlpha, false);
+    assert.ok(statSync(path).size < 1_500_000, "Preview must remain small enough for message crawlers");
+  }
 });
 
 

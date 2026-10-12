@@ -39,6 +39,12 @@ export const initialWorldOverlayState: WorldOverlayState = Object.freeze({
   drawerSnap: "closed", toolsOpen: false, panelKey: null, exclusiveOwner: "none"
 });
 
+/** Keep the scene mounted while full-screen browsing surfaces own the view. */
+export function shouldSuspendWildsWorld(owner: WorldOverlayOwner, panelKey: WildsCommandKey | null, mapOpen: boolean) {
+  return (owner === "map" && mapOpen) || owner === "dream" || owner === "market"
+    || (owner === "command" && panelKey === "vault");
+}
+
 export function reduceWorldOverlay(state: WorldOverlayState, event: WorldOverlayEvent): WorldOverlayState {
   if (event.type === "dismiss" || event.type === "viewport-change") return initialWorldOverlayState;
   if (event.type === "exclusive") return { ...initialWorldOverlayState, exclusiveOwner: event.owner };

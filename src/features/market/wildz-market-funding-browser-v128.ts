@@ -15,7 +15,7 @@ const store:WildzMarketFundingStoreV128={
 export function createWildzMarketFundingBrowserV128(input:Readonly<{keyId:string;ownerHandle:string;currentIdentity():Readonly<{keyId:string;ownerHandle:string}>}>){
  return createWildzMarketFundingPortV128({...input,store,authorize:()=>authorizeWildsWalletReadWithIdentity(input.keyId,undefined,'market-funding'),
   request:async body=>{
-   const response=await fetch('/api/market/purchases/funding',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+   const response=await fetch('/api/market/purchases/funding',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',headers:{'content-type':'application/json','x-wildz-market-return':window.location.pathname==='/market'?'/market':'/'},body:JSON.stringify(body)});
    const result=await response.json();
    if(!response.ok){
     const message=typeof result?.error==='string'?result.error:'The original card checkout could not be checked.';

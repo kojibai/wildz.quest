@@ -36,6 +36,13 @@ export function wildzProofSessionGeneration(session: WildzRemoteSession) {
   return session.status === "connected" && session.issuedAt ? String(session.issuedAt) : "";
 }
 
+/** Messaging coordinate from the admitted public session DTO. Display handles
+ * are not the private participant ID for historical proof Vault sessions. */
+export function wildzRemoteMessengerPrincipal(session:WildzRemoteSession):string|null{
+  if(session.status!=='connected')return null;
+  return session.authority==='proof-sealed-vault'?`vault:${session.subjectKey}`:session.profileHandle;
+}
+
 export type WildzSharedWorldBootstrap = {
   ok: true;
   mode: "receiz_live" | "kai_live";

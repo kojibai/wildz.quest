@@ -121,7 +121,7 @@ test("the stage owns Escape lifecycle for every non-combat world modal", () => {
   assert.match(lifecycle, /onEscapeRef\.current = onEscape/);
   assert.match(lifecycle, /event\.key === "Escape" && ESCAPE_OWNED_WORLD_OWNERS\.has\(owner\)[\s\S]*onEscapeRef\.current\(owner\)/);
   assert.match(lifecycle, /window\.addEventListener\("keydown", onKeyDown\)[\s\S]*\}, \[owner\]\)/);
-  assert.match(campaign, /usePlayModalLifecycle\(\{ onEscape: closeOwnedModal, originRef: exclusiveOriginRef, owner: modalOwner \}\)/);
+  assert.match(campaign, /usePlayModalLifecycle\(\{ onEscape: closeOwnedModal, originRef: exclusiveOriginRef, owner: marketOnly \? "none" : modalOwner \}\)/);
   assert.match(campaign, /setMapOpen\(false\)/);
   assert.match(campaign, /setActiveLandmarkId\(null\)/);
   assert.match(campaign, /setActiveEcologySiteId\(null\)/);
@@ -299,12 +299,13 @@ test("production bootstrap, artifact commit, and identity reset helpers preserve
   }
 });
 
-test("passive market presentation stays locally unavailable without probing an absent proof session", () => {
+test("game Market retains its session policy while standalone browsing uses the public read-only service", () => {
   assert.equal(shouldRefreshWildzMarket(false), false);
   assert.equal(shouldRefreshWildzMarket(true), true);
   const app = read("src/features/shell/WildzApp.tsx");
   const market = read("src/features/market/WildzMarketSheet.tsx");
-  assert.match(app, /connected=\{proofSessionConnected\}/);
+  assert.match(app, /connected=\{standaloneMarket \|\| identity\?\.localAuthority === 'verified' \|\| proofSessionConnected\}/);
+  assert.match(app, /createWildzMarketPublicBrowseService/);
   assert.match(market, /if \(!shouldRefreshWildzMarket\(connected\)\) return/);
 });
 

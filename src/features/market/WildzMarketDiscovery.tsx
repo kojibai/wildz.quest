@@ -1,7 +1,7 @@
 "use client";
 
 import Image from 'next/image';
-import {WildzMarketGalleryPage} from './WildzMarketGalleryPage';
+import {WildzMarketGalleryPage,wildzMarketGalleryLookahead} from './WildzMarketGalleryPage';
 import {WILDZ_MARKET_PAGE_SIZE} from './wildz-market-warmup';
 import {WildzMarketCardPreview} from './WildzMarketCardPreview';
 import {useEffect,useMemo,useRef,useState} from 'react';
@@ -15,7 +15,8 @@ import styles from './WildzMarketSheet.module.css';
 import type {WildzMarketOwnedCard} from '../../lib/receiz/wildz-market-collection';
 import {discoverWildzOwnedCards,wildzMarketRarityOptions,wildzMarketCardRarity,compareWildzMarketRarity} from './wildz-market-discovery';
 import {sameWildzPlayerCoordinate} from '../../lib/receiz/wildz-player-coordinate';
-import {createWildzMarketCardPreparer,wildzMarketCardImageUrl,wildzMarketCardKey,type PreparedWildzMarketCard} from './wildz-market-card-preparation';
+import {createWildzMarketCardPreparer,wildzMarketCardImageUrl,wildzMarketCardKey} from './wildz-market-card-preparation';
+import {createWildzMarketRarityIndex} from './wildz-market-rarity-index';
 
 export const marketHandle=(value:string)=>`@${value.replace(/\.receiz\.id$/,'')}`;
 export const marketKind=(kind:string)=>kind==='creature'?'Creature':'Resource package';
@@ -72,8 +73,19 @@ export function WildzMarketDiscovery({listings,collection=[],selection,onChange:
  const onChange=(next:Discovery)=>{setLimit(WILDZ_MARKET_PAGE_SIZE);changeSelection(next);};
  const [filtersOpen,setFiltersOpen]=useState(false),[priceText,setPriceText]=useState(()=>selection.maxPriceUsdCents?formatWildsUsdCents(selection.maxPriceUsdCents).replace(/[$,]/g,''):'');
  const latestCollection=useRef(collection);latestCollection.current=collection;
- const [readyMetadata,setReadyMetadata]=useState(()=>new Map<string,PreparedWildzMarketCard['card']['asset']['manifest']['rarity']>());
- const resolveRarity=(card:WildzMarketOwnedCard|undefined)=>wildzMarketCardRarity(card)??(card?readyMetadata.get(wildzMarketCardKey(card))??null:null);
+ const collectionIdentity=collection.map(wildzMarketCardKey).join('|');
+ // An explicit refresh retries failed reads; ordinary live value updates keep
+ // the same exact-revision index and must not restart catalogue work.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ const rarityIndex=useMemo(()=>createWildzMarketRarityIndex(),[preparationRevision]);
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ const initialMetadata=useMemo(()=>rarityIndex.snapshot(latestCollection.current),[collectionIdentity,rarityIndex]);
+ const [indexedMetadata,setIndexedMetadata]=useState(()=>({identity:collectionIdentity,revision:preparationRevision,snapshot:initialMetadata}));
+ const rarityMetadata=indexedMetadata.identity===collectionIdentity&&indexedMetadata.revision===preparationRevision?indexedMetadata.snapshot:initialMetadata;
+ const resolveRarity=(card:WildzMarketOwnedCard|undefined)=>card?(rarityMetadata.rarities.has(wildzMarketCardKey(card))?rarityMetadata.rarities.get(wildzMarketCardKey(card))??null:wildzMarketCardRarity(card)):null;
+ // Unknown legacy revisions must be scanned before a rarity filter, search or
+ // ordering can claim a complete result. Artwork never determines admission.
+ const indexing=!rarityMetadata.complete&&Boolean(selection.rarity&&selection.rarity!=='all'||selection.sort==='rarity-high'||selection.sort==='rarity-low'||selection.query.trim());
  const results=discoverWildzMarketListings(listings,selection,collection,resolveRarity);
  const priceError=Boolean(priceText.trim()&&!parseWildzMarketUsdInput(priceText));
  const filtered=Boolean(selection.query||selection.category!=='all'||selection.maxPriceUsdCents||selection.availableOnly||selection.rarity&&selection.rarity!=='all');
@@ -85,7 +97,7 @@ export function WildzMarketDiscovery({listings,collection=[],selection,onChange:
  const unlisted=discoverWildzOwnedCards(collection,listings,selection,resolveRarity);
  const entries:{listing?:WildzMarketListingViewV128;card?:WildzMarketOwnedCard}[]=[...ordered.map(listing=>({listing,card:listingCard(listing)})),...unlisted.map(card=>({card}))];
  if(selection.sort==='rarity-high'||selection.sort==='rarity-low')entries.sort((a,b)=>compareWildzMarketRarity(resolveRarity(a.card),resolveRarity(b.card),selection.sort as 'rarity-high'|'rarity-low')||(a.card?.title??a.listing!.title).localeCompare(b.card?.title??b.listing!.title));
- const pageEntries=entries.slice(0,limit),visibleListings=pageEntries.flatMap(entry=>entry.listing?[entry.listing]:[]),visibleUnlisted=pageEntries.flatMap(entry=>!entry.listing&&entry.card?[entry.card]:[]);
+ const pageEntries=indexing?[]:entries.slice(0,limit),visibleListings=pageEntries.flatMap(entry=>entry.listing?[entry.listing]:[]),visibleUnlisted=pageEntries.flatMap(entry=>!entry.listing&&entry.card?[entry.card]:[]);
  const pageCards=[...visibleListings.flatMap(listing=>{const card=listingCard(listing);return card?[card]:[];}),...visibleUnlisted];
  // Only exact card identity changes restart preparation. Value reads update the
  // collection while this effect is pending; those updates must remain visible.
@@ -97,27 +109,46 @@ export function WildzMarketDiscovery({listings,collection=[],selection,onChange:
   if(!active||!latestPageCards.current.length)return;
   const controller=new AbortController();
   const pending=latestPageCards.current.filter(card=>!attempted.current.has(wildzMarketCardKey(card)));
-  void preparer.prepare(pending,controller.signal).then(cards=>{if(!controller.signal.aborted){pending.forEach(card=>attempted.current.add(wildzMarketCardKey(card)));setReadyMetadata(previous=>new Map([...previous,...cards.map(card=>[card.key,card.card.asset.manifest.rarity] as const)]));setPrepared(previous=>({identity:pageIdentity,preparer,cards:new Set([...previous.cards,...cards.map(card=>card.key)])}));}}).catch(()=>{if(!controller.signal.aborted)setPrepared(previous=>({...previous,identity:pageIdentity,preparer}));});
+  void preparer.prepare(pending,controller.signal).then(cards=>{if(!controller.signal.aborted){pending.forEach(card=>attempted.current.add(wildzMarketCardKey(card)));setPrepared(previous=>({identity:pageIdentity,preparer,cards:new Set([...previous.cards,...cards.map(card=>card.key)])}));}}).catch(()=>{if(!controller.signal.aborted)setPrepared(previous=>({...previous,identity:pageIdentity,preparer}));});
   return()=>controller.abort();
  },[pageIdentity,preparer,active]);
- const collectionIdentity=collection.map(wildzMarketCardKey).join('|');
  useEffect(()=>{
   const keys=new Set(latestCollection.current.map(wildzMarketCardKey));
   for(const key of attempted.current)if(!keys.has(key))attempted.current.delete(key);
   setPrepared(previous=>[...previous.cards].every(key=>keys.has(key))?previous:{...previous,cards:new Set([...previous.cards].filter(key=>keys.has(key)))});
-  setReadyMetadata(previous=>[...previous.keys()].every(key=>keys.has(key))?previous:new Map([...previous].filter(([key])=>keys.has(key))));
  },[collectionIdentity]);
  const preparing=Boolean(pageCards.length&&(prepared?.identity!==pageIdentity||prepared.preparer!==preparer));
+ // First-screen image/value preparation gets the available work budget first.
+ // Catalogue hashing starts only after that page is ready, then yields in batches.
+ useEffect(()=>{
+  if(!active||preparing||rarityMetadata.complete)return;
+  const controller=new AbortController();
+  void rarityIndex.scan(latestCollection.current,controller.signal).then(snapshot=>{if(!controller.signal.aborted)setIndexedMetadata({identity:collectionIdentity,revision:preparationRevision,snapshot});}).catch(()=>{/* cancellation leaves the catalogue pending until its next active scan */});
+  return()=>controller.abort();
+ },[active,preparing,collectionIdentity,rarityIndex,preparationRevision,rarityMetadata.complete]);
  const readyCard=(card:WildzMarketOwnedCard|undefined)=>{if(!card)return undefined;return prepared.cards.has(wildzMarketCardKey(card))?card:undefined;};
+ // Prepare two full groups ahead without mounting their image/flipper nodes.
+ // The visible page publishes independently, so this never delays its six cards.
+ const aheadCards=(indexing?[]:wildzMarketGalleryLookahead(entries,limit)).flatMap(entry=>entry.card?[entry.card]:[]);
+ const aheadIdentity=`${preparationRevision}:${aheadCards.map(wildzMarketCardKey).join('|')}`,latestAheadCards=useRef(aheadCards);latestAheadCards.current=aheadCards;
+ const aheadReady=aheadCards.every(card=>attempted.current.has(wildzMarketCardKey(card))||prepared.cards.has(wildzMarketCardKey(card)));
+ useEffect(()=>{
+  if(!active||preparing||indexing||!latestAheadCards.current.length)return;
+  const controller=new AbortController(),pending=latestAheadCards.current.filter(card=>!attempted.current.has(wildzMarketCardKey(card)));
+  if(!pending.length)return;
+  void preparer.prepare(pending,controller.signal).then(cards=>{if(!controller.signal.aborted){pending.forEach(card=>attempted.current.add(wildzMarketCardKey(card)));setPrepared(previous=>({...previous,cards:new Set([...previous.cards,...cards.map(card=>card.key)])}));}}).catch(()=>{/* a cancelled lookahead resumes from the exact cache next time */});
+  return()=>controller.abort();
+ },[active,preparing,indexing,aheadIdentity,preparer]);
  const firstPreparing=preparing&&!prepared.cards.size;
  const shownListings=firstPreparing?[]:visibleListings.filter(listing=>listing.kind!=='creature'||Boolean(readyCard(listingCard(listing))));
  const shownUnlisted=firstPreparing?[]:visibleUnlisted.flatMap(card=>{const ready=readyCard(card);return ready?[ready]:[];});
  const loadSentinel=useRef<HTMLDivElement>(null);
  useEffect(()=>{
-  if(!active||preparing||!loadSentinel.current||limit>=ordered.length+unlisted.length)return;
-  const observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){observer.disconnect();setLimit(n=>n+WILDZ_MARKET_PAGE_SIZE);}},{root:loadSentinel.current.closest('[data-market-scroll]'),rootMargin:'1200px 0px'});
+  if(!active||preparing||indexing||!aheadReady||!loadSentinel.current||limit>=ordered.length+unlisted.length)return;
+  const root=loadSentinel.current.closest('[data-market-scroll]');
+  const observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){observer.disconnect();setLimit(n=>n+WILDZ_MARKET_PAGE_SIZE);}},{root,rootMargin:`${Math.max(2200,2*(root?.clientHeight??0))}px 0px`});
   observer.observe(loadSentinel.current);return()=>observer.disconnect();
- },[active,preparing,limit,ordered.length,unlisted.length]);
+ },[active,preparing,indexing,aheadReady,limit,ordered.length,unlisted.length]);
  useEffect(()=>{
   if(!active||!onReadValue)return;
   let reading=false,cancelled=false;
@@ -141,9 +172,9 @@ export function WildzMarketDiscovery({listings,collection=[],selection,onChange:
   {filtersOpen?<div id="wildz-market-filters" className={styles.filters}><label className={styles.field}>Maximum price in USD<div className={styles.priceInput}><span>$</span><input aria-label="Maximum price in USD" inputMode="decimal" placeholder="Any price" value={priceText} aria-invalid={priceError||undefined} onChange={event=>{setPriceText(event.target.value);onChange({...selection,maxPriceUsdCents:parseWildzMarketUsdInput(event.target.value)});}}/></div></label><label className={styles.field}>Rarity<select aria-label="Filter by rarity" value={selection.rarity??'all'} onChange={event=>onChange({...selection,rarity:event.target.value as typeof selection.rarity})}><option value="all">All rarities</option>{wildzMarketRarityOptions.filter(rarity=>rarity!=='all').map(rarity=><option key={rarity} value={rarity}>{rarity.charAt(0).toUpperCase()+rarity.slice(1)}</option>)}</select></label><label className={styles.checkbox}><input type="checkbox" checked={selection.availableOnly} onChange={event=>onChange({...selection,availableOnly:event.target.checked})}/>Available to purchase</label>{priceError?<p className={styles.note}>Enter a positive USD amount with up to two decimal places.</p>:null}<button type="button" onClick={()=>{setPriceText('');onChange({...selection,maxPriceUsdCents:null,availableOnly:false,rarity:'all'});}}>Reset filters</button></div>:null}
   <div className={styles.browseControls}><nav className={styles.categories} aria-label="Listing categories">{(['all','creatures','resources'] as const).map(category=><button type="button" key={category} aria-pressed={selection.category===category} onClick={()=>onChange({...selection,category})}>{category==='all'?'All':category==='creatures'?'Creatures':'Resources'}</button>)}</nav><div className={styles.layoutChoices} role="group" aria-label="Mobile card view"><button type="button" aria-label="Two-column view" aria-pressed={mobileColumns===2} title="Two-column view" onClick={()=>setMobileColumns(2)}><Grid2X2 size={17}/></button><button type="button" aria-label="Single-column view" aria-pressed={mobileColumns===1} title="Single-column view" onClick={()=>setMobileColumns(1)}><GalleryVertical size={17}/></button></div></div>
   <div className={styles.sectionHeading}><h3>Explore listings</h3><label className={styles.sort}><span className={styles.srOnly}>Sort listings</span><select aria-label="Sort listings" value={selection.sort} onChange={event=>onChange({...selection,sort:event.target.value as WildzMarketSort})}><option value="featured">Featured</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="name">Name: A to Z</option><option value="rarity-high">Rarity: rarest first</option><option value="rarity-low">Rarity: trail first</option></select></label></div>
-  {shownListings.length||shownUnlisted.length?<div className={styles.galleryPages}>{Array.from({length:Math.ceil(tiles.length/WILDZ_MARKET_PAGE_SIZE)},(_,index)=><WildzMarketGalleryPage key={`${selection.query}:${selection.category}:${selection.sort}:${selection.rarity??'all'}:${mobileColumns}:${index}`} index={index} active={active} columns={mobileColumns}>{tiles.slice(index*WILDZ_MARKET_PAGE_SIZE,(index+1)*WILDZ_MARKET_PAGE_SIZE)}</WildzMarketGalleryPage>)}</div>:preparing||loading?<div className={styles.gallerySkeleton} aria-label="Loading Market" aria-busy="true"><span/><span/></div>:<div className={styles.empty}><Package size={32} aria-hidden="true"/><h3>{filtered?'No matching cards':'Your next discovery starts here'}</h3><p>{filtered?'Try another search or adjust your filters.':'Publicly shared, owned creatures and resource listings appear here.'}</p>{filtered?<button type="button" onClick={()=>{setPriceText('');onChange({query:'',category:'all',sort:'featured',maxPriceUsdCents:null,availableOnly:false,rarity:'all'});}}>Clear search and filters</button>:null}</div>}
+  {shownListings.length||shownUnlisted.length?<div className={styles.galleryPages}>{Array.from({length:Math.ceil(tiles.length/WILDZ_MARKET_PAGE_SIZE)},(_,index)=><WildzMarketGalleryPage key={`${selection.query}:${selection.category}:${selection.sort}:${selection.rarity??'all'}:${mobileColumns}:${index}`} index={index} active={active} columns={mobileColumns}>{tiles.slice(index*WILDZ_MARKET_PAGE_SIZE,(index+1)*WILDZ_MARKET_PAGE_SIZE)}</WildzMarketGalleryPage>)}</div>:preparing||indexing||loading?<div className={styles.gallerySkeleton} aria-label="Loading Market" aria-busy="true"><span/><span/></div>:<div className={styles.empty}><Package size={32} aria-hidden="true"/><h3>{filtered?'No matching cards':'Your next discovery starts here'}</h3><p>{filtered?'Try another search or adjust your filters.':'Publicly shared, owned creatures and resource listings appear here.'}</p>{filtered?<button type="button" onClick={()=>{setPriceText('');onChange({query:'',category:'all',sort:'featured',maxPriceUsdCents:null,availableOnly:false,rarity:'all'});}}>Clear search and filters</button>:null}</div>}
   <div ref={loadSentinel} className={styles.loadSentinel} aria-hidden="true"/>
-  <div className={styles.discoveryFooter}><span>{total} card{total===1?'':'s'}{filtered?' match your search':''}</span><button type="button" disabled={refreshing||refreshDisabled} onClick={()=>{attempted.current.clear();setPreparationRevision(revision=>revision+1);onRefresh();}}>{refreshing?'Refreshing…':'Refresh listings'}</button></div>
+  <div className={styles.discoveryFooter}><span>{indexing?'Loading catalogue…':<>{total} card{total===1?'':'s'}{filtered?' match your search':''}</>}</span><button type="button" disabled={refreshing||refreshDisabled} onClick={()=>{attempted.current.clear();setPreparationRevision(revision=>revision+1);onRefresh();}}>{refreshing?'Refreshing…':'Refresh listings'}</button></div>
  </section>;
 }
 

@@ -73,7 +73,6 @@ export function WildsInventory({
   onPrepareCard,
   onExportCard,
   onExportVault,
-  onPrepareVault,
   onInput,
   onListAsset,
   marketListedAssetIds = [],
@@ -103,10 +102,6 @@ export function WildsInventory({
     currentPlayState: PlayState
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
-  useEffect(() => {
-    if (!onPrepareVault) return;
-    return scheduleAfterPaint(() => { void onPrepareVault().catch(() => undefined); });
-  }, [onPrepareVault]);
   const [query, setQuery] = useState("");
   const [rarity, setRarity] = useState("all");
   const [page, setPage] = useState(0);

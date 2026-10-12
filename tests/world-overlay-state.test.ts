@@ -1,9 +1,21 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { initialWorldOverlayState, reduceWorldOverlay } from "../src/features/play/world-overlay-state";
+import { initialWorldOverlayState, reduceWorldOverlay, shouldSuspendWildsWorld } from "../src/features/play/world-overlay-state";
 import { restorePlayModalFocusOnRelease } from "../src/features/play/use-play-modal-lifecycle";
 
 describe("living-world overlay authority", () => {
+  it("pauses drawing behind Vault and resumes it for the visible world and creation tools", () => {
+    assert.equal(shouldSuspendWildsWorld("command", "vault", false), true);
+    assert.equal(shouldSuspendWildsWorld("none", null, false), false);
+    assert.equal(shouldSuspendWildsWorld("creation", null, false), false);
+    assert.equal(shouldSuspendWildsWorld("command", "construction", false), false);
+    assert.equal(shouldSuspendWildsWorld("command", "satchel", false), false);
+    assert.equal(shouldSuspendWildsWorld("market", null, false), true);
+    assert.equal(shouldSuspendWildsWorld("dream", null, false), true);
+    assert.equal(shouldSuspendWildsWorld("map", null, true), true);
+    assert.equal(shouldSuspendWildsWorld("map", null, false), false);
+  });
+
   it("keeps only one bottom expansion open", () => {
     const roster = reduceWorldOverlay(initialWorldOverlayState, { type: "drawer", snap: "preview" });
     const tools = reduceWorldOverlay(roster, { type: "tools", open: true });

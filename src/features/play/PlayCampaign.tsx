@@ -36,6 +36,7 @@ import {withWildsWorldCommandKai} from './wilds-world-authority';
 import { canSleepInWildsBed, selectWildsBedAtPlayer, resolveWildsConstructionFunction } from "./wilds-construction-function";
 
 import dynamic from "next/dynamic";
+import {createPrewarmedPanel} from './prewarmed-panel';
 import {creationFloorSupportAt,type CreationNavigation} from './creation/navigation';
 import {reconcileWildsBedRest} from './wilds-bed-rest-runtime';
 import { startWildsVisibleDisplayClock } from "./wilds-visible-display-clock";
@@ -57,7 +58,9 @@ import { reconcileWildsNourishmentCustody, recoverWildsUnpackedPackageFood, cred
 import {recoverWildsWalletSourceFoodV128,selectWildsWalletSourceLotsV128} from './wallet/wilds-wallet-resource-use-projection-v128';
 import { hasRecoverableWildsNativeFood, recoverWildsNativeFoodFuel } from './wilds-food-fuel-recovery';
 const WildsResourceExchange=dynamic(()=>import('./WildsResourceExchange').then(module=>module.WildsResourceExchange),{ssr:false});
-const CreationSession=dynamic(()=>import("./creation/CreationSession"),{ssr:false});
+const creationPanel=createPrewarmedPanel(()=>import("./creation/CreationSession").then(module=>module.default));
+const loadCreationSession=creationPanel.load;
+const CreationSession=creationPanel.Panel;
 import { WildsVisitedSurface } from "./WildsVisitedSurface";
 import { buildWildsRoamingPresenceUploads, projectWildsRemoteRoamingMarkers, type WildsRoamingPresenceUpload } from "./wilds-roaming-presence";
 import { createWildsPlayStateSourceAdmission, retainWildsLocalPosition, admitWildsForwardPosition } from "./wilds-play-state-source";
@@ -110,6 +113,7 @@ import { wildsFootSurfaceAt } from "./wilds-foot-surface";
 import { playWildsHaptic } from "./wilds-haptics";
 import { useWildsQualityProfile } from "@/features/play/use-wilds-quality-profile";
 import { useWorldOverlayDirector } from "@/features/play/use-world-overlay-director";
+import { shouldSuspendWildsWorld } from "./world-overlay-state";
 import { usePlayModalLifecycle } from "@/features/play/use-play-modal-lifecycle";
 import { canAcceptPlayShellInput, isCaptureRewardModalOwner, isWildBattleModalOwner, projectPlayCombatSurface, projectPlayShellOwner } from "@/features/play/play-shell-owner";
 import {
@@ -289,7 +293,9 @@ import { useWildsContinuousBuilder } from "./use-wilds-continuous-builder";
 import { WildsContinuousBuilderPanel } from "./WildsContinuousBuilderPanel";
 import type { WildsConstructionSiteV1 } from "@/features/play/wilds-construction-site";
 
-const WildsInventory = dynamic(() => import("@/features/play/WildsInventory").then((mod) => mod.WildsInventory), { ssr: false });
+const inventoryPanel=createPrewarmedPanel(()=>import("@/features/play/WildsInventory").then(mod=>mod.WildsInventory),()=> <div className="wilds-vault-opening" role="status" aria-busy="true">Opening your cards…</div>);
+const loadWildsInventory=inventoryPanel.load;
+const WildsInventory=inventoryPanel.Panel;
 const WildsDreamWorld = dynamic(() => import("./WildsDreamWorld"), { ssr: false });
 const WildsCrewPanel = dynamic(() => import("./WildsCrewPanel").then((mod) => mod.WildsCrewPanel), { ssr: false });
 const WildsCommandCenter = dynamic(() => import("@/features/play/command-center/WildsCommandCenter").then((mod) => mod.WildsCommandCenter), { ssr: false });
@@ -347,6 +353,8 @@ export function PlayCampaign({
   creationController: suppliedCreationController,
   creationLibrary,
   enabled,
+  marketOnly = false,
+  marketMessengerPrincipal,
   interactionEnabled = true,
   networkEnabled,
   walletAuthorityGeneration,
@@ -385,6 +393,8 @@ export function PlayCampaign({
   creationController?:CreationController;
   creationLibrary?:CreationObjectLibraryInput;
   enabled: boolean;
+  marketOnly?: boolean;
+  marketMessengerPrincipal?: string;
   interactionEnabled?: boolean;
   networkEnabled: boolean;
   walletAuthorityGeneration: string;
@@ -442,6 +452,14 @@ export function PlayCampaign({
   },[ownerReceizId]);
   const creationController=suppliedCreationController||localCreation.controller;
   useEffect(()=>{localCreation.mounted=true;return()=>{localCreation.mounted=false;queueMicrotask(()=>{if(!localCreation.mounted){localCreation.controller.close();localCreation.worker.close();}});};},[localCreation]);
+  useEffect(() => {
+    if (!enabled || marketOnly || !worldVisible) return;
+    let current = true;
+    void wildzGameplayBackground.run(async () => {
+      if (current && !document.hidden) await Promise.all([loadCreationSession(), loadWildsInventory()]);
+    }, { timeoutMs: 2_500 }).catch(() => { /* Opening the panel retries its module. */ });
+    return () => { current = false; };
+  }, [enabled, marketOnly, worldVisible, ownerReceizId]);
   const creationPhysical=useSyncExternalStore(creationController?.subscribe||subscribeEmptyCreation,()=>creationController?.scope().ownerId===ownerReceizId?creationController.snapshot():EMPTY_CREATION_WORLD,()=>EMPTY_CREATION_WORLD);
   const [creationScene,setCreationScene]=useState<{source:typeof creationPhysical;navigation:CreationNavigation|null}|null>(null);
   const creationNavigation=creationScene?.source===creationPhysical?creationScene.navigation:null;
@@ -515,6 +533,7 @@ export function PlayCampaign({
     };
   }, []);
   useEffect(() => {
+    if (marketOnly) return;
     const serialized = Object.keys(window.localStorage)
       .filter((key) => key.startsWith(ARENA_SETTLEMENT_JOURNAL_PREFIX))
       .sort()
@@ -531,7 +550,7 @@ export function PlayCampaign({
         return next;
       }
     }, current));
-  }, []);
+  }, [marketOnly]);
   const physicalCrewTrips = useRef<WildsCrewActiveTrips>(new Map());
   const settleLivingCreatures = useCallback(() => setState((current) => {
       const at = new Date().toISOString();
@@ -558,6 +577,7 @@ export function PlayCampaign({
       }), travelSettled));
     }), [ownerReceizId]);
   useEffect(() => {
+    if (marketOnly) return;
     const settleWhenHidden = () => {
       if (shouldRunWildzOffHotPathWork({ visibility: document.visibilityState, surface: "gameplay" })) {
         settleLivingCreatures();
@@ -567,8 +587,9 @@ export function PlayCampaign({
     return () => {
       document.removeEventListener("visibilitychange", settleWhenHidden);
     };
-  }, [settleLivingCreatures]);
+  }, [marketOnly, settleLivingCreatures]);
   useEffect(() => {
+    if (marketOnly) return;
     if (!("serviceWorker" in navigator) || !("Notification" in window)) return;
     let cancelled = false;
     const publishCareSchedule = async () => {
@@ -603,7 +624,7 @@ export function PlayCampaign({
       document.removeEventListener("visibilitychange", refreshWhenHidden);
       window.removeEventListener(WILDZ_CARE_NOTIFICATIONS_READY, refreshWhenHidden);
     };
-  }, [state.inventory]);
+  }, [marketOnly, state.inventory]);
   const explorerStyle = character.gender;
   const { profile: qualityProfile, reportFrameSample, reducedMotion } = useWildsQualityProfile();
   const [mapOpen, setMapOpen] = useState(false);
@@ -671,7 +692,7 @@ export function PlayCampaign({
   const previousPlayerPosition = useRef(state.player);
   const [movementMode, setMovementMode] = useState<WildsMovementMode>(() => initialPlayerContinuity?.settings.movementMode ?? "walk");
   const [cardOrder, setCardOrder] = useState<WildzCardOrder>(() => initialPlayerContinuity?.settings.cardOrder ?? "rarity");
-  const { memories: journeyMemories, remember: rememberJourney, journal: journeyJournal, ready: journeyReady } = useWildsJourney(ownerReceizId, state.journeyJournal);
+  const { memories: journeyMemories, remember: rememberJourney, journal: journeyJournal, ready: journeyReady } = useWildsJourney(marketOnly ? "" : ownerReceizId, state.journeyJournal);
   useEffect(() => {
     if (!journeyReady) return;
     setState(current => JSON.stringify(current.journeyJournal) === JSON.stringify(journeyJournal) ? current : { ...current, journeyJournal });
@@ -850,10 +871,12 @@ export function PlayCampaign({
   const messengerSelfHandle = multiplayer.snapshot?.players.find((entry) => entry.playerId === multiplayer.selfId)?.handle
     ?? multiplayer.selfId.replace(/^guest:/, "Explorer ").slice(0, 80)
     ?? "Explorer";
+  const walletTradeOwnerHandle = walletPublicUsername ? `${walletPublicUsername.replace(/\.receiz\.id$/, "").toLowerCase()}.receiz.id` : null;
+  const standaloneMessengerHandle = walletReadIdentityKey ? walletTradeOwnerHandle : null;
   const messenger = useWildsMessenger({
     guestId: multiplayer.guestId,
-    selfId: multiplayer.selfId,
-    selfHandle: messengerSelfHandle,
+    selfId: marketOnly ? marketMessengerPrincipal ?? standaloneMessengerHandle ?? "" : multiplayer.selfId,
+    selfHandle: marketOnly ? standaloneMessengerHandle ?? "Explorer" : messengerSelfHandle,
     livePeers: multiplayer.remotePlayers.filter((entry) => !entry.practice).map((entry) => ({ id: entry.playerId, handle: entry.handle }))
   });
   const walletTradeInbox = useMemo(() => walletPublicUsername
@@ -901,9 +924,10 @@ export function PlayCampaign({
     ? state.inventory.find((candidate) => candidate.id === captureRewardAssetId) ?? null
     : null;
   useEffect(() => {
+    if (marketOnly) return;
     if (!captureRewardAsset || state.encounter.phase !== "revealed" || !sameWildzPlayerCoordinate(state.encounter.ownerReceizId, ownerReceizId)) return;
     rememberJourney({ kind: "met", subjectId: captureRewardAsset.id, companionId: captureRewardAsset.id, companionName: captureRewardAsset.manifest.name, label: "Joined your trail", position: state.encounter.placement ? { x: state.encounter.placement.x, z: state.encounter.placement.z } : state.encounter.searchPoint });
-  }, [captureRewardAsset, state.encounter, rememberJourney, ownerReceizId]);
+  }, [marketOnly, captureRewardAsset, state.encounter, rememberJourney, ownerReceizId]);
   const combatSurface = projectPlayCombatSurface({
     trainer: Boolean(activeTrainer && activeAsset && trainerEncounter?.phase === "combat"),
     wild: isWildBattleModalOwner(state.encounter.phase, Boolean(state.battle)),
@@ -1061,7 +1085,7 @@ export function PlayCampaign({
       void answerMultiplayerChallenge(incomingChallengeId, "decline");
     }
   }, [answerMultiplayerChallenge, incomingChallengeId, releasePlayModalOwner, walletController]);
-  usePlayModalLifecycle({ onEscape: closeOwnedModal, originRef: exclusiveOriginRef, owner: modalOwner });
+  usePlayModalLifecycle({ onEscape: closeOwnedModal, originRef: exclusiveOriginRef, owner: marketOnly ? "none" : modalOwner });
   useEffect(() => {
     if (!shouldDismissTrainerEncounterForExternalCombat(trainerEncounter?.phase ?? null, {
       wildBattleActive: Boolean(state.battle),
@@ -1072,7 +1096,7 @@ export function PlayCampaign({
   }, [multiplayer.activeBattle, state.battle, trainerEncounter?.phase]);
   const clearanceBeforeConstructionRef=useRef<(()=>Promise<void>)|null>(null);
   const clearanceConstructionRef=useRef<((entry:WildsWorldOutboxEntry)=>Promise<void>)|null>(null);
-  const resourceGameplayCapture=useWildsResourceGameplayCapture({enabled:networkEnabled,ownerHandle:walletPublicUsername?`${walletPublicUsername.replace(/\.receiz\.id$/, '').toLowerCase()}.receiz.id`:null,gameplayOwnerId:ownerReceizId,state,captureScope:JSON.stringify([walletReadIdentityKey,walletIdentityKey,walletObservationEpoch??"legacy"]),onConstructionCaptured:entry=>clearanceConstructionRef.current?.(entry)??Promise.resolve()});
+  const resourceGameplayCapture=useWildsResourceGameplayCapture({enabled:networkEnabled,automatic:!marketOnly,ownerHandle:walletTradeOwnerHandle,gameplayOwnerId:ownerReceizId,state,captureScope:JSON.stringify([walletReadIdentityKey,walletIdentityKey,walletObservationEpoch??"legacy"]),onConstructionCaptured:entry=>clearanceConstructionRef.current?.(entry)??Promise.resolve()});
   const admitResourceSourceCommandRef = useRef<NonNullable<Parameters<typeof useWildsWorld>[0]["admitResourceSourceCommand"]>>(async () => null);
   const livingWorld = useWildsWorld({
     admitResourceSourceCommand: (entry, beforeAdmit) => admitResourceSourceCommandRef.current(entry, beforeAdmit),
@@ -1106,7 +1130,6 @@ export function PlayCampaign({
       return nourishment === current.playerNourishment ? current : { ...current, playerNourishment: nourishment };
     });
   }, [livingWorld.snapshot, state.playerNourishment, readActionKaiUPulse]);
-  const walletTradeOwnerHandle = walletPublicUsername ? `${walletPublicUsername.replace(/\.receiz\.id$/, "").toLowerCase()}.receiz.id` : null;
   const walletTradeIdentityRef = useRef({keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle, incarnation: walletObservationEpoch ?? "legacy"});
   walletTradeIdentityRef.current = {keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle, incarnation: walletObservationEpoch ?? "legacy"};
   const {readTradeConversations, sendBearerGift, sendResourceSource, sendStagedTrade, sendMarketOffer} = messenger;
@@ -1654,17 +1677,17 @@ export function PlayCampaign({
   const creationRestorationReady=Boolean(suppliedCreationController||restoredCreationSource?.controller===localCreation.controller
     &&restoredCreationSource.sources===livingWorld.snapshot?.creations&&restoredCreationSource.spaceId===state.siteSpace.spaceId);
   useEffect(()=>{
-    if(suppliedCreationController)return;
+    if(marketOnly||suppliedCreationController)return;
     let current=true;
     const sources=livingWorld.snapshot?.creations,spaceId=state.siteSpace.spaceId;
     const settled=()=>{if(current)setRestoredCreationSource({controller:localCreation.controller,sources,spaceId});};
     void localCreation.controller.restore().then(settled,settled);
     return()=>{current=false;};
-  },[localCreation,suppliedCreationController,livingWorld.snapshot?.creations,state.siteSpace.spaceId]);
+  },[marketOnly,localCreation,suppliedCreationController,livingWorld.snapshot?.creations,state.siteSpace.spaceId]);
   const accompanyingCrew = useMemo(() => state.inventory.filter(card => card.id === state.selectedAssetId || state.supportAssetIds.includes(card.id)).slice(0, 3), [state.inventory, state.selectedAssetId, state.supportAssetIds]);
   const crewControlScope = useRef({ owner: ownerReceizId, inventory: state.inventory, custody: crewCustody });
   crewControlScope.current = { owner: ownerReceizId, inventory: state.inventory, custody: crewCustody };
-  const crewExpeditions = useWildsCrewExpeditions({ owner: ownerReceizId, state, cards: crewCards, custody: crewCustody,
+  const crewExpeditions = useWildsCrewExpeditions({ enabled: !marketOnly, owner: ownerReceizId, state, cards: crewCards, custody: crewCustody,
     accompanyingAssetIds: accompanyingCrew.map(card=>card.id), siteRuntime, obstacles: livingPhysicalObstacles,
     feedback: showWorldFeedback,
     onResumed: assetId => setState(current => current.crewPreferences?.ownerReceizId === ownerReceizId && current.crewPreferences.byAssetId[assetId] === "roam" ? current
@@ -1678,6 +1701,7 @@ export function PlayCampaign({
   const remoteCrewMarkers = useMemo(() => projectWildsRemoteRoamingMarkers(multiplayer.remotePlayers, multiplayer.selfId), [multiplayer.remotePlayers, multiplayer.selfId]);
   physicalCrewTrips.current = crewExpeditions.activeTrips.current;
   useEffect(() => {
+    if (marketOnly) return;
     const nextDueAt = state.inventory.reduce<number | null>((earliest, asset) => {
       if (isWildsCrewPhysicallyActive(asset, ownerReceizId, physicalCrewTrips.current)) return earliest;
       const dueAt = nextCreatureContinuityDueAt(asset);
@@ -1687,20 +1711,22 @@ export function PlayCampaign({
     const delay = Math.max(0, Math.min(2_147_000_000, nextDueAt - Date.now()));
     const timer = window.setTimeout(settleLivingCreatures, delay);
     return () => window.clearTimeout(timer);
-  }, [settleLivingCreatures, state.inventory, ownerReceizId, crewExpeditions.activeTripRevision]);
+  }, [marketOnly, settleLivingCreatures, state.inventory, ownerReceizId, crewExpeditions.activeTripRevision]);
   useEffect(() => {
+    if (marketOnly) return;
     if (shellOverlayOwner === "none" || !state.pendingTravelGrowthEvents.length) return;
     let cancelled = false;
     void wildzGameplayBackground.run(() => {
       if (!cancelled) setState((current) => settleWildsCrewPendingGrowth(current, ownerReceizId, physicalCrewTrips.current, 1));
     });
     return () => { cancelled = true; };
-  }, [shellOverlayOwner, state.pendingTravelGrowthEvents, ownerReceizId, crewExpeditions.activeTripRevision]);
+  }, [marketOnly, shellOverlayOwner, state.pendingTravelGrowthEvents, ownerReceizId, crewExpeditions.activeTripRevision]);
   const earnedWorldPhi = useMemo(() => projectWildsEarnedPhi({ awards: Object.values(livingWorld.snapshot?.stewardPhiAwards ?? {}), ownerReceizId }), [livingWorld.snapshot?.stewardPhiAwards, ownerReceizId]);
   const witnessedSites = useRef<{ owner: string; keys: readonly string[] }>({ owner: ownerReceizId, keys: state.explorationAtlas.siteKeys });
   useEffect(() => {
     const previous = witnessedSites.current;
     witnessedSites.current = { owner: ownerReceizId, keys: state.explorationAtlas.siteKeys };
+    if (marketOnly) return;
     if (previous.owner !== ownerReceizId) return;
     const known = new Set(previous.keys);
     for (const key of state.explorationAtlas.siteKeys) {
@@ -1712,7 +1738,7 @@ export function PlayCampaign({
       markPlaytest("discovery", "success");
       showWorldFeedback(`${activeAsset ? `${activeAsset.manifest.name} is here with you. ` : ""}${wildsDiscoveryImpression(site)}`);
     }
-  }, [state.explorationAtlas.siteKeys, siteRuntime, ownerReceizId, activeAsset, rememberJourney, markPlaytest, showWorldFeedback]);
+  }, [marketOnly, state.explorationAtlas.siteKeys, siteRuntime, ownerReceizId, activeAsset, rememberJourney, markPlaytest, showWorldFeedback]);
   const siteMovementOutputRef = useRef({ x: 0, z: 0, floorY: 0, ceilingY: Number.POSITIVE_INFINITY, surfaceId: null as string | null, flooded: false, blocked: false, blockedByClimb: false });
   const siteDiscoveryOutputRef = useRef({ siteKey: null as string | null });
   const siteLandingOutputRef = useRef({ x: 0, z: 0, floorY: 0, found: false });
@@ -2072,6 +2098,7 @@ export function PlayCampaign({
   const trailSynergy = useMemo(() => deriveLoadoutSynergy(trailPack, worldProgression.chapter.name), [trailPack, worldProgression.chapter.name]);
 
   useEffect(() => {
+    if (marketOnly) return;
     const elapsedNow = () => performance.now();
     const updateKaiMoment = () => {
       const observedUPulse = observeWildsKaiUPulse();
@@ -2089,7 +2116,7 @@ export function PlayCampaign({
       displayClock.dispose();
       document.removeEventListener("visibilitychange", displayClock.visibilityChanged);
     };
-  }, []);
+  }, [marketOnly]);
 
   useEffect(() => {
     const previous = previousPlayerPosition.current;
@@ -2106,7 +2133,7 @@ export function PlayCampaign({
     const joinRoom = params.get("wildsJoin");
     const joinX = Number(params.get("wildsX"));
     const joinZ = Number(params.get("wildsZ"));
-    if (!joinedInvite.current && /^invite:[a-f0-9]{16}$/.test(joinRoom ?? "") && Number.isFinite(joinX) && Number.isFinite(joinZ)) {
+    if (!marketOnly && !joinedInvite.current && /^invite:[a-f0-9]{16}$/.test(joinRoom ?? "") && Number.isFinite(joinX) && Number.isFinite(joinZ)) {
       joinedInvite.current = true;
       setState((current) => ({
         ...current,
@@ -2119,7 +2146,7 @@ export function PlayCampaign({
     setCardOrder(initialPlayerContinuity?.settings.cardOrder ?? "rarity");
     setVisualSettings(normalizeWildsVisualSettings(initialPlayerContinuity?.settings.visual));
     setSaveRestored(true);
-  }, [initialPlayerContinuity]);
+  }, [marketOnly, initialPlayerContinuity]);
 
   useEffect(() => {
     if (!saveRestored) return;
@@ -2172,6 +2199,7 @@ export function PlayCampaign({
   }, []);
 
   useEffect(() => {
+    if (marketOnly) return;
     if (state.encounter.phase === "battle_intro") {
       const timer = window.setTimeout(() => {
         const uPulse = kaiRuntimeClockRef.current?.read(performance.now(), observeWildsKaiUPulse()) ?? observeWildsKaiUPulse();
@@ -2188,9 +2216,10 @@ export function PlayCampaign({
       setState((current) => applyWildsInput(current, rootWildsInputInKai({ type: "advance-encounter", at: kaiUPulseToISOString(uPulse) }, uPulse)));
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [state.encounter.phase]);
+  }, [marketOnly, state.encounter.phase]);
 
   useEffect(() => {
+    if (marketOnly) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (!worldInteractionEnabled) return;
       const input = worldInputForKeyboardEvent(event);
@@ -2200,7 +2229,7 @@ export function PlayCampaign({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onComplete, worldInteractionEnabled]);
+  }, [marketOnly, onComplete, worldInteractionEnabled]);
 
   const activeGrove = activeGroveId ? livingWorld.snapshot?.groves[activeGroveId] ?? null : null;
   const activeCondition = activeAsset
@@ -2304,6 +2333,7 @@ export function PlayCampaign({
   };
   useEffect(() => {
     // A physical source change is meaningful; display-clock ticks never publish this state.
+    if (marketOnly) return;
     if (!livingWorld.snapshot || state.playerBreaths?.mode !== "bed" || sleepingInBed) return;
     setState(current => {
       const observationKai=Math.max(readActionKaiUPulse(),current.playerBreaths?.lastKaiUPulse??0);
@@ -2316,7 +2346,7 @@ export function PlayCampaign({
         restoredFloorY:creationRestorationReady&&marker?restoredCreationBedFloor(creationController.snapshot,marker,current.player,current.siteSpace.spaceId,ownerReceizId,observationKai):null,
         readKai:readActionKaiUPulse});
     });
-  }, [livingWorld.snapshot, sleepingInBed, unresolvedBedClockReady, state.playerBreaths?.mode, creationRestorationReady, creationController, ownerReceizId, readActionKaiUPulse]);
+  }, [marketOnly, livingWorld.snapshot, sleepingInBed, unresolvedBedClockReady, state.playerBreaths?.mode, creationRestorationReady, creationController, ownerReceizId, readActionKaiUPulse]);
 
   const nearbyStewardWorkbench = useMemo(() => ownedStructures.find(structure => structure.blueprint === "steward-workbench" && Math.hypot(structure.position.x - state.player.x, structure.position.z - state.player.z) <= 6)
     ?? nearbyFunctionalPieces.filter(component => component.kind === "workshop").map(component => resolveWildsConstructionFunction(livingWorld.snapshot!, component.componentId, "workshop")).find(Boolean) ?? null, [livingWorld.snapshot, ownedStructures, nearbyFunctionalPieces, state.player.x, state.player.z]);
@@ -2674,6 +2704,7 @@ export function PlayCampaign({
   };
 
   if (!enabled) {
+    if (marketOnly) return null;
     return (
       <section className="panel play-disabled">
         <div>
@@ -4022,7 +4053,7 @@ export function PlayCampaign({
               visualSettings={visualSettings}
               supportCards={trailSupportCards}
               vistaHeading={activeVistaId && nearbyOverlook?.id === activeVistaId ? nearbyOverlook.viewHeading : activeVistaId&&nearbyMonument?.id===activeVistaId?nearbyMonument.viewHeading:null}
-              suspended={(exclusiveOwner === "map" && mapOpen) || exclusiveOwner === "dream" || exclusiveOwner === "market"}
+              suspended={shouldSuspendWildsWorld(exclusiveOwner, worldOverlayState.panelKey, mapOpen)}
               onSelectPlayer={(player) => {
                 if (canUseWorldStage()) multiplayer.selectPlayer(player);
               }}

@@ -22,6 +22,17 @@ function fixture(input:Partial<WildzMarketSnapshotV128>={},ownerHandle=buyer){
  return {service,calls:()=>calls};
 }
 
+test('standalone identity upload is compact and appears only on Sell and Activity',()=>{
+ const f=fixture(),identityControl={username:'buyer',onImport:async()=>undefined};
+ for(const tab of ['sell','activity'] as const){
+  const html=renderToStaticMarkup(<WildzMarketSheet service={f.service} connected initialTab={tab} identityControl={identityControl}/>);
+  assert.match(html,/aria-label="Open Identity Seal"/);assert.match(html,/@buyer/);assert.doesNotMatch(html,/Connect your Receiz ID/);
+ }
+ const browse=renderToStaticMarkup(<WildzMarketSheet service={f.service} connected identityControl={identityControl}/>);
+ const popover=renderToStaticMarkup(<WildzMarketSheet service={f.service} connected initialTab="sell"/>);
+ assert.doesNotMatch(browse,/Open Identity Seal/);assert.doesNotMatch(popover,/Open Identity Seal/);assert.equal(f.calls(),0);
+});
+
 test('Market omits creatures without their real card and paints cached resources without SDK work during render',()=>{
  const f=fixture(),html=renderToStaticMarkup(<WildzMarketSheet service={f.service} connected/>);
  assert.doesNotMatch(html,/Ember Cub|View listing|creature-collection\.webp/);assert.equal(f.calls(),0);

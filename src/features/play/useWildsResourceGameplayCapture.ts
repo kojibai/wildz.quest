@@ -7,8 +7,9 @@ import type {WildsWorldOutboxEntry} from './wilds-world-outbox';
 import type {WildsCreatureMandateV1} from './wilds-creature-mandate';
 
 /** The existing reducer stays immediate. Only committed command custody is
- * queued here; SDK opening, sealing and global admission happen on wallet Send. */
-export function useWildsResourceGameplayCapture(input:{enabled:boolean;ownerHandle:string|null;gameplayOwnerId:string;state:PlayState;captureScope?:string;onConstructionCaptured?:(entry:WildsWorldOutboxEntry)=>Promise<void>}) {
+ * queued here; SDK opening, sealing and global admission happen on wallet Send.
+ * Disabling automatic capture preserves already captured history and Wallet flush. */
+export function useWildsResourceGameplayCapture(input:{enabled:boolean;automatic?:boolean;ownerHandle:string|null;gameplayOwnerId:string;state:PlayState;captureScope?:string;onConstructionCaptured?:(entry:WildsWorldOutboxEntry)=>Promise<void>}) {
   const live=useRef(input);live.current=input;
   const active=useRef(true);
   useEffect(()=>{active.current=true;return()=>{active.current=false;};},[]);
@@ -38,18 +39,19 @@ export function useWildsResourceGameplayCapture(input:{enabled:boolean;ownerHand
   useEffect(()=>{error.current=null;},[input.ownerHandle,input.gameplayOwnerId]);
   return {
     captureInput(before:PlayState,after:PlayState,action:WildsInput){
-      const current=live.current;if(!current.enabled||!current.ownerHandle)return;
+      const current=live.current;if(!current.enabled||current.automatic===false||!current.ownerHandle)return;
       const marker=createWildsResourceCaptureMarker(before,after,action,{ownerHandle:current.ownerHandle,gameplayOwnerId:current.gameplayOwnerId});if(!marker)return;
       if(pending.current.size>=128){error.current='wilds_resource_history_capture_full';return;}
       pending.current.set(wildsResourceCaptureMarkerId(marker),marker);
     },
     captureWorld:useCallback((entry:WildsWorldOutboxEntry,groveMandate?:WildsCreatureMandateV1)=>{
+      if(live.current.automatic===false)return;
       if(!isWildsResourceGameplayWorldCommandV128(entry.command))return;
       if(entry.actorId!==live.current.gameplayOwnerId)return;
       const pulse=entry.command.kai?.uPulse;if(!Number.isSafeInteger(pulse))return;
       record({kind:'world',command:entry.command,kaiUPulse:pulse!,...(entry.card?{card:entry.card}:{}),...(groveMandate?{groveMandate}:{})});
       const binding={ownerHandle:live.current.ownerHandle,gameplayOwnerId:live.current.gameplayOwnerId},scope=live.current.captureScope;
-      return persistence.current.then(async()=>{if(active.current&&live.current.enabled&&binding.ownerHandle===live.current.ownerHandle&&binding.gameplayOwnerId===live.current.gameplayOwnerId&&scope===live.current.captureScope)await live.current.onConstructionCaptured?.(entry);}).catch(()=>undefined);
+      return persistence.current.then(async()=>{if(active.current&&live.current.enabled&&live.current.automatic!==false&&binding.ownerHandle===live.current.ownerHandle&&binding.gameplayOwnerId===live.current.gameplayOwnerId&&scope===live.current.captureScope)await live.current.onConstructionCaptured?.(entry);}).catch(()=>undefined);
     },[record]),
     async flush(){await persistence.current;if(error.current)throw Error(error.current);}
   };

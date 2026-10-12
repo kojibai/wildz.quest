@@ -50,6 +50,10 @@ const projectedListing=(record:WildzMarketPublicationRecordV128)=>{
  if(record.cancellation)state=reduceWildzMarketSourceV128(state,record.cancellation,record.listing.actorHandle);
  return state.listings[record.listing.listingId]!;
 };
+export function projectWildzMarketPublicationsV128(records:ReadonlyMap<string,WildzMarketPublicationRecordV128>):WildzMarketSourceSnapshotV128{
+ const state={...initialWildzMarketSourceV128(),listings:Object.fromEntries([...records].map(([id,record])=>[id,projectedListing(record)]))};
+ return {state,head:records.size?wildzMarketSourceHeadV128(state):null,proof:null};
+}
 const publicationInput=(record:WildzMarketPublicationRecordV128)=>({tenantHost:WILDZ_PRODUCT.domain,merchantReceizId:record.listing.actorHandle,
  sourceUrl:wildzMarketPublicationUrlV128(record.listing.listingId),namespace:WILDZ_MARKET_PUBLICATION_NAMESPACE_V128,
  title:'Wildz Player Market listing',platform:WILDZ_PRODUCT.name,projectionState:'published',storeStateRecord:record as unknown as JsonObject});
@@ -91,11 +95,7 @@ export function createWildzMarketPublicationSourceV128(input:Readonly<{
 }>):WildzMarketPublicationSourceV128{
  let records=new Map<string,WildzMarketPublicationRecordV128>();
  const current=()=>{const active=input.currentIdentity();if(active.keyId!==input.keyId||active.ownerHandle!==input.ownerHandle)fail('identity_changed');};
- const snapshot=()=>{
-  const listings=Object.fromEntries([...records].map(([id,record])=>[id,projectedListing(record)]));
-  const state={...initialWildzMarketSourceV128(),listings};
-  return {state,head:records.size?wildzMarketSourceHeadV128(state):null,proof:null};
- };
+ const snapshot=()=>projectWildzMarketPublicationsV128(records);
  async function load(){current();records=await readWildzMarketPublicationsV128(input.sdk);current();return snapshot();}
  async function readExact(listingId:string){
   current();const url=wildzMarketPublicationUrlV128(listingId),restored=await input.sdk.publicStore.restoreLatest({url,tenantHost:WILDZ_PRODUCT.domain});current();

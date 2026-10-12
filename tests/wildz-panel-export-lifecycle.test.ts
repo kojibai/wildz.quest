@@ -81,11 +81,11 @@ function panelFixture() {
   };
 }
 
-test("an open 68-card Vault prepares one selected-card file and does not repeat work on presentation renders", async () => {
+test("opening a 68-card Vault prepares only its selected-card file and does not repeat work on presentation renders", async () => {
   const f = panelFixture();
   try {
     f.panel.render(f.props); f.panel.flushEffects(); await f.afterPaint();
-    assert.deepEqual(f.count, { vaultPreparation: 1, cardPreparation: 1, playerSnapshots: 1, vaultSave: 0, cardSave: 0, listings: 0 });
+    assert.deepEqual(f.count, { vaultPreparation: 0, cardPreparation: 1, playerSnapshots: 1, vaultSave: 0, cardSave: 0, listings: 0 });
     f.panel.render(f.props);
     f.panel.flushEffects(); await f.afterPaint();
     f.panel.render({...f.props,state:{...f.props.state,player:{...f.props.state.player,x:1}}});
@@ -111,8 +111,30 @@ test("a prepared card Save invokes the platform handoff in the tap task without 
     assert.equal(f.count.cardSave,1,"the prepared Save must reach its platform adapter before another frame or promise turn");
     await f.afterPaint();
     await click("Verify + list on Exchange");
-    assert.deepEqual(f.count, { vaultPreparation: 1, cardPreparation: 1, playerSnapshots: 1, vaultSave: 1, cardSave: 1, listings: 1 });
+    assert.deepEqual(f.count, { vaultPreparation: 0, cardPreparation: 1, playerSnapshots: 1, vaultSave: 1, cardSave: 1, listings: 1 });
   } finally { f.restore(); }
+});
+
+test("a cold Vault Save exports once and reports completion only after the export finishes", async () => {
+  const f = panelFixture();
+  let finish!: () => void;
+  const exported = new Promise<void>(resolve => { finish = resolve; });
+  const props = { ...f.props, onExportVault: async () => { f.count.vaultSave++; await exported; } };
+  const render = () => { const tree = f.panel.render(props); f.panel.flushEffects(); return panelElements(tree); };
+  try {
+    render(); await f.afterPaint();
+    assert.equal(f.count.vaultPreparation, 0);
+    const save = render().find(element => element.type === "button" && element.props["aria-label"] === "Save verified vault");
+    assert.ok(save); (save.props.onClick as () => void)();
+    assert.equal(f.count.vaultSave, 1);
+    const waiting = render();
+    assert.ok(waiting.some(element => element.props.children === "Opening your Vault save panel…"));
+    assert.ok(waiting.find(element => element.props["aria-label"] === "Save verified vault")?.props.disabled);
+    finish(); await f.afterPaint();
+    const complete = render();
+    assert.ok(complete.some(element => element.props.children === "Signed Vault opened in your device save panel for Photos, Files, or sharing."));
+    assert.equal(f.count.vaultSave, 1);
+  } finally { finish(); f.restore(); }
 });
 
 test("an unavailable warmup preserves the explicit cold Save instead of saving an unverified file", async () => {

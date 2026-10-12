@@ -13095,6 +13095,8 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   isolation: isolate;
   overscroll-behavior-y: contain;
 }
+.wilds-command-sheet-vault { height: min(86dvh, 760px); }
+.wilds-vault-opening { display: grid; min-height: min(40dvh, 360px); place-items: center; color: #bfd4c5; font-size: 13px; }
 .wilds-command-content { display: grid; gap: 8px; }
 .wilds-command-insight { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); align-items: center; gap: 4px 10px; padding: 9px 10px; border: 1px solid rgb(131 235 207 / 18%); border-radius: 13px; background: linear-gradient(135deg, rgb(113 232 195 / 10%), rgb(247 210 91 / 5%)); }
 .wilds-command-insight > span { display: grid; min-width: 0; gap: 1px; }
@@ -13198,6 +13200,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
     bottom: calc(58px + env(safe-area-inset-bottom));
     max-height: none;
   }
+  .mobile-play-wrap .wilds-command-sheet-vault { height: auto; }
   .mobile-play-wrap .wilds-command-sheet-content {
     padding: 0 12px max(18px, env(safe-area-inset-bottom));
   }
@@ -14748,6 +14751,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   .wilds-command-sheet-satchel,
   .wilds-command-sheet-deck,
   .wilds-command-sheet-vault { right: 0; bottom: 0; left: 0; width: 100%; max-height: 84dvh; border-right: 0; border-bottom: 0; border-left: 0; border-radius: 26px 26px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+  .wilds-command-sheet-vault { height: 84dvh; }
   .wildz-app .wilds-event-toast { right: 12px; bottom: 10px; left: 12px; display: block !important; max-width: none; padding: 8px 10px; border-radius: 10px; font-size: 10px; }
   .wilds-live-cluster { top: calc(86px + var(--wildz-stage-safe-top)); right: 12px; bottom: auto; flex-direction: row; gap: 5px; }
   .wilds-live-badge,

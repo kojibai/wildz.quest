@@ -19,6 +19,12 @@ test('short buyer balance opens the actual nested hosted checkout response for o
  assert.equal(result.status,'checkout');assert.equal(result.topupUsdCents,'100');assert.equal(f.calls[0].amountUsd,'1.00');assert.equal(f.calls[0].uiMode,'hosted');
  assert.equal(f.calls[0].successUrl,'https://wildz.quest/?marketPurchase='+encodeURIComponent(purchaseId)+'&cardCheckout=returned');assert.equal(f.calls[0].referenceId,wildzMarketFundingReferenceV128(owner.profileHandle,purchaseId,quote));
 });
+test('standalone checkout returns to Market with the same exact purchase continuation',async()=>{
+ const f=fixture();
+ await prepareWildzMarketFundingV128({action:'create',purchaseId,quote},owner,{...f.deps,returnPath:'/market'});
+ assert.equal(f.calls[0].successUrl,'https://wildz.quest/market?marketPurchase='+encodeURIComponent(purchaseId)+'&cardCheckout=returned');
+ assert.equal(f.calls[0].cancelUrl,'https://wildz.quest/market?marketPurchase='+encodeURIComponent(purchaseId)+'&cardCheckout=cancelled');
+});
 test('funded wallet bypasses card checkout and expired or changed quotes cannot open a new charge',async()=>{
  const f=fixture('500000');assert.equal((await prepareWildzMarketFundingV128({action:'create',purchaseId,quote},owner,f.deps)).status,'ready');assert.equal(f.count(),0);
  f.funds('0');f.deps.currentKai=()=>220;assert.equal((await prepareWildzMarketFundingV128({action:'create',purchaseId,quote},owner,f.deps)).status,'review-required');assert.equal(f.count(),0);

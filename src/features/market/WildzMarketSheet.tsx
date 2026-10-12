@@ -2,7 +2,7 @@
 
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import Image from 'next/image';
-import {ArrowLeft,ArrowRight,Clock3,Compass,Leaf,Package,Tag,UserRound} from 'lucide-react';
+import {ArrowLeft,ArrowRight,Clock3,Compass,Leaf,Package,Tag,UserRound,ScanLine} from 'lucide-react';
 import type {WildzMarketPurchasePhaseV128,WildzMarketPurchaseReviewV128,WildzMarketResultV128,WildzMarketServiceV128,WildzMarketSnapshotV128} from './wildz-market-service-v128';
 import {createWildzMarketUiActionRuntime,parseWildzMarketUsdInput,readWildzMarketListingUiAttempt,retainWildzMarketListingUiAttempt,releaseWildzMarketListingUiAttempt,type WildzMarketUiActionState,type WildzMarketListingUiAttempt} from './wildz-market-presentation';
 import {formatWildsPhiExact,formatWildsUsdCents} from '../play/wallet/wilds-wallet-format';
@@ -46,7 +46,18 @@ function PurchaseCard({purchase,ownerHandle,disabled,onApprove,onResume,onAccept
  </article>;
 }
 
-export function WildzMarketSheet({service,connected,initialTab='browse',onClose}:{service:WildzMarketServiceV128|null;connected:boolean;initialTab?:Tab;onClose?:()=>void}){
+function MarketIdentityControl({username,onImport}:{username:string;onImport(file:File):Promise<unknown>}){
+ const [busy,setBusy]=useState(false),[error,setError]=useState('');
+ const mounted=useRef(true);
+ useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
+ return <div className={styles.identityRow}><span>{username?handle(username):'Your local identity'}</span><label className={styles.identityImport} title="Open your Identity Seal" aria-disabled={busy}>
+  <ScanLine size={18} aria-hidden="true"/><input type="file" accept=".svg,.png,image/svg+xml,image/png" aria-label="Open Identity Seal" disabled={busy} onChange={event=>{
+   const file=event.currentTarget.files?.[0];event.currentTarget.value='';if(!file||busy)return;
+   setBusy(true);setError('');void onImport(file).catch(()=>{if(mounted.current)setError('This file could not be opened as a verified Identity Seal.');}).finally(()=>{if(mounted.current)setBusy(false);});
+  }}/></label>{error?<p role="alert">{error}</p>:null}</div>;
+}
+
+export function WildzMarketSheet({service,connected,initialTab='browse',onClose,identityControl}:{service:WildzMarketServiceV128|null;connected:boolean;initialTab?:Tab;onClose?:()=>void;identityControl?:{username:string;onImport(file:File):Promise<unknown>}}){
  const [tab,setTab]=useState<Tab>(initialTab);
  const [discovery,setDiscovery]=useState(initialMarketDiscovery);
  const [mobileColumns,setMobileColumns]=useState<1|2>(2);
@@ -147,6 +158,7 @@ export function WildzMarketSheet({service,connected,initialTab='browse',onClose}
    <div className={styles.content}>
     <header className={styles.header}><button type="button" className={styles.backLink} onClick={()=>{if(onClose)onClose();else changeTab('browse');}}><ArrowLeft size={22}/>Back to world</button><div className={styles.brand}><Image src="/brand/wildz-wordmark.svg" alt="Wildz" width={320} height={64} style={{height:"auto"}}/><span>/</span><span>Market</span></div><button type="button" className={styles.account} aria-label="View your market activity" onClick={()=>changeTab('activity')}><UserRound size={23}/></button></header>
     {!detailed&&!detailedCard?<div className={styles.hero}><h2>{tab==='browse'?<>Find your legend.</>:tab==='sell'?<>Make room for<br/>new adventures.</>:<>Every trade.<br/>All in one place.</>}</h2><p>{tab==='browse'?'Creatures and resources. Yours to explore.':tab==='sell'?'Your creatures and resources. A new player’s next discovery.':'Your purchases, sales, offers and ownership history.'}</p></div>:null}
+    {tab!=='browse'&&identityControl?<MarketIdentityControl {...identityControl}/>:null}
     {unavailable?<p className={styles.status} role="status">Connect your Receiz ID to browse and trade.</p>:null}
     {!unavailable&&(ui.message||snapshot.status==='unavailable'&&snapshot.message)?<p className={styles.status} role="status" data-error={ui.error||undefined}>{ui.message||snapshot.message}</p>:null}
     {tab==='browse'?detailed?<WildzMarketListingDetail listing={detailed} card={snapshot.collection?.find(card=>detailed.asset.kind==='creature'&&card.assetId===detailed.asset.assetId&&card.ownerHandle===detailed.sellerHandle)} ownerHandle={service?.binding.ownerHandle??''} busy={busy} unavailable={unavailable} onBack={backToListings} onReview={()=>preview(detailed.listingId)} onManage={()=>changeTab('activity')} onChart={scrollToChart}/>:detailedCard?<WildzMarketOwnedDetail card={detailedCard} service={service} busy={busy||unavailable} onBack={backToListings} onChart={scrollToChart} onOffer={async request=>{if(!service?.makeOffer)return;const result=await runtime.run('Send offer',()=>service.makeOffer!(request));showResult(result);return result;}}/>:null:null}

@@ -6,7 +6,7 @@ export {validateWildzCardCheckoutUrlV128} from './wildz-card-checkout-url-v128';
 export type WildzMarketFundingRequestV128=Readonly<{action:'create'|'check'|'read';purchaseId:string;quote:WildzMarketConnectQuoteV128;sessionId?:string;topupUsdCents?:string}>;
 export type WildzMarketFundingResultV128=Readonly<{status:'ready'|'checkout'|'pending'|'expired'|'review-required';message:string;sessionId?:string;checkoutUrl?:string;topupUsdCents?:string}>;
 export type WildzMarketFundingDependenciesV128=Readonly<{
- currentKai():number;origin:string;walletSummary():Promise<unknown>;
+ currentKai():number;origin:string;returnPath?:'/'|'/market';walletSummary():Promise<unknown>;
  checkout(input:Readonly<{amountUsd:string;currency:'usd';uiMode:'hosted';referenceId:string;description:string;successUrl:string;cancelUrl:string}>):Promise<unknown>;
  checkoutSession(input:Readonly<{sessionId:string}>):Promise<unknown>;
 }>;
@@ -55,7 +55,7 @@ export async function prepareWildzMarketFundingV128(request:WildzMarketFundingRe
  const cents=(missing*BigInt(quote.usdPerPhiMicrocents)+999_999_999_999n)/1_000_000_000_000n;
  const topup=cents<50n?50n:cents;
  if(topup>10_000_000n)throw Error('The missing funds exceed the card checkout maximum of $100,000. Fund your wallet before approving this purchase.');
- const returnUrl=new URL('/',deps.origin);returnUrl.searchParams.set('marketPurchase',request.purchaseId);
+ const returnUrl=new URL(deps.returnPath==='/market'?'/market':'/',deps.origin);returnUrl.searchParams.set('marketPurchase',request.purchaseId);
  const success=new URL(returnUrl);success.searchParams.set('cardCheckout','returned');
  const cancel=new URL(returnUrl);cancel.searchParams.set('cardCheckout','cancelled');
  const response=await deps.checkout({amountUsd:`${topup/100n}.${(topup%100n).toString().padStart(2,'0')}`,currency:'usd',uiMode:'hosted',referenceId,

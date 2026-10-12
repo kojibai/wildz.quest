@@ -1,6 +1,9 @@
 "use client";
 import {useEffect,useRef,useState,type ReactNode} from 'react';
 import styles from './WildzMarketSheet.module.css';
+import {WILDZ_MARKET_PAGE_SIZE} from './wildz-market-warmup';
+
+export function wildzMarketGalleryLookahead<T>(entries:readonly T[],visibleCount:number):readonly T[]{return entries.slice(visibleCount,visibleCount+2*WILDZ_MARKET_PAGE_SIZE);}
 
 /** Keep scroll geometry, release distant image/flipper surfaces. The next
  * group mounts before it reaches the viewport, rather than on first sight. */
