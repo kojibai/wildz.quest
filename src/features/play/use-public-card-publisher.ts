@@ -118,7 +118,7 @@ export function usePublicCardPublisher(
           ownershipClaims,
           proofObjects,
           profileHandle,
-          publishWithIdentityProof: (card, signal) => publishWildzCardWithIdentityProof(card, { signal, custody, ownershipClaims }),
+          publishWithIdentityProof: (card, signal) => publishWildzCardWithIdentityProof(card, { signal, custody, ownershipClaims, profileHandle }),
           signal: requestController.signal,
           prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
             ?? wildzGameplayBackground.run(() => JSON.stringify(value))

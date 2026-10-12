@@ -1,4 +1,4 @@
-import { standaloneCardUrl } from "./card-export";
+import { standaloneCardUrl } from "./card-url";
 import { projectCardKaiAppearance } from "./card-kai-appearance";
 import { creatureForm, type CreatureStats } from "./creature-catalog";
 import { deriveBirthGenome } from "./heartbound-genome";

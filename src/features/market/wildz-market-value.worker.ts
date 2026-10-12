@@ -1,4 +1,4 @@
-import {calculateWildzMarketLocalValueV129,type WildzMarketLocalValueEvaluationV129} from './wildz-market-value-local-v129';
+import {calculateWildzMarketLocalCardV129,type WildzMarketLocalValueEvaluationV129} from './wildz-market-value-local-v129';
 import type {PortableCardAsset} from '../play/portable-card';
 
 /** Receives public game-sealed card inputs only. Native Receiz artifact
@@ -14,7 +14,7 @@ scope.addEventListener('message',event=>{
  if(running){scope.postMessage({type:'value-result',requestId:request.requestId,result:{status:'unavailable',message:'The local value calculator is busy.'}});return;}
  if(request.card.id!==request.assetId){scope.postMessage({type:'value-result',requestId:request.requestId,result:{status:'unavailable',message:'The creature card does not match.'}});return;}
  running=true;
- void calculateWildzMarketLocalValueV129(request.card,request.evaluation).then(result=>{
+ void calculateWildzMarketLocalCardV129(request.card,request.evaluation).then(result=>{
   scope.postMessage({type:'value-result',requestId:request.requestId,result});
  },()=>scope.postMessage({type:'value-result',requestId:request.requestId,result:{status:'unavailable',message:'The local card value could not be calculated.'}}))
   .finally(()=>{running=false;});

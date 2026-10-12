@@ -58,3 +58,22 @@ test('warming selects actual browse cards and excludes reserved holdings',async(
  const preparer=createWildzMarketCardPreparer({decodeImage:async()=>{}}),warm=createWildzMarketWarmup(service,preparer);
  await warm.ready();assert.equal(preparer.peek(cards.slice(0,3)).size,0);assert.equal(preparer.peek(cards.slice(3)).size,6);
 });
+
+test('entry warming prepares the following rows before the player starts scrolling',async()=>{
+ const rows=Array.from({length:24},(_,index)=>{const asset=sealCollectedCard({formId:'mintcub-1',ownerReceizId:'ahead_keeper.receiz.id',encounterId:`warm-ahead:${index}`,capturedAt:'2026-08-23T22:45:39.818Z'});return {assetId:asset.id,title:asset.manifest.name,proofDigest:asset.proof.digest,ownerHandle:'ahead_keeper.receiz.id',claimKaiUPulse:null,claimHead:null,asset};});
+ const snapshot:WildzMarketSnapshotV128={status:'ready',message:'',listings:[],purchases:[],sellables:[],collection:rows};
+ const service={snapshot:()=>snapshot,read:async()=>snapshot} as unknown as WildzMarketServiceV128;
+ const preparer=createWildzMarketCardPreparer({decodeImage:async()=>{}}),warm=createWildzMarketWarmup(service,preparer);
+ await warm.ready();for(let turn=0;turn<12;turn++)await new Promise<void>(resolve=>setImmediate(resolve));
+ assert.equal(preparer.peek(rows.slice(6,18)).size,12);assert.equal(preparer.peek(rows.slice(18)).size,0);
+});
+
+test('a changed current first screen is complete before a warmed Market is revealed again',async()=>{
+ const held=(id:string)=>{const asset=sealCollectedCard({formId:'mintcub-1',ownerReceizId:'changed_keeper.receiz.id',encounterId:id,capturedAt:'2026-08-23T22:45:39.818Z'});return {assetId:asset.id,title:asset.manifest.name,proofDigest:asset.proof.digest,ownerHandle:'changed_keeper.receiz.id',claimKaiUPulse:null,claimHead:null,asset};};
+ const first=held('first-warm-object'),next=held('current-warm-object');
+ let snapshot:WildzMarketSnapshotV128={status:'ready',message:'',listings:[],purchases:[],sellables:[],collection:[first]};
+ const service={snapshot:()=>snapshot,read:async()=>snapshot} as unknown as WildzMarketServiceV128;
+ const preparer=createWildzMarketCardPreparer({decodeImage:async()=>{}}),warm=createWildzMarketWarmup(service,preparer);
+ await warm.ready();snapshot={...snapshot,collection:[next]};await warm.ready();
+ assert.equal(preparer.peek([next]).size,1);assert.equal(preparer.peek([next]).get(`${next.assetId}:${next.proofDigest}:changed_keeper`)?.card.asset,next.asset);
+});

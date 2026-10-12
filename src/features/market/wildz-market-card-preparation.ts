@@ -2,8 +2,12 @@ import type {WildzMarketOwnedCard} from '../../lib/receiz/wildz-market-collectio
 import {parseWildzPlayerCoordinate} from '../../lib/receiz/wildz-player-coordinate';
 import {parsePublicWildsCardRecord} from '../play/public-card-record';
 import {verifyAnyWildsCard,type PortableCardAsset} from '../play/portable-card';
+import {renderWildsCardSvg} from '../play/card-svg';
 
 const CACHE_LIMIT=48;
+// Generated artwork lives only as long as a prepared view. Original inventory
+// objects may live for the entire game session and must not retain every URI.
+const objectArtwork=new WeakMap<WildzMarketOwnedCard,{digest:string;url:string}>();
 const abortError=()=>new DOMException('Card preparation was cancelled.','AbortError');
 const assertActive=(signal?:AbortSignal)=>{if(signal?.aborted)throw abortError();};
 
@@ -13,6 +17,8 @@ export function wildzMarketCardKey(card:WildzMarketOwnedCard){
 }
 
 export function wildzMarketCardImageUrl(card:WildzMarketOwnedCard){
+ const local=objectArtwork.get(card);
+ if(local?.digest===card.proofDigest)return local.url;
  if(process.env.NODE_ENV==='development'&&card.artworkUrl?.startsWith('/test-fixtures/market/cards/'))return card.artworkUrl;
  const owner=parseWildzPlayerCoordinate(card.ownerHandle || card.artworkOwnerHandle || "");
  if(!owner)throw Error('The card owner could not be resolved.');
@@ -61,7 +67,12 @@ export function readWildzMarketCard(card:WildzMarketOwnedCard,signal?:AbortSigna
   }
   const owner=parseWildzPlayerCoordinate(card.ownerHandle || card.artworkOwnerHandle || "");
   if(!owner)throw Error('The card owner could not be resolved.');
-  const response=await fetch(`/api/cards/${encodeURIComponent(card.assetId)}?profile=${encodeURIComponent(owner.actorId)}`,{credentials:'omit',signal:AbortSignal.any([workSignal,AbortSignal.timeout(15000)]),cache:'no-store'});
+  const path=`/api/cards/${encodeURIComponent(card.assetId)}`;
+  const options={credentials:'omit',signal:AbortSignal.any([workSignal,AbortSignal.timeout(15000)]),cache:'no-store'} as const;
+  let response=await fetch(`${path}?profile=${encodeURIComponent(owner.actorId)}`,options);
+  // Read the immutable complete object for display; a current-owner claim is
+  // independently carried by the collection and is never inferred from art.
+  if(response.status===404)response=await fetch(path,options);
   if(!response.ok)throw Error('This exact card revision could not be loaded.');
   const text=await response.text();assertActive(workSignal);
   if(text.length>4000000)throw Error('The complete card could not be loaded.');
@@ -91,18 +102,26 @@ export function decodeWildzMarketCardImage(src:string,signal?:AbortSignal):Promi
 
 export type PreparedWildzMarketCard=Readonly<{key:string;card:WildzMarketOwnedCard&{asset:PortableCardAsset};imageUrl:string}>;
 
+export function wildzMarketPreparedCardView(prepared:PreparedWildzMarketCard,current:WildzMarketOwnedCard){
+ if(prepared.key!==wildzMarketCardKey(current))throw Error('The prepared card revision does not match.');
+ const card={...prepared.card,...current,asset:prepared.card.asset};
+ objectArtwork.set(card,{digest:card.proofDigest,url:prepared.imageUrl});
+ return card;
+}
+
 /** Publish a whole visible page only after its real images and local values are ready. */
 export function createWildzMarketCardPreparer({readCard=readWildzMarketCard,decodeImage=decodeWildzMarketCardImage,readValue}:{
  readCard?(card:WildzMarketOwnedCard,signal?:AbortSignal):Promise<PortableCardAsset>;
  decodeImage?(url:string,signal?:AbortSignal):Promise<void>;
  readValue?(assetId:string):void|Promise<unknown>;
 }={}){
- const pinned=new Set<string>();
- const preparedCache=taskCache<PreparedWildzMarketCard>(key=>pinned.has(key));
+ const pinned=new Set<string>(),nearby=new Set<string>();
+ const retained=(key:string)=>pinned.has(key)||nearby.has(key);
+ const preparedCache=taskCache<PreparedWildzMarketCard>(retained);
  const completed=new Map<string,PreparedWildzMarketCard>();
- return {pin(cards:readonly WildzMarketOwnedCard[]){pinned.clear();cards.slice(0,6).forEach(card=>pinned.add(wildzMarketCardKey(card)));},peek(cards:readonly WildzMarketOwnedCard[]){
+ return {pin(cards:readonly WildzMarketOwnedCard[]){pinned.clear();cards.slice(0,6).forEach(card=>pinned.add(wildzMarketCardKey(card)));},protect(cards:readonly WildzMarketOwnedCard[]){nearby.clear();cards.slice(0,36).forEach(card=>nearby.add(wildzMarketCardKey(card)));},peek(cards:readonly WildzMarketOwnedCard[]){
   return new Map(cards.flatMap(card=>{const key=wildzMarketCardKey(card),ready=completed.get(key);return ready?[[key,ready] as const]:[];}));
- },async prepare(cards:readonly WildzMarketOwnedCard[],signal?:AbortSignal):Promise<readonly PreparedWildzMarketCard[]>{
+ },async prepare(cards:readonly WildzMarketOwnedCard[],signal?:AbortSignal,onReady?:(card:PreparedWildzMarketCard)=>void):Promise<readonly PreparedWildzMarketCard[]>{
   const unique=[...new Map(cards.map(card=>[wildzMarketCardKey(card),card])).values()];
   const ready:(PreparedWildzMarketCard|null)[]=Array(unique.length).fill(null);let next=0;
   await Promise.all(Array.from({length:Math.min(4,unique.length)},async()=>{
@@ -111,12 +130,17 @@ export function createWildzMarketCardPreparer({readCard=readWildzMarketCard,deco
     try{ready[index]=await preparedCache(wildzMarketCardKey(card),async workSignal=>{
      const asset=await readCard(card,workSignal);assertActive(workSignal);
      if(asset.id!==card.assetId||asset.proof.digest!==card.proofDigest)throw Error('The complete card revision does not match.');
-     const imageUrl=wildzMarketCardImageUrl(card);await decodeImage(imageUrl,workSignal);assertActive(workSignal);
-     await readValue?.(card.assetId);assertActive(workSignal);
-     return {key:wildzMarketCardKey(card),card:{...card,asset},imageUrl};
+     let svg:string|undefined;
+     try{const result=await readValue?.(card.assetId);if(result&&typeof result==='object'&&'artworkAssetId' in result&&result.artworkAssetId===asset.id&&'artworkProofDigest' in result&&result.artworkProofDigest===asset.proof.digest&&'artworkSvg' in result&&typeof result.artworkSvg==='string'&&result.artworkSvg.startsWith('<svg')&&result.artworkSvg.length<1_000_000)svg=result.artworkSvg;}catch{/* A display calculation does not invalidate a complete proof. */}
+     assertActive(workSignal);
+     const imageUrl=`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg??renderWildsCardSvg(asset))}`;
+     await decodeImage(imageUrl,workSignal);assertActive(workSignal);
+     const view={...card,asset};objectArtwork.set(view,{digest:card.proofDigest,url:imageUrl});
+     return {key:wildzMarketCardKey(card),card:view,imageUrl};
     },signal);assertActive(signal);
      const prepared=ready[index]!;completed.delete(prepared.key);completed.set(prepared.key,prepared);
-     while(completed.size>CACHE_LIMIT){const oldest=[...completed.keys()].find(key=>!pinned.has(key));if(!oldest)break;completed.delete(oldest);}
+     while(completed.size>CACHE_LIMIT){const oldest=[...completed.keys()].find(key=>!retained(key));if(!oldest)break;completed.delete(oldest);}
+     onReady?.(prepared);
     }catch(cause){assertActive(signal);if(cause instanceof DOMException&&cause.name==='AbortError')throw cause;}
    }
   }));

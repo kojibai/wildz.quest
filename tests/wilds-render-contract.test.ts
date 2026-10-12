@@ -606,7 +606,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(card, /wildsCardArtwork/);
     assert.match(await readFile("src/features/play/wilds-card-artwork.ts", "utf8"), /renderWildsCollectibleArt/);
     assert.match(await readFile("src/features/play/wilds-collectible-art.ts", "utf8"), /fit:\s*['"]full-body['"]/);
-    assert.match(cardExport, /renderWildsCollectibleArt/);
+    assert.match(cardExport, /export \{renderWildsCardSvg\} from "\.\/card-svg"/);
+    assert.match(await readFile("src/features/play/card-svg.ts", "utf8"), /renderWildsCollectibleArt/);
     assert.match(growth, /What remains/);
     assert.match(growth, /Growth history/);
     assert.match(transformation, /aria-label="Living card transformation"/);
@@ -723,11 +724,12 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(inventory, /cardSavePresentation\("saving"\)/);
     assert.match(inventory, /downloadPreparedCardArtifact/);
     assert.match(inventory, /cardSavePresentation\("success"\)/);
-    assert.match(cardExport, /premiumQrSvg\(cardPath/);
+    const cardSvg = await readFile("src/features/play/card-svg.ts", "utf8");
+    assert.match(cardSvg, /premiumQrSvg\(cardPath/);
     assert.match(cardExport, /requireGloballyAvailablePublicWildsCard/);
     assert.match(cardExport, /requireGloballyAvailablePublicWildsCard\(asset\)/);
     assert.match(cardExport, /origin: WILDZ_PRODUCT\.origin/);
-    assert.match(cardExport, /errorCorrectionLevel:\s*"L"/);
+    assert.match(cardSvg, /errorCorrectionLevel:\s*"L"/);
     assert.match(css, /backface-visibility:\s*hidden/);
     assert.match(css, /-webkit-backface-visibility:\s*hidden/);
     assert.match(css, /\.wilds-card-face-back\s*\{[^}]*opacity:\s*0/);

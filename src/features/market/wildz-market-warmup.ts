@@ -6,7 +6,7 @@ import {sameWildzPlayerCoordinate} from '../../lib/receiz/wildz-player-coordinat
 export const WILDZ_MARKET_PAGE_SIZE=6;
 const sessions=new WeakMap<WildzMarketServiceV128,ReturnType<typeof createWildzMarketWarmup>>();
 
-function firstScreen(snapshot:WildzMarketSnapshotV128){
+function browseCards(snapshot:WildzMarketSnapshotV128,from=0,to=WILDZ_MARKET_PAGE_SIZE){
  const collection=snapshot.collection??[],byId=new Map(collection.map(card=>[card.assetId,card]));
  const active=snapshot.listings.filter(listing=>listing.status==='active');
  const listed=active.flatMap(listing=>{
@@ -16,27 +16,36 @@ function firstScreen(snapshot:WildzMarketSnapshotV128){
  const resources=active.filter(listing=>listing.kind!=='creature').map(()=>null);
  const unlisted=discoverWildzOwnedCards(collection,snapshot.listings,initialMarketDiscovery);
  const seen=new Set<string>();
- return [...listed,...resources,...unlisted].slice(0,WILDZ_MARKET_PAGE_SIZE).flatMap(card=>{if(!card||seen.has(card.assetId))return [];seen.add(card.assetId);return [card];});
+ return [...listed,...resources,...unlisted].slice(from,to).flatMap(card=>{if(!card||seen.has(card.assetId))return [];seen.add(card.assetId);return [card];});
 }
 
 /** One read and one small first-screen preparation per Explorer service.
  * Navigation reuses verified images; pulse updates never reload listings. */
 export function createWildzMarketWarmup(service:WildzMarketServiceV128,preparer=createWildzMarketCardPreparer({readValue:id=>service.readValue?.(id)})){
  let pending:Promise<void>|null=null,loaded=false,controller:AbortController|null=null,cancellation=0;
- const update=()=>preparer.pin(firstScreen(service.snapshot()));
+ let ahead:Promise<unknown>|null=null,aheadController:AbortController|null=null,aheadIdentity='';
+ const update=()=>preparer.pin(browseCards(service.snapshot()));
+ const prefetch=(snapshot:WildzMarketSnapshotV128,generation:number)=>{
+  const cards=browseCards(snapshot,WILDZ_MARKET_PAGE_SIZE,3*WILDZ_MARKET_PAGE_SIZE),identity=cards.map(card=>`${card.assetId}:${card.proofDigest}:${card.ownerHandle}`).join('|');
+  if(!cards.length||generation!==cancellation||ahead&&aheadIdentity===identity)return;
+  aheadController?.abort();aheadController=new AbortController();aheadIdentity=identity;
+  const operation=preparer.prepare(cards,aheadController.signal).catch(()=>undefined).finally(()=>{if(ahead===operation)ahead=null;});ahead=operation;
+ };
  const ready=(generation=cancellation):Promise<void>=>{
   if(generation!==cancellation)return Promise.reject(new DOMException('Market entry was cancelled.','AbortError'));
-  if(loaded){update();return Promise.resolve();}
   if(pending)return controller?.signal.aborted?pending.catch(()=>undefined).then(()=>ready(generation)):pending;
+  const held=loaded?service.snapshot():null;
+  if(held&&preparer.peek(browseCards(held)).size===browseCards(held).length){update();prefetch(held,generation);return Promise.resolve();}
   controller=new AbortController();const signal=controller.signal;
   const operation=(async()=>{
-   const snapshot=await service.read();signal.throwIfAborted();
-   const cards=firstScreen(snapshot);preparer.pin(cards);await preparer.prepare(cards,signal);
+   const snapshot=held??await service.read();signal.throwIfAborted();
+   const cards=browseCards(snapshot);preparer.pin(cards);await preparer.prepare(cards,signal);
    loaded=true;
+   prefetch(snapshot,generation);
   })().finally(()=>{if(pending===operation)pending=null;});
   pending=operation;return operation;
  };
- return {preparer,update,cancel(){cancellation++;controller?.abort();},ready};
+ return {preparer,update,cancel(){cancellation++;controller?.abort();aheadController?.abort();},ready};
 }
 export function getWildzMarketWarmup(service:WildzMarketServiceV128){
  let session=sessions.get(service);if(!session){session=createWildzMarketWarmup(service);sessions.set(service,session);}return session;

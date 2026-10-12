@@ -6,6 +6,7 @@ import {withWildzMarketCommunity} from '../src/features/market/wildz-market-comm
 import type {WildzMarketOwnedCard} from '../src/lib/receiz/wildz-market-collection';
 import type {WildzMarketServiceV128,WildzMarketSnapshotV128} from '../src/features/market/wildz-market-service-v128';
 import type {WildsConversation} from '../src/features/play/wilds-messenger-core';
+import {sealCollectedCard} from '../src/features/play/portable-card';
 
 const buyer={id:'market-offers-buyer',handle:'offerbuyer.receiz.id'},seller={id:'market-offers-owner',handle:'offerowner.receiz.id'};
 beforeEach(()=>{Reflect.deleteProperty(globalThis,Symbol.for('receiz.wilds.messenger-ledger.v1'));});
@@ -173,4 +174,20 @@ test('legacy accepted recovery checks the original current ownership claim befor
 test('acceptance is unavailable after an exact claim changes and performs no listing write',async()=>{
  const proposal={kind:'market-offer' as const,offer:offer('changed-owner-001')},r=runtime(seller.handle);r.setConversations([notice(proposal).conversation]);r.setCards({...card,claimKaiUPulse:'100000003',claimHead:'later-claim'});
  const result=await r.service.respondToOffer!(proposal.offer.offerId,'accepted');assert.equal(result.status,'pending');assert.equal(r.counts().listCalls,0);
+});
+
+test('Market reuses an exact whole object already held by the current owner',async()=>{
+ const asset=sealCollectedCard({formId:'mintcub-1',ownerReceizId:seller.handle,encounterId:'market-held-whole-object',capturedAt:'2026-08-23T22:45:39.818Z'});
+ const row={...card,assetId:asset.id,proofDigest:asset.proof.digest},base=runtime(seller.handle).service;
+ const options=Object.assign({currentIdentity:()=>base.binding,readCollection:async()=>({cards:[row],transfers:[]}),readConversations:async()=>[],publish:async()=>{throw Error('No publication authorized by this read.');}},
+  {readOwnCards:()=>[asset]});
+ const service=withWildzMarketCommunity(base,options);await service.read();
+ assert.equal(service.snapshot().collection?.[0]?.asset,asset);
+ assert.equal(service.snapshot().collection?.[0]?.ownerHandle,seller.handle);
+ assert.equal(service.snapshot().collection?.[0]?.claimHead,'claim:head');
+ const transferred=withWildzMarketCommunity(base,{...options,readCollection:async()=>({cards:[{...row,ownerHandle:buyer.handle}],transfers:[]})});await transferred.read();
+ assert.equal(transferred.snapshot().collection?.[0]?.asset,undefined,'a prior owner’s held bytes cannot override the latest public owner');
+ const altered=structuredClone(asset);altered.manifest.stats.power++;
+ const invalid=withWildzMarketCommunity(base,{...options,...{readOwnCards:()=>[altered]}});await invalid.read();
+ assert.equal(invalid.snapshot().collection?.[0]?.asset,undefined);
 });

@@ -1403,7 +1403,7 @@ export function PlayCampaign({
         staged: {assetPort: walletAssetPort, readConversations: readTradeConversations, publish: sendStagedTrade,
           sendWalletAsset: async () => ({status: "failed", message: "Review the exact native asset in Market."}), ensureReady: ensureWalletTradeReady, observeSubmission: markWalletObservationPending}
       });
-      const community:WildzMarketServiceV128=withWildzMarketCommunity(base,{currentIdentity,readCollection:()=>readWildzMarketCollection(),readConversations:readTradeConversations,subscribeConversations:subscribeTradeConversations,publish:sendMarketOffer,
+      const community:WildzMarketServiceV128=withWildzMarketCommunity(base,{currentIdentity,readCollection:()=>readWildzMarketCollection(),readOwnCards:()=>{currentIdentity();return walletSourceLive.current.state.inventory;},readConversations:readTradeConversations,subscribeConversations:subscribeTradeConversations,publish:sendMarketOffer,
         value:createWildzMarketValueBrowserPortV129({current:()=>{currentIdentity();},
           card:async assetId=>{
             const selected=community.snapshot().collection?.find(card=>card.assetId===assetId);

@@ -5,6 +5,7 @@ import {verifyAnyWildsCard,type PortableCardAsset} from '../play/portable-card';
 import {deriveKaiKlokMoment,deriveKaiKlokMomentFromUPulse} from '../play/kai-klok-moment';
 import type {WildzMarketValueRead,WildzMarketValuePoint,WildzMarketValueProjection} from './wildz-market-value';
 import {calculateReceizLocalDisplayRateV129} from './receiz-local-display-rate-v129';
+import {renderWildsCardSvg} from '../play/card-svg';
 
 export type WildzMarketLocalValueEvaluationV129=Readonly<{
  valuationKaiUPulse:string;
@@ -13,6 +14,18 @@ export type WildzMarketLocalValueEvaluationV129=Readonly<{
  usdPerPhiMicrocents?:string|null;
 }>;
 const MAX_SAMPLES=32;
+const artwork=new Map<string,string>();
+
+/** One complete verified object supplies both its deterministic artwork and
+ * local display math in the existing worker. Display-rate failures cannot
+ * erase a valid object's artwork. Retain only eight small rendered strings. */
+export async function calculateWildzMarketLocalCardV129(card:PortableCardAsset,evaluation:WildzMarketLocalValueEvaluationV129):Promise<WildzMarketValueRead>{
+ if(!verifyAnyWildsCard(card).ok)return {status:'unavailable',message:'The complete card proof could not be verified.'};
+ const key=`${card.id}:${card.proof.digest}`;
+ let svg=artwork.get(key);
+ if(!svg){svg=renderWildsCardSvg(card);artwork.set(key,svg);while(artwork.size>8)artwork.delete(artwork.keys().next().value!);}
+ return {...await calculateWildzMarketLocalValueV129(card,evaluation),artworkSvg:svg,artworkAssetId:card.id,artworkProofDigest:card.proof.digest};
+}
 const LOCAL_MODEL_ALGORITHM='wildz.local-card-value.sdk129-rarity.v1';
 // This is a Wildz display policy over a verified game-card field. It is not
 // part of the Receiz Sigil policy and never changes its numerical inputs.

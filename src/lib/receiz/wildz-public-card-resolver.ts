@@ -6,12 +6,15 @@ import { createReceizCommerceAdapter } from "./adapter";
 import { resolveSdkPublicWildzCard, resolveSdkPublicWildzCardRecord, resolveSdkPublicWildzCardArtwork } from "./wildz-market-public-card";
 import { createReceizWildzPublicRepository } from "./wildz-public-repository";
 
-/** Artwork-only output. Unscoped recovery retains the existing public repository
- * fallback; a collector scope can only read its exact published artwork. */
+/** Artwork-only output. Recover verified immutable artwork after the scoped
+ * lookup; canonical artwork does not establish a collector's ownership. */
 export async function resolvePublicWildsCardArtwork(rawAssetId: string, requestOrigin: string, profileHandle?: string) {
   const {assetId} = parsePublicCardParam(rawAssetId);
-  if (!profileHandle) return (await resolvePublicWildsCardRecord(assetId, requestOrigin))?.asset ?? null;
-  return resolveSdkPublicWildzCardArtwork(assetId, {adapter: createReceizCommerceAdapter(), requestOrigin, profileHandle});
+  if (profileHandle) {
+    const scoped = await resolveSdkPublicWildzCardArtwork(assetId, {adapter: createReceizCommerceAdapter(), requestOrigin, profileHandle});
+    if (scoped) return scoped;
+  }
+  return (await resolvePublicWildsCardRecord(assetId, requestOrigin))?.asset ?? null;
 }
 
 export async function resolvePublicWildsCardRecord(

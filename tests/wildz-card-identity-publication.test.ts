@@ -84,3 +84,17 @@ test("a collected card publishes in the verified seal's collection without rewri
   }) as typeof fetch });
   assert.equal(result.asset.proof.digest, asset.proof.digest);
 });
+
+test('owner-gallery repair publishes the exact held object at its holder URL rather than a prior canonical registration',async()=>{
+ const identity=await createReceizIdIdentity({username:'gallery_keeper',displayName:'Gallery Keeper'});
+ const session:WildzIdentitySession={schema:'receiz.wildz.identity_session.v1',keyId:identity.keyFile.keyId,actorId:'gallery_keeper',username:'gallery_keeper',displayName:'Gallery Keeper',portableStateStatus:'verified',localAuthority:'verified',remoteStatus:'connected'};
+ const repository:Pick<WildzIdentityRepository,'active'|'withKeyFile'>={active:async()=>session,withKeyFile:async(_id,operation)=>operation(identity.keyFile)};
+ const asset=sealCollectedCard({formId:'mintcub-1',ownerReceizId:session.actorId,encounterId:'gallery-holder-object',capturedAt:'2026-08-23T22:45:39.818Z'});
+ const fetcher=(async(_url,init)=>{const publication=parseSignedWildzCardPublication(JSON.parse(String(init?.body)).signedPublication,asset);
+  assert.equal(publication.record.sourceUrl,`https://wildz.quest/u/gallery_keeper/cards/${encodeURIComponent(asset.id)}`);
+  assert.equal(publication.signed.feed.records[0]?.namespace,`wildz-vault-card:gallery_keeper.receiz.id:${asset.id}`);
+  assert.equal(publication.record.asset.proof.digest,asset.proof.digest);
+  return Response.json({ok:true,record:publication.record});}) as typeof fetch;
+ await publishWildzCardWithIdentityProof(asset,Object.assign({repository,fetcher},{profileHandle:'gallery_keeper.receiz.id'}));
+ await assert.rejects(publishWildzCardWithIdentityProof(asset,Object.assign({repository,fetcher},{profileHandle:'different_keeper'})),/owner_mismatch/);
+});

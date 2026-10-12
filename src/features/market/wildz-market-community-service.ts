@@ -2,7 +2,8 @@ import type {WildzMarketServiceV128,WildzMarketSnapshotV128,WildzMarketResultV12
 import type {WildzMarketOwnedCard,WildzMarketTransfer} from '../../lib/receiz/wildz-market-collection';
 import {admitWildzMarketOfferMessage,projectWildzMarketOffers,sameWildzMarketOfferOwner,type WildzMarketOfferMessage} from './wildz-market-offers';
 import {mergeWildsConversationHistory,type WildsConversation} from '../play/wilds-messenger-core';
-import {canonicalPortableCardJson} from '../play/portable-card';
+import {canonicalPortableCardJson,verifyAnyWildsCard,type PortableCardAsset} from '../play/portable-card';
+import {sameWildzPlayerCoordinate} from '../../lib/receiz/wildz-player-coordinate';
 import type {WildzMarketValuePort,WildzMarketValueRead} from './wildz-market-value';
 import {wildzMarketValueChange} from './wildz-market-value';
 import {createWildzMarketOfferAttemptStore,type WildzMarketOfferAttemptStore} from './wildz-market-offer-attempts';
@@ -13,6 +14,7 @@ class InvalidOffer extends Error {}
 export function withWildzMarketCommunity(base:WildzMarketServiceV128,input:Readonly<{
  currentIdentity():WildzMarketServiceV128['binding'];
  readCollection():Promise<Readonly<{cards:readonly WildzMarketOwnedCard[];transfers:readonly WildzMarketTransfer[]}>>;
+ readOwnCards?():readonly PortableCardAsset[];
  readConversations():Promise<readonly WildsConversation[]>;
  subscribeConversations?(listener:(conversations:readonly WildsConversation[])=>void):()=>void;
  publish(message:WildzMarketOfferMessage,peerHandle:string):Promise<void>;
@@ -30,7 +32,15 @@ export function withWildzMarketCommunity(base:WildzMarketServiceV128,input:Reado
  const emit=()=>{current();const next=project();for(const listener of listeners)listener(next);return next;};
  const refreshCommunity=async()=>{
   const results=await Promise.allSettled([input.readCollection(),input.readConversations()]);current();
-  if(results[0].status==='fulfilled'){const prior=new Map(cards.map(card=>[`${card.assetId}:${card.proofDigest}:${card.ownerHandle}`,card.value]));cards=results[0].value.cards.map(card=>{const value=prior.get(`${card.assetId}:${card.proofDigest}:${card.ownerHandle}`);return value?{...card,value}:card;});transfers=results[0].value.transfers;communityLoaded=true;collectionMessage='';}
+  if(results[0].status==='fulfilled'){
+   const prior=new Map(cards.map(card=>[`${card.assetId}:${card.proofDigest}:${card.ownerHandle}`,card.value]));
+   const held=new Map((input.readOwnCards?.()??[]).map(asset=>[`${asset.id}:${asset.proof.digest}`,asset]));
+   cards=results[0].value.cards.map(card=>{
+    const value=prior.get(`${card.assetId}:${card.proofDigest}:${card.ownerHandle}`),asset=sameWildzPlayerCoordinate(card.ownerHandle,base.binding.ownerHandle)?held.get(`${card.assetId}:${card.proofDigest}`):undefined;
+    return {...card,...(asset&&verifyAnyWildsCard(asset).ok?{asset}:{}),...(value?{value}:{})};
+   });
+   transfers=results[0].value.transfers;communityLoaded=true;collectionMessage='';
+  }
   else collectionMessage=cards.length?'Showing saved collection. Refresh to check current owners.':'The owned creature collection could not refresh. Listings remain available.';
   if(results[1].status==='fulfilled')conversations=mergeWildsConversationHistory(conversations,results[1].value);
   return results[0].status==='fulfilled'&&results[1].status==='fulfilled';

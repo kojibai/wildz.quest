@@ -22,7 +22,8 @@ export type WildzMarketValueProjection=Readonly<{
  calculation:readonly Readonly<{id:string;label:string;formula:string;operands:Readonly<Record<string,string>>;result:string;unit:string;sourceReferences:readonly string[]}>[];
  replay?:Readonly<{filename:string;json:string}>;
 }>;
-export type WildzMarketValueRead=Readonly<{status:'ready';value:WildzMarketValueProjection}>|Readonly<{status:'unavailable';message:string}>;
+type WholeCardArtwork=Readonly<{artworkSvg?:string;artworkAssetId?:string;artworkProofDigest?:string}>;
+export type WildzMarketValueRead=(Readonly<{status:'ready';value:WildzMarketValueProjection}>|Readonly<{status:'unavailable';message:string}>)&WholeCardArtwork;
 export type WildzMarketValuePort=Readonly<{read(assetId:string):Promise<WildzMarketValueRead>;release?():void;dispose?():void}>;
 export function formatWildzMarketKai(upulse:string){
  if(!/^(?:0|[1-9][0-9]{0,39})$/.test(upulse))return '☤KAI —';

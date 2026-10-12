@@ -5,6 +5,7 @@ import {deriveKaiKlokMomentFromUPulse} from '../src/features/play/kai-klok-momen
 import {discoverLivingCreature} from '../src/features/play/living-taxonomy';
 import {sealCollectedCard,sealDiscoveredCard} from '../src/features/play/portable-card';
 import {calculateWildzMarketLocalValueV129 as calculate} from '../src/features/market/wildz-market-value-local-v129';
+import * as localCard from '../src/features/market/wildz-market-value-local-v129';
 import {computeIntrinsicUnsigned,SIGIL_VALUATION_ALGORITHM,SIGIL_VALUATION_POLICY_CHECKSUM} from '@receiz/sdk/valuation';
 import {digestReceizCanonicalV122,quoteReceizDisplayUsdV122} from '@receiz/sdk';
 
@@ -159,4 +160,14 @@ test('local model refuses altered card evidence, pre-origin evaluation and malfo
  assert.equal((await calculate(alteredRarity,evaluation)).status,'unavailable');
  assert.equal((await calculate(card,{valuationKaiUPulse:'13789277000569'})).status,'unavailable');
  assert.equal((await calculate(card,{...evaluation,usdPerPhiMicrocents:'0'})).status,'unavailable');
+});
+
+test('the complete verified object supplies deterministic artwork even if its display-rate calculation is unavailable',async context=>{
+ const complete=(localCard as Record<string,unknown>).calculateWildzMarketLocalCardV129 as ((asset:typeof card,at:typeof evaluation)=>Promise<Awaited<ReturnType<typeof calculate>>&{artworkSvg?:string}>)|undefined;
+ assert.equal(typeof complete,'function');
+ context.mock.method(globalThis,'fetch',async()=>{throw Error('Whole-object display must remain local.');});
+ const before=JSON.stringify(card),result=await complete!(card,{...evaluation,usdPerPhiMicrocents:'0'});
+ assert.equal(result.status,'unavailable');assert.ok(result.artworkSvg?.includes(card.manifest.name));assert.ok(result.artworkSvg?.includes(card.proof.digest));assert.equal(JSON.stringify(card),before);
+ const altered=structuredClone(card);altered.manifest.rarity='eternal';
+ assert.equal((await complete!(altered,evaluation)).artworkSvg,undefined);
 });

@@ -19,6 +19,7 @@ export async function publishWildzCardWithIdentityProof(
     signal?: AbortSignal;
     occurredAt?: string;
     ownershipClaims?: readonly unknown[];
+    profileHandle?: string;
   } = {}
 ) {
   options.signal?.throwIfAborted();
@@ -29,6 +30,7 @@ export async function publishWildzCardWithIdentityProof(
   const session = await repository.active();
   let owner = parseWildzPlayerCoordinate(asset.manifest.ownerReceizId);
   if (!session || session.localAuthority !== "verified") throw new Error("wildz_card_identity_seal_required");
+  if(options.profileHandle&&!sameWildzPlayerCoordinate(options.profileHandle,session.actorId))throw Error("wildz_public_card_owner_mismatch");
   const suppliedClaims = options.ownershipClaims ?? (options.repository ? [] : await readWildzOwnerPublishedOwnershipClaims(defaultContinuityDatabase, session, [asset], options.custody));
   const ownershipClaims = await admitWildzOwnerPublishedOwnershipClaims(suppliedClaims, session, [asset], options.custody);
   const collected = !owner || !sameWildzPlayerCoordinate(owner.actorId, session.actorId);
@@ -39,7 +41,10 @@ export async function publishWildzCardWithIdentityProof(
   if (!owner) throw new Error("wildz_public_card_owner_mismatch");
   const publisher = owner;
   const record = createPublicWildsCardRecord(asset, WILDZ_PRODUCT.origin, options.occurredAt ?? new Date().toISOString());
-  if (collected) record.sourceUrl = `${WILDZ_PRODUCT.origin}/u/${publisher.actorId}/cards/${encodeURIComponent(asset.id)}`;
+  // An owner's gallery publishes at that owner's coordinate even for legacy
+  // imports whose carried manifest was rebound. It must not try to replace a
+  // canonical URL registered by an earlier holder of this same card id.
+  if (collected||options.profileHandle) record.sourceUrl = `${WILDZ_PRODUCT.origin}/u/${publisher.actorId}/cards/${encodeURIComponent(asset.id)}`;
   record.publisherKeyId = session.keyId;
   if (ownershipClaims.length) record.ownershipClaims = ownershipClaims;
   const request = options.fetcher ?? globalThis.fetch;
