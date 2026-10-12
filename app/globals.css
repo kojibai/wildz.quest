@@ -1215,6 +1215,8 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wildz-market-sheet .wildz-trade-confirm { flex-wrap: wrap; font-size: 13px; line-height: 1.5; }
 @media (max-width: 540px) { .wildz-listing-composer { grid-template-columns: 1fr 84px; }.wildz-listing-composer button { grid-column: 1 / -1; }.wildz-trade-confirm { flex-wrap: wrap; }.wildz-trade-confirm button { width: 100%; } }
 .wildz-pwa-notice { position: fixed; z-index: 2000; left: 50%; bottom: max(14px,env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid rgba(255,255,255,.13); border-radius: 14px; color: #f8f5e9; background: rgba(8,20,13,.92); box-shadow: 0 14px 40px rgba(0,0,0,.4); font-size: 12px; transform: translateX(-50%); backdrop-filter: blur(18px); }.wildz-pwa-notice button { min-height: 34px; border: 0; border-radius: 10px; background: #b9e49e; font-weight: 900; }
+/* Owned panels keep their controls clear; update actions return with the world. */
+body:has(.wildz-shell-overlay:not([hidden]), .wilds-command-sheet-vault, section[aria-label="Create with creatures"]) .wildz-pwa-notice { visibility: hidden; pointer-events: none; }
 
 @media (min-width: 820px) {
   .wildz-shell-overlay {

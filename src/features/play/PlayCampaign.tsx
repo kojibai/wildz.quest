@@ -37,6 +37,7 @@ import { canSleepInWildsBed, selectWildsBedAtPlayer, resolveWildsConstructionFun
 
 import dynamic from "next/dynamic";
 import {createPrewarmedPanel} from './prewarmed-panel';
+import {readWildzMarketHeldDisplayRate} from '../market/wildz-market-held-display-rate';
 import {creationFloorSupportAt,type CreationNavigation} from './creation/navigation';
 import {reconcileWildsBedRest} from './wilds-bed-rest-runtime';
 import { startWildsVisibleDisplayClock } from "./wilds-visible-display-clock";
@@ -676,8 +677,9 @@ export function PlayCampaign({
     readAuthorization: walletReadAuthorization
   });
   const { cancelForExclusiveOwner: cancelWalletForExclusiveOwner, markObservationPending: markWalletObservationPending } = walletController;
-  const marketHeldDisplayRate = useRef(walletController.summary?.displayUsdPerPhiMicrocents ?? null);
-  marketHeldDisplayRate.current = walletController.summary?.displayUsdPerPhiMicrocents ?? null;
+  const heldMarketRate=walletController.status==='revoked'?null:readWildzMarketHeldDisplayRate({keyId:walletReadIdentityKey??'',actorId:walletIdentityKey,incarnation:walletObservationEpoch??'legacy'},admittedWalletPresentation);
+  const marketHeldDisplayRate = useRef(walletController.summary?.displayUsdPerPhiMicrocents ?? heldMarketRate);
+  marketHeldDisplayRate.current = walletController.summary?.displayUsdPerPhiMicrocents ?? heldMarketRate;
   const cameraHeadingRef = useRef(0);
   const playerFacingRef = useRef(0);
   const updateCameraHeading = useCallback((heading: number) => {

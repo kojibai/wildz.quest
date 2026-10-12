@@ -15,6 +15,7 @@ import type { WildzMarketServiceV128 } from "@/features/market/wildz-market-serv
 import {createWildzMarketPublicBrowseService} from "@/features/market/wildz-market-public-browse";
 import {getWildzMarketWarmup} from "@/features/market/wildz-market-warmup";
 import {revealPreparedWildzMarket} from "@/features/market/wildz-market-entry";
+import {readWildzMarketHeldDisplayRate} from "@/features/market/wildz-market-held-display-rate";
 import { PlayCampaign } from "@/features/play/PlayCampaign";
 import { generateIdentityBoundWildzCharacter, type WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { applyWildsInput, createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
@@ -164,7 +165,6 @@ function clearWildzAuthQuery() {
 export function WildzApp({ initialOverlay = null, marketPresentation = "popover" }: { initialOverlay?: WildzOverlay; marketPresentation?: "popover" | "page" }) {
   const router = useRouter();
   const standaloneMarket = marketPresentation === "page";
-  const [publicMarketService] = useState(() => standaloneMarket ? createWildzMarketPublicBrowseService() : null);
   const [overlay, setOverlay] = useState<WildzOverlay>(initialOverlay);
   const [retainedOwnerProfile, setRetainedOwnerProfile] = useState(false);
   const shellOverlayRef = useRef<HTMLElement | null>(null);
@@ -181,6 +181,10 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
   const [pendingMarketEntry,setPendingMarketEntry]=useState(false);
   const [marketCardReturn, setMarketCardReturn] = useState(false);
   const continuityRef = useRef<WildzContinuitySnapshot | null>(null);
+  const [publicMarketService] = useState(() => standaloneMarket ? createWildzMarketPublicBrowseService({usdPerPhiMicrocents:()=>{
+    const current=continuityRef.current;
+    return current?readWildzMarketHeldDisplayRate({keyId:current.session.keyId,actorId:current.session.actorId,incarnation:current.session.walletObservationEpoch??'legacy'},current.walletPresentation):null;
+  }}) : null);
   const playerStateSyncTimerRef = useRef<number | null>(null);
   const playerStateSyncInFlightRef = useRef(false);
   const playerStateSyncQueuedRef = useRef<WildzContinuitySnapshot | null>(null);

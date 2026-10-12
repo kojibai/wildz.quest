@@ -15,12 +15,15 @@ export function createWildzMarketPublicBrowseService(input:Readonly<{
  readNative?():Promise<WildzMarketSourceSnapshotV128>;
  readAdvertisements?():Promise<WildzMarketSourceSnapshotV128>;
  readCollection?():Promise<Readonly<{cards:readonly WildzMarketOwnedCard[];transfers:readonly WildzMarketTransfer[]}>>;
+ /** Optional exact rate from the active Explorer's already admitted Wallet
+  * observation. Browsing never opens a Wallet or requests a new quote. */
+ usdPerPhiMicrocents?():string|null;
  value?:WildzMarketValuePort;
 }>={}):WildzMarketServiceV128{
  const listeners=new Set<(snapshot:WildzMarketSnapshotV128)=>void>();
  let snapshot:WildzMarketSnapshotV128={status:'loading',message:'',listings:[],purchases:[],sellables:[],collection:[]};
  let pending:Promise<WildzMarketSnapshotV128>|null=null;
- const value=input.value??createWildzMarketValueBrowserPortV129({card:id=>{
+ const value=input.value??createWildzMarketValueBrowserPortV129({usdPerPhiMicrocents:input.usdPerPhiMicrocents,card:id=>{
   const card=snapshot.collection?.find(card=>card.assetId===id);return card?readWildzMarketCard(card):null;
  }});
  const emit=()=>{for(const listener of listeners)listener(snapshot);return snapshot;};
