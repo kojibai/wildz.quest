@@ -1,5 +1,5 @@
 import { verifyAnyWildsCard, type PortableCardAsset } from "../../features/play/portable-card";
-import { parsePublicWildsCardRecord } from "../../features/play/public-card-registry";
+import { parsePublicWildsCardRecord, type PublicWildsCardRecord } from "../../features/play/public-card-registry";
 import { WILDZ_PRODUCT } from "../wildz/product";
 import { restoreWildzPublicState } from "./wildz-public-state";
 import { parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
@@ -51,6 +51,37 @@ function publicCardSourceUrls(assetId: string, requestOrigin: string) {
   return origins.flatMap((origin) => paths.map((path) => `${origin}${path}`));
 }
 
+/** Artwork transport only. Minimal legacy records carry the verified card but
+ * no registration or ownership authority; scoped reads never use creator URLs. */
+export async function resolveSdkPublicWildzCardArtwork(
+  assetId: string,
+  options: { adapter: WildzPublicCardReadAdapter; requestOrigin: string; profileHandle?: string }
+): Promise<PortableCardAsset | null> {
+  if (!/^wilds:[a-f0-9]{24}$/.test(assetId)) return null;
+  if (!options.profileHandle) return resolveSdkPublicWildzCard(assetId, options);
+  const owner = parseWildzPlayerCoordinate(options.profileHandle);
+  if (!owner) return null;
+  const sourceUrl = `${WILDZ_PRODUCT.origin}/u/${owner.actorId}/cards/${encodeURIComponent(assetId)}`;
+  const parse = (value: unknown, depth = 0): PortableCardAsset | null => {
+    if (!isRecord(value) || depth > 8) return null;
+    const record = parsePublicWildsCardRecord(value);
+    if (record) return record.assetId === assetId && record.sourceUrl === sourceUrl ? record.asset : null;
+    if (value.schema === "receiz.wilds_public_card.v1") {
+      if (Object.keys(value).sort().join(",") !== "asset,assetId,schema" || value.assetId !== assetId || !isRecord(value.asset)) return null;
+      const asset = value.asset as PortableCardAsset;
+      try { return asset.id === assetId && verifyAnyWildsCard(asset).ok ? asset : null; }
+      catch { return null; }
+    }
+    for (const key of ["state", "data", "record", "appState", "result", "storeStateRecord", "appProjectionRecord", "appProjectionData"]) {
+      const asset = parse(value[key], depth + 1);
+      if (asset) return asset;
+    }
+    return null;
+  };
+  try { return parse(await options.adapter.readAppStateByUrl(sourceUrl)); }
+  catch { return null; }
+}
+
 export async function resolveSdkPublicWildzCard(
   assetId: string,
   options: { adapter: WildzPublicCardReadAdapter; requestOrigin: string; profileHandle?: string }
@@ -88,4 +119,21 @@ export async function resolveSdkPublicWildzCard(
     }
   }
   return null;
+}
+
+/** Preserve the collector's actual signed public record and its carried claim.
+ * Creator recovery remains available through the unscoped card route. */
+export async function resolveSdkPublicWildzCardRecord(assetId:string,options:{adapter:WildzPublicCardReadAdapter;requestOrigin:string;profileHandle?:string}):Promise<PublicWildsCardRecord|null>{
+ const owner=options.profileHandle ? parseWildzPlayerCoordinate(options.profileHandle) : null;
+ if(options.profileHandle&&!owner)return null;
+ const urls=owner ? [`${WILDZ_PRODUCT.origin}/u/${owner.actorId}/cards/${encodeURIComponent(assetId)}`,...publicCardSourceUrls(assetId,options.requestOrigin)] : publicCardSourceUrls(assetId,options.requestOrigin);
+ for(const url of urls){
+  try{
+   const record=parsePublicWildsCardRecord(await options.adapter.readAppStateByUrl(url));
+   if(record?.assetId!==assetId||record.sourceUrl!==url)continue;
+   if(owner&&new URL(url).pathname.startsWith('/cards/')&&parseWildzPlayerCoordinate(record.asset.manifest.ownerReceizId)?.actorId!==owner.actorId)continue;
+   return record;
+  }catch{/* Continue exact public recovery. */}
+ }
+ return null;
 }

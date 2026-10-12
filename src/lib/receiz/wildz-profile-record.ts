@@ -1,3 +1,4 @@
+import {parseWildzPublishedOwnershipClaims} from "./wildz-published-ownership-record";
 import { verifyAnyWildsCard, type PortableCardAsset } from "../../features/play/portable-card";
 import { canonicalWildzHandle, canonicalWildzProfilePath, sanitizePublicWildzProfile, type PublicWildzProfile } from "../../features/profile/public-profile";
 import { WILDZ_PRODUCT } from "../wildz/product";
@@ -12,6 +13,10 @@ export type PublicWildzProfileRecord = {
   /** Exact public card proofs carried by the player's signed collection projection.
    * This projection is not a native transfer or command authorization. */
   vaultCards?: readonly PortableCardAsset[];
+  ownershipClaims?: readonly unknown[];
+  ownershipHistory?: readonly unknown[];
+  publisherKeyId?: string;
+  vaultCardRoots?: Readonly<Record<string,string>>;
 };
 
 export function verifiedWildzProfileCards(profile: PublicWildzProfile, value: unknown): PortableCardAsset[] {
@@ -90,6 +95,21 @@ export function parsePublicWildzProfileRecord(value: unknown): PublicWildzProfil
           String(candidate.sourceUrl ?? ""),
           String(candidate.publishedAt ?? "")
         );
+        if (candidate.publisherKeyId !== undefined) {
+          if (typeof candidate.publisherKeyId !== "string" || !/^[a-f0-9]{64}$/.test(candidate.publisherKeyId)) throw Error("wildz_public_ownership_claim_invalid");
+          record.publisherKeyId = candidate.publisherKeyId;
+        }
+        if (candidate.vaultCardRoots !== undefined) {
+          if (!isRecord(candidate.vaultCardRoots) || Object.keys(candidate.vaultCardRoots).some(id => !record.profile.vault.some(card => card.id === id)
+            || typeof candidate.vaultCardRoots !== "object" || !/^sha256:[a-f0-9]{64}$/.test(String((candidate.vaultCardRoots as Record<string,unknown>)[id])))) throw Error("wildz_public_ownership_claim_invalid");
+          record.vaultCardRoots = candidate.vaultCardRoots as Record<string,string>;
+        }
+        if (candidate.ownershipHistory !== undefined) {
+          if (!Array.isArray(candidate.ownershipHistory)) throw Error("wildz_public_ownership_claim_invalid");
+          const ids = candidate.ownershipHistory.flatMap(row => isRecord(row) && isRecord(row.claim) && typeof row.claim.assetId === "string" ? [row.claim.assetId] : []);
+          record.ownershipHistory = parseWildzPublishedOwnershipClaims(candidate.ownershipHistory, record.handle, ids);
+        }
+        if (candidate.ownershipClaims !== undefined) record.ownershipClaims = parseWildzPublishedOwnershipClaims(candidate.ownershipClaims, record.handle, record.profile.vault.map(card => card.id));
         if (candidate.vaultCards !== undefined) record.vaultCards = verifiedWildzProfileCards(record.profile, candidate.vaultCards);
         return record.handle === handle ? record : null;
       } catch {

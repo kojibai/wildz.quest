@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import {
   sanitizeWildsDirectMessage,
   mergeWildsGroupRooms,
+  mergeWildsConversationHistory,
   wildsGroupRoomId,
   wildsConversationId,
   wildsConversationSummary,
@@ -30,6 +31,12 @@ const kai = { id: "receiz:kai", handle: "kai" };
 const nova = { id: "receiz:nova", handle: "nova" };
 
 describe("Wilds Receiz-ID messenger", () => {
+  it("retains a message deletion when an older inbox window arrives later",()=>{
+    const original=appendWildsDirectMessage({sender:kai,recipient:nova,body:'Original offer',clientMessageId:'source-tombstone-001',now:'2026-10-12T09:00:00.000Z'}).conversation;
+    const deleted={...original,revision:original.revision+1,messages:original.messages.map(message=>({...message,deletedAt:'2026-10-12T09:01:00.000Z'}))};
+    const merged=mergeWildsConversationHistory([deleted],[original]);
+    assert.equal(merged[0]?.messages.find(message=>message.clientMessageId==='source-tombstone-001')?.deletedAt,'2026-10-12T09:01:00.000Z');
+  });
   it("uses a stable participant-order independent conversation coordinate", () => {
     assert.equal(wildsConversationId(kai.id, nova.id), wildsConversationId(nova.id, kai.id));
     assert.match(wildsConversationId(kai.id, nova.id), /^conversation:[a-f0-9]{32}$/);

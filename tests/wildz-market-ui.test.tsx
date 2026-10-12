@@ -7,7 +7,7 @@ import {createWildsWalletTradeAgreement,createWildsWalletTradeDraft} from '../sr
 import {retainWildzMarketListingUiAttempt} from '../src/features/market/wildz-market-presentation';
 import {initialPlayState} from '../src/features/play/game-state';
 import {MarketCardArtwork} from '../src/features/market/WildzMarketDiscovery';
-import {WildzMarketOffers} from '../src/features/market/WildzMarketCommunity';
+import {WildzMarketOffers,WildzMarketOwnedDetail} from '../src/features/market/WildzMarketCommunity';
 import type {WildzMarketOfferView} from '../src/features/market/wildz-market-offers';
 
 const buyer='buyer.receiz.id',seller='seller.receiz.id',asset={kind:'creature' as const,assetId:'creature:ember'};
@@ -33,6 +33,20 @@ test('standalone identity upload is compact and appears only on Sell and Activit
  const browse=renderToStaticMarkup(<WildzMarketSheet service={f.service} connected identityControl={identityControl}/>);
  const popover=renderToStaticMarkup(<WildzMarketSheet service={f.service} connected initialTab="sell"/>);
  assert.doesNotMatch(browse,/Open Identity Seal/);assert.doesNotMatch(popover,/Open Identity Seal/);assert.equal(f.calls(),0);
+});
+
+test('a message’s offer coordinate opens owner Activity with its acceptance action on first paint',()=>{
+ const incoming:WildzMarketOfferView={offer:{schema:'wildz.market-offer.v1',offerId:'market:offer:message-link-001',assetId:'wilds:'+ 'a'.repeat(24),title:'Ember Cub',proofDigest:'sha256:'+ 'b'.repeat(64),buyerHandle:buyer,ownerHandle:seller,claimKaiUPulse:null,claimHead:null,priceUsdCents:'1234'},status:'pending',createdAt:'2026-10-12T09:00:00Z'};
+ const f=fixture({offers:[incoming]},seller);
+ const html=renderToStaticMarkup(<WildzMarketSheet service={f.service} connected initialOfferId={incoming.offer.offerId}/>);
+ assert.match(html,/>Accept offer<\/button>/);assert.match(html,/data-market-offer-id="market:offer:message-link-001"/);
+ assert.match(html,/aria-pressed="true">Offers<\/button>/);assert.equal(f.calls(),0);
+});
+
+test('an unresolved historical owner stays viewable without directing an offer to an empty identity',()=>{
+ const asset=initialPlayState.inventory[0]!,card={assetId:asset.id,title:asset.manifest.name,proofDigest:asset.proof.digest,ownerHandle:'',artworkOwnerHandle:seller,claimKaiUPulse:null,claimHead:null,asset},f=fixture();
+ const html=renderToStaticMarkup(<WildzMarketOwnedDetail card={card} service={f.service} busy={false} onBack={()=>{}} onChart={()=>{}} onOffer={async()=>{throw Error('No offer is authorized.');}}/>);
+ assert.match(html,/Owner claim unresolved/);assert.doesNotMatch(html,/href="\/u\/"|>Send offer<\/button>/);assert.equal(f.calls(),0);
 });
 
 test('Market omits creatures without their real card and paints cached resources without SDK work during render',()=>{

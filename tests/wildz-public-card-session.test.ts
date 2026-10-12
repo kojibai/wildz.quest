@@ -15,6 +15,7 @@ import * as publicCardRegistry from "../src/features/play/public-card-registry";
 test("a verified card published through its owner profile needs no duplicate publication", async () => {
   const asset = initialPlayState.inventory[0]!;
   const record = createPublicWildsCardRecord(asset, "https://wildz.quest", "2026-10-07T06:00:00.000Z");
+  record.sourceUrl = `https://wildz.quest/u/owner/cards/${encodeURIComponent(asset.id)}`;
   const calls: Array<{ url: string; method: string; credentials: RequestCredentials | undefined }> = [];
   const fetcher = (async (url: string, init?: RequestInit) => {
     calls.push({ url, method: init?.method ?? "GET", credentials: init?.credentials });
@@ -303,4 +304,24 @@ test("a missing anonymous revision invalidates a previous local publication ackn
   await publicCardRegistry.requireGloballyAvailablePublicWildsCard(asset, fetcher);
   assert.deepEqual(methods, ["POST", "GET", "POST", "GET"]);
   assert.equal(publications, 2);
+});
+
+test('a creator fallback cannot confirm a collector-scoped publication',async()=>{
+ const asset=initialPlayState.inventory[0]!,canonical=createPublicWildsCardRecord(asset,'https://wildz.quest','2026-10-07T06:00:00.000Z');
+ const scoped={...canonical,sourceUrl:`https://wildz.quest/u/new_keeper/cards/${encodeURIComponent(asset.id)}`};
+ let published=false,uploads=0;
+ const fetcher=(async()=>Response.json({ok:true,record:published?scoped:canonical})) as typeof fetch;
+ const result=await publicCardRegistry.requireGloballyAvailablePublicWildsCard(asset,fetcher,{profileHandle:'new_keeper',publishWithIdentityProof:async()=>{uploads++;published=true;return scoped;}});
+ assert.equal(uploads,1);assert.equal(result.sourceUrl,scoped.sourceUrl);
+});
+
+test('publication acknowledgments are isolated by collector identity',async()=>{
+ const asset=initialPlayState.inventory[0]!,canonical=createPublicWildsCardRecord(asset,'https://wildz.quest','2026-10-07T06:00:00.000Z');
+ const fetcher=(async()=>Response.json({ok:true,record:canonical})) as typeof fetch;
+ let uploads=0;
+ for(const owner of ['first_keeper','next_keeper']){
+  const result=await registerPublicWildsCard(asset,fetcher,{profileHandle:owner,publishWithIdentityProof:async()=>{uploads++;return {...canonical,sourceUrl:`https://wildz.quest/u/${owner}/cards/${encodeURIComponent(asset.id)}`};}});
+  assert.match(result.sourceUrl,new RegExp(`/u/${owner}/`));
+ }
+ assert.equal(uploads,2);
 });

@@ -28,7 +28,7 @@ test("shared profiles recover and publish through Receiz instead of a local plac
   const adapter = readFileSync("src/lib/receiz/wildz-profile-adapter.ts", "utf8");
   assert.match(shell, /fetchPublicWildzProfile\(overlay\.username\)/);
   assert.match(shell, /publishCurrentWildzProfile\(profilePublicationRequest\.profile, profilePublicationRequest\.assets, globalThis\.fetch/);
-  assert.match(shell, /publish: \(signal, progress\)/);
+  assert.match(shell, /publish: async \(signal, progress\)/);
   assert.match(shell, /publication\.stop\(\)/);
   assert.doesNotMatch(shell, /const surface = overlay\?\.kind === "profile" \? "profile" : "gameplay"/);
   assert.match(shell, /locallyClaimedWildzAssetIds/);

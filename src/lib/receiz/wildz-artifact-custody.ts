@@ -75,7 +75,7 @@ function witnessedIso(bundle: Record<string, unknown>) {
   }
 }
 
-function ownershipWitness(opened: ReceizOpenedArtifact): WildzOwnershipWitness | null {
+export function wildzOwnershipWitnessFromOpened(opened: ReceizOpenedArtifact): WildzOwnershipWitness | null {
   const continuity = asRecord(opened.sealedArtifact.verification.assetContinuity);
   const bundle = asRecord(opened.sealedArtifact.verification.bundle);
   const nativeRecordSeal = asRecord(bundle?.nativeRecordSeal);
@@ -203,7 +203,7 @@ export async function openWildzArtifactEvidence(
     verifyPath: continuity.verifyPath,
     recordId: continuity.carrier === "native-record-seal" ? continuity.recordId : null,
     compatibility: opened.legacyCompatibility,
-    ownershipWitness: ownershipWitness(opened)
+    ownershipWitness: wildzOwnershipWitnessFromOpened(opened)
   };
   return { admitted, sealedArtifact: opened.sealedArtifact };
 }

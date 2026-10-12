@@ -1,5 +1,6 @@
 import { canOperateWildzCrewCard, type WildzCrewCustody } from "./wildz-artifact-codec";
-import { defaultIdentityRepository } from "./wildz-active-identity";
+import { readWildzOwnerPublishedOwnershipClaims, admitWildzOwnerPublishedOwnershipClaims } from "./wildz-published-ownership";
+import { defaultContinuityDatabase, defaultIdentityRepository } from "./wildz-active-identity";
 import { prepareWildzCardPublication } from "./wildz-card-signing-client";
 import { createPublicWildsCardRecord, parsePublicWildsCardRecord } from "../../features/play/public-card-registry";
 import type { PortableCardAsset } from "../../features/play/portable-card";
@@ -17,6 +18,7 @@ export async function publishWildzCardWithIdentityProof(
     fetcher?: typeof fetch;
     signal?: AbortSignal;
     occurredAt?: string;
+    ownershipClaims?: readonly unknown[];
   } = {}
 ) {
   options.signal?.throwIfAborted();
@@ -27,15 +29,19 @@ export async function publishWildzCardWithIdentityProof(
   const session = await repository.active();
   let owner = parseWildzPlayerCoordinate(asset.manifest.ownerReceizId);
   if (!session || session.localAuthority !== "verified") throw new Error("wildz_card_identity_seal_required");
+  const suppliedClaims = options.ownershipClaims ?? (options.repository ? [] : await readWildzOwnerPublishedOwnershipClaims(defaultContinuityDatabase, session, [asset], options.custody));
+  const ownershipClaims = await admitWildzOwnerPublishedOwnershipClaims(suppliedClaims, session, [asset], options.custody);
   const collected = !owner || !sameWildzPlayerCoordinate(owner.actorId, session.actorId);
   if (collected) {
-    if (!canOperateWildzCrewCard(asset, session.actorId, options.custody)) throw new Error("wildz_public_card_owner_mismatch");
+    if (!ownershipClaims.length && !canOperateWildzCrewCard(asset, session.actorId, options.custody)) throw new Error("wildz_public_card_owner_mismatch");
     owner = parseWildzPlayerCoordinate(session.actorId);
   }
   if (!owner) throw new Error("wildz_public_card_owner_mismatch");
   const publisher = owner;
   const record = createPublicWildsCardRecord(asset, WILDZ_PRODUCT.origin, options.occurredAt ?? new Date().toISOString());
   if (collected) record.sourceUrl = `${WILDZ_PRODUCT.origin}/u/${publisher.actorId}/cards/${encodeURIComponent(asset.id)}`;
+  record.publisherKeyId = session.keyId;
+  if (ownershipClaims.length) record.ownershipClaims = ownershipClaims;
   const request = options.fetcher ?? globalThis.fetch;
   // A connected session has already aligned this exact key with Receiz. Older seal
   // metadata may predate that canonical handle; the registry still verifies its signature.

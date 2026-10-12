@@ -148,7 +148,7 @@ export async function publishCurrentWildzProfile(
   profile: PublicWildzProfile,
   assetsOrFetcher: readonly PortableCardAsset[] | typeof fetch = [],
   suppliedFetcher: typeof fetch = globalThis.fetch,
-  options: { confirmExisting?: boolean; confirmMarketCollection?: boolean; signal?: AbortSignal; onProgress?: () => void; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string>; publishSourceProfile?: (profile: PublicWildzProfile, assets: readonly PortableCardAsset[], signal?: AbortSignal) => Promise<PublicWildzProfile>; publishWithIdentityProof?: (profile: PublicWildzProfile, signal?: AbortSignal) => Promise<PublicWildzProfile> } = {}
+  options: { ownershipClaims?: readonly unknown[]; ownershipHistory?: readonly unknown[]; confirmExisting?: boolean; confirmMarketCollection?: boolean; signal?: AbortSignal; onProgress?: () => void; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string>; publishSourceProfile?: (profile: PublicWildzProfile, assets: readonly PortableCardAsset[], signal?: AbortSignal) => Promise<PublicWildzProfile>; publishWithIdentityProof?: (profile: PublicWildzProfile, signal?: AbortSignal) => Promise<PublicWildzProfile> } = {}
 ) {
   const assets = typeof assetsOrFetcher === "function" ? [] : assetsOrFetcher;
   const fetcher = typeof assetsOrFetcher === "function" ? assetsOrFetcher : suppliedFetcher;
@@ -160,17 +160,22 @@ export async function publishCurrentWildzProfile(
       throw new Error("wildz_public_profile_card_unverified");
     }
   }
+  const needsCollectionConfirmation = options.confirmMarketCollection || options.ownershipClaims !== undefined || options.ownershipHistory !== undefined;
+  const confirmCollection = async (existing: PublicWildzProfile) => {
+    if (!needsCollectionConfirmation) return true;
+    const directory = await fetcher(`/api/wilds/market/collection?owner=${encodeURIComponent(profile.username)}`, {credentials: "omit", cache: "no-store", signal: options.signal})
+      .then(response => response.ok ? response.json() : null).catch(() => null);
+    options.signal?.throwIfAborted();
+    return directory?.ok === true && canonicalPortableCardJson(directory.profile) === canonicalPortableCardJson(existing)
+      && canonicalPortableCardJson(directory.ownershipClaims ?? []) === canonicalPortableCardJson(options.ownershipClaims ?? [])
+      && canonicalPortableCardJson(directory.ownershipHistory ?? []) === canonicalPortableCardJson(options.ownershipHistory ?? []);
+  };
   // Confirm this exact public revision before waiting on unrelated standalone-card
   // uploads. The independent card publisher continues servicing the full Vault.
   if (options.confirmExisting) {
     const existing = await fetchPublicWildzProfile(profile.username, fetcher, { signal: options.signal }).catch(() => null);
     options.signal?.throwIfAborted();
-    let collectionConfirmed = !options.confirmMarketCollection;
-    if (existing && options.confirmMarketCollection) {
-      const directory = await fetcher(`/api/wilds/market/collection?owner=${encodeURIComponent(profile.username)}`, {credentials: 'omit', cache: 'no-store', signal: options.signal}).then(response => response.ok ? response.json() : null).catch(() => null);
-      options.signal?.throwIfAborted();
-      collectionConfirmed = directory?.ok === true && canonicalPortableCardJson(directory.profile) === canonicalPortableCardJson(existing);
-    }
+    const collectionConfirmed = existing ? await confirmCollection(existing) : false;
     if (existing && collectionConfirmed && canonicalPortableCardJson(existing) === canonicalPortableCardJson(sanitizePublicWildzProfile(profile))) {
       pendingSourceProfiles.get(fetcher)?.delete(profile.username);
       return existing;
@@ -182,11 +187,12 @@ export async function publishCurrentWildzProfile(
     const gallery = profile.vault.map(entry => assetsById.get(entry.id)!);
     let pending = pendingSourceProfiles.get(fetcher);
     if (!pending) { pending = new Map(); pendingSourceProfiles.set(fetcher, pending); }
-    const key = canonicalPortableCardJson(profile);
+    const profileKey = canonicalPortableCardJson(profile);
+    const key = `${profileKey}:${canonicalPortableCardJson(options.ownershipClaims ?? [])}:${canonicalPortableCardJson(options.ownershipHistory ?? [])}`;
     if (pending.get(profile.username) !== key) {
       const published = await options.publishSourceProfile(profile, gallery, options.signal);
       options.signal?.throwIfAborted();
-      if (canonicalPortableCardJson(published) !== key) throw new Error("wildz_public_profile_publication_unconfirmed");
+      if (canonicalPortableCardJson(published) !== profileKey) throw new Error("wildz_public_profile_publication_unconfirmed");
       pending.set(profile.username, key);
       if (pending.size > 32) pending.delete(pending.keys().next().value!);
       options.onProgress?.();
@@ -194,7 +200,7 @@ export async function publishCurrentWildzProfile(
     // An accepted append is not evidence that the public reader sees it yet.
     // Retry only the read while this exact successful write is awaiting delivery.
     const confirmed = await fetchPublicWildzProfile(profile.username, fetcher, { signal: options.signal });
-    if (!confirmed || canonicalPortableCardJson(confirmed) !== key) throw new Error("wildz_public_profile_publication_unconfirmed");
+    if (!confirmed || canonicalPortableCardJson(confirmed) !== profileKey || !await confirmCollection(confirmed)) throw new Error("wildz_public_profile_publication_unconfirmed");
     pending.delete(profile.username);
     return confirmed;
   }

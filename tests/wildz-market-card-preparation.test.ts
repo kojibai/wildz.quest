@@ -79,3 +79,10 @@ test('verified embedded cards need no fetch and tampered embedded cards never en
   await assert.rejects(readWildzMarketCard({...card('bad_embedded.receiz.id'),asset:bad}),/could not be verified/);assert.equal(reads,0);
  }finally{globalThis.fetch=original;}
 });
+
+test('a duplicate with unresolved ownership still prepares the exact public artwork',async()=>{
+ const row={...card(''),artworkOwnerHandle:'source_keeper.receiz.id'};
+ const urls:string[]=[];
+ const ready=await createWildzMarketCardPreparer({readCard:async()=>asset,decodeImage:async url=>{urls.push(url);}}).prepare([row]);
+ assert.equal(ready.length,1);assert.equal(ready[0]?.card.ownerHandle,'');assert.match(urls[0]!,/profile=source_keeper&digest=/);
+});

@@ -219,7 +219,7 @@ test("bootstrap paints before optional custody reopening and inventory updates c
   const bootstrap = adapter.slice(adapter.indexOf("export async function bootstrapWildzContinuity("), adapter.indexOf("export async function reopenWildzContinuityCrewCustody("));
   assert.doesNotMatch(bootstrap, /await reopenWildzCrewCustody/);
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
-  const start = shell.indexOf("void reopenWildzContinuityCrewCustody(snapshot)");
+  const start = shell.lastIndexOf("useEffect(() => {", shell.indexOf("await reopenWildzContinuityCrewCustody(snapshot)"));
   const effect = shell.slice(start, shell.indexOf("\n\n", start));
   assert.match(effect, /current\.session\.keyId !== snapshot\.session\.keyId/);
   assert.match(effect, /current\.restoreEpoch !== snapshot\.restoreEpoch/);

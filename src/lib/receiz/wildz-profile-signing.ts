@@ -1,3 +1,4 @@
+import {parseWildzSignedUploadOwnershipClaim} from "./wildz-upload-ownership";
 import { createReceizClient, type JsonObject, type ReceizKeyFile } from "@receiz/sdk";
 import type { PortableCardAsset } from "../../features/play/portable-card";
 import { canonicalWildzProfilePath, type PublicWildzProfile } from "../../features/profile/public-profile";
@@ -14,6 +15,8 @@ export type WildzProfileSigningInput = {
   keyFile: ReceizKeyFile;
   occurredAt?: string;
   publishMarketCollection?: boolean;
+  ownershipClaims?: readonly unknown[];
+  ownershipHistory?: readonly unknown[];
 };
 
 /** Pure SDK signing work; the browser runs verification, hashing and JSON in a worker. */
@@ -40,6 +43,15 @@ export async function signWildzProfilePublication(input: WildzProfileSigningInpu
     // Full card publication remains independent of this signed display projection.
     if (!admittedCards) verifiedWildzProfileCards(record.profile, gallery);
   }
+  record.publisherKeyId = session.keyId;
+  if (input.ownershipClaims?.length) {
+    record.ownershipClaims = input.ownershipClaims;
+    record.vaultCardRoots = Object.fromEntries(input.ownershipClaims.flatMap(row => {
+      const signed = parseWildzSignedUploadOwnershipClaim(row);
+      return signed ? [[signed.claim.assetId, signed.claim.cardRootDigest]] : [];
+    }));
+  }
+  if (input.ownershipHistory?.length) record.ownershipHistory = input.ownershipHistory;
   const signedPublication = await createReceizClient().publicStore.signPublish({
     tenantHost: WILDZ_PRODUCT.domain, merchantReceizId: owner.profileHandle,
     title: `${record.profile.displayName} on Wildz`, sourceUrl: record.sourceUrl,

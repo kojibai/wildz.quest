@@ -41,14 +41,56 @@ test('offers stop targeting a prior ownership claim and exclude forged cached pa
  assert.equal(projectWildzMarketOffers([forged],buyer.handle,[card]).some(v=>v.offer.offerId===message.offer.offerId),false);
 });
 
-function runtime(owner=buyer.handle){
+test('an absent public collection row does not expire or close an admitted offer',()=>{
+ const message={kind:'market-offer' as const,offer:offer('catalogue-gap-001')},record=notice(message).conversation;
+ assert.equal(projectWildzMarketOffers([record],seller.handle,[])[0]?.status,'pending');
+ assert.equal(projectWildzMarketOffers([record],seller.handle,[{...card,ownerHandle:buyer.handle}])[0]?.status,'stale');
+});
+
+test('a partial inbox refresh retains the owner’s original offer and acceptance action',async()=>{
+ const proposal={kind:'market-offer' as const,offer:offer('partial-inbox-001')},r=runtime(seller.handle);
+ r.setConversations([notice(proposal).conversation]);await r.service.read();
+ assert.equal(r.service.snapshot().offers?.[0]?.status,'pending');
+ // A cold function or private sync deadline can return a bounded empty window.
+ // It is not a deletion of the previously admitted Messages source.
+ r.setConversations([]);await r.service.read();
+ assert.equal(r.service.snapshot().offers?.[0]?.offer.offerId,proposal.offer.offerId);
+ assert.equal((await r.service.respondToOffer!(proposal.offer.offerId,'accepted')).status,'listed');
+ assert.equal(r.counts().listCalls,1);
+});
+
+function runtime(owner=buyer.handle,liveInbox=false){
  let snap:WildzMarketSnapshotV128={status:'ready',message:'',listings:[],sellables:[],purchases:[]},conversations:readonly WildsConversation[]=[],currentCard=card,stored:readonly WildzMarketOffer[]=[],publicationCalls=0,listCalls=0,failReply=false,activationPending=false,activationUnobserved=false;
- const activations:string[]=[],listingAttempts:string[]=[];
+ const activations:string[]=[],listingAttempts:string[]=[];let inboxListener:((value:readonly WildsConversation[])=>void)|null=null;
  const binding={ownerHandle:owner,keyId:'f'.repeat(64)},failed=async()=>({status:'failed' as const,message:'No purchase operation in this test.'});
  const base:WildzMarketServiceV128={binding,snapshot:()=>snap,subscribe:()=>()=>{},read:async()=>snap,cancel:failed,list:async input=>{listCalls++;listingAttempts.push(input.attemptId);const listingId=`market:listing:${'d'.repeat(64)}`;snap={...snap,listings:[{listingId,asset:input.asset,title:card.title,kind:'creature',sellerHandle:seller.handle,priceUsdCents:input.priceUsdCents,status:'active',canBuy:false,canCancel:true,canActivate:true}]};return {status:'listed',listingId,message:'Public listing confirmed. Purchase connection pending.'};},activateListing:async listingId=>{activations.push(listingId);if(activationPending)return {status:'pending',listingId,message:'Purchase connection pending: artifact_seal_failed'};if(!activationUnobserved)snap={...snap,listings:snap.listings.map(v=>v.listingId===listingId?{...v,canActivate:false}:v)};return {status:'listed',listingId,message:'Purchases enabled.'};},previewPurchase:async()=>{throw Error('No preview authorized.');},approvePurchase:failed,resume:failed,accept:failed,receive:failed};
- const service=withWildzMarketCommunity(base,{currentIdentity:()=>binding,readCollection:async()=>({cards:[currentCard],transfers:[]}),readConversations:async()=>conversations,offerAttempts:{load:()=>stored,write:v=>{stored=structuredClone(v);}},publish:async context=>{publicationCalls++;conversations=[notice(context).conversation];if(failReply){failReply=false;throw Error('Lost acknowledgement.');}}});
- return {service,setCards:(value:WildzMarketOwnedCard)=>{currentCard=value;},setConversations:(value:readonly WildsConversation[])=>{conversations=value;},setListings:(listings:WildzMarketSnapshotV128['listings'])=>{snap={...snap,listings};},connectionPending:(value=true)=>{activationPending=value;},connectionUnobserved:()=>{activationUnobserved=true;},activations:()=>activations,listingAttempts:()=>listingAttempts,fail:()=>{failReply=true;},counts:()=>({publicationCalls,listCalls}),stored:()=>stored};
+ const service=withWildzMarketCommunity(base,{currentIdentity:()=>binding,readCollection:async()=>({cards:[currentCard],transfers:[]}),readConversations:async()=>conversations,...(liveInbox?{subscribeConversations(listener:(value:readonly WildsConversation[])=>void){inboxListener=listener;listener(conversations);return()=>{inboxListener=null;};}}:{}),offerAttempts:{load:()=>stored,write:v=>{stored=structuredClone(v);}},publish:async context=>{publicationCalls++;conversations=[notice(context).conversation];if(failReply){failReply=false;throw Error('Lost acknowledgement.');}}});
+ return {service,setCards:(value:WildzMarketOwnedCard)=>{currentCard=value;},setConversations:(value:readonly WildsConversation[])=>{conversations=value;},pushInbox:(value:readonly WildsConversation[])=>{conversations=value;inboxListener?.(value);},setListings:(listings:WildzMarketSnapshotV128['listings'])=>{snap={...snap,listings};},connectionPending:(value=true)=>{activationPending=value;},connectionUnobserved:()=>{activationUnobserved=true;},activations:()=>activations,listingAttempts:()=>listingAttempts,fail:()=>{failReply=true;},counts:()=>({publicationCalls,listCalls}),stored:()=>stored};
 }
+
+test('an already warmed Market receives incoming offers from the existing Messages stream',async()=>{
+ const r=runtime(seller.handle,true);await r.service.read();let observed:WildzMarketSnapshotV128|undefined;
+ const unsubscribe=r.service.subscribe(snapshot=>{observed=snapshot;});
+ const proposal={kind:'market-offer' as const,offer:offer('live-inbox-001')};r.pushInbox([notice(proposal).conversation]);
+ assert.equal(observed?.offers?.[0]?.offer.offerId,proposal.offer.offerId);
+ assert.equal(observed?.offers?.[0]?.status,'pending');
+ r.pushInbox([]);assert.equal(r.service.snapshot().offers?.[0]?.status,'pending');
+ unsubscribe();observed=undefined;r.pushInbox([]);assert.equal(observed,undefined);
+ assert.deepEqual(r.counts(),{publicationCalls:0,listCalls:0});
+});
+
+test('canceling an original accepted listing cannot erase a later offer for the same creature',async()=>{
+ const original={kind:'market-offer' as const,offer:offer('cancel-original-001')},next={kind:'market-offer' as const,offer:offer('after-cancel-001')},r=runtime(seller.handle);
+ notice(original);const originalId=`market:listing:${'e'.repeat(64)}`;
+ const oldInbox=notice({kind:'market-offer-response',offer:original.offer,outcome:'accepted',listingId:originalId}).conversation;
+ r.setListings([{listingId:originalId,asset:{kind:'creature',assetId:card.assetId},kind:'creature',title:card.title,sellerHandle:seller.handle,priceUsdCents:original.offer.priceUsdCents,status:'cancelled',canBuy:false,canCancel:false,canActivate:false}]);
+ r.setConversations([notice(next,'2026-10-12T09:00:00.000Z').conversation]);await r.service.read();
+ r.setConversations([oldInbox]);await r.service.read();
+ assert.equal(r.service.snapshot().offers?.find(item=>item.offer.offerId===next.offer.offerId)?.status,'pending');
+ const result=await r.service.respondToOffer!(next.offer.offerId,'accepted');
+ assert.equal(result.status,'listed');assert.notEqual(result.listingId,originalId);
+ assert.deepEqual(r.listingAttempts(),[`${next.offer.offerId}:accept`]);assert.equal(r.service.snapshot().purchases.length,0);
+});
 
 test('a failed local value read keeps a valid owned card and reports a retryable display state',async()=>{
  const base=runtime().service;

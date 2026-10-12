@@ -10,6 +10,7 @@ import {
   wildsDirectMessageId,
   wildsConversationSummary,
   mergeWildsConversations,
+  mergeWildsConversationHistory,
   mergeWildsGroupRooms,
   type WildsConversation,
   type WildsConversationSummary,
@@ -121,8 +122,13 @@ export function useWildsMessenger(input: {
   const roomsRef = useRef<WildsGroupRoom[]>([]);
   const sendingClientIdsRef = useRef(new Set<string>());
   const publishedCardOffersRef = useRef(new Set<string>());
+  const conversationListenersRef=useRef(new Set<(value:readonly WildsConversation[])=>void>());
 
-  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
+  useEffect(() => {
+    const admitted=conversations.filter(thread=>thread.participants.some(participant=>participant.id===input.selfId));
+    conversationsRef.current=admitted;
+    for(const listener of conversationListenersRef.current)listener(admitted);
+  }, [conversations,input.selfId]);
   useEffect(() => { roomsRef.current = rooms; }, [rooms]);
 
   useEffect(() => {
@@ -133,6 +139,7 @@ export function useWildsMessenger(input: {
     publishedCardOffersRef.current.clear();
     setMessageAlert(null);
     const cache = readCache(input.selfId);
+    conversationsRef.current=cache.conversations.filter(thread=>thread.participants.some(participant=>participant.id===input.selfId));
     setPeers(cache.peers);
     setConversations(cache.conversations);
     setRooms(cache.rooms);
@@ -214,13 +221,17 @@ export function useWildsMessenger(input: {
         setMessageAlert({ peer: { id: latest.senderId, handle: latest.senderHandle }, body: latest.body });
       }
       inboxReadyRef.current = true;
-      setConversations((current) => {
-        const next = result.conversations.reduce(admitConversationState, current);
-        return next.length === current.length && next.every((thread, index) => thread.id === current[index]?.id && JSON.stringify(thread) === JSON.stringify(current[index])) ? current : next;
+      const next=mergeWildsConversationHistory(conversationsRef.current,result.conversations);
+      conversationsRef.current=next;
+      setConversations(current=>{
+        // React can batch a send/thread admission before this update commits.
+        // Merge into that actual state, not the ref snapshot at request return.
+        const admitted=mergeWildsConversationHistory(current,result.conversations);
+        return admitted.length===current.length&&admitted.every((thread,index)=>thread.id===current[index]?.id&&JSON.stringify(thread)===JSON.stringify(current[index]))?current:admitted;
       });
       void refreshRooms();
       setError("");
-      return result.conversations;
+      return next;
     } catch (cause) {
       if (!quiet) setError(cause instanceof Error ? cause.message : "Inbox could not sync");
     } finally {
@@ -461,6 +472,12 @@ export function useWildsMessenger(input: {
     return fresh ?? conversationsRef.current;
   }, [refreshInbox]);
 
+  const subscribeTradeConversations=useCallback((listener:(value:readonly WildsConversation[])=>void)=>{
+    conversationListenersRef.current.add(listener);
+    listener(conversationsRef.current.filter(thread=>thread.participants.some(participant=>participant.id===input.selfId)));
+    return()=>{conversationListenersRef.current.delete(listener);};
+  },[input.selfId]);
+
   const sendBearerGift=useCallback(async(context:WildsWalletBearerGiftMessage,peerHandle:string)=>{
     if(!input.selfId||input.selfId.startsWith('guest:'))throw Error('Sign in to send this gift.');
     const actor=input.selfId,peer={id:peerHandle,handle:peerHandle};
@@ -614,6 +631,7 @@ export function useWildsMessenger(input: {
     sendBearerGift,
     sendResourceSource,
     readTradeConversations,
+    subscribeTradeConversations,
     claimCardOffer,
     markRead,
     react,

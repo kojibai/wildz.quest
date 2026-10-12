@@ -23,7 +23,7 @@ function createFixtureService(ownerHandle:string,onCall:(value:string)=>void,car
  let pendingList:Parameters<WildzMarketServiceV128['list']>[0]|null=null;
  let snapshot:WildzMarketSnapshotV128={status:'ready',message:'Simulated UI only · no assets or Phi are sent.',listings:[
   {listingId:`market:listing:${'a'.repeat(64)}`,title:marketFixtureCards[0]!.manifest.name,kind:'creature',asset:creature,sellerHandle:seller,priceUsdCents:'1234',status:'active',canBuy:ownerHandle===buyer,canCancel:ownerHandle===seller},
-  {listingId:'fixture:listing:harvest',title:'Wild harvest basket',kind:'inventory',asset:resources,sellerHandle:ownerHandle,priceUsdCents:'500',status:'active',canBuy:false,canCancel:true}
+  {listingId:'fixture:listing:harvest',title:'Wild harvest basket',kind:'inventory',asset:resources,sellerHandle:ownerHandle,priceUsdCents:'500',status:'active',canBuy:false,canCancel:true,canActivate:true}
  ],collection:cards.map(asset=>({assetId:asset.id,title:asset.manifest.name,proofDigest:asset.proof.digest,ownerHandle:seller,asset,claimKaiUPulse:'16000000100001',claimHead:'fixture:claim:head',artworkUrl:`/test-fixtures/market/cards/${encodeURIComponent(asset.id)}/image`})),offers:[],history:[],transfers:[{id:'fixture:transfer:1',assetId:marketFixtureCards[0]!.id,fromHandle:'wayfinder.receiz.id',toHandle:seller,kaiUPulse:'15999999991234',headReference:'fixture:verified-claim-reference'}],purchases:[],sellables:[
   {id:'fixture:provisions',title:'Trail provisions',kind:'inventory',asset:resources,summary:'2 fruit · 1 vegetable · 1 meat · 1 timber · 1 Living Honey'},
   {id:'fixture:package',title:'Packed harvest',kind:'package',asset:{kind:'package',packageId:`wildz:package:${'b'.repeat(64)}`},summary:'One complete resource package · 6 items'},
@@ -55,6 +55,7 @@ function createFixtureService(ownerHandle:string,onCall:(value:string)=>void,car
    return {status:'listed',listingId:'fixture:listing:sent',message:'Simulated listing confirmed.'};
   },
   cancel:async listingId=>{onCall(`cancel ${listingId}`);snapshot={...snapshot,listings:snapshot.listings.map(item=>item.listingId===listingId?{...item,status:'cancelled',canCancel:false}:item)};publish();return {status:'cancelled',message:'Simulated listing cancelled.'};},
+  activateListing:async listingId=>{onCall(`activate ${listingId}`);snapshot={...snapshot,listings:snapshot.listings.map(item=>item.listingId===listingId?{...item,canActivate:false}:item)};publish();return {status:'listed',listingId,message:'Simulated purchase connection enabled.'};},
   previewPurchase:async listingId=>{onCall(`review ${listingId}`);updatePurchase(review);return review;},
   approvePurchase:async purchaseId=>{onCall(`approve ${purchaseId}`);updatePurchase({...getPurchase(),phase:'paid',canApprove:false,canResume:true,message:'Simulated payment confirmed. Delivery is pending.'});return {status:'pending',message:'Simulated payment confirmed. Delivery is pending.'};},
   resume:async purchaseId=>{onCall(`resume ${purchaseId}`);updatePurchase({...getPurchase(),phase:'awaiting-acceptance',canApprove:false,canResume:true,canAccept:ownerHandle===buyer,message:'Simulated delivery is ready. Accepting it is a separate step.'});return {status:'awaiting-acceptance',message:'Simulated delivery is ready to accept.'};},
@@ -66,12 +67,13 @@ function createFixtureService(ownerHandle:string,onCall:(value:string)=>void,car
 export function WildzMarketBrowserFixture(){
  const [owner,setOwner]=useState(buyer),[open,setOpen]=useState(true),[calls,setCalls]=useState<readonly string[]>([]);
  const [stress,setStress]=useState(false);
+ const [offerTarget,setOfferTarget]=useState<string|undefined>();
  const service=useMemo(()=>createFixtureService(owner,value=>setCalls(previous=>[...previous.slice(-49),value]),stress?marketFixtureStressCards:marketFixtureCards),[owner,stress]);
  return <main className="wildz-app" style={{minHeight:'100dvh',padding:20,background:'radial-gradient(circle at 20% 20%,#385c37,#0c211b 70%)',color:'#eff1db'}}>
   <h1 style={{fontSize:20}}>Market UI fixture</h1><p>Local SDK values · Simulated trades. No publication, asset transfer or payment.</p>
-  <div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button type="button" onClick={()=>setOwner(current=>current===buyer?seller:buyer)}>Switch to {owner===buyer?'seller':'buyer'}</button><button type="button" onClick={()=>setOpen(value=>!value)}>{open?'Close market':'Open market'}</button></div>
+  <div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button type="button" onClick={()=>setOwner(current=>current===buyer?seller:buyer)}>Switch to {owner===buyer?'seller':'buyer'}</button><button type="button" onClick={()=>{setOfferTarget(undefined);setOpen(value=>!value);}}>{open?'Close market':'Open market'}</button><button type="button" onClick={()=>{setOwner(seller);setOfferTarget('market:offer:fixture-incoming');setOpen(true);}}>Review incoming offer in Market</button></div>
   <p data-testid="fixture-account">Viewing {owner}</p><button type="button" onClick={()=>setStress(value=>!value)}>{stress?'Use three-card collection':'Use 72-card stress collection'}</button>
   <details><summary>Simulated service calls ({calls.length})</summary><pre data-testid="fixture-calls" style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{calls.join('\n')}</pre></details>
-  {open?<section className="wildz-shell-overlay" data-surface="market" role="dialog" aria-label="market panel" aria-modal="true"><WildzMarketSheet service={service} connected onClose={()=>setOpen(false)}/></section>:null}
+  {open?<section className="wildz-shell-overlay" data-surface="market" role="dialog" aria-label="market panel" aria-modal="true"><WildzMarketSheet service={service} connected initialOfferId={offerTarget} onClose={()=>setOpen(false)}/></section>:null}
  </main>;
 }

@@ -79,6 +79,8 @@ export function projectWildzMarketOffers(conversations:readonly WildsConversatio
  for(const id of conflicts)results.delete(id);
  return [...results.values()].map(item=>{
   const card=cards.find(card=>card.assetId===item.offer.assetId);
-  return item.status==='pending'&&(!card||!sameWildzMarketOfferOwner(card,item.offer))?{...item,status:'stale' as const}:item;
+  // A missing retrieval row cannot establish a transfer or expire a proposal.
+  // Acceptance independently refreshes and checks the exact current card.
+  return item.status==='pending'&&card&&!sameWildzMarketOfferOwner(card,item.offer)?{...item,status:'stale' as const}:item;
  }).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||a.offer.offerId.localeCompare(b.offer.offerId));
 }

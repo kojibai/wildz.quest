@@ -3,6 +3,7 @@ import { createReceizCommerceAdapter } from "@/lib/receiz/adapter";
 import { resolveWildzCookieActor } from "@/lib/receiz/wildz-cookie-actor";
 import {
   lostWildzOwnershipAssetIdsFromSync,
+  requestedWildzNativeOwnershipRecords,
   parseWildzOwnershipReconcileRequest,
   WILDZ_OWNERSHIP_SYNC_NAMESPACE
 } from "@/lib/receiz/wildz-ownership-reconcile";
@@ -23,11 +24,12 @@ export async function POST(request: NextRequest) {
     const projection = await adapter.client.appState.resolve({
       namespace: WILDZ_OWNERSHIP_SYNC_NAMESPACE
     });
-    if (projection.ok !== true || !Array.isArray(projection.records)) {
+    if (projection.ok !== true || !Array.isArray(projection.records) || projection.records.length > 100_000) {
       return json({ status: "ownership_sync_unavailable", lostAssetIds: [] }, 503);
     }
     return json({
       status: "ready",
+      ownershipClaims: requestedWildzNativeOwnershipRecords(projection.records, assetIds),
       lostAssetIds: lostWildzOwnershipAssetIdsFromSync(projection.records, actor.actorId, assetIds)
     });
   } catch (cause) {

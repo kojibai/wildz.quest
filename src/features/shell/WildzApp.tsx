@@ -1,4 +1,11 @@
 "use client";
+
+import { recordWildzUploadOwnershipClaims, readWildzUploadOwnershipHeads, retainVerifiedWildzUploadOwnershipClaims, verifyWildzPublishedOwnershipClaims } from "../../lib/receiz/wildz-upload-ownership";
+import { readWildzOwnerPublishedOwnershipClaims, verifiedWildzPublishedOwnershipRecords } from "../../lib/receiz/wildz-published-ownership";
+import { lostWildzOwnershipAssetIdsFromSync, reconciledWildzLostOwnershipAssetIds } from "../../lib/receiz/wildz-ownership-reconcile";
+import { readWildzIdentityForSigning } from "../../lib/receiz/wildz-identity-signing-read";
+import { saveWildzRestoredPlayState } from "../identity/wildz-restore";
+import { observeWildsKaiUPulse } from "../play/wilds-kai-runtime";
 import {createWildzCreationLibrary} from "@/lib/receiz/wildz-creation-library";
 import {defaultContinuityDatabase} from "@/lib/receiz/wildz-active-identity";
 import { scheduleAfterPaint } from "../play/schedule-after-paint";
@@ -6,7 +13,7 @@ import { readWildzLocalSealerReadiness } from "../../lib/receiz/local-seal/brows
 import { hasLaterWildsPlayerLedger } from "@/features/play/wilds-play-state-source";
 import { isCurrentWildzGameplaySource } from "../identity/wildz-gameplay-source";
 import { validateWildsRoamingHandoffCard } from "../../lib/receiz/wilds-roaming-handoff";
-import { pruneWildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
+import { pruneWildzCrewCustody, mergeWildzCrewCustody, admitWildzUploadClaimCrewCustody, retainWildzCrewCustodyMemory } from "../../lib/receiz/wildz-artifact-codec";
 import {readWildzProfileDisplayName,saveWildzProfileDisplayName} from "../profile/profile-display-name";
 
 import { emitWildsPlaytestEvent } from "@/features/play/wilds-playtest-events";
@@ -18,7 +25,7 @@ import {revealPreparedWildzMarket} from "@/features/market/wildz-market-entry";
 import { PlayCampaign } from "@/features/play/PlayCampaign";
 import { generateIdentityBoundWildzCharacter, type WildzCharacterGenesis } from "@/features/identity/wildz-genesis";
 import { applyWildsInput, createOwnerBoundInitialPlayState, initialPlayState, type PlayState } from "@/features/play/game-state";
-import type { PortableCardAsset } from "@/features/play/portable-card";
+import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "@/features/play/portable-card";
 import {
   createWildsPlayerVault,
   mergeWildsPlayerPlayStates
@@ -29,7 +36,6 @@ import {
 } from "@/features/identity/wildz-restore";
 import {
   locallyClaimedWildzAssetIds,
-  locallyTransferredWildzAssetIds,
   recordLocalWildzOwnershipTransfer,
   removeWildzAssetsFromActiveVault
 } from "@/features/identity/wildz-ownership-reconciliation";
@@ -301,15 +307,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     [continuity?.playState, identity]
   );
   const readCurrentBodyState = useCallback(() => continuityRef.current?.playState ?? undefined, []);
-  const publishableOwnerAssets = useMemo(() => {
-    if (!identity || typeof window === "undefined") return ownerPlayState.inventory;
-    const locallyClaimed = new Set(locallyClaimedWildzAssetIds(
-      window.localStorage,
-      identity.actorId,
-      ownerPlayState.inventory.map((asset) => asset.id)
-    ));
-    return ownerPlayState.inventory.filter((asset) => !locallyClaimed.has(asset.id));
-  }, [identity, ownerPlayState.inventory]);
+  const publishableOwnerAssets = ownerPlayState.inventory;
   const ownerUsername = identity?.username ?? identity?.actorId ?? "explorer";
   const ownerDisplayName=savedProfileName && savedProfileName.keyId === identity?.keyId
     ? savedProfileName.name
@@ -330,7 +328,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
   const admittedProofObjects = admittedVault?.proofObjects;
   // Distribution stays independent of profile/session readiness, after the
   // local world has drawn so its queue does not compete with startup.
-  usePublicCardPublisher(publishableOwnerAssets, Boolean(identity) && worldPainted, admittedProofObjects, continuity?.crewCustody, identity?.username ?? identity?.actorId);
+  usePublicCardPublisher(publishableOwnerAssets, Boolean(identity) && worldPainted, admittedProofObjects, continuity?.crewCustody, identity?.username ?? identity?.actorId, profileRetryRevision);
   const viewingOwnProfile = !overlay
     || overlay.kind !== "profile"
     || (overlay.mode !== "public" && overlay.username.toLowerCase() === `@${ownerUsername}`.toLowerCase());
@@ -353,22 +351,27 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     profile: typeof ownerSourceProfile;
     assets: typeof ownerPlayState.inventory;
     proofObjects: typeof admittedProofObjects;
+    ownershipHistory: readonly unknown[];
   } | null>(null);
   useEffect(() => {
     if (!worldPainted || !profileOwnerKeyId) return;
     let active = true;
     void wildzGameplayBackground.run(() => {
       if (!active) return;
+      const held = continuityRef.current;
+      if (!held || held.session.keyId !== profileOwnerKeyId) return;
+      const ownershipHistory = held.playerContinuity?.receipts.flatMap(receipt => receipt.ownershipClaim ? [receipt.ownershipClaim] : []) ?? [];
       setPreparedProfilePublication({
         keyId: profileOwnerKeyId,
-        key: `${profileOwnerKeyId}:${JSON.stringify(ownerSourceProfile)}`,
+        key: `${profileOwnerKeyId}:${JSON.stringify(ownerSourceProfile)}:${canonicalPortableCardJson(ownershipHistory)}`,
         profile: ownerSourceProfile,
         assets: ownerPlayState.inventory,
-        proofObjects: admittedProofObjects
+        proofObjects: admittedProofObjects,
+        ownershipHistory
       });
     }).catch(() => undefined);
     return () => { active = false; };
-  }, [worldPainted, profileOwnerKeyId, ownerSourceProfile, ownerPlayState.inventory, admittedProofObjects]);
+  }, [worldPainted, profileOwnerKeyId, ownerSourceProfile, ownerPlayState.inventory, admittedProofObjects, continuity?.playerContinuity?.receipts]);
   // Keep the preceding complete snapshot until the next encoding is ready.
   // Equivalent content keeps its key, preserving in-flight sync across saves.
   const profilePublicationRequest = preparedProfilePublication?.keyId === profileOwnerKeyId ? preparedProfilePublication : null;
@@ -518,7 +521,14 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     const snapshot = continuityRef.current;
     if (!worldPainted || !snapshot || snapshot.crewCustody) return;
     let disposed = false;
-    void reopenWildzContinuityCrewCustody(snapshot).then(custody => {
+    void (async () => {
+      const cards = snapshot.playState?.inventory ?? [];
+      await retainVerifiedWildzUploadOwnershipClaims(defaultContinuityDatabase, snapshot.playerContinuity?.receipts.flatMap(receipt => receipt.ownershipClaim ? [receipt.ownershipClaim] : []) ?? []);
+      const claims = await readWildzOwnerPublishedOwnershipClaims(defaultContinuityDatabase, snapshot.session, cards);
+      const local = await admitWildzUploadClaimCrewCustody({session: snapshot.session, cards, claims});
+      const source = await reopenWildzContinuityCrewCustody(snapshot);
+      return mergeWildzCrewCustody(snapshot.session.actorId, [source, local], cards);
+    })().then(custody => {
       const current = continuityRef.current;
       if (disposed || !custody || !current || current.session.keyId !== snapshot.session.keyId
         || current.session.actorId !== snapshot.session.actorId || current.restoreEpoch !== snapshot.restoreEpoch) return;
@@ -650,13 +660,22 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
         if (status !== "unpublished") setOwnerPublicationFailure(null);
       },
       onFailure: setOwnerPublicationFailure,
-      publish: (signal, progress) => {
+      publish: async (signal, progress) => {
         // Each retry sees current proof data without interrupting an equivalent in-flight request.
         const profilePublicationRequest = profilePublicationRequestRef.current;
         if (!profilePublicationRequest || profilePublicationRequest.key !== publicationKey) {
           throw new Error("wildz_profile_publication_superseded");
         }
+        const publicationContinuity = continuityRef.current;
+        const publicationSession = publicationContinuity?.session;
+        if (!publicationSession || publicationSession.keyId !== identity?.keyId) throw new Error("wildz_profile_publication_superseded");
+        const ownershipClaims = await readWildzOwnerPublishedOwnershipClaims(defaultContinuityDatabase, publicationSession, profilePublicationRequest.assets.filter(card => profilePublicationRequest.profile.vault.some(entry => entry.id === card.id)), publicationContinuity.crewCustody);
+        const ownershipHistory = (await verifyWildzPublishedOwnershipClaims(profilePublicationRequest.ownershipHistory))
+          .filter(({claim}) => claim.keyId === publicationSession.keyId && sameWildzPlayerCoordinate(claim.ownerReceizId, publicationSession.actorId));
+        signal?.throwIfAborted();
         return publishCurrentWildzProfile(profilePublicationRequest.profile, profilePublicationRequest.assets, globalThis.fetch, {
+          ownershipClaims,
+          ownershipHistory,
           signal,
           onProgress: progress,
           confirmExisting: true,
@@ -667,7 +686,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
           // just as world bootstrap signs an identity-proof publication draft.
           // Standalone card indexing must never gate this source projection.
           publishSourceProfile: identity?.localAuthority === "verified"
-            ? (profile, assets, signal) => publishWildzProfileWithIdentityProof(profile, { assets, signal, publishMarketCollection: true })
+            ? (profile, assets, signal) => publishWildzProfileWithIdentityProof(profile, { assets, signal, publishMarketCollection: true, ownershipClaims, ownershipHistory, custody: publicationContinuity.crewCustody })
             : undefined,
           prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
             ?? wildzGameplayBackground.run(() => JSON.stringify(value))
@@ -681,7 +700,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
       publication.stop();
       if (retryProfilePublicationRef.current === publication.wake) retryProfilePublicationRef.current = null;
     };
-  }, [worldPainted, profilePublicationReadiness, profilePublicationKey, proofSessionConnected, proofSessionGeneration, identityActivationRevision, profileRetryRevision, identity?.localAuthority, identity?.remoteStatus]);
+  }, [worldPainted, profilePublicationReadiness, profilePublicationKey, proofSessionConnected, proofSessionGeneration, identityActivationRevision, profileRetryRevision, identity?.keyId, identity?.localAuthority, identity?.remoteStatus]);
 
   useEffect(() => {
     if (overlay?.kind !== "profile") {
@@ -941,7 +960,8 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     currentPlayState?: PlayState,
     intent: WildzRestoreIntent = surface === "genesis" ? "activate-identity" : "merge-vault",
     prepared?: WildzPreparedRestore,
-    roamingCaptureCard?: PortableCardAsset
+    roamingCaptureCard?: PortableCardAsset,
+    beforeVisible?: (outcome: WildzUiArtifactRestore) => Promise<void>
   ): Promise<WildzUiArtifactRestore> => {
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_restore_identity_missing");
@@ -961,6 +981,8 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
         || latest.restoreEpoch !== current.restoreEpoch)
         throw new Error("The capture was saved for its keeper. Its downloaded artifact can be reopened in that account.");
     }
+    await retainVerifiedWildzUploadOwnershipClaims(defaultContinuityDatabase, outcome.playerContinuity.receipts.flatMap(receipt => receipt.ownershipClaim ? [receipt.ownershipClaim] : []));
+    await beforeVisible?.(outcome);
     const next = commitWildzArtifactContinuity(outcome);
     void runtimeCheckpointStore.clear({
       keyId: outcome.session.keyId,
@@ -1058,7 +1080,36 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     if (disposition === "merge-owned" || disposition === "restore-portable") {
       // Upload ends at the durable commit. Exporting another sealed file here
       // competes with the new card preview and can open Safari's download UI.
-      return restoreArtifact(file, "card-vault", true, currentPlayState, "merge-vault", prepared);
+      const attemptId = `upload:${crypto.randomUUID()}`;
+      return restoreArtifact(file, "card-vault", true, currentPlayState, "merge-vault", prepared, undefined, async outcome => {
+        const assertCurrent = () => {
+          const active = continuityRef.current;
+          if (!active || active.session.keyId !== current.session.keyId || active.session.actorId !== current.session.actorId
+            || active.restoreEpoch !== current.restoreEpoch || outcome.session.keyId !== current.session.keyId)
+            throw new Error("The card was saved for its keeper. Reopen that account to finish its upload claim.");
+        };
+        assertCurrent();
+        const ids = new Set(outcome.verifiedAssetIds);
+        const keyFile = await readWildzIdentityForSigning(current.session.keyId);
+        const uploadedAt = new Date().toISOString();
+        const claims = await recordWildzUploadOwnershipClaims({database: defaultContinuityDatabase, session: outcome.session, keyFile,
+          assets: outcome.playState.inventory.filter(card => ids.has(card.id)), sourceBytes: prepared.bytes,
+          attemptId, kaiUPulse: String(observeWildsKaiUPulse()), uploadedAt, assertCurrent});
+        assertCurrent();
+        const receipts = new Map(outcome.playerContinuity.receipts.map(receipt => [receipt.eventId, receipt]));
+        for (const claim of claims) {
+          const digest = sha256PortableBasis(canonicalPortableCardJson(claim));
+          receipts.set(`upload:${digest.slice(7)}`, {eventId: `upload:${digest.slice(7)}`, digest, ownershipClaim: claim});
+        }
+        outcome.playerContinuity.receipts = [...receipts.values()];
+        await saveWildzRestoredPlayState({database: defaultContinuityDatabase, session: outcome.session, playState: outcome.playState, player: outcome.playerContinuity, character: outcome.character});
+        const localCustody = await admitWildzUploadClaimCrewCustody({session: outcome.session, cards: outcome.playState.inventory, claims});
+        outcome.crewCustody = mergeWildzCrewCustody(outcome.session.actorId, [outcome.crewCustody, localCustody], outcome.playState.inventory);
+        await retainWildzCrewCustodyMemory(defaultContinuityDatabase, outcome.session, outcome.crewCustody, outcome.playState.inventory);
+        assertCurrent();
+        publishedProfileRef.current = "";
+        setProfileRetryRevision(revision => revision + 1);
+      });
     }
     // Foreign custody changes only after native Record -> Seal succeeds. Awaiting
     // this action keeps rendering live and avoids restoring/resealing twice.
@@ -1106,6 +1157,8 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     recordLocalWildzOwnershipTransfer(window.localStorage, outcome.session.actorId, artifactAssetIds,
       opened.ownershipWitness.witnessedAt,
       response.headers.get("x-wildz-ownership-sync") === "admitted" ? "published" : "pending");
+    publishedProfileRef.current = "";
+    setProfileRetryRevision(revision => revision + 1);
     return outcome;
   }, [restoreArtifact]);
 
@@ -1340,16 +1393,9 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     }, true);
   }, [acceptSnapshot]);
 
-  useEffect(() => {
-    const current = continuityRef.current;
-    const assetIds = current?.playState?.inventory.map((asset) => asset.id) ?? [];
-    if (!current || !assetIds.length) return;
-    const locallyLost = locallyTransferredWildzAssetIds(window.localStorage, current.session.actorId, assetIds);
-    if (locallyLost.length) removeLostVaultAssets(locallyLost);
-  }, [removeLostVaultAssets, continuity?.session.actorId, continuity?.playState?.inventory]);
 
   useEffect(() => {
-    if (!proofSessionConnected) return;
+    if (identity?.localAuthority !== "verified") return;
     let disposed = false;
     let reconcileInFlight = false;
     let controller: AbortController | null = null;
@@ -1364,11 +1410,34 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
       const assetIds = activeAssetIds
         .filter((assetId) => !pendingBearerClaims.has(assetId))
         .slice(0, WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS);
-      if (!current || !assetIds.length) return;
+      if (!current || !activeAssetIds.length) return;
       const requestedActorId = current.session.actorId;
+      const allAssetIds = activeAssetIds.slice(0, WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS);
+      const isCurrent = () => !disposed && continuityRef.current?.session.keyId === current.session.keyId
+        && continuityRef.current?.session.actorId === current.session.actorId && continuityRef.current?.restoreEpoch === current.restoreEpoch;
       reconcileInFlight = true;
       controller = new AbortController();
       try {
+        const local = await readWildzUploadOwnershipHeads(defaultContinuityDatabase, allAssetIds);
+        if (!isCurrent()) return;
+        const localLost = lostWildzOwnershipAssetIdsFromSync(local, requestedActorId, allAssetIds);
+        if (localLost.length) removeLostVaultAssets(localLost);
+        const publicResponse = await fetch("/api/wilds/market/collection", {credentials: "omit", cache: "no-store", signal: controller.signal});
+        const publicResult = await publicResponse.json().catch(() => null);
+        let published: readonly unknown[] = [];
+        if (publicResponse.ok && publicResult?.ok === true && Array.isArray(publicResult.ownershipClaims)) {
+          published = await verifiedWildzPublishedOwnershipRecords(publicResult.ownershipClaims);
+          await retainVerifiedWildzUploadOwnershipClaims(defaultContinuityDatabase, published);
+          const publicLocal = await readWildzUploadOwnershipHeads(defaultContinuityDatabase, allAssetIds);
+          if (isCurrent()) {
+            const lost = lostWildzOwnershipAssetIdsFromSync([...published, ...publicLocal], requestedActorId, allAssetIds);
+            if (lost.length) removeLostVaultAssets(lost);
+          }
+          // The complete public read already included this same native namespace.
+          // Its verified coordinates plus fresh local heads finish this refresh.
+          return;
+        }
+        if (!proofSessionConnected || !assetIds.length || !isCurrent()) return;
         const response = await fetch("/api/market/ownership/reconcile", {
           method: "POST",
           credentials: "same-origin",
@@ -1377,17 +1446,15 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
           body: JSON.stringify({ assetIds }),
           signal: controller.signal
         });
-        const result = await response.json().catch(() => null) as {
-          status?: unknown;
-          lostAssetIds?: unknown;
-        } | null;
-        if (disposed
-          || !response.ok
-          || result?.status !== "ready"
-          || !Array.isArray(result.lostAssetIds)
-          || result.lostAssetIds.some((id) => typeof id !== "string" || !assetIds.includes(id))
-          || !sameWildzPlayerCoordinate(continuityRef.current?.session.actorId ?? "", requestedActorId)) return;
-        removeLostVaultAssets(result.lostAssetIds as string[]);
+        const result = await response.json().catch(() => null);
+        if (!response.ok || result?.status !== "ready" || !isCurrent()) return;
+        // A new explicit upload may have committed while this native request
+        // was in flight. Re-open its actual signed coordinate before removal.
+        const freshLocal = await readWildzUploadOwnershipHeads(defaultContinuityDatabase, allAssetIds);
+        if (!isCurrent()) return;
+        const lostAssetIds = reconciledWildzLostOwnershipAssetIds({nativeResult: result,
+          verifiedClaims: [...published, ...freshLocal], actorId: requestedActorId, assetIds: allAssetIds});
+        if (lostAssetIds.length) removeLostVaultAssets(lostAssetIds);
       } catch {
         // Sync unavailability changes no local custody; the visible world retries.
       } finally {
@@ -1404,7 +1471,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
       stop();
       controller?.abort();
     };
-  }, [proofSessionConnected, identity?.keyId, identity?.actorId, removeLostVaultAssets]);
+  }, [proofSessionConnected, identity?.keyId, identity?.actorId, identity?.localAuthority, profileRetryRevision, removeLostVaultAssets]);
 
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;
@@ -1461,7 +1528,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
           onRestoreArtifact={claimAndRestoreVaultArtifact}
           onRestoreRoamingCapture={restoreRoamingCapture}
           onOpenProfile={(origin) => openShellOverlay({ kind: "profile", username: `@${ownerUsername}` }, origin)}
-          onOpenMarket={(origin) => openShellOverlay({ kind: "market" }, origin)}
+          onOpenMarket={(origin,offerId) => openShellOverlay({ kind: "market",...(offerId?{offerId}:{}) }, origin)}
           onMarketServiceChange={setMarketService}
         /> : null}
         {!worldPainted && <div className="wildz-identity-loading">
@@ -1544,6 +1611,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
             onClose={closeShellOverlay}
             connected={standaloneMarket || identity?.localAuthority === 'verified' || proofSessionConnected}
             initialTab={marketCardReturn ? 'activity' : 'browse'}
+            initialOfferId={overlay.offerId}
             service={marketService && marketService.binding.keyId === identity?.keyId
               && sameWildzPlayerCoordinate(marketService.binding.ownerHandle, ownerUsername) ? marketService : publicMarketService}
             identityControl={standaloneMarket ? {username:ownerUsername,onImport:activateIdentitySeal} : undefined}

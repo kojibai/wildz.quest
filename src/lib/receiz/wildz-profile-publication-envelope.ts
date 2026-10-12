@@ -13,6 +13,8 @@ export function parseSignedWildzProfilePublication(value: unknown, profile: Publ
   const owner = parseWildzPlayerCoordinate(profile.username);
   if (!owner || !record || signed.schema !== "receiz.public_store.signed_publish.v1"
     || signed.tenantHost !== WILDZ_PRODUCT.domain || signed.merchantReceizId !== owner.profileHandle
+    || record.publisherKeyId !== undefined && record.publisherKeyId !== signed.identityProof?.keyId
+    || (record.ownershipClaims?.length || record.ownershipHistory?.length) && !record.publisherKeyId
     || record.handle !== profile.username || record.sourceUrl !== `${WILDZ_PRODUCT.origin}${canonicalWildzProfilePath(profile.username)}`
     || canonicalPortableCardJson(record.profile) !== canonicalPortableCardJson(profile)) throw new Error("wildz_public_profile_signed_publication_invalid");
   const namespace = `wildz-profile:${owner.actorId}`;

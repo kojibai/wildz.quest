@@ -142,9 +142,10 @@ function earlierIso(left: string, right: string) {
 export function mergeWildsConversations(left: WildsConversation, right: WildsConversation): WildsConversation {
   if (left.id !== right.id) throw new Error("wilds_conversation_mismatch");
   const byId = new Map<string, WildsDirectMessage>();
+  const revisionAt=(value:WildsDirectMessage)=>Math.max(Date.parse(value.createdAt),Date.parse(value.editedAt??value.createdAt),Date.parse(value.deletedAt??value.createdAt));
   for (const message of [...left.messages, ...right.messages]) {
     const current = byId.get(message.id);
-    if (!current || Date.parse(message.editedAt ?? message.createdAt) >= Date.parse(current.editedAt ?? current.createdAt)) byId.set(message.id, message);
+    if (!current || revisionAt(message)>=revisionAt(current)) byId.set(message.id, message);
   }
   const readThrough: Record<string, string> = {};
   for (const actorId of new Set([...Object.keys(left.readThrough), ...Object.keys(right.readThrough)])) {
@@ -160,6 +161,17 @@ export function mergeWildsConversations(left: WildsConversation, right: WildsCon
     createdAt: earlierIso(left.createdAt, right.createdAt),
     updatedAt: laterIso(left.updatedAt, right.updatedAt)!
   };
+}
+
+/** An inbox is a retrieval window, not a replacement for admitted history.
+ * Explicit message edits/deletions merge through their original source. */
+export function mergeWildsConversationHistory(current:readonly WildsConversation[],incoming:readonly WildsConversation[]):WildsConversation[]{
+  const byId=new Map(current.map(conversation=>[conversation.id,conversation]));
+  for(const conversation of incoming){
+    const prior=byId.get(conversation.id);
+    byId.set(conversation.id,prior?mergeWildsConversations(prior,conversation):conversation);
+  }
+  return [...byId.values()];
 }
 
 export function mergeWildsGroupRooms(left: WildsGroupRoom, right: WildsGroupRoom): WildsGroupRoom {

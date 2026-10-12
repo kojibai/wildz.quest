@@ -1,5 +1,8 @@
 "use client";
 
+import { defaultIdentityRepository, defaultContinuityDatabase } from "../../lib/receiz/wildz-active-identity";
+import { readWildzOwnerPublishedOwnershipClaims } from "../../lib/receiz/wildz-published-ownership";
+import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import { publishWildzCardWithIdentityProof } from "../../lib/receiz/wildz-card-identity-publication";
 import type { WildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
 import { useEffect, useRef } from "react";
@@ -77,13 +80,17 @@ export function usePublicCardPublisher(
   enabled: boolean,
   proofObjects?: WildzAdmittedVaultProofObjects,
   custody?: WildzCrewCustody | null,
-  profileHandle?: string
+  profileHandle?: string,
+  claimRevision = 0
 ) {
   const publishedPins = useRef(new Set<string>());
+  const publicationScope = useRef("");
   const retryAt = useRef(new Map<string, number>());
 
   useEffect(() => {
     if (!enabled) return;
+    const scope = `${profileHandle ?? ""}:${claimRevision}`;
+    if (publicationScope.current !== scope) { publicationScope.current = scope; publishedPins.current.clear(); retryAt.current.clear(); }
     let cancelled = false;
     let publishing = false;
     let controller: AbortController | undefined;
@@ -104,10 +111,14 @@ export function usePublicCardPublisher(
         const deadline = setTimeout(() => requestController.abort(), 30_000);
         // A restored card already readable at its exact revision needs no
         // upload. Only missing or changed revisions enter the publication rail.
+        const session = await defaultIdentityRepository.active();
+        if (!session || !sameWildzPlayerCoordinate(session.actorId, profileHandle ?? session.actorId)) break;
+        const ownershipClaims = await readWildzOwnerPublishedOwnershipClaims(defaultContinuityDatabase, session, [asset], custody);
         const published = await requireGloballyAvailablePublicWildsCard(asset, globalThis.fetch, {
+          ownershipClaims,
           proofObjects,
           profileHandle,
-          publishWithIdentityProof: (card, signal) => publishWildzCardWithIdentityProof(card, { signal, custody }),
+          publishWithIdentityProof: (card, signal) => publishWildzCardWithIdentityProof(card, { signal, custody, ownershipClaims }),
           signal: requestController.signal,
           prepareBody: async (value) => await wildzJsonSerializer.serialize(value)
             ?? wildzGameplayBackground.run(() => JSON.stringify(value))
@@ -150,5 +161,5 @@ export function usePublicCardPublisher(
       controller?.abort();
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [assets, enabled, proofObjects, custody, profileHandle]);
+  }, [assets, enabled, proofObjects, custody, profileHandle, claimRevision]);
 }

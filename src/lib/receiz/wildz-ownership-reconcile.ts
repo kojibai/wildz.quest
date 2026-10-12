@@ -1,3 +1,5 @@
+import {verifiedWildzUploadOwnershipProjection} from "./wildz-upload-ownership";
+export {recordWildzUploadOwnershipClaims,verifyWildzPublishedOwnershipClaims} from "./wildz-upload-ownership";
 import type { JsonObject, ReceizClient } from "@receiz/sdk";
 import type { WildzOwnershipWitness } from "./wildz-artifact-custody";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
@@ -47,6 +49,8 @@ function nonEmpty(value: unknown): value is string {
 }
 
 export function ownershipSyncProjection(value: unknown): WildzOwnershipSyncProjection | null {
+  const uploaded = verifiedWildzUploadOwnershipProjection(value);
+  if (uploaded) return uploaded;
   if (!isRecord(value)
     || value.namespace !== WILDZ_OWNERSHIP_SYNC_NAMESPACE
     || value.schema !== WILDZ_OWNERSHIP_SYNC_SCHEMA
@@ -153,6 +157,10 @@ function syncData(assetId: string, witness: WildzOwnershipWitness): JsonObject {
   };
 }
 
+export function wildzOwnershipWitnessProjectionRecord(assetId: string, witness: WildzOwnershipWitness) {
+  return {namespace: WILDZ_OWNERSHIP_SYNC_NAMESPACE, schema: WILDZ_OWNERSHIP_SYNC_SCHEMA, state: "published", data: syncData(assetId, witness)};
+}
+
 export async function publishWildzOwnershipSyncProjection(
   appState: WildzOwnershipSyncAppState,
   witness: WildzOwnershipWitness,
@@ -183,4 +191,38 @@ export async function publishWildzOwnershipSyncProjection(
   } catch {
     return "unavailable";
   }
+}
+
+/** Bound the native response to requested assets and at most two conflicting
+ * latest heads per asset. A synchronization row retains its original clock. */
+export function requestedWildzNativeOwnershipRecords(records:readonly unknown[],assetIds:readonly string[]){
+  const requested=new Set(assetIds),groups=new Map<string,Map<string,{claim:WildzOwnershipSyncProjection;order:bigint}>>();
+  for(const raw of records){
+    const claim=ownershipSyncProjection(raw);
+    if(!claim||!requested.has(claim.assetId))continue;
+    const order=BigInt(claim.witnessedKaiUPulse??String(BigInt(claim.witnessedKaiPulse)*1_000_000n));
+    const prior=groups.get(claim.assetId),max=prior?.values().next().value?.order;
+    if(max!==undefined&&order<max)continue;
+    const heads=max===undefined||order>max?new Map<string,{claim:WildzOwnershipSyncProjection;order:bigint}>():prior!;
+    heads.set(JSON.stringify([claim.artifactId,claim.ownerReceizId,claim.headReference,claim.historyDigestSha256]),{claim,order});
+    groups.set(claim.assetId,heads);
+  }
+  return [...groups.values()].flatMap(group=>[...group.entries()].sort(([a],[b])=>a.localeCompare(b)).slice(0,2).map(([,row])=>({
+    namespace:WILDZ_OWNERSHIP_SYNC_NAMESPACE,schema:WILDZ_OWNERSHIP_SYNC_SCHEMA,state:'published',data:{
+      schema:WILDZ_OWNERSHIP_SYNC_SCHEMA,...row.claim,
+      authority:{claim:'witnessed-kai-pulse-in-sealed-artifact',server:'synchronization-projection-only'}
+    }
+  })));
+}
+
+/** Old lost-ID responses are refresh hints. Only actual claim coordinates can
+ * supersede a locally verified upload or an already verified public claim. */
+export function reconciledWildzLostOwnershipAssetIds(input:Readonly<{
+  nativeResult:unknown;verifiedClaims:readonly unknown[];actorId:string;assetIds:readonly string[];
+}>){
+  const response=isRecord(input.nativeResult)?input.nativeResult:null;
+  const native=response?.status==='ready'&&Array.isArray(response.ownershipClaims)
+    &&response.ownershipClaims.length<=input.assetIds.length*2
+    ? requestedWildzNativeOwnershipRecords(response.ownershipClaims,input.assetIds):[];
+  return lostWildzOwnershipAssetIdsFromSync([...input.verifiedClaims,...native],input.actorId,input.assetIds);
 }

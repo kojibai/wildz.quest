@@ -1,3 +1,5 @@
+import {parseWildzPlayerCoordinate,sameWildzPlayerCoordinate} from "../../lib/receiz/wildz-player-coordinate";
+import {canonicalPortableCardJson} from "./portable-card";
 import { canonicalPublicCardPath, createPublicWildsCardRecord, createPublicWildsCardTransportRecord, parsePublicWildsCardRecord, type PublicWildsCardRecord } from "./public-card-record";
 export { parsePublicCardParam, canonicalPublicCardPath, publicWildsCardRecoverySourceUrls, createPublicWildsCardRecord, createPublicWildsCardTransportRecord, parsePublicWildsCardRecord } from "./public-card-record";
 export type { PublicCardParam, PublicWildsCardRecord, PublicWildsCardTransportRecord } from "./public-card-record";
@@ -11,6 +13,7 @@ import {
 export type PublicWildsCardRegistrationOptions = {
   signal?: AbortSignal;
   profileHandle?: string;
+  ownershipClaims?: readonly unknown[];
   prepareBody?: (value: unknown) => Promise<string>;
   proofObjects?: WildzAdmittedVaultProofObjects;
   publishWithIdentityProof?: (asset: PortableCardAsset, signal?: AbortSignal) => Promise<PublicWildsCardRecord>;
@@ -64,13 +67,27 @@ function waitForPublicCardRegistration<T>(
   });
 }
 
+function publicCardRegistrationPin(asset:PortableCardAsset,options:PublicWildsCardRegistrationOptions){
+  return `${parseWildzPlayerCoordinate(options.profileHandle ?? "")?.profileHandle ?? "canonical"}:${asset.id}:${asset.proof.digest}:${canonicalPortableCardJson(options.ownershipClaims ?? [])}`;
+}
+function publicCardMatchesRequestedOwner(record:PublicWildsCardRecord,asset:PortableCardAsset,options:PublicWildsCardRegistrationOptions){
+  const owner=options.profileHandle ? parseWildzPlayerCoordinate(options.profileHandle) : null;
+  if(options.profileHandle&&!owner)return false;
+  if(owner){
+    const path=new URL(record.sourceUrl).pathname;
+    if(path!==`/u/${owner.actorId}/cards/${encodeURIComponent(asset.id)}`
+      && !(path===canonicalPublicCardPath(asset.id)&&sameWildzPlayerCoordinate(asset.manifest.ownerReceizId,owner.actorId)))return false;
+  }
+  return !options.ownershipClaims?.length || canonicalPortableCardJson(record.ownershipClaims ?? [])===canonicalPortableCardJson(options.ownershipClaims);
+}
+
 export async function registerPublicWildsCard(
   asset: PortableCardAsset,
   fetcher: typeof fetch = globalThis.fetch,
   options: PublicWildsCardRegistrationOptions = {}
 ) {
   options.signal?.throwIfAborted();
-  const pin = `${asset.id}:${asset.proof.digest}`;
+  const pin = publicCardRegistrationPin(asset,options);
   const state = publicCardRegistrationState(fetcher);
   const admitted = state.admitted.get(pin);
   if (admitted) return admitted;
@@ -98,7 +115,7 @@ async function registerPublicWildsCardRevision(
 ) {
   if (options.publishWithIdentityProof) {
     const record = parsePublicWildsCardRecord(await options.publishWithIdentityProof(asset, options.signal));
-    if (!record || record.assetId !== asset.id || record.asset.proof.digest !== asset.proof.digest) throw new Error("wildz_public_card_publication_unconfirmed");
+    if (!record || record.assetId !== asset.id || record.asset.proof.digest !== asset.proof.digest || !publicCardMatchesRequestedOwner(record,asset,options)) throw new Error("wildz_public_card_publication_unconfirmed");
     return record;
   }
   const needsClientVerification = publicCardNeedsClientVerification(asset, options.proofObjects);
@@ -195,7 +212,7 @@ export async function requireGloballyAvailablePublicWildsCard(
     const record = parsePublicWildsCardRecord(payload?.record,
       publicCardNeedsClientVerification(asset, options.proofObjects) ? undefined : asset);
     return response.ok && payload?.ok === true && record?.assetId === asset.id
-      && record.asset.proof.digest === asset.proof.digest ? record : null;
+      && record.asset.proof.digest === asset.proof.digest && publicCardMatchesRequestedOwner(record,asset,options) ? record : null;
   };
   // A card already live at this exact revision needs no publication credentials or upload.
   const existing = await waitForPublicCardRegistration(readPublicRevision(), options.signal);
@@ -203,7 +220,7 @@ export async function requireGloballyAvailablePublicWildsCard(
   // An old upload acknowledgment cannot override the anonymous read we just
   // performed. Otherwise every profile retry reuses that cached acknowledgment
   // and never republishes a revision that is missing from the public projection.
-  publicCardRegistrationState(fetcher).admitted.delete(`${asset.id}:${asset.proof.digest}`);
+  publicCardRegistrationState(fetcher).admitted.delete(publicCardRegistrationPin(asset,options));
   await registerPublicWildsCard(asset, fetcher, options);
   const record = await waitForPublicCardRegistration(readPublicRevision(), options.signal);
   if (!record) throw new Error("wildz_public_card_anonymous_read_required");

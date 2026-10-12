@@ -145,11 +145,13 @@
 .actions {display:flex;flex-wrap:wrap;gap:9px;}
 .actions:empty {display:none;}
 .actions button {flex:1;min-width:140px;}
-.ownListing {display:flex;align-items:center;gap:13px;padding:17px 0;border-bottom:1px solid var(--market-line);}
-.ownListing>div {flex:1;min-width:0;display:grid;gap:6px;}
+.ownListing {display:grid;grid-template-columns:36px minmax(0,1fr);align-items:start;gap:12px 13px;padding:17px 0;border-bottom:1px solid var(--market-line);}
+.ownListingDetails {min-width:0;display:grid;gap:6px;}
 .ownListing strong {font-size:15px;overflow-wrap:anywhere;}
 .ownListing small {color:#9fb3a4;font-size:12px;line-height:1.5;overflow-wrap:anywhere;}
-.ownListing>button {flex-shrink:0;font-size:12px;}
+.ownListingActions {grid-column:2;display:flex;flex-wrap:wrap;align-items:center;gap:9px;min-width:0;}
+.ownListingActions button {flex:1;min-width:122px;max-width:100%;font-size:12px;padding-inline:10px;}
+@media(min-width:760px) {.ownListing {grid-template-columns:36px minmax(0,1fr) auto;align-items:center;}.ownListingActions {grid-column:3;}.ownListingActions button {flex:0 0 auto;}}
 .empty {display:grid;gap:12px;justify-items:start;align-content:center;min-height:170px;margin:0;padding:24px 0;border-block:1px solid var(--market-line);color:#b8cdb2;font-size:14px;line-height:1.6;}
 .empty>svg {color:#a4cc82;}
 .empty h3 {margin:0;font-size:20px;line-height:1.25;letter-spacing:-.025em;color:#ebf5e1;}

@@ -32,7 +32,7 @@ export type WildsPlayerVaultPayload = {
   settings: WildsPlayerVaultSettings;
   personalEvents: { eventId: string; kind: string; occurredAt: string; receiptDigest?: string }[];
   canonicalCursor: { worldId: typeof WILDS_WORLD_ID; revision: number; eventId: string | null };
-  receipts: { eventId: string; digest: string }[];
+  receipts: { eventId: string; digest: string; ownershipClaim?: unknown }[];
   payloadDigest: string;
 };
 

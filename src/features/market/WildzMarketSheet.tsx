@@ -57,12 +57,12 @@ function MarketIdentityControl({username,onImport}:{username:string;onImport(fil
   }}/></label>{error?<p role="alert">{error}</p>:null}</div>;
 }
 
-export function WildzMarketSheet({service,connected,initialTab='browse',onClose,identityControl}:{service:WildzMarketServiceV128|null;connected:boolean;initialTab?:Tab;onClose?:()=>void;identityControl?:{username:string;onImport(file:File):Promise<unknown>}}){
- const [tab,setTab]=useState<Tab>(initialTab);
+export function WildzMarketSheet({service,connected,initialTab='browse',initialOfferId,onClose,identityControl}:{service:WildzMarketServiceV128|null;connected:boolean;initialTab?:Tab;initialOfferId?:string;onClose?:()=>void;identityControl?:{username:string;onImport(file:File):Promise<unknown>}}){
+ const [tab,setTab]=useState<Tab>(initialOfferId?'activity':initialTab);
  const [discovery,setDiscovery]=useState(initialMarketDiscovery);
  const [mobileColumns,setMobileColumns]=useState<1|2>(2);
  const [detail,setDetail]=useState<{service:WildzMarketServiceV128;listingId?:string;assetId?:string;focusChart?:boolean}|null>(null);
- const [activityScope,setActivityScope]=useState<'all'|'purchases'|'sales'|'listings'|'offers'|'history'>('all');
+ const [activityScope,setActivityScope]=useState<'all'|'purchases'|'sales'|'listings'|'offers'|'history'>(initialOfferId?'offers':'all');
  const scroll=useRef<HTMLDivElement>(null),exploreScroll=useRef(0);
  const warmup=useMemo(()=>service?getWildzMarketWarmup(service):null,[service]);
  const mounted=useRef(true),live=useRef({service,connected});live.current={service,connected};
@@ -98,6 +98,16 @@ export function WildzMarketSheet({service,connected,initialTab='browse',onClose,
  const visiblePurchases=purchases.filter(item=>activityScope==='all'||activityScope==='purchases'&&item.buyerHandle===service?.binding.ownerHandle||activityScope==='sales'&&item.sellerHandle===service?.binding.ownerHandle);
  const readVisibleValue=useCallback((assetId:string)=>service?.readValue?.(assetId),[service]);
  const changeTab=(next:Tab)=>{setTab(next);setDetail(null);scroll.current?.scrollTo({top:0});};
+ useEffect(()=>{
+  if(!initialOfferId)return;
+  setTab('activity');setActivityScope('offers');setDetail(null);
+ },[initialOfferId]);
+ const focusedOfferVisible=offers.some(item=>item.offer.offerId===initialOfferId);
+ useEffect(()=>{
+  if(!focusedOfferVisible||tab!=='activity'||activityScope!=='offers')return;
+  const node=Array.from(scroll.current?.querySelectorAll<HTMLElement>('[data-market-offer-id]')??[]).find(node=>node.dataset.marketOfferId===initialOfferId);
+  node?.scrollIntoView({block:'center'});node?.focus({preventScroll:true});
+ },[initialOfferId,focusedOfferVisible,tab,activityScope]);
  const openDetail=(listingId:string,focusChart=false)=>{if(service){exploreScroll.current=scroll.current?.scrollTop??0;setDetail({service,listingId,focusChart});scroll.current?.scrollTo({top:0});}};
 
  const backToListings=()=>{setDetail(null);window.requestAnimationFrame(()=>scroll.current?.scrollTo({top:exploreScroll.current}));};
@@ -189,7 +199,14 @@ export function WildzMarketSheet({service,connected,initialTab='browse',onClose,
    {activityScope==='history'?<>{service?.readHistory?<div className={styles.discoveryFooter}><span>Verified trades & ownership changes</span><button type="button" disabled={unavailable||busy} onClick={()=>{if(service?.readHistory)void runtime.run('Load older trades',()=>service.readHistory!()).then(next=>{if(next&&live.current.service===service)setView({service,snapshot:next});});}}>{ui.busy==='Load older trades'?'Checking receipts…':'Load older trades'}</button></div>:null}<WildzMarketTradeHistory sales={history.filter(s=>[s.buyerHandle,s.sellerHandle].includes(service?.binding.ownerHandle??''))} transfers={transfers.filter(t=>[t.fromHandle,t.toHandle].includes(service?.binding.ownerHandle??''))}/></>:null}
    {activityScope==='all'||activityScope==='listings'?<>
    <div className={styles.sectionHeading}><h3>Your listings</h3><span>{own.length} listing{own.length===1?'':'s'}</span></div>
-   {own.length?own.map(item=><article className={styles.ownListing} key={item.listingId}><span className={styles.icon} aria-hidden="true"><AssetIcon kind={item.kind}/></span><div><strong>{item.title}</strong><small>{item.status==='reserved'?'Reserved for a buyer':item.status==='cancelled'?'Purchase closed · withdrawal pending':item.canActivate?'Published · purchase connection pending':'Active listing'} · {formatWildsUsdCents(item.priceUsdCents)}</small></div>{item.canActivate&&service?.activateListing?<button type="button" disabled={unavailable||busy} onClick={()=>{if(service?.activateListing)void runtime.run('Enable purchases',()=>service.activateListing!(item.listingId)).then(showResult);}}>Enable purchases</button>:null}{item.canCancel?<button type="button" disabled={unavailable||busy} onClick={()=>{if(service)void runtime.run('Cancel listing',()=>service.cancel(item.listingId)).then(showResult);}}>Cancel listing</button>:<span className={styles.badge}>Reserved</span>}</article>):<p className={styles.empty}>Your active listings appear here. Purchases stay available to resume if a reply is delayed.</p>}
+   {own.length?own.map(item=><article className={styles.ownListing} key={item.listingId}>
+    <span className={styles.icon} aria-hidden="true"><AssetIcon kind={item.kind}/></span>
+    <div className={styles.ownListingDetails}><strong>{item.title}</strong><small>{item.status==='reserved'?'Reserved for a buyer':item.status==='cancelled'?'Purchase closed · withdrawal pending':item.canActivate?'Published · purchase connection pending':'Active listing'} · {formatWildsUsdCents(item.priceUsdCents)}</small></div>
+    <div className={styles.ownListingActions} role="group" aria-label={`Listing actions · ${item.title}`}>
+     {item.canActivate&&service?.activateListing?<button type="button" disabled={unavailable||busy} onClick={()=>{if(service?.activateListing)void runtime.run('Enable purchases',()=>service.activateListing!(item.listingId)).then(showResult);}}>Enable purchases</button>:null}
+     {item.canCancel?<button type="button" disabled={unavailable||busy} onClick={()=>{if(service)void runtime.run('Cancel listing',()=>service.cancel(item.listingId)).then(showResult);}}>Cancel listing</button>:<span className={styles.badge}>Reserved</span>}
+    </div>
+   </article>):<p className={styles.empty}>Your active listings appear here. Purchases stay available to resume if a reply is delayed.</p>}
    </>:null}
   </section>:null}
    {tab!=='browse'?<p className={styles.footer}>Prices are in USD. Purchases use the exact Phi amount you review. If your wallet is short, card checkout adds funds to your wallet before purchase approval.</p>:null}

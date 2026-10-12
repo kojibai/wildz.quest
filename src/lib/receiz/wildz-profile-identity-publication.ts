@@ -1,4 +1,7 @@
-import { defaultIdentityRepository } from "./wildz-active-identity";
+import {verifyWildzPublishedOwnershipClaims} from "./wildz-upload-ownership";
+import { readWildzOwnerPublishedOwnershipClaims, admitWildzOwnerPublishedOwnershipClaims } from "./wildz-published-ownership";
+import type { WildzCrewCustody } from "./wildz-artifact-codec";
+import { defaultContinuityDatabase, defaultIdentityRepository } from "./wildz-active-identity";
 import { canonicalPortableCardJson, type PortableCardAsset } from "../../features/play/portable-card";
 import type { PublicWildzProfile } from "../../features/profile/public-profile";
 import type { WildzIdentityRepository } from "./wildz-identity-repository";
@@ -14,6 +17,9 @@ export async function publishWildzProfileWithIdentityProof(profile: PublicWildzP
   occurredAt?: string;
   assets?: readonly PortableCardAsset[];
   publishMarketCollection?: boolean;
+  ownershipClaims?: readonly unknown[];
+  ownershipHistory?: readonly unknown[];
+  custody?: WildzCrewCustody | null;
 } = {}) {
   options.signal?.throwIfAborted();
   const repository = options.repository ?? defaultIdentityRepository;
@@ -24,8 +30,13 @@ export async function publishWildzProfileWithIdentityProof(profile: PublicWildzP
   const owner = parseWildzPlayerCoordinate(profile.username);
   if (!session || session.localAuthority !== "verified") throw new Error("wildz_profile_identity_seal_required");
   if (!owner || !sameWildzPlayerCoordinate(owner.actorId, session.actorId)) throw new Error("wildz_public_profile_owner_mismatch");
+  const galleryIds = new Set(profile.vault.map(card => card.id));
+  const galleryCards = (options.assets ?? []).filter(card => galleryIds.has(card.id));
+  const suppliedClaims = options.ownershipClaims ?? (options.repository ? [] : await readWildzOwnerPublishedOwnershipClaims(defaultContinuityDatabase, session, galleryCards, options.custody));
+  const ownershipClaims = await admitWildzOwnerPublishedOwnershipClaims(suppliedClaims, session, galleryCards, options.custody);
+  const ownershipHistory = (await verifyWildzPublishedOwnershipClaims(options.ownershipHistory ?? [])).filter(({claim}) => claim.keyId === session.keyId && sameWildzPlayerCoordinate(claim.ownerReceizId, session.actorId));
   const prepared = await withKeyFile(session.keyId, keyFile => prepareWildzProfilePublication({
-    profile, session, keyFile, assets: options.assets, occurredAt: options.occurredAt, publishMarketCollection: options.publishMarketCollection
+    profile, session, keyFile, assets: options.assets, occurredAt: options.occurredAt, publishMarketCollection: options.publishMarketCollection, ownershipClaims, ownershipHistory
   }, options.signal));
   options.signal?.throwIfAborted();
   const response = await (options.fetcher ?? globalThis.fetch)(`/api/profiles/${encodeURIComponent(owner.actorId)}`, {

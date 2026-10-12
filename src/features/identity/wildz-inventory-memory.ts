@@ -6,6 +6,10 @@ const SCHEMA = "receiz.wildz.inventory_memory.v1";
 // Bump when canonical card admission rules change. Old memories then take the full verifier path once.
 const VERIFIER = "wildz.card-admission.v1";
 const KEY = "receiz.wildz.inventory_memory_key.v1";
+// A crew can retain its native source beside the latest upload source. Each
+// bounded coordinate also carries the original native ownership witness.
+const MAX_COORDINATES = 2000;
+const MAX_COORDINATE_CHARS = 2048;
 type Owner = { keyId: string; actorId: string };
 type Memory = Owner & { schema: typeof SCHEMA; verifier: typeof VERIFIER; kind: string; coordinates: readonly string[]; digest: string; signature: Uint8Array };
 const cardDigests = new WeakMap<PortableCardAsset, Promise<string>>();
@@ -84,7 +88,7 @@ export async function readWildzInventoryMemoryHead(database: WildzContinuityData
     const source = await database.read<Memory>("meta", wildzInventoryMemoryKey(owner, kind));
     if (!source || source.schema !== SCHEMA || source.verifier !== VERIFIER || source.kind !== kind || source.keyId !== owner.keyId
       || source.actorId !== owner.actorId || !/^[a-f0-9]{64}$/.test(source.digest) || !Array.isArray(source.coordinates)
-      || source.coordinates.length > 1000 || source.coordinates.some(value => typeof value !== "string" || value.length > 512)
+      || source.coordinates.length > MAX_COORDINATES || source.coordinates.some(value => typeof value !== "string" || value.length > MAX_COORDINATE_CHARS)
       || !(source.signature instanceof Uint8Array) || source.signature.length !== 32) return null;
     const memory = Object.freeze({ ...source, coordinates: Object.freeze([...source.coordinates]) });
     const key = await database.read<unknown>("wrappingKeys", KEY);

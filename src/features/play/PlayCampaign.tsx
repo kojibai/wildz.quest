@@ -412,7 +412,7 @@ export function PlayCampaign({
   onMarketServiceChange?: (service: WildzMarketServiceV128 | null) => void;
   shellOverlayOwner?: "none" | "profile" | "market";
   onOpenProfile?: (restoreOrigin: HTMLElement | null) => void;
-  onOpenMarket?: (restoreOrigin: HTMLElement | null) => void;
+  onOpenMarket?: (restoreOrigin: HTMLElement | null,offerId?:string) => void;
   initialState?: PlayState;
   initialPlayerContinuity?: WildzPlayerContinuity | null;
   crewCustody?: WildzCrewCustody | null;
@@ -1130,7 +1130,7 @@ export function PlayCampaign({
   }, [livingWorld.snapshot, state.playerNourishment, readActionKaiUPulse]);
   const walletTradeIdentityRef = useRef({keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle, incarnation: walletObservationEpoch ?? "legacy"});
   walletTradeIdentityRef.current = {keyId: walletReadIdentityKey, ownerHandle: walletTradeOwnerHandle, incarnation: walletObservationEpoch ?? "legacy"};
-  const {readTradeConversations, sendBearerGift, sendResourceSource, sendStagedTrade, sendMarketOffer} = messenger;
+  const {readTradeConversations, subscribeTradeConversations, sendBearerGift, sendResourceSource, sendStagedTrade, sendMarketOffer} = messenger;
   const [walletSourceRows, setWalletSourceRows] = useState<{keyId: string; actorId: string; owner: string; incarnation: string; pending?: boolean; rows: readonly WildsWalletResourceProjectionRowV128[]} | null>(() => admittedWalletPresentation && walletTradeOwnerHandle ? {keyId: admittedWalletPresentation.keyId, actorId: walletIdentityKey, owner: walletTradeOwnerHandle, incarnation: admittedWalletPresentation.incarnation, rows: admittedWalletPresentation.resourceRows, pending: admittedWalletPresentation.resourceRowsPending} : null);
   const scopedWalletSourceRows = walletSourceRows && walletSourceRows.keyId === walletReadIdentityKey && walletSourceRows.actorId === walletIdentityKey && walletSourceRows.owner === walletTradeOwnerHandle && walletSourceRows.incarnation === (walletObservationEpoch ?? "legacy") ? walletSourceRows : null;
   const currentWalletSourceRows = scopedWalletSourceRows?.rows ?? admittedWalletPresentation?.resourceRows ?? EMPTY_WALLET_SOURCE_ROWS;
@@ -1403,7 +1403,7 @@ export function PlayCampaign({
         staged: {assetPort: walletAssetPort, readConversations: readTradeConversations, publish: sendStagedTrade,
           sendWalletAsset: async () => ({status: "failed", message: "Review the exact native asset in Market."}), ensureReady: ensureWalletTradeReady, observeSubmission: markWalletObservationPending}
       });
-      const community:WildzMarketServiceV128=withWildzMarketCommunity(base,{currentIdentity,readCollection:()=>readWildzMarketCollection(),readConversations:readTradeConversations,publish:sendMarketOffer,
+      const community:WildzMarketServiceV128=withWildzMarketCommunity(base,{currentIdentity,readCollection:()=>readWildzMarketCollection(),readConversations:readTradeConversations,subscribeConversations:subscribeTradeConversations,publish:sendMarketOffer,
         value:createWildzMarketValueBrowserPortV129({current:()=>{currentIdentity();},
           card:async assetId=>{
             const selected=community.snapshot().collection?.find(card=>card.assetId===assetId);
@@ -1412,7 +1412,7 @@ export function PlayCampaign({
           }})});
       return community;
     }});
-  }, [walletReadIdentityKey, walletTradeOwnerHandle, walletAssetPort, readTradeConversations, sendStagedTrade, sendMarketOffer, ensureWalletTradeReady, markWalletObservationPending]);
+  }, [walletReadIdentityKey, walletTradeOwnerHandle, walletAssetPort, readTradeConversations, subscribeTradeConversations, sendStagedTrade, sendMarketOffer, ensureWalletTradeReady, markWalletObservationPending]);
   useEffect(() => {
     marketActiveRef.current = true;
     onMarketServiceChange?.(lazyMarket?.service ?? null);

@@ -8,13 +8,13 @@ const abortError=()=>new DOMException('Card preparation was cancelled.','AbortEr
 const assertActive=(signal?:AbortSignal)=>{if(signal?.aborted)throw abortError();};
 
 export function wildzMarketCardKey(card:WildzMarketOwnedCard){
- const owner=parseWildzPlayerCoordinate(card.ownerHandle);
+ const owner=parseWildzPlayerCoordinate(card.ownerHandle || card.artworkOwnerHandle || "");
  return `${card.assetId}:${card.proofDigest}:${owner?.actorId??card.ownerHandle}`;
 }
 
 export function wildzMarketCardImageUrl(card:WildzMarketOwnedCard){
  if(process.env.NODE_ENV==='development'&&card.artworkUrl?.startsWith('/test-fixtures/market/cards/'))return card.artworkUrl;
- const owner=parseWildzPlayerCoordinate(card.ownerHandle);
+ const owner=parseWildzPlayerCoordinate(card.ownerHandle || card.artworkOwnerHandle || "");
  if(!owner)throw Error('The card owner could not be resolved.');
  return `/api/cards/${encodeURIComponent(card.assetId)}/image?profile=${encodeURIComponent(owner.actorId)}&digest=${encodeURIComponent(card.proofDigest)}`;
 }
@@ -59,7 +59,7 @@ export function readWildzMarketCard(card:WildzMarketOwnedCard,signal?:AbortSigna
    if(card.asset.id!==card.assetId||card.asset.proof.digest!==card.proofDigest||!verifyAnyWildsCard(card.asset).ok)throw Error('This exact card revision could not be verified.');
    return card.asset;
   }
-  const owner=parseWildzPlayerCoordinate(card.ownerHandle);
+  const owner=parseWildzPlayerCoordinate(card.ownerHandle || card.artworkOwnerHandle || "");
   if(!owner)throw Error('The card owner could not be resolved.');
   const response=await fetch(`/api/cards/${encodeURIComponent(card.assetId)}?profile=${encodeURIComponent(owner.actorId)}`,{credentials:'omit',signal:AbortSignal.any([workSignal,AbortSignal.timeout(15000)]),cache:'no-store'});
   if(!response.ok)throw Error('This exact card revision could not be loaded.');

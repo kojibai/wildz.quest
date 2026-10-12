@@ -13,6 +13,8 @@ export function parseSignedWildzCardPublication(value: unknown, asset: PortableC
   const owner=parseWildzPlayerCoordinate(collectionHandle ?? asset.manifest.ownerReceizId);
   if (!owner || !record || signed.schema !== "receiz.public_store.signed_publish.v1"
     || signed.tenantHost !== WILDZ_PRODUCT.domain || signed.merchantReceizId !== owner.profileHandle
+    || record.publisherKeyId !== undefined && record.publisherKeyId !== signed.identityProof?.keyId
+    || record.ownershipClaims?.length && !record.publisherKeyId
     || record.assetId !== asset.id || record.sourceUrl !== `${WILDZ_PRODUCT.origin}${collectionHandle ? `/u/${collectionHandle}` : ""}/cards/${encodeURIComponent(asset.id)}`
     || canonicalPortableCardJson(record.asset) !== canonicalPortableCardJson(asset)) {
     throw new Error("wildz_public_card_signed_publication_invalid");

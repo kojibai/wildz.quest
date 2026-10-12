@@ -170,9 +170,7 @@ export function wildzVaultUploadDisposition(
   if (inspection.kind !== "card-vault" && inspection.kind !== "commerce-vault") {
     throw new Error("wildz_vault_upload_artifact_required");
   }
-  const witnessedOwner = inspection.kind === "card-vault"
-    ? inspection.proofObject?.ownerReceizId ?? null
-    : null;
+  const witnessedOwner = inspection.proofObject?.ownerReceizId ?? null;
   if (witnessedOwner) {
     return sameVaultOwner(witnessedOwner, activeActorId) ? "merge-owned" : "claim-bearer";
   }
@@ -180,7 +178,7 @@ export function wildzVaultUploadDisposition(
   // carry a native bearer envelope, so sending them to claimBearerAsset cannot
   // succeed. Restore their verified bytes and history through the existing
   // active-Vault merge; do not manufacture a native ownership claim.
-  if (inspection.kind === "card-vault" && !inspection.proofObject) {
+  if (!inspection.proofObject) {
     const savedOwner = inspection.player?.playerId;
     const sameOwner = savedOwner ? sameVaultOwner(savedOwner, activeActorId)
       : inspection.assets.every(asset => sameVaultOwner(asset.manifest.ownerReceizId, activeActorId));

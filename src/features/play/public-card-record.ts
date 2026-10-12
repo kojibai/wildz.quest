@@ -1,3 +1,5 @@
+import {parseWildzPublishedOwnershipClaims} from "../../lib/receiz/wildz-published-ownership-record";
+import {parseWildzPlayerCoordinate} from "../../lib/receiz/wildz-player-coordinate";
 import { compressPublicCardRecord, decompressPublicCardRecord } from "./public-card-compression";
 import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 import { isAdmittedWildsCard } from "./admitted-inventory";
@@ -13,6 +15,8 @@ export type PublicWildsCardRecord = {
   sourceUrl: string;
   registeredAt: string;
   asset: PortableCardAsset;
+  ownershipClaims?: readonly unknown[];
+  publisherKeyId?: string;
 };
 
 export type PublicWildsCardTransportRecord = {
@@ -149,6 +153,12 @@ export function parsePublicWildsCardRecord(value: unknown, expectedAsset?: Porta
         const source = new URL(candidate.sourceUrl);
         const collectionPath = /^\/u\/[a-z0-9_]{3,64}\/cards\//.test(source.pathname)
           && source.pathname.endsWith(`/cards/${encodeURIComponent(asset.id)}`) && !source.search && !source.hash;
+        if (candidate.publisherKeyId !== undefined) {
+          if (typeof candidate.publisherKeyId !== "string" || !/^[a-f0-9]{64}$/.test(candidate.publisherKeyId)) return null;
+          record.publisherKeyId = candidate.publisherKeyId;
+        }
+        if (candidate.ownershipClaims !== undefined) record.ownershipClaims = parseWildzPublishedOwnershipClaims(candidate.ownershipClaims,
+          source.pathname.match(/^\/u\/([a-z0-9_]{3,64})\/cards\//)?.[1] ?? parseWildzPlayerCoordinate(asset.manifest.ownerReceizId)?.profileHandle ?? "", [asset.id]);
         return record.assetId === candidate.assetId && (record.sourceUrl === source.toString() || collectionPath)
           ? { ...record, sourceUrl: source.toString() }
           : null;

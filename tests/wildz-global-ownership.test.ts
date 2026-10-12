@@ -216,7 +216,9 @@ test("cross-device Vault invalidation uses guarded live refresh outside Market",
   assert.match(shell, /JSON\.stringify\(\{\s*assetIds\s*\}\)/);
   assert.match(shell, /pendingBearerClaims/);
   assert.match(shell, /filter\(\(assetId\) => !pendingBearerClaims\.has\(assetId\)\)/);
-  assert.match(shell, /removeLostVaultAssets\(result\.lostAssetIds(?: as string\[\])?\)/);
+  assert.match(shell, /reconciledWildzLostOwnershipAssetIds/);
+  assert.match(shell, /readWildzUploadOwnershipHeads\(defaultContinuityDatabase, allAssetIds\)/);
+  assert.doesNotMatch(shell, /removeLostVaultAssets\(result\.lostAssetIds/);
   const reconciliation = shell.slice(
     shell.lastIndexOf("useEffect(() => {", shell.indexOf("const reconcileActiveVaultOwnership")),
     shell.indexOf("useEffect(() => {", shell.indexOf("const reconcileActiveVaultOwnership") + 1)
@@ -225,5 +227,6 @@ test("cross-device Vault invalidation uses guarded live refresh outside Market",
   assert.match(reconciliation, /startWildzLiveOwnershipRefresh/);
   assert.match(reconciliation, /identity\?\.keyId, identity\?\.actorId/);
   assert.match(reconciliation, /controller\?\.abort\(\)/);
-  assert.match(reconciliation, /!assetIds\.includes\(id\)/);
+  assert.match(reconciliation, /if \(!isCurrent\(\)\) return/);
+  assert.match(reconciliation, /verifiedClaims: \[\.\.\.published, \.\.\.freshLocal\]/);
 });
