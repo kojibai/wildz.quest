@@ -3,6 +3,7 @@ import {parseWildzPlayerCoordinate} from '../../lib/receiz/wildz-player-coordina
 import {parsePublicWildsCardRecord} from '../play/public-card-record';
 import {verifyAnyWildsCard,type PortableCardAsset} from '../play/portable-card';
 import {renderWildsCardSvg} from '../play/card-svg';
+import {createWildzMarketGalleryImage} from './wildz-market-gallery-image';
 
 const CACHE_LIMIT=48;
 // Generated artwork lives only as long as a prepared view. Original inventory
@@ -100,7 +101,10 @@ export function decodeWildzMarketCardImage(src:string,signal?:AbortSignal):Promi
  });
 }
 
-export type PreparedWildzMarketCard=Readonly<{key:string;card:WildzMarketOwnedCard&{asset:PortableCardAsset};imageUrl:string}>;
+export type PreparedWildzMarketGalleryCard=Readonly<{key:string;card:WildzMarketOwnedCard;imageUrl:string}>;
+export type PreparedWildzMarketCard=Readonly<{key:string;card:WildzMarketOwnedCard&{asset:PortableCardAsset};imageUrl:string;galleryImageUrl:string}>;
+
+const withoutAsset=(card:WildzMarketOwnedCard)=>{const {asset,...metadata}=card;void asset;return metadata;};
 
 export function wildzMarketPreparedCardView(prepared:PreparedWildzMarketCard,current:WildzMarketOwnedCard){
  if(prepared.key!==wildzMarketCardKey(current))throw Error('The prepared card revision does not match.');
@@ -110,16 +114,22 @@ export function wildzMarketPreparedCardView(prepared:PreparedWildzMarketCard,cur
 }
 
 /** Publish a whole visible page only after its real images and local values are ready. */
-export function createWildzMarketCardPreparer({readCard=readWildzMarketCard,decodeImage=decodeWildzMarketCardImage,readValue}:{
+export function createWildzMarketCardPreparer({readCard=readWildzMarketCard,decodeImage=decodeWildzMarketCardImage,readValue,createGalleryImage=createWildzMarketGalleryImage}:{
  readCard?(card:WildzMarketOwnedCard,signal?:AbortSignal):Promise<PortableCardAsset>;
  decodeImage?(url:string,signal?:AbortSignal):Promise<void>;
  readValue?(assetId:string):void|Promise<unknown>;
+ createGalleryImage?(url:string,signal?:AbortSignal):Promise<string>;
 }={}){
  const pinned=new Set<string>(),nearby=new Set<string>();
  const retained=(key:string)=>pinned.has(key)||nearby.has(key);
  const preparedCache=taskCache<PreparedWildzMarketCard>(retained);
  const completed=new Map<string,PreparedWildzMarketCard>();
- return {pin(cards:readonly WildzMarketOwnedCard[]){pinned.clear();cards.slice(0,6).forEach(card=>pinned.add(wildzMarketCardKey(card)));},protect(cards:readonly WildzMarketOwnedCard[]){nearby.clear();cards.slice(0,36).forEach(card=>nearby.add(wildzMarketCardKey(card)));},peek(cards:readonly WildzMarketOwnedCard[]){
+ const gallery=new Map<string,PreparedWildzMarketGalleryCard>();let galleryKeys:Set<string>|null=null;
+ const api={retainGallery(cards:readonly WildzMarketOwnedCard[]){galleryKeys=new Set(cards.map(wildzMarketCardKey));for(const key of gallery.keys())if(!galleryKeys.has(key))gallery.delete(key);},peekGallery(cards:readonly WildzMarketOwnedCard[]){
+  return new Map(cards.flatMap(current=>{const key=wildzMarketCardKey(current),held=gallery.get(key);if(!held)return [];
+   const card={...held.card,...withoutAsset(current)};objectArtwork.set(card,{digest:card.proofDigest,url:held.imageUrl});return [[key,{...held,card}] as const];
+  }));
+ },async read(card:WildzMarketOwnedCard,signal?:AbortSignal){assertActive(signal);return completed.get(wildzMarketCardKey(card))?.card.asset??await readCard(card,signal);},pin(cards:readonly WildzMarketOwnedCard[]){pinned.clear();cards.slice(0,6).forEach(card=>pinned.add(wildzMarketCardKey(card)));},protect(cards:readonly WildzMarketOwnedCard[]){nearby.clear();cards.slice(0,36).forEach(card=>nearby.add(wildzMarketCardKey(card)));},peek(cards:readonly WildzMarketOwnedCard[]){
   return new Map(cards.flatMap(card=>{const key=wildzMarketCardKey(card),ready=completed.get(key);return ready?[[key,ready] as const]:[];}));
  },async prepare(cards:readonly WildzMarketOwnedCard[],signal?:AbortSignal,onReady?:(card:PreparedWildzMarketCard)=>void):Promise<readonly PreparedWildzMarketCard[]>{
   const unique=[...new Map(cards.map(card=>[wildzMarketCardKey(card),card])).values()];
@@ -134,16 +144,25 @@ export function createWildzMarketCardPreparer({readCard=readWildzMarketCard,deco
      try{const result=await readValue?.(card.assetId);if(result&&typeof result==='object'&&'artworkAssetId' in result&&result.artworkAssetId===asset.id&&'artworkProofDigest' in result&&result.artworkProofDigest===asset.proof.digest&&'artworkSvg' in result&&typeof result.artworkSvg==='string'&&result.artworkSvg.startsWith('<svg')&&result.artworkSvg.length<1_000_000)svg=result.artworkSvg;}catch{/* A display calculation does not invalidate a complete proof. */}
      assertActive(workSignal);
      const imageUrl=`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg??renderWildsCardSvg(asset))}`;
-     await decodeImage(imageUrl,workSignal);assertActive(workSignal);
+     const galleryImageUrl=await createGalleryImage(imageUrl,workSignal);assertActive(workSignal);
+     await decodeImage(decodeImage===decodeWildzMarketCardImage?galleryImageUrl:imageUrl,workSignal);assertActive(workSignal);
      const view={...card,asset};objectArtwork.set(view,{digest:card.proofDigest,url:imageUrl});
-     return {key:wildzMarketCardKey(card),card:view,imageUrl};
+     return {key:wildzMarketCardKey(card),card:view,imageUrl,galleryImageUrl};
     },signal);assertActive(signal);
      const prepared=ready[index]!;completed.delete(prepared.key);completed.set(prepared.key,prepared);
      while(completed.size>CACHE_LIMIT){const oldest=[...completed.keys()].find(key=>!retained(key));if(!oldest)break;completed.delete(oldest);}
+     if(!galleryKeys||galleryKeys.has(prepared.key)){
+      const card=withoutAsset(prepared.card);objectArtwork.set(card,{digest:card.proofDigest,url:prepared.galleryImageUrl});
+      gallery.set(prepared.key,{key:prepared.key,card,imageUrl:prepared.galleryImageUrl});
+     }
      onReady?.(prepared);
     }catch(cause){assertActive(signal);if(cause instanceof DOMException&&cause.name==='AbortError')throw cause;}
    }
   }));
   assertActive(signal);return ready.filter((card):card is PreparedWildzMarketCard=>card!==null);
- }};
+ },async prepareGallery(cards:readonly WildzMarketOwnedCard[],signal?:AbortSignal,onReady?:(card:PreparedWildzMarketCard)=>void){
+  // Release each pair's complete results before working on the next pair.
+  // Yield between pairs so catalogue warming cannot monopolize input frames.
+  for(let index=0;index<cards.length;index+=2){assertActive(signal);await api.prepare(cards.slice(index,index+2),signal,onReady);await new Promise<void>(resolve=>setTimeout(resolve,0));}
+ }};return api;
 }

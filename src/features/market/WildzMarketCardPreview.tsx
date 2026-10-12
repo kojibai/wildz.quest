@@ -16,13 +16,19 @@ class MarketCardRenderBoundary extends Component<{children:React.ReactNode;onUna
  render(){return this.state.failed?<p className={styles.note} role="status">This card could not be displayed.</p>:this.props.children;}
 }
 
-export function WildzMarketCardPreview({card,front,full=false,onUnavailable,openOnTap=false,onOpen}:{card:WildzMarketOwnedCard;front:React.ReactNode;full?:boolean;onUnavailable?():void;openOnTap?:boolean;onOpen?():void}){
+export function WildzMarketCardPreview({card,front,full=false,onUnavailable,openOnTap=false,onOpen,nearby=true,readCard=readWildzMarketCard}:{card:WildzMarketOwnedCard;front:React.ReactNode;full?:boolean;onUnavailable?():void;openOnTap?:boolean;onOpen?():void;nearby?:boolean;readCard?(card:WildzMarketOwnedCard,signal?:AbortSignal):Promise<PortableCardAsset>}){
  const [asset,setAsset]=useState<PortableCardAsset|null>(null),[flipped,setFlipped]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState('');
  const [qr,setQr]=useState('');
  const live=useRef(true),generation=useRef(0),preview=useRef<HTMLDivElement>(null),focusFrom=useRef<HTMLElement|null>(null),lastGesture=useRef(-Infinity),controller=useRef<AbortController|null>(null);
  const identity=wildzMarketCardKey(card),latestCard=useRef(card);latestCard.current=card;
- useEffect(()=>{live.current=true;generation.current++;const work=new AbortController();controller.current=work;setAsset(null);setFlipped(false);setQr('');setError('');return()=>{live.current=false;work.abort();};},[identity,openOnTap]);
- const load=async()=>{const token=++generation.current;setLoading(true);setError('');try{const result=await readWildzMarketCard(latestCard.current,controller.current?.signal);if(live.current&&token===generation.current){setAsset(result);return result;}}catch(cause){if(live.current&&token===generation.current)setError(cause instanceof Error?cause.message:'The card could not be loaded.');}finally{if(live.current&&token===generation.current)setLoading(false);}};
+ const latestReader=useRef(readCard);latestReader.current=readCard;
+ // Cleanup invalidates the current numeric generation and controller, which
+ // may have been replaced when a distant preview released its dossier.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ useEffect(()=>{live.current=true;generation.current++;const work=new AbortController();controller.current=work;setAsset(null);setFlipped(false);setQr('');setError('');return()=>{live.current=false;generation.current++;work.abort();controller.current?.abort();};},[identity,openOnTap]);
+ // Keep the small front painted, while distant flip dossiers/QRs are released.
+ useEffect(()=>{if(!nearby){generation.current++;controller.current?.abort();controller.current=new AbortController();setAsset(null);setQr('');setFlipped(false);setLoading(false);}},[nearby]);
+ const load=async()=>{const token=++generation.current;setLoading(true);setError('');try{const result=await latestReader.current(latestCard.current,controller.current?.signal);if(live.current&&token===generation.current){setAsset(result);return result;}}catch(cause){if(live.current&&token===generation.current)setError(cause instanceof Error?cause.message:'The card could not be loaded.');}finally{if(live.current&&token===generation.current)setLoading(false);}};
  const flip=async()=>{if(!asset&&!await load())return;setFlipped(v=>!v);};
  useEffect(()=>{
   if(!asset)return;

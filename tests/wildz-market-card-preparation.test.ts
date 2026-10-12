@@ -11,6 +11,31 @@ const asset=initialPlayState.inventory[0]!;
 const card=(ownerHandle='seller.receiz.id'):WildzMarketOwnedCard=>({assetId:asset.id,title:asset.manifest.name,proofDigest:asset.proof.digest,ownerHandle,claimKaiUPulse:null,claimHead:null});
 const turn=()=>new Promise<void>(resolve=>setImmediate(resolve));
 
+test('small gallery fronts survive complete-object eviction and retire obsolete owner revisions',async()=>{
+ const rows=Array.from({length:80},(_,i)=>card(`front${i}.receiz.id`));
+ const preparer=createWildzMarketCardPreparer({readCard:async()=>asset,decodeImage:async()=>{}});
+ const gallery=preparer;
+ await preparer.prepare(rows);assert.equal(preparer.peek(rows).size,48);
+ const fronts=gallery.peekGallery(rows);
+ assert.equal(fronts?.size,80);
+ assert.ok([...fronts!.values()].every(front=>front.card.asset===undefined));
+ assert.ok(wildzMarketCardImageUrl(fronts!.values().next().value!.card).startsWith('data:image/'));
+ const transferred={...rows[0]!,ownerHandle:'new_front_owner.receiz.id'};
+ gallery.retainGallery([transferred,...rows.slice(1)]);
+ assert.equal(gallery.peekGallery([rows[0]!]).size,0);
+ assert.equal(gallery.peekGallery(rows.slice(1)).size,79);
+ await preparer.prepare([transferred]);assert.equal(gallery.peekGallery([transferred]).size,1);
+});
+
+test('a gallery flip reuses its retained full object instead of a public reread',async()=>{
+ let reads=0;
+ const row=card('flip_cache.receiz.id');
+ const preparer=createWildzMarketCardPreparer({readCard:async()=>{reads++;return asset;},decodeImage:async()=>{}});
+ await preparer.prepare([row]);
+ const reader=preparer as typeof preparer&{read?(card:WildzMarketOwnedCard,signal?:AbortSignal):Promise<typeof asset>};
+ assert.equal(await reader.read?.(row),asset);assert.equal(reads,1);
+});
+
 test('visible page waits for every decoded exact image and value with at most four cards in flight',async()=>{
  const rows=Array.from({length:9},(_,i)=>card(`seller${i}.receiz.id`));
  const releases:(()=>void)[]=[],images:string[]=[],values:string[]=[];let active=0,maximum=0,reads=0,published=false;

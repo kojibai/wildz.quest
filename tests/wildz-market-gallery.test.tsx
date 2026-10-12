@@ -17,6 +17,24 @@ const owned=(index:number):WildzMarketOwnedCard=>{
 };
 const noOp=()=>{};
 
+test('a decoded card front stays painted outside the observer window for an immediate reverse scroll',async context=>{
+ const saved=new Map(['IntersectionObserver','ResizeObserver'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
+ let notify:(near:boolean)=>void=()=>{};
+ Object.defineProperty(globalThis,'IntersectionObserver',{configurable:true,value:class {
+  constructor(callback:(entries:{isIntersecting:boolean}[])=>void){notify=near=>callback([{isIntersecting:near}]);}
+  observe(){}disconnect(){}
+ }});
+ Object.defineProperty(globalThis,'ResizeObserver',{configurable:true,value:class {observe(){}disconnect(){}}});
+ context.after(()=>{for(const [key,descriptor] of saved){if(descriptor)Object.defineProperty(globalThis,key,descriptor);else Reflect.deleteProperty(globalThis,key);}});
+ const view=await mountMutableReact(<WildzMarketGalleryPage active ready eager index={4} columns={2}><img alt="Complete card" src="/card.webp"/></WildzMarketGalleryPage>,{publicInstance:node=>node.type==='div'?{closest:()=>null}:null});
+ context.after(()=>view.unmount());await view.flush();
+ const front=view.nodes().find(node=>node.type==='img');assert.ok(front);
+ notify(false);for(let frame=0;frame<4;frame++)await view.flush();
+ // Momentum scrolling can reverse before any enter notification is delivered.
+ assert.equal(view.nodes().find(node=>node.type==='img'),front);
+ assert.equal(view.nodes().find(node=>node.props?.['data-gallery-page']===4)?.props?.['aria-hidden'],undefined);
+});
+
 test('the two-column feed reserves every row immediately and keeps resources out of creature pairs',async context=>{
  const originalWindow=Object.getOwnPropertyDescriptor(globalThis,'window');
  Object.defineProperty(globalThis,'window',{configurable:true,value:{location:{href:'http://127.0.0.1:3100/test-fixtures/market'},matchMedia:()=>({matches:true,addEventListener(){},removeEventListener(){}})}});
@@ -60,14 +78,14 @@ test('a rarity filter stays loading while unseen legacy revisions are being inde
  assert.match(html,/Loading Market/);assert.doesNotMatch(html,/No matching cards|0 cards match/);
 });
 
-test('a prepared first screen renders six cards while all remaining groups preserve scroll space without images',async()=>{
+test('all prepared small fronts render immediately while undecoded rows preserve scroll space',async()=>{
  const rows=Array.from({length:72},(_,i)=>owned(i)),preparer=createWildzMarketCardPreparer({decodeImage:async()=>{}});
  await preparer.prepare(rows.slice(0,18));
  const before=wildsCardVerificationDiagnostics();
  const html=renderToStaticMarkup(<WildzMarketDiscovery cardPreparer={preparer} collection={rows} listings={[]} selection={initialMarketDiscovery} onChange={noOp} onView={noOp} loading={false} onRefresh={noOp} refreshing={false}/>);
  assert.deepEqual(wildsCardVerificationDiagnostics(),before);
- assert.equal((html.match(/complete creature card/g)??[]).length,6);assert.doesNotMatch(html,/View creature · Card 6|View creature · Card 71/);
- const distant=renderToStaticMarkup(<>{Array.from({length:11},(_,i)=><WildzMarketGalleryPage key={i} active index={i+1} columns={2}><img alt={`Distant ${i}`} src="/card.webp"/></WildzMarketGalleryPage>)}</>);
+ assert.equal((html.match(/complete creature card/g)??[]).length,18);assert.doesNotMatch(html,/View creature · Card 71/);
+ const distant=renderToStaticMarkup(<>{Array.from({length:11},(_,i)=><WildzMarketGalleryPage key={i} active ready={false} index={i+1} columns={2}><img alt={`Distant ${i}`} src="/card.webp"/></WildzMarketGalleryPage>)}</>);
  assert.doesNotMatch(distant,/<img/);assert.equal((distant.match(/height:450px/g)??[]).length,11);
 });
 
@@ -97,7 +115,7 @@ test('a new identity service can prepare a whole card that failed in the previou
  assert.equal(held.peek(rows).size,6);assert.equal(view.nodes().filter(node=>node.type==='img').length,6);
 });
 
-test('scrolling back restores evicted whole cards before mounting their images without a cold image API request',async context=>{
+test('scrolling back uses retained fronts without rereading evicted complete proof objects',async context=>{
  const saved=new Map(['window','IntersectionObserver','ResizeObserver'].map(key=>[key,Object.getOwnPropertyDescriptor(globalThis,key)]));
  const watches:{target:{props?:Record<string,unknown>};margin:string;notify(near:boolean):void}[]=[];
  Object.defineProperty(globalThis,'window',{configurable:true,value:{location:{href:'http://127.0.0.1:3100/test-fixtures/market'},matchMedia:()=>({matches:true,addEventListener(){},removeEventListener(){}})}});
@@ -122,8 +140,9 @@ test('scrolling back restores evicted whole cards before mounting their images w
  const approach=[...watches].reverse().find(watch=>watch.target.props?.['data-gallery-page']===3&&watch.margin==='2200px 0px');
  approach?.notify(false);await view.flush();approach?.notify(true);page.notify(true);
  for(let frame=0;frame<12;frame++)await view.flush();
- assert.equal(preparer.peek(rows.slice(6,8)).size,2);
- assert.ok(rows.slice(6,8).every(row=>(reads.get(row.assetId)??0)>=2));assert.ok(preparer.peek(rows).size<=48);
+ assert.equal(preparer.peek(rows.slice(6,8)).size,0);
+ assert.equal(preparer.peekGallery(rows.slice(6,8)).size,2);
+ assert.ok(rows.slice(6,8).every(row=>reads.get(row.assetId)===1));assert.ok(preparer.peek(rows).size<=48);
  const secondPage=view.nodes().find(node=>node.props?.['data-gallery-page']===3)!;
  const images=(node:typeof secondPage):string[]=>[...(node.type==='img'?[String(node.props?.src)]:[]),...node.children.flatMap(images)];
  assert.equal(images(secondPage).length,2);assert.ok(images(secondPage).every(src=>src.startsWith('data:image/svg+xml')));

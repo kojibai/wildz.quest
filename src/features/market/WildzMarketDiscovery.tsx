@@ -6,6 +6,7 @@ import {wildzMarketGalleryRows} from './wildz-market-gallery-layout';
 import {WILDZ_MARKET_PAGE_SIZE} from './wildz-market-warmup';
 import {WildzMarketCardPreview} from './WildzMarketCardPreview';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import type {PortableCardAsset} from '../play/portable-card';
 import {ArrowLeft,ArrowRight,ArrowDownRight,ArrowUpRight,ChevronRight,GalleryVertical,Grid2X2,Package,Search,SlidersHorizontal,X} from 'lucide-react';
 import {formatWildzMarketValueChange} from './wildz-market-value';
 import type {WildzMarketListingViewV128} from './wildz-market-service-v128';
@@ -16,7 +17,7 @@ import styles from './WildzMarketSheet.module.css';
 import type {WildzMarketOwnedCard} from '../../lib/receiz/wildz-market-collection';
 import {discoverWildzOwnedCards,wildzMarketRarityOptions,wildzMarketCardRarity,compareWildzMarketRarity} from './wildz-market-discovery';
 import {sameWildzPlayerCoordinate} from '../../lib/receiz/wildz-player-coordinate';
-import {createWildzMarketCardPreparer,wildzMarketCardImageUrl,wildzMarketCardKey,wildzMarketPreparedCardView} from './wildz-market-card-preparation';
+import {createWildzMarketCardPreparer,wildzMarketCardImageUrl,wildzMarketCardKey} from './wildz-market-card-preparation';
 import {createWildzMarketRarityIndex} from './wildz-market-rarity-index';
 
 export const marketHandle=(value:string)=>`@${value.replace(/\.receiz\.id$/,'')}`;
@@ -35,7 +36,7 @@ export function CardValue({card,onChart,onVisible,compact=false}:{card:WildzMark
 
 export function MarketArtwork({kind,large=false,priority=false}:{kind:string;large?:boolean;priority?:boolean}){
  if(kind==='creature')return null;
- return <Image src="/images/market/resource-collection.webp" alt="Wildz resource collection artwork" width={1024} height={1024} sizes={large?'(min-width: 1100px) 650px, (min-width: 760px) 60vw, 100vw':'(min-width: 760px) 240px, 100px'} priority={priority} className={styles.artwork}/>;
+ return <Image loading="eager" src="/images/market/resource-collection.webp" alt="Wildz resource collection artwork" width={1024} height={1024} sizes={large?'(min-width: 1100px) 650px, (min-width: 760px) 60vw, 100vw':'(min-width: 760px) 240px, 100px'} priority={priority} className={styles.artwork}/>;
 }
 
 export function MarketCardArtwork({card,priority=false,onUnavailable}:{card:WildzMarketOwnedCard;priority?:boolean;onUnavailable?():void}){
@@ -44,20 +45,20 @@ export function MarketCardArtwork({card,priority=false,onUnavailable}:{card:Wild
  return <Image unoptimized loading="eager" src={wildzMarketCardImageUrl(card)} alt={`${card.title} · complete creature card`} width={750} height={1050} sizes="(min-width: 760px) 360px, 100vw" priority={priority} className={styles.cardArtwork} onError={()=>{setFailed(true);onUnavailable?.();}}/>;
 }
 
-function ListingCard({listing,featured,card,priority,onView,openOnTap=false}:{listing:WildzMarketListingViewV128;featured:boolean;card?:WildzMarketOwnedCard;priority:boolean;onView(chart?:boolean):void;openOnTap?:boolean}){
+function ListingCard({listing,featured,card,priority,onView,openOnTap=false,nearby=true,readCard}:{listing:WildzMarketListingViewV128;featured:boolean;card?:WildzMarketOwnedCard;priority:boolean;onView(chart?:boolean):void;openOnTap?:boolean;nearby?:boolean;readCard?(card:WildzMarketOwnedCard,signal?:AbortSignal):Promise<PortableCardAsset>}){
  const [unavailable,setUnavailable]=useState(false);
  if(unavailable||listing.kind==='creature'&&!card)return null;
  return <article className={featured?styles.featuredListing:styles.resourceListing} data-listing-id={listing.listingId}>
   {card?<CardValue card={card} onChart={()=>onView(true)}/>:null}
-  <div className={`${styles.listingMedia}${card?` ${styles.completeCardMedia}`:''}`}>{card?<WildzMarketCardPreview key={wildzMarketCardKey(card)} card={card} onUnavailable={()=>setUnavailable(true)} openOnTap={openOnTap} onOpen={()=>onView()} front={<MarketCardArtwork card={card} priority={priority} onUnavailable={()=>setUnavailable(true)}/>}/>:<MarketArtwork kind={listing.kind} large={featured} priority={priority}/>}</div>
+  <div className={`${styles.listingMedia}${card?` ${styles.completeCardMedia}`:''}`}>{card?<WildzMarketCardPreview key={wildzMarketCardKey(card)} card={card} onUnavailable={()=>setUnavailable(true)} openOnTap={openOnTap} nearby={nearby} readCard={readCard} onOpen={()=>onView()} front={<MarketCardArtwork card={card} priority={priority} onUnavailable={()=>setUnavailable(true)}/>}/>:<MarketArtwork kind={listing.kind} large={featured} priority={priority}/>}</div>
   <div className={styles.listingInfo}><div><h3>{listing.title}</h3><p>{marketHandle(listing.sellerHandle)}</p></div><strong>{formatWildsUsdCents(listing.priceUsdCents)}</strong></div>
   <button type="button" className={featured?styles.primary:styles.rowAction} aria-label={`View listing · ${listing.title}`} onClick={()=>onView()}>{featured?<><span>View listing</span><ChevronRight size={20}/></>:<ChevronRight size={22}/>}</button>
  </article>;
 }
 
-function OwnedCardTile({card,onView,openOnTap=false}:{card:WildzMarketOwnedCard;onView?(assetId:string,chart?:boolean):void;openOnTap?:boolean}){
+function OwnedCardTile({card,onView,openOnTap=false,nearby=true,readCard}:{card:WildzMarketOwnedCard;onView?(assetId:string,chart?:boolean):void;openOnTap?:boolean;nearby?:boolean;readCard?(card:WildzMarketOwnedCard,signal?:AbortSignal):Promise<PortableCardAsset>}){
  const [unavailable,setUnavailable]=useState(false);if(unavailable)return null;
- return <article className={styles.featuredListing}><CardValue card={card} onChart={()=>onView?.(card.assetId,true)}/><div className={`${styles.listingMedia} ${styles.completeCardMedia}`}><WildzMarketCardPreview key={wildzMarketCardKey(card)} card={card} onUnavailable={()=>setUnavailable(true)} openOnTap={openOnTap} onOpen={()=>onView?.(card.assetId)} front={<MarketCardArtwork card={card} onUnavailable={()=>setUnavailable(true)}/>}/></div><div className={styles.listingInfo}><div><h3>{card.title}</h3><p>{card.ownerHandle?marketHandle(card.ownerHandle):'Owner claim unresolved'}</p></div><span className={styles.badge}>Not listed</span></div><button type="button" className={styles.primary} onClick={()=>onView?.(card.assetId)} aria-label={`View creature · ${card.title}`}>View creature<ChevronRight size={20}/></button></article>;
+ return <article className={styles.featuredListing}><CardValue card={card} onChart={()=>onView?.(card.assetId,true)}/><div className={`${styles.listingMedia} ${styles.completeCardMedia}`}><WildzMarketCardPreview key={wildzMarketCardKey(card)} card={card} onUnavailable={()=>setUnavailable(true)} openOnTap={openOnTap} nearby={nearby} readCard={readCard} onOpen={()=>onView?.(card.assetId)} front={<MarketCardArtwork card={card} onUnavailable={()=>setUnavailable(true)}/>}/></div><div className={styles.listingInfo}><div><h3>{card.title}</h3><p>{card.ownerHandle?marketHandle(card.ownerHandle):'Owner claim unresolved'}</p></div><span className={styles.badge}>Not listed</span></div><button type="button" className={styles.primary} onClick={()=>onView?.(card.assetId)} aria-label={`View creature · ${card.title}`}>View creature<ChevronRight size={20}/></button></article>;
 }
 
 export function WildzMarketDiscovery({listings,collection=[],selection,onChange:changeSelection,onView,onViewCard,onReadValue,loading,onRefresh,refreshing,refreshDisabled=false,mobileColumns:controlledColumns,onMobileColumnsChange,active=true,cardPreparer}:{
@@ -98,6 +99,8 @@ export function WildzMarketDiscovery({listings,collection=[],selection,onChange:
  const entries:{listing?:WildzMarketListingViewV128;card?:WildzMarketOwnedCard}[]=[...ordered.map(listing=>({listing,card:listingCard(listing)})),...unlisted.map(card=>({card}))];
  if(selection.sort==='rarity-high'||selection.sort==='rarity-low')entries.sort((a,b)=>compareWildzMarketRarity(resolveRarity(a.card),resolveRarity(b.card),selection.sort as 'rarity-high'|'rarity-low')||(a.card?.title??a.listing!.title).localeCompare(b.card?.title??b.listing!.title));
  const preparer=useMemo(()=>cardPreparer??createWildzMarketCardPreparer({readValue:onReadValue}),[cardPreparer,onReadValue]);
+ useEffect(()=>preparer.retainGallery(latestCollection.current),[collectionIdentity,preparer]);
+ const readPreview=useCallback((card:WildzMarketOwnedCard,signal?:AbortSignal)=>preparer.read(latestCollection.current.find(current=>wildzMarketCardKey(current)===wildzMarketCardKey(card))??card,signal),[preparer]);
  // Failed reads wait for an explicit refresh. Successful-but-evicted objects
  // remain eligible for preparation whenever their page approaches again.
  // The preparer's identity also defines this failure scope.
@@ -124,7 +127,7 @@ export function WildzMarketDiscovery({listings,collection=[],selection,onChange:
  const mountedPages=approaching.identity===browseIdentity?approaching.mounted:new Set([0]);
  const nearbyPages=[...(approaching.identity===browseIdentity?approaching.pages:new Set([0,1,2]))].filter(index=>rows[index]?.some(entry=>entry.card)).sort((a,b)=>a-b);
  // Protect at most six nearby rows. Speculative work must never evict the
- // viewport, and distant image/dossier surfaces stay unmounted.
+ // viewport. Full proof objects stay bounded; small fronts persist separately.
  const middle=nearbyPages[Math.floor(nearbyPages.length/2)]??0;
  const preparedPages=new Set(nearbyPages.sort((a,b)=>Number(mountedPages.has(b))-Number(mountedPages.has(a))||Math.abs(a-middle)-Math.abs(b-middle)).slice(0,6));
  const pageEntries=rows.flat();
@@ -138,7 +141,7 @@ export function WildzMarketDiscovery({listings,collection=[],selection,onChange:
   if(!latestPageCards.current.length){preparer.protect([]);return;}
   const controller=new AbortController();
   preparer.protect(latestPageCards.current);
-  const cached=preparer.peek(latestPageCards.current);
+  const cached=preparer.peekGallery(latestPageCards.current);
   const pending=latestPageCards.current.filter(card=>!cached.has(wildzMarketCardKey(card))&&!attempted.has(wildzMarketCardKey(card)));
   void preparer.prepare(pending,controller.signal,card=>{if(!controller.signal.aborted)setPrepared(previous=>({...previous,cards:new Set([...previous.cards,card.key])}));}).then(cards=>{if(!controller.signal.aborted){const succeeded=new Set(cards.map(card=>card.key));pending.forEach(card=>{const key=wildzMarketCardKey(card);if(!succeeded.has(key))attempted.add(key);});setPrepared(previous=>({identity:pageIdentity,preparer,cards:new Set([...previous.cards,...cards.map(card=>card.key)])}));}}).catch(()=>{if(!controller.signal.aborted)setPrepared(previous=>({...previous,identity:pageIdentity,preparer}));});
   return()=>controller.abort();
@@ -158,19 +161,18 @@ export function WildzMarketDiscovery({listings,collection=[],selection,onChange:
   void rarityIndex.scan(latestCollection.current,controller.signal).then(snapshot=>{if(!controller.signal.aborted)setIndexedMetadata({identity:collectionIdentity,revision:preparationRevision,snapshot});}).catch(()=>{/* cancellation leaves the catalogue pending until its next active scan */});
   return()=>controller.abort();
  },[active,preparing,collectionIdentity,rarityIndex,preparationRevision,rarityMetadata.complete]);
- const readyCard=(card:WildzMarketOwnedCard|undefined)=>{if(!card)return undefined;
-  const complete=preparer.peek([card]).get(wildzMarketCardKey(card));return complete?wildzMarketPreparedCardView(complete,card):undefined;
- };
- // The entire lightweight row geometry exists from the start. Prepare twelve
- // more rows beyond the mounted window; no artificial end needs appending.
+ const galleryCards=preparer.peekGallery(collection);
+ const readyCard=(card:WildzMarketOwnedCard|undefined)=>card?galleryCards.get(wildzMarketCardKey(card))?.card:undefined;
+ // Finish compact fronts for the whole catalogue in the background. A fast
+ // jump must not be restricted to twelve rows, nor evict earlier painted art.
  const aheadFrom=Math.max(0,...mountedPages)+1;
- const aheadCards=rows.slice(aheadFrom,aheadFrom+12).flat().flatMap(entry=>entry.card?[entry.card]:[]).slice(0,Math.max(0,42-pageCards.length));
+ const aheadCards=[...rows.slice(aheadFrom),...rows.slice(0,aheadFrom)].flat().flatMap(entry=>entry.card?[entry.card]:[]);
  const aheadIdentity=`${preparationRevision}:${aheadCards.map(wildzMarketCardKey).join('|')}`,latestAheadCards=useRef(aheadCards);latestAheadCards.current=aheadCards;
  useEffect(()=>{
   if(!active||indexing||!latestAheadCards.current.length)return;
-  const controller=new AbortController(),cached=preparer.peek(latestAheadCards.current),pending=latestAheadCards.current.filter(card=>!cached.has(wildzMarketCardKey(card))&&!attempted.has(wildzMarketCardKey(card)));
+  const controller=new AbortController(),cached=preparer.peekGallery(latestAheadCards.current),pending=latestAheadCards.current.filter(card=>!cached.has(wildzMarketCardKey(card))&&!attempted.has(wildzMarketCardKey(card)));
   if(!pending.length)return;
-  void preparer.prepare(pending,controller.signal,card=>{if(!controller.signal.aborted)setPrepared(previous=>({...previous,cards:new Set([...previous.cards,card.key])}));}).then(cards=>{if(!controller.signal.aborted){const succeeded=new Set(cards.map(card=>card.key));pending.forEach(card=>{const key=wildzMarketCardKey(card);if(!succeeded.has(key))attempted.add(key);});setPrepared(previous=>({...previous,cards:new Set([...previous.cards,...cards.map(card=>card.key)])}));}}).catch(()=>{/* a cancelled lookahead resumes from the exact cache next time */});
+  void preparer.prepareGallery(pending,controller.signal,card=>{if(!controller.signal.aborted)setPrepared(previous=>({...previous,cards:new Set([...previous.cards,card.key])}));}).then(()=>{if(!controller.signal.aborted){const succeeded=preparer.peekGallery(pending);pending.forEach(card=>{const key=wildzMarketCardKey(card);if(!succeeded.has(key))attempted.add(key);});setPrepared(previous=>({...previous,cards:new Set([...previous.cards,...succeeded.keys()])}));}}).catch(()=>{/* a cancelled lookahead resumes from the exact cache next time */});
   return()=>controller.abort();
  },[active,indexing,aheadIdentity,preparer,attempted]);
  useEffect(()=>{
@@ -203,15 +205,15 @@ export function WildzMarketDiscovery({listings,collection=[],selection,onChange:
  const total=ordered.length+unlisted.length;
  const tiles=new Map(pageEntries.map((entry,index)=>{
   const card=readyCard(entry.card);
-  if(entry.listing){if(entry.listing.kind==='creature'&&!card)return [entry,null] as const;return [entry,<ListingCard key={`${entry.listing.listingId}:${card?wildzMarketCardKey(card):'resource'}`} listing={entry.listing} card={card} priority={index===0} featured={entry.listing.kind==='creature'} openOnTap={compact} onView={chart=>onView(entry.listing!.listingId,chart)}/>] as const;}
-  return [entry,card?<OwnedCardTile key={wildzMarketCardKey(card)} card={card} openOnTap={compact} onView={onViewCard}/>:null] as const;
+  if(entry.listing){const listing=entry.listing;if(listing.kind==='creature'&&!card)return [entry,null] as const;return [entry,(nearby:boolean)=><ListingCard readCard={readPreview} nearby={nearby} key={`${listing.listingId}:${card?wildzMarketCardKey(card):'resource'}`} listing={listing} card={card} priority={index===0} featured={listing.kind==='creature'} openOnTap={compact} onView={chart=>onView(listing.listingId,chart)}/>] as const;}
+  return [entry,card?(nearby:boolean)=><OwnedCardTile readCard={readPreview} nearby={nearby} key={wildzMarketCardKey(card)} card={card} openOnTap={compact} onView={onViewCard}/>:null] as const;
  }));
  return <section ref={discoveryRoot} aria-label="Market listings" className={styles.discovery}>
   <div className={styles.searchRow}><label className={styles.search}><Search size={23} aria-hidden="true"/><input type="search" aria-label="Search the market" placeholder="Search the market" value={selection.query} onChange={event=>onChange({...selection,query:event.target.value})}/>{selection.query?<button type="button" aria-label="Clear search" onClick={()=>onChange({...selection,query:''})}><X size={18}/></button>:null}</label><button type="button" className={styles.filterToggle} aria-label="Market filters" aria-expanded={filtersOpen} aria-controls="wildz-market-filters" onClick={()=>setFiltersOpen(value=>!value)}><SlidersHorizontal size={24}/>{selection.maxPriceUsdCents||selection.availableOnly||selection.rarity&&selection.rarity!=='all'?<span className={styles.filterDot}/>:null}</button></div>
   {filtersOpen?<div id="wildz-market-filters" className={styles.filters}><label className={styles.field}>Maximum price in USD<div className={styles.priceInput}><span>$</span><input aria-label="Maximum price in USD" inputMode="decimal" placeholder="Any price" value={priceText} aria-invalid={priceError||undefined} onChange={event=>{setPriceText(event.target.value);onChange({...selection,maxPriceUsdCents:parseWildzMarketUsdInput(event.target.value)});}}/></div></label><label className={styles.field}>Rarity<select aria-label="Filter by rarity" value={selection.rarity??'all'} onChange={event=>onChange({...selection,rarity:event.target.value as typeof selection.rarity})}><option value="all">All rarities</option>{wildzMarketRarityOptions.filter(rarity=>rarity!=='all').map(rarity=><option key={rarity} value={rarity}>{rarity.charAt(0).toUpperCase()+rarity.slice(1)}</option>)}</select></label><label className={styles.checkbox}><input type="checkbox" checked={selection.availableOnly} onChange={event=>onChange({...selection,availableOnly:event.target.checked})}/>Available to purchase</label>{priceError?<p className={styles.note}>Enter a positive USD amount with up to two decimal places.</p>:null}<button type="button" onClick={()=>{setPriceText('');onChange({...selection,maxPriceUsdCents:null,availableOnly:false,rarity:'all'});}}>Reset filters</button></div>:null}
   <div className={styles.browseControls}><nav className={styles.categories} aria-label="Listing categories">{(['all','creatures','resources'] as const).map(category=><button type="button" key={category} aria-pressed={selection.category===category} onClick={()=>onChange({...selection,category})}>{category==='all'?'All':category==='creatures'?'Creatures':'Resources'}</button>)}</nav><div className={styles.layoutChoices} role="group" aria-label="Mobile card view"><button type="button" aria-label="Two-column view" aria-pressed={mobileColumns===2} title="Two-column view" onClick={()=>setMobileColumns(2)}><Grid2X2 size={17}/></button><button type="button" aria-label="Single-column view" aria-pressed={mobileColumns===1} title="Single-column view" onClick={()=>setMobileColumns(1)}><GalleryVertical size={17}/></button></div></div>
   <div className={styles.sectionHeading}><h3>Explore listings</h3><label className={styles.sort}><span className={styles.srOnly}>Sort listings</span><select aria-label="Sort listings" value={selection.sort} onChange={event=>onChange({...selection,sort:event.target.value as WildzMarketSort})}><option value="featured">Featured</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="name">Name: A to Z</option><option value="rarity-high">Rarity: rarest first</option><option value="rarity-low">Rarity: trail first</option></select></label></div>
-  {pageEntries.length?<div className={styles.galleryPages} aria-label={preparing&&![...tiles.values()].some(Boolean)?'Loading Market':undefined} aria-busy={preparing&&![...tiles.values()].some(Boolean)||undefined}>{rows.map((row,index)=><WildzMarketGalleryPage key={`${columns}:${row.map(entry=>entry.card?wildzMarketCardKey(entry.card):entry.listing!.listingId).join('|')}`} index={index} active={active} columns={mobileColumns} eager={index<Math.ceil(WILDZ_MARKET_PAGE_SIZE/columns)} estimatedHeight={estimateRow(row)} estimatedWidth={rowSizes.identity===browseIdentity?rowSizes.width:0} onHeight={onHeight} onApproach={onApproach} onNear={onNear} ready={row.every(entry=>!entry.card||Boolean(readyCard(entry.card)))}>{row.map(entry=>tiles.get(entry))}</WildzMarketGalleryPage>)}</div>:preparing||indexing||loading?<div className={styles.gallerySkeleton} aria-label="Loading Market" aria-busy="true"><span/><span/></div>:<div className={styles.empty}><Package size={32} aria-hidden="true"/><h3>{filtered?'No matching cards':'Your next discovery starts here'}</h3><p>{filtered?'Try another search or adjust your filters.':'Publicly shared, owned creatures and resource listings appear here.'}</p>{filtered?<button type="button" onClick={()=>{setPriceText('');onChange({query:'',category:'all',sort:'featured',maxPriceUsdCents:null,availableOnly:false,rarity:'all'});}}>Clear search and filters</button>:null}</div>}
+  {pageEntries.length?<div className={styles.galleryPages} aria-label={preparing&&![...tiles.values()].some(Boolean)?'Loading Market':undefined} aria-busy={preparing&&![...tiles.values()].some(Boolean)||undefined}>{rows.map((row,index)=><WildzMarketGalleryPage key={`${columns}:${row.map(entry=>entry.card?wildzMarketCardKey(entry.card):entry.listing!.listingId).join('|')}`} index={index} active={active} columns={mobileColumns} eager={index<Math.ceil(WILDZ_MARKET_PAGE_SIZE/columns)} estimatedHeight={estimateRow(row)} estimatedWidth={rowSizes.identity===browseIdentity?rowSizes.width:0} onHeight={onHeight} onApproach={onApproach} onNear={onNear} ready={row.every(entry=>!entry.card||Boolean(readyCard(entry.card)))}>{nearby=>row.map(entry=>tiles.get(entry)?.(nearby))}</WildzMarketGalleryPage>)}</div>:preparing||indexing||loading?<div className={styles.gallerySkeleton} aria-label="Loading Market" aria-busy="true"><span/><span/></div>:<div className={styles.empty}><Package size={32} aria-hidden="true"/><h3>{filtered?'No matching cards':'Your next discovery starts here'}</h3><p>{filtered?'Try another search or adjust your filters.':'Publicly shared, owned creatures and resource listings appear here.'}</p>{filtered?<button type="button" onClick={()=>{setPriceText('');onChange({query:'',category:'all',sort:'featured',maxPriceUsdCents:null,availableOnly:false,rarity:'all'});}}>Clear search and filters</button>:null}</div>}
   <div className={styles.discoveryFooter}><span>{indexing?'Loading catalogue…':<>{total} card{total===1?'':'s'}{filtered?' match your search':''}</>}</span><button type="button" disabled={refreshing||refreshDisabled} onClick={()=>{attempted.clear();setPreparationRevision(revision=>revision+1);onRefresh();}}>{refreshing?'Refreshing…':'Refresh listings'}</button></div>
  </section>;
 }
