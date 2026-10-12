@@ -1,6 +1,8 @@
 "use client";
 
 import Image from 'next/image';
+import {WildzMarketGalleryPage} from './WildzMarketGalleryPage';
+import {WILDZ_MARKET_PAGE_SIZE} from './wildz-market-warmup';
 import {WildzMarketCardPreview} from './WildzMarketCardPreview';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {ArrowLeft,ArrowRight,ArrowDownRight,ArrowUpRight,ChevronRight,GalleryVertical,Grid2X2,Package,Search,SlidersHorizontal,X} from 'lucide-react';
@@ -11,7 +13,7 @@ import {parseWildzMarketUsdInput} from './wildz-market-presentation';
 import {formatWildsPhiExact,formatWildsUsdCents} from '../play/wallet/wilds-wallet-format';
 import styles from './WildzMarketSheet.module.css';
 import type {WildzMarketOwnedCard} from '../../lib/receiz/wildz-market-collection';
-import {discoverWildzOwnedCards} from './wildz-market-discovery';
+import {discoverWildzOwnedCards,wildzMarketRarityOptions,wildzMarketCardRarity,compareWildzMarketRarity} from './wildz-market-discovery';
 import {sameWildzPlayerCoordinate} from '../../lib/receiz/wildz-player-coordinate';
 import {createWildzMarketCardPreparer,wildzMarketCardImageUrl,wildzMarketCardKey,type PreparedWildzMarketCard} from './wildz-market-card-preparation';
 
@@ -56,77 +58,92 @@ function OwnedCardTile({card,onView,openOnTap=false}:{card:WildzMarketOwnedCard;
  return <article className={styles.featuredListing}><CardValue card={card} onChart={()=>onView?.(card.assetId,true)}/><div className={`${styles.listingMedia} ${styles.completeCardMedia}`}><WildzMarketCardPreview key={wildzMarketCardKey(card)} card={card} onUnavailable={()=>setUnavailable(true)} openOnTap={openOnTap} onOpen={()=>onView?.(card.assetId)} front={<MarketCardArtwork card={card} onUnavailable={()=>setUnavailable(true)}/>}/></div><div className={styles.listingInfo}><div><h3>{card.title}</h3><p>{marketHandle(card.ownerHandle)}</p></div><span className={styles.badge}>Not listed</span></div><button type="button" className={styles.primary} onClick={()=>onView?.(card.assetId)} aria-label={`View creature · ${card.title}`}>View creature<ChevronRight size={20}/></button></article>;
 }
 
-export function WildzMarketDiscovery({listings,collection=[],selection,onChange:changeSelection,onView,onViewCard,onReadValue,loading,onRefresh,refreshing,refreshDisabled=false,mobileColumns:controlledColumns,onMobileColumnsChange}:{
+export function WildzMarketDiscovery({listings,collection=[],selection,onChange:changeSelection,onView,onViewCard,onReadValue,loading,onRefresh,refreshing,refreshDisabled=false,mobileColumns:controlledColumns,onMobileColumnsChange,active=true,cardPreparer}:{
  listings:readonly WildzMarketListingViewV128[];selection:Discovery;onChange(next:Discovery):void;onView(listingId:string,chart?:boolean):void;loading:boolean;onRefresh():void;refreshing:boolean;refreshDisabled?:boolean;
- mobileColumns?:1|2;onMobileColumnsChange?(columns:1|2):void;onReadValue?(assetId:string):void|Promise<unknown>;collection?:readonly WildzMarketOwnedCard[];onViewCard?(assetId:string,chart?:boolean):void;
+ active?:boolean;cardPreparer?:ReturnType<typeof createWildzMarketCardPreparer>;mobileColumns?:1|2;onMobileColumnsChange?(columns:1|2):void;onReadValue?(assetId:string):void|Promise<unknown>;collection?:readonly WildzMarketOwnedCard[];onViewCard?(assetId:string,chart?:boolean):void;
 }){
- const [limit,setLimit]=useState(24);
+ const [limit,setLimit]=useState(WILDZ_MARKET_PAGE_SIZE);
  const [localColumns,setLocalColumns]=useState<1|2>(2),[mobile,setMobile]=useState(false);
  const mobileColumns=controlledColumns??localColumns,setMobileColumns=onMobileColumnsChange??setLocalColumns;
  useEffect(()=>{const query=window.matchMedia('(max-width:759px)'),update=()=>setMobile(query.matches);update();query.addEventListener('change',update);return()=>query.removeEventListener('change',update);},[]);
  const compact=mobile&&mobileColumns===2;
- const discoveryRoot=useRef<HTMLElement>(null),visibleValueAssets=useRef(new Set<string>());
+ const discoveryRoot=useRef<HTMLElement>(null);
  const [preparationRevision,setPreparationRevision]=useState(0);
- const onChange=(next:Discovery)=>{setLimit(24);changeSelection(next);};
+ const onChange=(next:Discovery)=>{setLimit(WILDZ_MARKET_PAGE_SIZE);changeSelection(next);};
  const [filtersOpen,setFiltersOpen]=useState(false),[priceText,setPriceText]=useState(()=>selection.maxPriceUsdCents?formatWildsUsdCents(selection.maxPriceUsdCents).replace(/[$,]/g,''):'');
- const results=discoverWildzMarketListings(listings,selection);
+ const latestCollection=useRef(collection);latestCollection.current=collection;
+ const [readyMetadata,setReadyMetadata]=useState(()=>new Map<string,PreparedWildzMarketCard['card']['asset']['manifest']['rarity']>());
+ const resolveRarity=(card:WildzMarketOwnedCard|undefined)=>wildzMarketCardRarity(card)??(card?readyMetadata.get(wildzMarketCardKey(card))??null:null);
+ const results=discoverWildzMarketListings(listings,selection,collection,resolveRarity);
  const priceError=Boolean(priceText.trim()&&!parseWildzMarketUsdInput(priceText));
- const filtered=Boolean(selection.query||selection.category!=='all'||selection.maxPriceUsdCents||selection.availableOnly);
+ const filtered=Boolean(selection.query||selection.category!=='all'||selection.maxPriceUsdCents||selection.availableOnly||selection.rarity&&selection.rarity!=='all');
  const listingCard=(listing:WildzMarketListingViewV128)=>collection.find(card=>listing.asset.kind==='creature'&&card.assetId===listing.asset.assetId&&sameWildzPlayerCoordinate(card.ownerHandle,listing.sellerHandle));
  const admittedResults=results.filter(listing=>listing.kind!=='creature'||Boolean(listingCard(listing)));
  const creatures=admittedResults.filter(item=>item.kind==='creature'),resources=admittedResults.filter(item=>item.kind!=='creature');
  // Preserve the selected ordering when the player sorts rather than featuring creatures.
  const ordered=selection.sort==='featured'?[...creatures,...resources]:admittedResults;
- const unlisted=discoverWildzOwnedCards(collection,listings,selection);
- const visibleListings=ordered.slice(0,limit),visibleUnlisted=unlisted.slice(0,Math.max(0,limit-visibleListings.length));
+ const unlisted=discoverWildzOwnedCards(collection,listings,selection,resolveRarity);
+ const entries:{listing?:WildzMarketListingViewV128;card?:WildzMarketOwnedCard}[]=[...ordered.map(listing=>({listing,card:listingCard(listing)})),...unlisted.map(card=>({card}))];
+ if(selection.sort==='rarity-high'||selection.sort==='rarity-low')entries.sort((a,b)=>compareWildzMarketRarity(resolveRarity(a.card),resolveRarity(b.card),selection.sort as 'rarity-high'|'rarity-low')||(a.card?.title??a.listing!.title).localeCompare(b.card?.title??b.listing!.title));
+ const pageEntries=entries.slice(0,limit),visibleListings=pageEntries.flatMap(entry=>entry.listing?[entry.listing]:[]),visibleUnlisted=pageEntries.flatMap(entry=>!entry.listing&&entry.card?[entry.card]:[]);
  const pageCards=[...visibleListings.flatMap(listing=>{const card=listingCard(listing);return card?[card]:[];}),...visibleUnlisted];
  // Only exact card identity changes restart preparation. Value reads update the
  // collection while this effect is pending; those updates must remain visible.
  const pageIdentity=`${preparationRevision}:${pageCards.map(wildzMarketCardKey).join('|')}`,latestPageCards=useRef(pageCards);latestPageCards.current=pageCards;
- const preparer=useMemo(()=>createWildzMarketCardPreparer({readValue:onReadValue}),[onReadValue]);
- const [prepared,setPrepared]=useState<{identity:string;preparer:typeof preparer;cards:ReadonlyMap<string,PreparedWildzMarketCard>}|null>(null);
+ const preparer=useMemo(()=>cardPreparer??createWildzMarketCardPreparer({readValue:onReadValue}),[cardPreparer,onReadValue]);
+ const attempted=useRef(new Set<string>());
+ const [prepared,setPrepared]=useState<{identity:string;preparer:typeof preparer;cards:ReadonlySet<string>}>(()=>({identity:preparer.peek(pageCards).size===pageCards.length?pageIdentity:'',preparer,cards:new Set(preparer.peek(pageCards).keys())}));
  useEffect(()=>{
-  if(!latestPageCards.current.length)return;
+  if(!active||!latestPageCards.current.length)return;
   const controller=new AbortController();
-  void preparer.prepare(latestPageCards.current,controller.signal).then(cards=>{if(!controller.signal.aborted)setPrepared({identity:pageIdentity,preparer,cards:new Map(cards.map(card=>[card.key,card]))});}).catch(()=>{if(!controller.signal.aborted)setPrepared({identity:pageIdentity,preparer,cards:new Map()});});
+  const pending=latestPageCards.current.filter(card=>!attempted.current.has(wildzMarketCardKey(card)));
+  void preparer.prepare(pending,controller.signal).then(cards=>{if(!controller.signal.aborted){pending.forEach(card=>attempted.current.add(wildzMarketCardKey(card)));setReadyMetadata(previous=>new Map([...previous,...cards.map(card=>[card.key,card.card.asset.manifest.rarity] as const)]));setPrepared(previous=>({identity:pageIdentity,preparer,cards:new Set([...previous.cards,...cards.map(card=>card.key)])}));}}).catch(()=>{if(!controller.signal.aborted)setPrepared(previous=>({...previous,identity:pageIdentity,preparer}));});
   return()=>controller.abort();
- },[pageIdentity,preparer]);
+ },[pageIdentity,preparer,active]);
+ const collectionIdentity=collection.map(wildzMarketCardKey).join('|');
+ useEffect(()=>{
+  const keys=new Set(latestCollection.current.map(wildzMarketCardKey));
+  for(const key of attempted.current)if(!keys.has(key))attempted.current.delete(key);
+  setPrepared(previous=>[...previous.cards].every(key=>keys.has(key))?previous:{...previous,cards:new Set([...previous.cards].filter(key=>keys.has(key)))});
+  setReadyMetadata(previous=>[...previous.keys()].every(key=>keys.has(key))?previous:new Map([...previous].filter(([key])=>keys.has(key))));
+ },[collectionIdentity]);
  const preparing=Boolean(pageCards.length&&(prepared?.identity!==pageIdentity||prepared.preparer!==preparer));
- const readyCard=(card:WildzMarketOwnedCard|undefined)=>{if(!card)return undefined;const held=prepared?.cards.get(wildzMarketCardKey(card));return held?{...card,asset:held.card.asset}:undefined;};
- const shownListings=preparing?[]:visibleListings.filter(listing=>listing.kind!=='creature'||Boolean(readyCard(listingCard(listing))));
- const shownUnlisted=preparing?[]:visibleUnlisted.flatMap(card=>{const ready=readyCard(card);return ready?[ready]:[];});
- const readyAssetIds=useRef<string[]>([]);readyAssetIds.current=pageCards.filter(card=>!preparing&&readyCard(card)).map(card=>card.assetId);
+ const readyCard=(card:WildzMarketOwnedCard|undefined)=>{if(!card)return undefined;return prepared.cards.has(wildzMarketCardKey(card))?card:undefined;};
+ const firstPreparing=preparing&&!prepared.cards.size;
+ const shownListings=firstPreparing?[]:visibleListings.filter(listing=>listing.kind!=='creature'||Boolean(readyCard(listingCard(listing))));
+ const shownUnlisted=firstPreparing?[]:visibleUnlisted.flatMap(card=>{const ready=readyCard(card);return ready?[ready]:[];});
+ const loadSentinel=useRef<HTMLDivElement>(null);
  useEffect(()=>{
-  visibleValueAssets.current.clear();if(preparing||!discoveryRoot.current)return;
-  const intersections=new Map<Element,{assetId:string;visible:boolean}>();
-  const observer=new IntersectionObserver(entries=>{
-   for(const entry of entries){const assetId=(entry.target as HTMLElement).dataset.marketValueAsset;if(assetId)intersections.set(entry.target,{assetId,visible:entry.isIntersecting});}
-   visibleValueAssets.current=new Set([...intersections.values()].flatMap(entry=>entry.visible?[entry.assetId]:[]));
-  });
-  discoveryRoot.current.querySelectorAll('[data-market-value-asset]').forEach(badge=>observer.observe(badge));
-  return()=>{observer.disconnect();visibleValueAssets.current.clear();};
- },[pageIdentity,preparing]);
+  if(!active||preparing||!loadSentinel.current||limit>=ordered.length+unlisted.length)return;
+  const observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){observer.disconnect();setLimit(n=>n+WILDZ_MARKET_PAGE_SIZE);}},{root:loadSentinel.current.closest('[data-market-scroll]'),rootMargin:'1200px 0px'});
+  observer.observe(loadSentinel.current);return()=>observer.disconnect();
+ },[active,preparing,limit,ordered.length,unlisted.length]);
  useEffect(()=>{
-  if(preparing||!onReadValue)return;
-  let active=true,reading=false;
+  if(!active||!onReadValue)return;
+  let reading=false,cancelled=false;
   const timer=window.setInterval(()=>{
-   if(!active||reading||document.visibilityState!=='visible')return;
-   reading=true;const ids=[...new Set(readyAssetIds.current)].filter(id=>visibleValueAssets.current.has(id));let next=0;
-   void Promise.all(Array.from({length:Math.min(4,ids.length)},async()=>{
-    while(active&&next<ids.length){const assetId=ids[next++]!;try{await onReadValue(assetId);}catch{/* Keep the previous local value until a later pulse. */}}
-   })).finally(()=>{reading=false;});
+   if(cancelled||reading||document.visibilityState!=='visible'||!discoveryRoot.current)return;
+   const root=discoveryRoot.current.closest('[data-market-scroll]')?.getBoundingClientRect();if(!root)return;
+   const ids=[...new Set(Array.from(discoveryRoot.current.querySelectorAll<HTMLElement>('[data-market-value-asset]')).flatMap(badge=>{const rect=badge.getBoundingClientRect();return rect.bottom>root.top&&rect.top<root.bottom?[badge.dataset.marketValueAsset!]:[];}))];
+   reading=true;let next=0;
+   void Promise.all(Array.from({length:Math.min(2,ids.length)},async()=>{while(!cancelled&&next<ids.length){try{await onReadValue(ids[next++]!);}catch{/* retain the previous pulse */}}})).finally(()=>{reading=false;});
   },5500);
-  return()=>{active=false;window.clearInterval(timer);};
- },[onReadValue,pageIdentity,preparing]);
+  return()=>{cancelled=true;window.clearInterval(timer);};
+ },[active,onReadValue]);
  const omitted=preparing?0:pageCards.filter(card=>!readyCard(card)).length,total=ordered.length+unlisted.length-omitted;
+ const tiles=pageEntries.flatMap((entry,index)=>{
+  const card=readyCard(entry.card);
+  if(entry.listing){if(entry.listing.kind==='creature'&&!card)return [];return [<ListingCard key={`${entry.listing.listingId}:${card?wildzMarketCardKey(card):'resource'}`} listing={entry.listing} card={card} priority={index===0} featured={entry.listing.kind==='creature'} openOnTap={compact} onView={chart=>onView(entry.listing!.listingId,chart)}/>];}
+  return card?[<OwnedCardTile key={wildzMarketCardKey(card)} card={card} openOnTap={compact} onView={onViewCard}/>]:[];
+ });
  return <section ref={discoveryRoot} aria-label="Market listings" className={styles.discovery}>
-  <div className={styles.searchRow}><label className={styles.search}><Search size={23} aria-hidden="true"/><input type="search" aria-label="Search the market" placeholder="Search the market" value={selection.query} onChange={event=>onChange({...selection,query:event.target.value})}/>{selection.query?<button type="button" aria-label="Clear search" onClick={()=>onChange({...selection,query:''})}><X size={18}/></button>:null}</label><button type="button" className={styles.filterToggle} aria-label="Market filters" aria-expanded={filtersOpen} aria-controls="wildz-market-filters" onClick={()=>setFiltersOpen(value=>!value)}><SlidersHorizontal size={24}/>{selection.maxPriceUsdCents||selection.availableOnly?<span className={styles.filterDot}/>:null}</button></div>
-  {filtersOpen?<div id="wildz-market-filters" className={styles.filters}><label className={styles.field}>Maximum price in USD<div className={styles.priceInput}><span>$</span><input aria-label="Maximum price in USD" inputMode="decimal" placeholder="Any price" value={priceText} aria-invalid={priceError||undefined} onChange={event=>{setPriceText(event.target.value);onChange({...selection,maxPriceUsdCents:parseWildzMarketUsdInput(event.target.value)});}}/></div></label><label className={styles.checkbox}><input type="checkbox" checked={selection.availableOnly} onChange={event=>onChange({...selection,availableOnly:event.target.checked})}/>Available to purchase</label>{priceError?<p className={styles.note}>Enter a positive USD amount with up to two decimal places.</p>:null}<button type="button" onClick={()=>{setPriceText('');onChange({...selection,maxPriceUsdCents:null,availableOnly:false});}}>Reset filters</button></div>:null}
+  <div className={styles.searchRow}><label className={styles.search}><Search size={23} aria-hidden="true"/><input type="search" aria-label="Search the market" placeholder="Search the market" value={selection.query} onChange={event=>onChange({...selection,query:event.target.value})}/>{selection.query?<button type="button" aria-label="Clear search" onClick={()=>onChange({...selection,query:''})}><X size={18}/></button>:null}</label><button type="button" className={styles.filterToggle} aria-label="Market filters" aria-expanded={filtersOpen} aria-controls="wildz-market-filters" onClick={()=>setFiltersOpen(value=>!value)}><SlidersHorizontal size={24}/>{selection.maxPriceUsdCents||selection.availableOnly||selection.rarity&&selection.rarity!=='all'?<span className={styles.filterDot}/>:null}</button></div>
+  {filtersOpen?<div id="wildz-market-filters" className={styles.filters}><label className={styles.field}>Maximum price in USD<div className={styles.priceInput}><span>$</span><input aria-label="Maximum price in USD" inputMode="decimal" placeholder="Any price" value={priceText} aria-invalid={priceError||undefined} onChange={event=>{setPriceText(event.target.value);onChange({...selection,maxPriceUsdCents:parseWildzMarketUsdInput(event.target.value)});}}/></div></label><label className={styles.field}>Rarity<select aria-label="Filter by rarity" value={selection.rarity??'all'} onChange={event=>onChange({...selection,rarity:event.target.value as typeof selection.rarity})}><option value="all">All rarities</option>{wildzMarketRarityOptions.filter(rarity=>rarity!=='all').map(rarity=><option key={rarity} value={rarity}>{rarity.charAt(0).toUpperCase()+rarity.slice(1)}</option>)}</select></label><label className={styles.checkbox}><input type="checkbox" checked={selection.availableOnly} onChange={event=>onChange({...selection,availableOnly:event.target.checked})}/>Available to purchase</label>{priceError?<p className={styles.note}>Enter a positive USD amount with up to two decimal places.</p>:null}<button type="button" onClick={()=>{setPriceText('');onChange({...selection,maxPriceUsdCents:null,availableOnly:false,rarity:'all'});}}>Reset filters</button></div>:null}
   <div className={styles.browseControls}><nav className={styles.categories} aria-label="Listing categories">{(['all','creatures','resources'] as const).map(category=><button type="button" key={category} aria-pressed={selection.category===category} onClick={()=>onChange({...selection,category})}>{category==='all'?'All':category==='creatures'?'Creatures':'Resources'}</button>)}</nav><div className={styles.layoutChoices} role="group" aria-label="Mobile card view"><button type="button" aria-label="Two-column view" aria-pressed={mobileColumns===2} title="Two-column view" onClick={()=>setMobileColumns(2)}><Grid2X2 size={17}/></button><button type="button" aria-label="Single-column view" aria-pressed={mobileColumns===1} title="Single-column view" onClick={()=>setMobileColumns(1)}><GalleryVertical size={17}/></button></div></div>
-  <div className={styles.sectionHeading}><h3>Explore listings</h3><label className={styles.sort}><span className={styles.srOnly}>Sort listings</span><select aria-label="Sort listings" value={selection.sort} onChange={event=>onChange({...selection,sort:event.target.value as WildzMarketSort})}><option value="featured">Featured</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="name">Name: A to Z</option></select></label></div>
-  {preparing?<div className={styles.empty} role="status" aria-live="polite"><h3>Preparing cards…</h3></div>:shownListings.length||shownUnlisted.length?<div className={styles.listingGrid} data-mobile-columns={mobileColumns}>{shownListings.map((listing,index)=>{const card=readyCard(listingCard(listing));return <ListingCard key={`${listing.listingId}:${card?wildzMarketCardKey(card):'resource'}`} listing={listing} card={card} priority={index===0} featured={listing.kind==='creature'} openOnTap={compact} onView={chart=>onView(listing.listingId,chart)}/>;})}{shownUnlisted.map(card=><OwnedCardTile key={wildzMarketCardKey(card)} card={card} openOnTap={compact} onView={onViewCard}/>)}</div>:<div className={styles.empty}><Package size={32} aria-hidden="true"/><h3>{loading?'Checking listings…':filtered?'No matching cards':'Your next discovery starts here'}</h3><p>{filtered?'Try another search or adjust your filters.':'Publicly shared, owned creatures and resource listings appear here.'}</p>{filtered?<button type="button" onClick={()=>{setPriceText('');onChange({query:'',category:'all',sort:'featured',maxPriceUsdCents:null,availableOnly:false});}}>Clear search and filters</button>:null}</div>}
-  {ordered.length+unlisted.length>limit?<button type="button" className={styles.loadMore} onClick={()=>setLimit(n=>n+24)}>Explore more cards</button>:null}
-  <div className={styles.discoveryFooter}><span>{total} card{total===1?'':'s'}{filtered?' match your search':''}</span><button type="button" disabled={refreshing||refreshDisabled} onClick={()=>{setPreparationRevision(revision=>revision+1);onRefresh();}}>{refreshing?'Refreshing…':'Refresh listings'}</button></div>
+  <div className={styles.sectionHeading}><h3>Explore listings</h3><label className={styles.sort}><span className={styles.srOnly}>Sort listings</span><select aria-label="Sort listings" value={selection.sort} onChange={event=>onChange({...selection,sort:event.target.value as WildzMarketSort})}><option value="featured">Featured</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="name">Name: A to Z</option><option value="rarity-high">Rarity: rarest first</option><option value="rarity-low">Rarity: trail first</option></select></label></div>
+  {shownListings.length||shownUnlisted.length?<div className={styles.galleryPages}>{Array.from({length:Math.ceil(tiles.length/WILDZ_MARKET_PAGE_SIZE)},(_,index)=><WildzMarketGalleryPage key={`${selection.query}:${selection.category}:${selection.sort}:${selection.rarity??'all'}:${mobileColumns}:${index}`} index={index} active={active} columns={mobileColumns}>{tiles.slice(index*WILDZ_MARKET_PAGE_SIZE,(index+1)*WILDZ_MARKET_PAGE_SIZE)}</WildzMarketGalleryPage>)}</div>:preparing||loading?<div className={styles.gallerySkeleton} aria-label="Loading Market" aria-busy="true"><span/><span/></div>:<div className={styles.empty}><Package size={32} aria-hidden="true"/><h3>{filtered?'No matching cards':'Your next discovery starts here'}</h3><p>{filtered?'Try another search or adjust your filters.':'Publicly shared, owned creatures and resource listings appear here.'}</p>{filtered?<button type="button" onClick={()=>{setPriceText('');onChange({query:'',category:'all',sort:'featured',maxPriceUsdCents:null,availableOnly:false,rarity:'all'});}}>Clear search and filters</button>:null}</div>}
+  <div ref={loadSentinel} className={styles.loadSentinel} aria-hidden="true"/>
+  <div className={styles.discoveryFooter}><span>{total} card{total===1?'':'s'}{filtered?' match your search':''}</span><button type="button" disabled={refreshing||refreshDisabled} onClick={()=>{attempted.current.clear();setPreparationRevision(revision=>revision+1);onRefresh();}}>{refreshing?'Refreshing…':'Refresh listings'}</button></div>
  </section>;
 }
 

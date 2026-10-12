@@ -26,6 +26,12 @@
 .sheet .account {position:absolute;top:0;right:0;width:44px;height:44px;min-height:44px;padding:0;border-radius:50%;background:#12291bdd;border-color:#6c8250;color:#d8f0be;}
 .hero {padding:14px 0;}
 .hero h2 {margin:0!important;color:#f6faf4;font-size:clamp(30px,7.5vw,38px);font-weight:750;letter-spacing:-.035em;line-height:1.05;}
+.hero h2:has(+p) {text-wrap:balance;}
+.galleryPages {display:grid;gap:12px;}
+.galleryPage {min-width:0;overflow-anchor:none;}
+.gallerySkeleton {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;min-height:300px;}
+.gallerySkeleton>span {border:1px solid var(--market-line);border-radius:14px;background:#102018;}
+.loadSentinel {height:1px;}
 .hero p {margin:12px 0 0;max-width:620px;color:#b5c5b9;font-size:14px;line-height:1.55;}
 .discovery {min-width:0;}
 .searchRow {display:flex;gap:10px;}

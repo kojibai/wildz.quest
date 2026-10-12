@@ -11,10 +11,18 @@ export type WildzMarketLocalValueEvaluationV129=Readonly<{
  usdPerPhiMicrocents?:string|null;
 }>;
 const MAX_SAMPLES=32;
+const LOCAL_MODEL_ALGORITHM='wildz.local-card-value.sdk129-rarity.v1';
+// This is a Wildz display policy over a verified game-card field. It is not
+// part of the Receiz Sigil policy and never changes its numerical inputs.
+const RARITY_POLICY=Object.freeze({schema:'wildz.local-card-rarity-policy.v1',version:'1',
+ algorithm:LOCAL_MODEL_ALGORITHM,authority:'wildz-display-model-only',sourceReference:'manifest.rarity',
+ multipliersBps:Object.freeze({trail:'10000',uncommon:'12500',rare:'15000',mythic:'20000',eternal:'30000'}),
+ rounding:Object.freeze({input:'SDK-rounded microPhi',method:'integer-half-up',denominator:'10000',offset:'5000',
+  formula:'floor((sdkProofValuePhiMicro * rarityMultiplierBps + 5000) / 10000)'})});
 const unknownInputs=Object.freeze([
  'Craft quality and edition size are not carried as Sigil inputs; SDK compatibility defaults apply.',
  'Creator verification and reputation are unknown; SDK defaults do not assert either fact.',
- 'Creature growth, game rarity, transfers and sales are not Sigil valuation inputs or admitted native sale evidence.',
+ 'Creature growth, transfers and sales are not Sigil valuation inputs or admitted native sale evidence.',
  'This local card model does not establish canonical Receiz artifact admission, custody or Settlement.'
 ]);
 function coordinate(value:unknown):bigint {
@@ -43,7 +51,8 @@ function sourceInput(card:PortableCardAsset){
   originReference:exact?(living?'manifest.birthGenome.variant.identity.discovery.kaiPulse':'manifest.variant.traits.identity.discovery.kaiPulse')
    :living?'manifest.birth.bornAt':'manifest.capturedAt',
   cardSealKind:card.proof.kind,cardProofDigest:card.proof.digest,originKaiUPulse,originKaiPulse};
- return {metadata,source};
+ if(!Object.hasOwn(RARITY_POLICY.multipliersBps,manifest.rarity))throw Error('LOCAL_VALUE_RARITY_INVALID');
+ return {metadata,source,rarity:manifest.rarity};
 }
 function phiMicro(valuePhi:number){
  // Preserve the SDK's published binary64 law and display rounding verbatim.
@@ -53,12 +62,12 @@ function phiMicro(valuePhi:number){
  return BigInt(rounded).toString();
 }
 
-/** The actual SDK129 pure law, with a game-seal source boundary. This is a
- * read-only local model and deliberately never fabricates an SDK projection,
+/** The actual SDK129 pure law followed by the explicit Wildz rarity policy,
+ * with a game-seal source boundary. This read-only local model never fabricates an SDK projection,
  * verified artifact digest, native history, payment or proof-root publication. */
 export async function calculateWildzMarketLocalValueV129(card:PortableCardAsset,evaluation:WildzMarketLocalValueEvaluationV129):Promise<WildzMarketValueRead>{
  try{
-  const at=coordinate(evaluation.valuationKaiUPulse),{metadata,source}=sourceInput(card),origin=coordinate(source.originKaiUPulse);
+  const at=coordinate(evaluation.valuationKaiUPulse),{metadata,source,rarity}=sourceInput(card),origin=coordinate(source.originKaiUPulse);
   if(at<origin)throw Error('LOCAL_VALUE_EVALUATION_BEFORE_ORIGIN');
   const rate=evaluation.usdPerPhiMicrocents??null;
   if(rate!==null&&(typeof rate!=='string'||!/^[1-9][0-9]{0,29}$/.test(rate)))throw Error('LOCAL_VALUE_USD_RATE_INVALID');
@@ -66,6 +75,9 @@ export async function calculateWildzMarketLocalValueV129(card:PortableCardAsset,
    source:'held-receiz-display-rate',authority:'display-conversion-only'};
   const priceBasisDigest=usdBasis?await digestReceizCanonicalV122(usdBasis):null;
   const convert=(amount:string)=>rate===null?null:amount==='0'?'0':quoteReceizDisplayUsdV122(amount,rate);
+  const rarityMultiplierBps=RARITY_POLICY.multipliersBps[rarity];
+  const modelPolicyChecksum=await digestReceizCanonicalV122(RARITY_POLICY);
+  const adjust=(sdkPhiMicro:string)=>((BigInt(sdkPhiMicro)*BigInt(rarityMultiplierBps)+5000n)/10000n).toString();
   const coordinates=[...new Set(Array.from({length:MAX_SAMPLES},(_,index)=>{
    const selected=at-BigInt(MAX_SAMPLES-1-index)*1_000_000n;return (selected<origin?origin:selected).toString();
   }))];
@@ -73,18 +85,31 @@ export async function calculateWildzMarketLocalValueV129(card:PortableCardAsset,
   // invented transaction. Exact uPulse remains in the point and replay.
   const samples:WildzMarketValuePoint[]=coordinates.map(kaiUPulse=>{
    const computation=computeIntrinsicUnsigned(metadata,Number(BigInt(kaiUPulse)/1_000_000n));
-   const amount=phiMicro(computation.unsigned.valuePhi);
+   const amount=adjust(phiMicro(computation.unsigned.valuePhi));
    return {kaiUPulse,phiMicro:amount,usdCents:convert(amount)};
   });
   const computation=computeIntrinsicUnsigned(metadata,Number(at/1_000_000n));
-  const proofValuePhiMicro=phiMicro(computation.unsigned.valuePhi),displayUsdCents=convert(proofValuePhiMicro);
-  const localModel={source,metadata,unsigned:computation.unsigned,appliedDefaults:computation.appliedDefaults,unknownInputs,rounding:SIGIL_VALUATION_ROUNDING};
-  const calculation=[...computation.calculation];
+  const sdkProofValuePhiMicro=phiMicro(computation.unsigned.valuePhi),proofValuePhiMicro=adjust(sdkProofValuePhiMicro),displayUsdCents=convert(proofValuePhiMicro);
+  const rarityAdjustment={policy:RARITY_POLICY,policyChecksum:modelPolicyChecksum,rarity,sourceReference:'manifest.rarity',
+   sdkProofValuePhiMicro,rarityMultiplierBps,proofValuePhiMicro};
+  const localModel={source,metadata,unsigned:computation.unsigned,appliedDefaults:computation.appliedDefaults,unknownInputs,
+   rounding:SIGIL_VALUATION_ROUNDING,modelAlgorithm:LOCAL_MODEL_ALGORITHM,rarityAdjustment};
+  const calculation=[...computation.calculation,
+   {id:'sdkProofValuePhiMicro',label:'SDK baseline rounded to microPhi',formula:'Math.round(valuePhi * 1000000)',
+    operands:{valuePhi:String(computation.unsigned.valuePhi)},result:sdkProofValuePhiMicro,unit:'microPhi',
+    sourceReferences:[SIGIL_VALUATION_POLICY_CHECKSUM,'@receiz/sdk/valuation#computeIntrinsicUnsigned']},
+   {id:'rarityMultiplierBps',label:'Wildz sealed rarity multiplier',formula:'wildzRarityPolicy.multipliersBps[rarity]',
+    operands:{rarity,sourceReference:'manifest.rarity',basisPointDenominator:'10000'},result:rarityMultiplierBps,unit:'basis points',
+    sourceReferences:[source.cardProofDigest,'manifest.rarity',modelPolicyChecksum]},
+   {id:'proofValuePhiMicro',label:'Wildz rarity-adjusted value',formula:RARITY_POLICY.rounding.formula,
+    operands:{sdkProofValuePhiMicro,rarityMultiplierBps,roundingOffset:'5000',basisPointDenominator:'10000'},
+    result:proofValuePhiMicro,unit:'microPhi',sourceReferences:[source.cardProofDigest,modelPolicyChecksum]}];
   if(rate!==null)calculation.push({id:'displayUsdCents',label:'USD display conversion',
    formula:'floor((proofValuePhiMicro * usdPerPhiMicrocents + 500000000000) / 1000000000000)',
    operands:{proofValuePhiMicro,usdPerPhiMicrocents:rate},result:displayUsdCents!,unit:'USD cents',
    sourceReferences:[priceBasisDigest!,'@receiz/sdk#quoteReceizDisplayUsdV122']});
   const replay={schema:'wildz.local-card-value-replay.v129',valueSource:'local-card-model',assetId:card.id,
+   modelAlgorithm:LOCAL_MODEL_ALGORITHM,modelPolicy:RARITY_POLICY,modelPolicyChecksum,rarityAdjustment,sdkProofValuePhiMicro,
    source,algorithm:SIGIL_VALUATION_ALGORITHM,policyChecksum:SIGIL_VALUATION_POLICY_CHECKSUM,policy:SIGIL_VALUATION_POLICY,
    rounding:SIGIL_VALUATION_ROUNDING,valuationKaiUPulse:evaluation.valuationKaiUPulse,
    valuationKaiPulse:(at/1_000_000n).toString(),sampleKind:'recomputed-model-samples',

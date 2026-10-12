@@ -36,7 +36,7 @@ test('a cached owned creature waits for decoded artwork and value preparation be
  const asset=initialPlayState.inventory[0]!;
  const f=fixture({listings:[],collection:[{assetId:asset.id,title:'Exact owned companion',proofDigest:asset.proof.digest,ownerHandle:seller,claimKaiUPulse:null,claimHead:null,asset}]});
  const html=renderToStaticMarkup(<WildzMarketSheet service={f.service} connected/>);
- assert.match(html,/Preparing cards/);assert.doesNotMatch(html,/View creature · Exact owned companion|Flip Exact owned companion|creature-collection\.webp|wilds-card-face-back/);assert.equal(f.calls(),0);
+ assert.match(html,/Loading Market/);assert.doesNotMatch(html,/Preparing cards|Checking listings/);assert.doesNotMatch(html,/View creature · Exact owned companion|Flip Exact owned companion|creature-collection\.webp|wilds-card-face-back/);assert.equal(f.calls(),0);
 });
 
 test('a prepared card consumes its decoded exact artwork eagerly with an actor profile coordinate',()=>{

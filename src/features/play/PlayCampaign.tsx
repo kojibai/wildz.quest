@@ -1408,6 +1408,22 @@ export function PlayCampaign({
     });
     return () => { marketActiveRef.current = false; unsubscribe(); onMarketServiceChange?.(null); };
   }, [lazyMarket, onMarketServiceChange]);
+  useEffect(() => {
+    if (!lazyMarket || !worldVisible) return;
+    let cancelled = false;
+    const warm = () => {
+      if (cancelled || document.visibilityState !== 'visible') return;
+      void import('../market/wildz-market-warmup').then(({getWildzMarketWarmup}) => {
+        if (!cancelled) return getWildzMarketWarmup(lazyMarket.service).ready();
+      }).catch(() => { /* Opening Market can retry the same read. */ });
+    };
+    if ('requestIdleCallback' in window) {
+      const idle = window.requestIdleCallback(warm);
+      return () => { cancelled = true; window.cancelIdleCallback(idle); };
+    }
+    const timer = setTimeout(warm, 1000);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [lazyMarket, worldVisible]);
   const cardListAttemptsRef = useRef(new Map<string, string>());
   const listMarketCreature = useCallback(async (card: PortableCardAsset, priceCents: number) => {
     if (!lazyMarket || !Number.isSafeInteger(priceCents) || priceCents < 1) throw Error("Unlock your Explorer and enter an exact USD price.");
@@ -4006,7 +4022,7 @@ export function PlayCampaign({
               visualSettings={visualSettings}
               supportCards={trailSupportCards}
               vistaHeading={activeVistaId && nearbyOverlook?.id === activeVistaId ? nearbyOverlook.viewHeading : activeVistaId&&nearbyMonument?.id===activeVistaId?nearbyMonument.viewHeading:null}
-              suspended={(exclusiveOwner === "map" && mapOpen) || exclusiveOwner === "dream"}
+              suspended={(exclusiveOwner === "map" && mapOpen) || exclusiveOwner === "dream" || exclusiveOwner === "market"}
               onSelectPlayer={(player) => {
                 if (canUseWorldStage()) multiplayer.selectPlayer(player);
               }}

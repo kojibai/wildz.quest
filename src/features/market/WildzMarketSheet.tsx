@@ -6,6 +6,7 @@ import {ArrowLeft,ArrowRight,Clock3,Compass,Leaf,Package,Tag,UserRound} from 'lu
 import type {WildzMarketPurchasePhaseV128,WildzMarketPurchaseReviewV128,WildzMarketResultV128,WildzMarketServiceV128,WildzMarketSnapshotV128} from './wildz-market-service-v128';
 import {createWildzMarketUiActionRuntime,parseWildzMarketUsdInput,readWildzMarketListingUiAttempt,retainWildzMarketListingUiAttempt,releaseWildzMarketListingUiAttempt,type WildzMarketUiActionState,type WildzMarketListingUiAttempt} from './wildz-market-presentation';
 import {formatWildsPhiExact,formatWildsUsdCents} from '../play/wallet/wilds-wallet-format';
+import {getWildzMarketWarmup} from './wildz-market-warmup';
 import {shouldRefreshWildzMarket} from './market-refresh-policy';
 import {validateWildzCardCheckoutUrlV128} from '../../lib/receiz/wildz-card-checkout-url-v128';
 import styles from './WildzMarketSheet.module.css';
@@ -51,7 +52,8 @@ export function WildzMarketSheet({service,connected,initialTab='browse',onClose}
  const [mobileColumns,setMobileColumns]=useState<1|2>(2);
  const [detail,setDetail]=useState<{service:WildzMarketServiceV128;listingId?:string;assetId?:string;focusChart?:boolean}|null>(null);
  const [activityScope,setActivityScope]=useState<'all'|'purchases'|'sales'|'listings'|'offers'|'history'>('all');
- const scroll=useRef<HTMLDivElement>(null);
+ const scroll=useRef<HTMLDivElement>(null),exploreScroll=useRef(0);
+ const warmup=useMemo(()=>service?getWildzMarketWarmup(service):null,[service]);
  const mounted=useRef(true),live=useRef({service,connected});live.current={service,connected};
  const [view,setView]=useState<{service:WildzMarketServiceV128|null;snapshot:WildzMarketSnapshotV128}>(()=>({service,snapshot:service?.snapshot()??empty}));
  const [uiView,setUiView]=useState<{runtime:ReturnType<typeof createWildzMarketUiActionRuntime>;state:WildzMarketUiActionState}|null>(null);
@@ -85,8 +87,10 @@ export function WildzMarketSheet({service,connected,initialTab='browse',onClose}
  const visiblePurchases=purchases.filter(item=>activityScope==='all'||activityScope==='purchases'&&item.buyerHandle===service?.binding.ownerHandle||activityScope==='sales'&&item.sellerHandle===service?.binding.ownerHandle);
  const readVisibleValue=useCallback((assetId:string)=>service?.readValue?.(assetId),[service]);
  const changeTab=(next:Tab)=>{setTab(next);setDetail(null);scroll.current?.scrollTo({top:0});};
- const openDetail=(listingId:string,focusChart=false)=>{if(service){setDetail({service,listingId,focusChart});scroll.current?.scrollTo({top:0});}};
+ const openDetail=(listingId:string,focusChart=false)=>{if(service){exploreScroll.current=scroll.current?.scrollTop??0;setDetail({service,listingId,focusChart});scroll.current?.scrollTo({top:0});}};
 
+ const backToListings=()=>{setDetail(null);window.requestAnimationFrame(()=>scroll.current?.scrollTo({top:exploreScroll.current}));};
+ const openCardDetail=(assetId:string,focusChart=false)=>{if(service){exploreScroll.current=scroll.current?.scrollTop??0;setDetail({service,assetId,focusChart});scroll.current?.scrollTo({top:0});}};
  const scrollToChart=()=>{const panel=scroll.current?.querySelector<HTMLElement>('[aria-label="Live proof value"]');if(panel){panel.focus({preventScroll:true});panel.scrollIntoView({block:'start',behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});}};
  useEffect(()=>{
   if(!detail?.focusChart||!detailReady)return;
@@ -100,12 +104,12 @@ export function WildzMarketSheet({service,connected,initialTab='browse',onClose}
   if(!service)return;
   let active=true;
   const unsubscribe=service.subscribe(next=>{if(active&&live.current.service===service)setView({service,snapshot:next});});
-  void runtime.run('Read market',()=>service.read()).then(next=>{if(next&&active&&live.current.service===service)setView({service,snapshot:next});});
-  return()=>{active=false;unsubscribe();service.releaseValue?.();};
- },[service,connected,runtime]);
+  void warmup?.ready().then(()=>{if(active&&live.current.service===service)setView({service,snapshot:service.snapshot()});}).catch(()=>{if(active)runtime.notice('Market could not refresh. Retry Refresh listings.',true);});
+  return()=>{active=false;unsubscribe();warmup?.cancel();service.releaseValue?.();};
+ },[service,connected,runtime,warmup]);
 
  const showResult=(result:WildzMarketResultV128|undefined)=>{if(result)runtime.notice(result.message,result.status==='failed');};
- const refresh=()=>{if(service)void runtime.run('Read market',()=>service.read()).then(next=>{if(next&&live.current.service===service)setView({service,snapshot:next});});};
+ const refresh=()=>{if(service)void runtime.run('Read market',()=>service.read()).then(next=>{if(next&&live.current.service===service){warmup?.update();setView({service,snapshot:next});}});};
  const preview=(listingId:string)=>{
   if(!service)return;
   void runtime.run('Review purchase',()=>service.previewPurchase(listingId)).then(next=>{if(next&&live.current.service===service){setReview({service,value:next});setDetail(null);setActivityScope('all');setTab('activity');scroll.current?.scrollTo({top:0});}});
@@ -138,19 +142,20 @@ export function WildzMarketSheet({service,connected,initialTab='browse',onClose}
  };
 
  return <div className={`wildz-market-sheet ${styles.sheet}`} aria-label="Player market" onKeyDown={event=>{if(event.key==='Escape'&&(detailed||detailedCard)){event.stopPropagation();setDetail(null);}}}>
-  <div className={styles.marketScroll} ref={scroll}>
+  <div className={styles.marketScroll} ref={scroll} data-market-scroll tabIndex={-1}>
    <div className={styles.backdrop} aria-hidden="true"><Image src="/images/market/forest-header.webp" alt="" fill sizes="100vw" priority/></div>
    <div className={styles.content}>
     <header className={styles.header}><button type="button" className={styles.backLink} onClick={()=>{if(onClose)onClose();else changeTab('browse');}}><ArrowLeft size={22}/>Back to world</button><div className={styles.brand}><Image src="/brand/wildz-wordmark.svg" alt="Wildz" width={320} height={64} style={{height:"auto"}}/><span>/</span><span>Market</span></div><button type="button" className={styles.account} aria-label="View your market activity" onClick={()=>changeTab('activity')}><UserRound size={23}/></button></header>
-    {!detailed&&!detailedCard?<div className={styles.hero}><h2>{tab==='browse'?<>Find your<br/>legend.</>:tab==='sell'?<>Make room for<br/>new adventures.</>:<>Every trade.<br/>All in one place.</>}</h2><p>{tab==='browse'?'Creatures and resources. Yours to explore.':tab==='sell'?'Your creatures and resources. A new player’s next discovery.':'Your purchases, sales, offers and ownership history.'}</p></div>:null}
+    {!detailed&&!detailedCard?<div className={styles.hero}><h2>{tab==='browse'?<>Find your legend.</>:tab==='sell'?<>Make room for<br/>new adventures.</>:<>Every trade.<br/>All in one place.</>}</h2><p>{tab==='browse'?'Creatures and resources. Yours to explore.':tab==='sell'?'Your creatures and resources. A new player’s next discovery.':'Your purchases, sales, offers and ownership history.'}</p></div>:null}
     {unavailable?<p className={styles.status} role="status">Connect your Receiz ID to browse and trade.</p>:null}
     {!unavailable&&(ui.message||snapshot.status==='unavailable'&&snapshot.message)?<p className={styles.status} role="status" data-error={ui.error||undefined}>{ui.message||snapshot.message}</p>:null}
-    {tab==='browse'?detailed?<WildzMarketListingDetail listing={detailed} card={snapshot.collection?.find(card=>detailed.asset.kind==='creature'&&card.assetId===detailed.asset.assetId&&card.ownerHandle===detailed.sellerHandle)} ownerHandle={service?.binding.ownerHandle??''} busy={busy} unavailable={unavailable} onBack={()=>setDetail(null)} onReview={()=>preview(detailed.listingId)} onManage={()=>changeTab('activity')} onChart={scrollToChart}/>:detailedCard?<WildzMarketOwnedDetail card={detailedCard} service={service} busy={busy||unavailable} onBack={()=>setDetail(null)} onChart={scrollToChart} onOffer={async request=>{if(!service?.makeOffer)return;const result=await runtime.run('Send offer',()=>service.makeOffer!(request));showResult(result);return result;}}/>:<>
-     <WildzMarketDiscovery mobileColumns={mobileColumns} onMobileColumnsChange={setMobileColumns} listings={active} collection={snapshot.collection} onReadValue={readVisibleValue} onViewCard={(assetId,focusChart=false)=>{if(service){setDetail({service,assetId,focusChart});scroll.current?.scrollTo({top:0});}}} selection={discovery} onChange={setDiscovery} onView={openDetail} loading={snapshot.status==='loading'||ui.busy==='Read market'} onRefresh={refresh} refreshing={busy} refreshDisabled={unavailable}/>
+    {tab==='browse'?detailed?<WildzMarketListingDetail listing={detailed} card={snapshot.collection?.find(card=>detailed.asset.kind==='creature'&&card.assetId===detailed.asset.assetId&&card.ownerHandle===detailed.sellerHandle)} ownerHandle={service?.binding.ownerHandle??''} busy={busy} unavailable={unavailable} onBack={backToListings} onReview={()=>preview(detailed.listingId)} onManage={()=>changeTab('activity')} onChart={scrollToChart}/>:detailedCard?<WildzMarketOwnedDetail card={detailedCard} service={service} busy={busy||unavailable} onBack={backToListings} onChart={scrollToChart} onOffer={async request=>{if(!service?.makeOffer)return;const result=await runtime.run('Send offer',()=>service.makeOffer!(request));showResult(result);return result;}}/>:null:null}
+    <div hidden={tab!=='browse'||detailReady}>
+     <WildzMarketDiscovery active={tab==='browse'&&!detailReady} cardPreparer={warmup?.preparer} mobileColumns={mobileColumns} onMobileColumnsChange={setMobileColumns} listings={active} collection={snapshot.collection} onReadValue={readVisibleValue} onViewCard={openCardDetail} selection={discovery} onChange={setDiscovery} onView={openDetail} loading={snapshot.status==='loading'||ui.busy==='Read market'} onRefresh={refresh} refreshing={busy} refreshDisabled={unavailable}/>
      {attention?<button type="button" className={styles.activityLink} onClick={()=>changeTab('activity')}>{attention} trade{attention===1?'':'s'} to review or resume<ArrowRight size={18}/></button>:null}
      {snapshot.collectionMessage?<p className={styles.note} role="status">{snapshot.collectionMessage}</p>:null}
      {held?<button type="button" className={styles.activityLink} onClick={()=>changeTab('sell')}>Check pending listing · {held.title}</button>:null}
-    </>:null}
+    </div>
   {tab==='browse'&&detailedCard?<WildzMarketAssetInsights key={detailedCard.assetId} assetId={detailedCard.assetId} proofDigest={detailedCard.proofDigest} service={service} sales={history} transfers={transfers}/>:null}
   {tab==='browse'&&detailed?.asset.kind==='creature'?<WildzMarketAssetInsights key={detailed.asset.assetId} assetId={detailed.asset.assetId} proofDigest={snapshot.collection?.find(c=>detailed.asset.kind==='creature'&&c.assetId===detailed.asset.assetId)?.proofDigest??''} service={service} sales={history} transfers={transfers}/>:null}
   {tab==='sell'?<section aria-label="Sell an asset" className={styles.stack}>

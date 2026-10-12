@@ -21,7 +21,7 @@ export function wildzMarketCardImageUrl(card:WildzMarketOwnedCard){
 
 /** Share exact revisions while allowing an abandoned page to release its work.
  * A second reader keeps a pending task alive; completed tasks retain at most 48 cards. */
-function taskCache<T>(){
+function taskCache<T>(pinned:(key:string)=>boolean=()=>false){
  type Entry={promise:Promise<T>;controller:AbortController;users:number;settled:boolean};
  const entries=new Map<string,Entry>();
  return (key:string,task:(signal:AbortSignal)=>Promise<T>,signal?:AbortSignal):Promise<T>=>{
@@ -32,7 +32,7 @@ function taskCache<T>(){
    entry={controller,users:0,settled:false,promise:Promise.resolve().then(()=>task(controller.signal))};
    const held=entry;
    void held.promise.then(()=>{held.settled=true;},()=>{held.settled=true;if(entries.get(key)===held)entries.delete(key);});
-   if(entries.size>=CACHE_LIMIT)entries.delete(entries.keys().next().value!);
+   if(entries.size>=CACHE_LIMIT){const oldest=[...entries.keys()].find(key=>!pinned(key));if(oldest)entries.delete(oldest);}
    entries.set(key,entry);
   }else{entries.delete(key);entries.set(key,entry);}
   const held=entry;held.users++;
@@ -97,8 +97,12 @@ export function createWildzMarketCardPreparer({readCard=readWildzMarketCard,deco
  decodeImage?(url:string,signal?:AbortSignal):Promise<void>;
  readValue?(assetId:string):void|Promise<unknown>;
 }={}){
- const preparedCache=taskCache<PreparedWildzMarketCard>();
- return {async prepare(cards:readonly WildzMarketOwnedCard[],signal?:AbortSignal):Promise<readonly PreparedWildzMarketCard[]>{
+ const pinned=new Set<string>();
+ const preparedCache=taskCache<PreparedWildzMarketCard>(key=>pinned.has(key));
+ const completed=new Map<string,PreparedWildzMarketCard>();
+ return {pin(cards:readonly WildzMarketOwnedCard[]){pinned.clear();cards.slice(0,6).forEach(card=>pinned.add(wildzMarketCardKey(card)));},peek(cards:readonly WildzMarketOwnedCard[]){
+  return new Map(cards.flatMap(card=>{const key=wildzMarketCardKey(card),ready=completed.get(key);return ready?[[key,ready] as const]:[];}));
+ },async prepare(cards:readonly WildzMarketOwnedCard[],signal?:AbortSignal):Promise<readonly PreparedWildzMarketCard[]>{
   const unique=[...new Map(cards.map(card=>[wildzMarketCardKey(card),card])).values()];
   const ready:(PreparedWildzMarketCard|null)[]=Array(unique.length).fill(null);let next=0;
   await Promise.all(Array.from({length:Math.min(4,unique.length)},async()=>{
@@ -110,7 +114,10 @@ export function createWildzMarketCardPreparer({readCard=readWildzMarketCard,deco
      const imageUrl=wildzMarketCardImageUrl(card);await decodeImage(imageUrl,workSignal);assertActive(workSignal);
      await readValue?.(card.assetId);assertActive(workSignal);
      return {key:wildzMarketCardKey(card),card:{...card,asset},imageUrl};
-    },signal);}catch(cause){assertActive(signal);if(cause instanceof DOMException&&cause.name==='AbortError')throw cause;}
+    },signal);assertActive(signal);
+     const prepared=ready[index]!;completed.delete(prepared.key);completed.set(prepared.key,prepared);
+     while(completed.size>CACHE_LIMIT){const oldest=[...completed.keys()].find(key=>!pinned.has(key));if(!oldest)break;completed.delete(oldest);}
+    }catch(cause){assertActive(signal);if(cause instanceof DOMException&&cause.name==='AbortError')throw cause;}
    }
   }));
   assertActive(signal);return ready.filter((card):card is PreparedWildzMarketCard=>card!==null);

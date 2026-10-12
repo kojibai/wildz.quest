@@ -51,6 +51,16 @@ test('card preparation retains a bounded cache rather than the full market colle
  await preparer.prepare([rows[0]!]);assert.equal(reads,50);
 });
 
+test('first-screen pins survive deep scrolling while the complete asset cache stays bounded',async()=>{
+ const rows=Array.from({length:80},(_,i)=>card(`pinned${i}.receiz.id`));
+ const preparer=createWildzMarketCardPreparer({readCard:async()=>asset,decodeImage:async()=>{}});
+ await preparer.prepare(rows.slice(0,6));preparer.pin(rows.slice(0,6));
+ await preparer.prepare(rows.slice(6));
+ assert.equal(preparer.peek(rows).size,48);
+ assert.equal(preparer.peek(rows.slice(0,6)).size,6);
+ assert.equal(preparer.peek(rows.slice(6,12)).size,0);
+});
+
 test('shared public card reader normalizes the owner and reuses the exact verified revision',async()=>{
  const original=globalThis.fetch,urls:string[]=[];
  globalThis.fetch=async input=>{urls.push(String(input));return new Response(JSON.stringify({ok:true,record:{schema:'receiz.wilds_public_card.v1',assetId:asset.id,sourceUrl:`https://wildz.quest/cards/${encodeURIComponent(asset.id)}`,registeredAt:'2026-07-15T12:00:00.000Z',asset}}));};
