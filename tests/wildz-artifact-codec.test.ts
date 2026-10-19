@@ -494,19 +494,21 @@ test("an admitted upload commits without inspecting the Identity artifact again"
   assert.equal(repeatedInspections, 0);
 });
 
-test("portable traversal enforces node, depth, and restored-file bounds", () => {
+test("generic Vault traversal enforces node, depth, and restored-file bounds", () => {
   let deep: unknown = { value: "leaf" };
   for (let index = 0; index < 13; index += 1) deep = { child: deep };
   assert.throws(() => extractVerifiedWildzCards({
     pngBasis: null,
-    verifiedPortableSnapshot: deep,
-    restoredVaultFiles: []
+    verifiedPortableSnapshot: null,
+    restoredVaultFiles: [],
+    proofObjectPayload: { bytes: new TextEncoder().encode(JSON.stringify(deep)), mimeType: "application/json" }
   }), /wildz_restore_schema_unsupported/);
 
   assert.throws(() => extractVerifiedWildzCards({
     pngBasis: null,
-    verifiedPortableSnapshot: Array.from({ length: 10_001 }, () => ({})),
-    restoredVaultFiles: []
+    verifiedPortableSnapshot: null,
+    restoredVaultFiles: [],
+    proofObjectPayload: { bytes: new TextEncoder().encode(JSON.stringify(Array.from({ length: 10_001 }, () => ({})))), mimeType: "application/json" }
   }), /wildz_restore_schema_unsupported/);
 
   assert.throws(() => extractVerifiedWildzCards({

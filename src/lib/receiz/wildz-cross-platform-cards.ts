@@ -342,32 +342,45 @@ export function extractVerifiedWildzCards(input: {
     depth: number,
     source: "portable-snapshot" | "restored-file" | "proof-object"
   ) => {
-    if (!value || typeof value !== "object") return;
-    visitedNodes += 1;
-    if (visitedNodes > MAX_PORTABLE_NODES || depth > MAX_PORTABLE_DEPTH) {
-      throw new Error("wildz_restore_schema_unsupported");
+    // A verified Receiz account carries every app's history, not just a Wildz
+    // Vault. Its byte bound applies to the complete signed snapshot; unrelated
+    // account history must not exhaust the smaller generic Vault scan budget.
+    // Iterator frames keep both deep and wide account scans off the call stack.
+    const frames: Array<{ values: Iterator<unknown>; depth: number }> = [{ values: [value].values(), depth }];
+    while (frames.length) {
+      const frame = frames[frames.length - 1]!;
+      const next = frame.values.next();
+      if (next.done) { frames.pop(); continue; }
+      const candidate = next.value;
+      if (!candidate || typeof candidate !== "object") continue;
+      if (source !== "portable-snapshot") {
+        visitedNodes += 1;
+        if (visitedNodes > MAX_PORTABLE_NODES || frame.depth > MAX_PORTABLE_DEPTH) {
+          throw new Error("wildz_restore_schema_unsupported");
+        }
+      }
+      if (schemaOf(candidate) === "receiz.wilds_player_vault.v3") {
+        rememberPlayer(candidate as WildsPlayerVaultPayload, source);
+        continue;
+      }
+      if (isCardLike(candidate)) {
+        admit(candidate);
+        continue;
+      }
+      if (seen.has(candidate)) throw new Error("wildz_restore_schema_unsupported");
+      seen.add(candidate);
+      rememberSchema(schemaOf(candidate));
+      frames.push({ values: (Array.isArray(candidate) ? candidate : Object.values(candidate)).values(), depth: frame.depth + 1 });
     }
-    if (schemaOf(value) === "receiz.wilds_player_vault.v3") {
-      rememberPlayer(value as WildsPlayerVaultPayload, source);
-      return;
-    }
-    if (isCardLike(value)) {
-      admit(value);
-      return;
-    }
-    if (seen.has(value)) throw new Error("wildz_restore_schema_unsupported");
-    seen.add(value);
-    if (Array.isArray(value)) {
-      value.forEach((child) => traverse(child, depth + 1, source));
-      return;
-    }
-    const record = value as Record<string, unknown>;
-    rememberSchema(schemaOf(record));
-    Object.values(record).forEach((child) => traverse(child, depth + 1, source));
   };
 
   if (input.pngBasis) inspectPng(input.pngBasis, true);
-  if (input.verifiedPortableSnapshot !== null) traverse(input.verifiedPortableSnapshot, 0, "portable-snapshot");
+  if (input.verifiedPortableSnapshot !== null) {
+    if (new TextEncoder().encode(JSON.stringify(input.verifiedPortableSnapshot)).byteLength > MAX_RESTORED_BYTES) {
+      throw new Error("wildz_restore_artifact_too_large");
+    }
+    traverse(input.verifiedPortableSnapshot, 0, "portable-snapshot");
+  }
   if (input.proofObjectPayload) {
     if (isWildzPng(input.proofObjectPayload.bytes)) {
       inspectPng(splitWildzPngEnvelope(input.proofObjectPayload.bytes).pngBasis);

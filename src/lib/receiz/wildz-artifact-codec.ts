@@ -459,6 +459,7 @@ export function createWildzArtifactCodec(input: {
   identityRepository: Pick<WildzIdentityRepository, "prepare">;
   commerceVaultReader: ReceizCommerceVaultReader;
   artifactOpener?: WildzArtifactOpener;
+  documentOpener?: typeof openWildzSealedDocument;
   sealedDocumentStore?: { retain(input: { bytes: Uint8Array; filename: string; mimeType: string }): Promise<unknown> };
   retirementAuthorityVerifier?: CreatureRetirementAuthorityVerifier;
 }): WildzArtifactCodec {
@@ -480,11 +481,32 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
         }
       }
 
+      let legacyIdentityDocument: Awaited<ReturnType<typeof openWildzSealedDocument>> | null = null;
+      if (pngBasis && pngBasis.byteLength < bytes.byteLength && hasWildzCanonicalPngProof(pngBasis)) {
+        let hasIdentityTrailer = false;
+        try {
+          await readReceizIdentityArtifact(bytes);
+          hasIdentityTrailer = true;
+        } catch { /* Other trailers stay on the enclosing-artifact path. */ }
+        if (hasIdentityTrailer) {
+          try {
+            // Receiz's historical Identity Record writer sealed the artwork,
+            // then appended the Key after IEND. Verify that exact document
+            // separately; its proof grants no authority over the trailer.
+            // The document opener rejects native ownership, so a trailer can
+            // never bypass a transferred artifact's current-owner checks.
+            legacyIdentityDocument = await (input.documentOpener ?? openWildzSealedDocument)({
+              bytes: pngBasis, mimeType: "image/png", name: artifact.name
+            });
+          } catch (error) { return invalid(normalizedError(error)); }
+        }
+      }
+
       let proofObject: WildzProofObjectContinuity | null = null;
       let admittedOwnershipWitness: WildzOwnershipWitness | null = null;
       let proofObjectPayload: { bytes: Uint8Array; mimeType: string } | null = null;
       let proofObjectArtifactBytes: Uint8Array | null = isReceizBundleCandidate(bytes) ? bytes : null;
-      if (pngBasis) {
+      if (pngBasis && !legacyIdentityDocument) {
         try {
           proofObjectArtifactBytes = readReceizProofObjectFromPng(pngBasis).artifactBytes;
         } catch (error) {
@@ -493,7 +515,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
           }
         }
       }
-      if (pngBasis && (hasWildzCardSealPayload(pngBasis) || hasWildzCanonicalPngProof(pngBasis))) proofObjectArtifactBytes = bytes;
+      if (pngBasis && !legacyIdentityDocument && (hasWildzCardSealPayload(pngBasis) || hasWildzCanonicalPngProof(pngBasis))) proofObjectArtifactBytes = bytes;
       const proofObjectCandidate = proofObjectArtifactBytes !== null;
       if (proofObjectArtifactBytes !== null) {
         try {
@@ -527,7 +549,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
           // and signed Identity binding through the unchanged inner pipeline.
           try {
             if (depth >= 4) throw new Error("wildz_restore_schema_unsupported");
-            const document = await openWildzSealedDocument({ bytes: proofObjectArtifactBytes,
+            const document = await (input.documentOpener ?? openWildzSealedDocument)({ bytes: proofObjectArtifactBytes,
               mimeType: artifact.mimeType, name: artifact.name });
             if (!isWildzPng(document.payloadBytes)) throw error;
             const restored = await createWildzArtifactCodecAtDepth(input, depth + 1).inspect({ bytes: await unpackWildzCardSealPayload(document.payloadBytes),
@@ -708,6 +730,10 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
         });
       }
       if (identity) {
+        if (legacyIdentityDocument) await input.sealedDocumentStore?.retain({
+          bytes: legacyIdentityDocument.exactSealedArtifactBytes,
+          filename: artifact.name ?? "identity_record.png", mimeType: "image/png"
+        });
         return admitCrewInspection({
           kind: "identity-seal",
           ...(quarantinedAssets.length ? { quarantinedAssets } : {}),
