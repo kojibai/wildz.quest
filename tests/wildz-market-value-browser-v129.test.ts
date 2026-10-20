@@ -54,7 +54,7 @@ test('a cross-card worker reply cannot supply a value; error cleanup terminates 
  assert.equal(value.status,'ready');if(value.status==='ready')worker.reply({...value,value:{...value.value,assetId:'other'}});
  assert.equal((await read).status,'unavailable');assert.equal(worker.stopped,true);
  const retry=f.port.read(card.id);await opened(f.workers,2);f.workers[1]!.dispatchEvent(new Event('error'));
- assert.equal((await retry).status,'unavailable');assert.equal(f.workers[1]!.stopped,true);
+ assert.equal((await retry).status,'ready');assert.equal(f.workers[1]!.stopped,true);f.port.dispose?.();
 });
 test('an old Explorer cannot retain an in-flight result or start another worker',async()=>{
  const f=fixture(),read=f.port.read(card.id);await opened(f.workers,1);f.changeIdentity();f.workers[0]!.reply(ready(f.workers[0]!));
@@ -81,4 +81,39 @@ test('Market release cancels active and queued work and a later read can reopen'
  f.workers[0]!.reply(ready(f.workers[0]!));worker.reply(ready(worker));
  assert.equal((await reopen).status,'ready');f.port.dispose?.();
  assert.equal((await f.port.read(card.id)).status,'unavailable');
+});
+
+test('a crashed worker recovers the exact card value locally without Wallet or network access',async()=>{
+ const f=fixture();
+ try{
+  const read=f.port.read(card.id);await opened(f.workers,1);
+  f.workers[0]!.dispatchEvent(new Event('error'));
+  const result=await read;
+  assert.equal(result.status,'ready');
+  if(result.status==='ready'){
+   assert.equal(result.value.assetId,card.id);
+   assert.equal(result.value.proofDigest,card.proof.digest);
+   assert.equal(result.value.valuationKaiUPulse,'16000000123456');
+   assert.match(result.value.displayUsdCents??'',/^[1-9][0-9]*$/);
+   assert.ok(result.value.samples.length>1);
+  }
+  assert.equal(f.workers[0]!.stopped,true);
+  f.advance();assert.equal((await f.port.read(card.id)).status,'ready');
+  assert.equal(f.workers.length,1,'a failed worker must not be restarted for every visible card');
+  assert.equal(f.readyCalls(),0);assert.equal(f.requests.length,0);
+ }finally{f.port.dispose?.();}
+});
+
+test('a worker construction failure still computes the verified card value',async()=>{
+ const port=createWildzMarketValueBrowserPortV129({card:()=>card,now:()=> '16000000123456',worker(){throw Error('Worker unavailable');}});
+ try{assert.equal((await port.read(card.id)).status,'ready');}finally{port.dispose?.();}
+});
+
+test('closing Market during worker recovery discards the calculation',async()=>{
+ const f=fixture();
+ try{
+  const read=f.port.read(card.id);await opened(f.workers,1);
+  f.workers[0]!.dispatchEvent(new Event('error'));f.port.release?.();
+  assert.equal((await read).status,'unavailable');
+ }finally{f.port.dispose?.();}
 });

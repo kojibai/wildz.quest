@@ -18,7 +18,7 @@ const agreement=createWildsWalletTradeAgreement(
 );
 
 /** Development-only trade simulation with the actual local SDK calculator. No publication, payment or claim. */
-function createFixtureService(ownerHandle:string,onCall:(value:string)=>void,cards=marketFixtureCards):WildzMarketServiceV128{
+function createFixtureService(ownerHandle:string,onCall:(value:string)=>void,cards=marketFixtureCards,workerUnavailable=false):WildzMarketServiceV128{
  const listeners=new Set<(snapshot:WildzMarketSnapshotV128)=>void>();
  let pendingList:Parameters<WildzMarketServiceV128['list']>[0]|null=null;
  let snapshot:WildzMarketSnapshotV128={status:'ready',message:'Simulated UI only · no assets or Phi are sent.',listings:[
@@ -35,7 +35,8 @@ function createFixtureService(ownerHandle:string,onCall:(value:string)=>void,car
  const review:WildzMarketPurchaseReviewV128={purchaseId:'fixture:purchase:ember',listingId:`market:listing:${'a'.repeat(64)}`,reservationId:'fixture:reservation:ember',title:marketFixtureCards[0]!.manifest.name,kind:'creature',buyerHandle:buyer,sellerHandle:seller,priceUsdCents:'1234',amountPhiMicro:'1234567',usdPerPhiMicrocents:'1000000000',expiresAtKai:999,phase:'review',agreement,canApprove:true,canResume:false,canAccept:false,message:'Review the named players and exact terms.'};
  if(ownerHandle===seller)snapshot={...snapshot,offers:[{offer:{schema:'wildz.market-offer.v1',offerId:'market:offer:fixture-incoming',assetId:marketFixtureCards[1]!.id,title:marketFixtureCards[1]!.manifest.name,proofDigest:marketFixtureCards[1]!.proof.digest,buyerHandle:buyer,ownerHandle:seller,claimKaiUPulse:'16000000100001',claimHead:'fixture:claim:head',priceUsdCents:'1800'},status:'pending',createdAt:'2026-10-11T16:00:00.000Z'}],purchases:[{...review,phase:'awaiting-approvals',message:'The buyer approved. Your seller approval is still required.'}]};
  // An explicit fixture display basis, never used by production payment or quotes.
- const valuePort=createWildzMarketValueBrowserPortV129({card:id=>cards.find(card=>card.id===id)??null});
+ const valuePort=createWildzMarketValueBrowserPortV129({card:id=>cards.find(card=>card.id===id)??null,
+  ...(workerUnavailable?{worker:()=>{throw Error('Simulated unavailable value worker.');}}:{})});
  return {
   binding:{ownerHandle,keyId:(ownerHandle===buyer?'a':'c').repeat(64)},snapshot:()=>snapshot,
   releaseValue:()=>valuePort.release?.(),
@@ -67,12 +68,14 @@ function createFixtureService(ownerHandle:string,onCall:(value:string)=>void,car
 export function WildzMarketBrowserFixture(){
  const [owner,setOwner]=useState(buyer),[open,setOpen]=useState(true),[calls,setCalls]=useState<readonly string[]>([]);
  const [stress,setStress]=useState(false);
+ const [workerUnavailable,setWorkerUnavailable]=useState(false);
  const [offerTarget,setOfferTarget]=useState<string|undefined>();
- const service=useMemo(()=>createFixtureService(owner,value=>setCalls(previous=>[...previous.slice(-49),value]),stress?marketFixtureStressCards:marketFixtureCards),[owner,stress]);
+ const service=useMemo(()=>createFixtureService(owner,value=>setCalls(previous=>[...previous.slice(-49),value]),stress?marketFixtureStressCards:marketFixtureCards,workerUnavailable),[owner,stress,workerUnavailable]);
  return <main className="wildz-app" style={{minHeight:'100dvh',padding:20,background:'radial-gradient(circle at 20% 20%,#385c37,#0c211b 70%)',color:'#eff1db'}}>
   <h1 style={{fontSize:20}}>Market UI fixture</h1><p>Local SDK values · Simulated trades. No publication, asset transfer or payment.</p>
   <div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button type="button" onClick={()=>setOwner(current=>current===buyer?seller:buyer)}>Switch to {owner===buyer?'seller':'buyer'}</button><button type="button" onClick={()=>{setOfferTarget(undefined);setOpen(value=>!value);}}>{open?'Close market':'Open market'}</button><button type="button" onClick={()=>{setOwner(seller);setOfferTarget('market:offer:fixture-incoming');setOpen(true);}}>Review incoming offer in Market</button></div>
   <p data-testid="fixture-account">Viewing {owner}</p><button type="button" onClick={()=>setStress(value=>!value)}>{stress?'Use three-card collection':'Use 72-card stress collection'}</button>
+  <button type="button" onClick={()=>setWorkerUnavailable(value=>!value)}>{workerUnavailable?'Restore value worker':'Simulate unavailable value worker'}</button>
   <details><summary>Simulated service calls ({calls.length})</summary><pre data-testid="fixture-calls" style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{calls.join('\n')}</pre></details>
   {open?<section className="wildz-shell-overlay" data-surface="market" role="dialog" aria-label="market panel" aria-modal="true"><WildzMarketSheet service={service} connected initialOfferId={offerTarget} onClose={()=>setOpen(false)}/></section>:null}
  </main>;

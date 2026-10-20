@@ -27,27 +27,43 @@ export function createWildzMarketValueBrowserPortV129(input:Readonly<{
  worker?():Worker;
 }>):WildzMarketValuePort {
  const cache=new Map<string,WildzMarketValueRead>(),running=new Map<string,Promise<WildzMarketValueRead>>();
- let queue:Promise<unknown>=Promise.resolve(),worker:Worker|null=null,workerReady=false,disposed=false,requestId=0,generation=0;
+ let queue:Promise<unknown>=Promise.resolve(),worker:Worker|null=null,workerReady=false,workerFailed=false,disposed=false,requestId=0,generation=0;
  let idle:ReturnType<typeof setTimeout>|null=null,cancelActive:(()=>void)|null=null;
  function stopWorker(){if(idle)clearTimeout(idle);idle=null;worker?.terminate();worker=null;workerReady=false;}
  function idleWorker(){if(idle)clearTimeout(idle);idle=setTimeout(stopWorker,WORKER_IDLE_MS);}
- function release(){generation++;cancelActive?.();stopWorker();cache.clear();running.clear();queue=Promise.resolve();}
- function compute(assetId:string,card:PortableCardAsset,evaluation:WildzMarketLocalValueEvaluationV129,selectedGeneration:number):Promise<WildzMarketValueRead>{
+ function release(){generation++;cancelActive?.();stopWorker();workerFailed=false;cache.clear();running.clear();queue=Promise.resolve();}
+ async function computeLocally(card:PortableCardAsset,evaluation:WildzMarketLocalValueEvaluationV129,selectedGeneration:number):Promise<WildzMarketValueRead>{
+  // A PWA can keep the game open after a worker chunk becomes unavailable, or
+  // exhaust its worker resources. Recover with the exact same verified-card
+  // math, yielding between queued cards so the overlay can still paint.
+  await new Promise<void>(resolve=>setTimeout(resolve,0));
+  if(disposed||selectedGeneration!==generation)return unavailable('Market value reading has closed.');
+  input.current?.();
+  const {calculateWildzMarketLocalCardV129}=await import('./wildz-market-value-local-v129');
+  if(disposed||selectedGeneration!==generation)return unavailable('Market value reading has closed.');
+  input.current?.();
+  return calculateWildzMarketLocalCardV129(card,evaluation);
+ }
+ async function compute(assetId:string,card:PortableCardAsset,evaluation:WildzMarketLocalValueEvaluationV129,selectedGeneration:number):Promise<WildzMarketValueRead>{
   if(disposed||selectedGeneration!==generation)return Promise.resolve(unavailable('Market value reading has closed.'));
   input.current?.();if(idle)clearTimeout(idle);idle=null;
-  worker??=input.worker?.()??new Worker(new URL('./wildz-market-value.worker.ts',import.meta.url),{type:'module',name:'wildz-market-value'});
+  if(workerFailed)return computeLocally(card,evaluation,selectedGeneration);
+  try{worker??=input.worker?.()??new Worker(new URL('./wildz-market-value.worker.ts',import.meta.url),{type:'module',name:'wildz-market-value'});}
+  catch{workerFailed=true;return computeLocally(card,evaluation,selectedGeneration);}
   const activeWorker=worker,id=++requestId;
-  return new Promise(resolve=>{
+  const result=await new Promise<WildzMarketValueRead|null>(resolve=>{
    let active=true,sent=false;
-   const finish=(result:WildzMarketValueRead,stop=false)=>{
+   const finish=(result:WildzMarketValueRead|null,stop=false)=>{
     if(!active)return;active=false;clearTimeout(timer);
-    activeWorker.removeEventListener('message',message);activeWorker.removeEventListener('error',failure);cancelActive=null;
+    activeWorker.removeEventListener('message',message);activeWorker.removeEventListener('error',transportFailure);activeWorker.removeEventListener('messageerror',transportFailure);cancelActive=null;
     if(stop)stopWorker();else idleWorker();resolve(result);
    };
    const failure=()=>finish(unavailable('The local card value could not refresh. Reopen this card to retry.'),true);
+   const transportFailure=(event?:Event)=>{event?.preventDefault();workerFailed=true;finish(null,true);};
    const send=()=>{
     if(!active||sent)return;
-    try{input.current?.();sent=true;activeWorker.postMessage({type:'read-value',requestId:id,assetId,card,evaluation});}catch{failure();}
+    try{input.current?.();}catch{failure();return;}
+    try{sent=true;activeWorker.postMessage({type:'read-value',requestId:id,assetId,card,evaluation});}catch{transportFailure();}
    };
    const message=(event:MessageEvent)=>{
     if(event.data?.type==='value-ready'){workerReady=true;send();return;}
@@ -59,13 +75,14 @@ export function createWildzMarketValueBrowserPortV129(input:Readonly<{
     if(result?.status!=='ready'&&result?.status!=='unavailable')return failure();
     try{input.current?.();finish(result);}catch{failure();}
    };
-   const timer=setTimeout(()=>finish(unavailable('The local card value calculation timed out. Reopen this card to retry.'),true),10_000);
+   const timer=setTimeout(transportFailure,10_000);
    cancelActive=()=>finish(unavailable('Market value reading has closed.'),true);
-   activeWorker.addEventListener('message',message);activeWorker.addEventListener('error',failure);
+   activeWorker.addEventListener('message',message);activeWorker.addEventListener('error',transportFailure);activeWorker.addEventListener('messageerror',transportFailure);
    // Webpack's production worker entry can finish loading shared modules
    // asynchronously. Its message listener must exist before the first input.
    if(workerReady)send();
   });
+  return result??computeLocally(card,evaluation,selectedGeneration);
  }
  return {release,dispose(){if(disposed)return;disposed=true;release();},async read(assetId){
   try{
