@@ -14,6 +14,7 @@ import { hasLaterWildsPlayerLedger } from "@/features/play/wilds-play-state-sour
 import { isCurrentWildzGameplaySource } from "../identity/wildz-gameplay-source";
 import { validateWildsRoamingHandoffCard } from "../../lib/receiz/wilds-roaming-handoff";
 import { pruneWildzCrewCustody, mergeWildzCrewCustody, admitWildzUploadClaimCrewCustody, retainWildzCrewCustodyMemory } from "../../lib/receiz/wildz-artifact-codec";
+import { retainWildzProfilePage, type WildzProfilePageSeed } from "../profile/profile-page-seed";
 import {readWildzProfileDisplayName,saveWildzProfileDisplayName} from "../profile/profile-display-name";
 
 import { emitWildsPlaytestEvent } from "@/features/play/wilds-playtest-events";
@@ -345,6 +346,37 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     assets: ownerPlayState.inventory
   }), [avatarImageUrl, character, campaignCharacter, ownerDisplayName, ownerPlayState.inventory, ownerUsername]);
   const profileOwnerKeyId = identity?.keyId ?? "";
+  const [ownerProfileSeed, setOwnerProfileSeed] = useState<WildzProfilePageSeed>();
+  const ownerSeedSource = useRef({ profile: ownerSourceProfile, assets: ownerPlayState.inventory });
+  ownerSeedSource.current = { profile: ownerSourceProfile, assets: ownerPlayState.inventory };
+  const ownerSeedIdentity = `${profileOwnerKeyId}:${ownerUsername}:` + ownerSourceProfile.vault.slice(0, 4).map(card => `${card.id}:${card.proofDigest}`).join("|");
+  useEffect(() => {
+    if (!worldPainted || !profileOwnerKeyId) return;
+    let current = true, dispose: (() => void) | undefined;
+    const cancel = scheduleAfterPaint(() => {
+      const source = ownerSeedSource.current;
+      void import("../market/wildz-market-value-browser-v129").then(async ({ createWildzMarketValueBrowserPortV129 }) => {
+        if (!current) return;
+        const cards = source.profile.vault.slice(0, 4).flatMap(card => {
+          const asset = source.assets.find(asset => asset.id === card.id && asset.proof.digest === card.proofDigest);
+          return asset ? [asset] : [];
+        });
+        const port = createWildzMarketValueBrowserPortV129({ card: id => cards.find(card => card.id === id) ?? null });
+        dispose = () => port.dispose?.();
+        try {
+          const values: Record<string, import("../market/wildz-market-value").WildzMarketValueRead> = {}, artwork: Record<string, string> = {};
+          for (const card of cards) {
+            if (!current) return;
+            const result = await port.read(card.id);
+            values[card.id] = result;
+            if (result.artworkSvg) artwork[card.id] = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(result.artworkSvg)}`;
+          }
+          if (current) setOwnerProfileSeed(retainWildzProfilePage({ profile: source.profile, cards, values, artwork }));
+        } finally { dispose(); }
+      }).catch(() => { /* Existing profile data remains available during preparation. */ });
+    });
+    return () => { current = false; cancel(); dispose?.(); };
+  }, [worldPainted, profileOwnerKeyId, ownerSeedIdentity]);
   const [preparedProfilePublication, setPreparedProfilePublication] = useState<{
     keyId: string;
     key: string;
@@ -1572,6 +1604,9 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
             active={overlay?.kind === 'profile'}
             profile={(viewingOwnProfile ? ownerSourceProfile : remoteProfile)!}
             vaultAssets={viewingOwnProfile ? ownerPlayState.inventory : undefined}
+            initialSeed={viewingOwnProfile && ownerProfileSeed?.profile.username === ownerSourceProfile.username ? ownerProfileSeed : undefined}
+            marketService={marketService && marketService.binding.keyId === identity?.keyId
+              && sameWildzPlayerCoordinate(marketService.binding.ownerHandle, ownerUsername) ? marketService : null}
             bodyState={viewingOwnProfile ? readCurrentBodyState : undefined}
             publicationStatus={viewingOwnProfile && ownerPublicationStatus !== "ready" ? "local" : "published"}
             shareEnabled={!viewingOwnProfile || ownerPublicationStatus === "ready"}

@@ -32,6 +32,6 @@ export function CardValue({ card, onChart, onVisible, compact = false, href }: {
   </div></>;
   const props = { ref: setBadge, className: styles.tileValue, "data-market-value-asset": card.assetId, title: card.valueUnavailable };
   return href
-    ? <a {...props} href={href} aria-label={`Open ${card.title} standalone card · proof value`}>{content}</a>
+    ? <a {...props} href={href} aria-label={onChart ? `View value chart · ${card.title}` : `Open ${card.title} standalone card · proof value`} onClick={onChart ? event => { event.preventDefault(); onChart(); } : undefined}>{content}</a>
     : <button {...props} type="button" aria-label={`View value chart · ${card.title}`} onClick={onChart}>{content}</button>;
 }

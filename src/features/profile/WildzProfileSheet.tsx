@@ -5,6 +5,8 @@ import { identitySaveErrorMessage } from "./identity-save-error";
 import { canonicalWildzProfilePath, type PublicWildzProfile } from "@/features/profile/public-profile";
 import NextLink from "next/link";
 import type { PortableCardAsset } from "@/features/play/portable-card";
+import type { WildzProfilePageSeed } from "./profile-page-seed";
+import type { WildzMarketServiceV128 } from "../market/wildz-market-service-v128";
 import { WildzProfileVaultGallery } from "./WildzProfileVaultGallery";
 import { WildsBodyReadout } from '../play/command-center/WildsBodyReadout';
 import { useWildsBodyReadout, type WildsBodyReadoutInput } from '../play/use-wilds-body-readout';
@@ -46,8 +48,10 @@ async function profileImageFromFile(file: File) {
   }
 }
 
-export const WildzProfileSheet = memo(function WildzProfileSheet({ profile, vaultAssets, bodyState, active = true, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile, publishing = false, publicationMessage, publicationFailure, onRetryPublication }: {
+export const WildzProfileSheet = memo(function WildzProfileSheet({ profile, vaultAssets, initialSeed, marketService, bodyState, active = true, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile, publishing = false, publicationMessage, publicationFailure, onRetryPublication }: {
   profile: PublicWildzProfile;
+  initialSeed?: WildzProfilePageSeed;
+  marketService?: WildzMarketServiceV128 | null;
   active?: boolean;
   publishing?: boolean;
   publicationMessage?: string;
@@ -171,7 +175,7 @@ export const WildzProfileSheet = memo(function WildzProfileSheet({ profile, vaul
   };
 
   return <div className="wildz-profile-sheet" hidden={!active} aria-hidden={!active ? true : undefined} inert={!active ? true : undefined}>
-    <header className="wildz-profile-head"><div className="wildz-profile-avatar">{draftAvatar ? <Image alt="" height={58} src={draftAvatar} unoptimized width={58} /> : profile.displayName.slice(0, 2).toUpperCase()}</div><div>
+    <header className="wildz-profile-head"><div className="wildz-profile-avatar">{draftAvatar ? <Image alt="" height={58} src={draftAvatar} unoptimized priority width={58} /> : profile.displayName.slice(0, 2).toUpperCase()}</div><div>
       <span>Explorer profile</span><h2>{profile.displayName}</h2><p className="wildz-profile-handle">{profile.username}{editable ? <span className="wildz-profile-sync" data-state={publishing ? "syncing" : publicationStatus} role="status" aria-live="polite" aria-label={publicationMessage} title={publicationMessage}>
         {publicationStatus === "published" ? <NextLink aria-label="Open public profile" title="Profile is live · open public profile" href={canonicalWildzProfilePath(profile.username)}><Check aria-hidden="true" size={16} /></NextLink> : <button type="button" className="wildz-profile-sync-details" aria-label="Profile sync details" aria-expanded={publicationDetailsOpen} title={publicationFailure || publicationMessage} onClick={() => setPublicationDetailsOpen(value => !value)}><CloudUpload aria-hidden="true" size={16} /></button>}
       </span> : null}</p>
@@ -277,6 +281,6 @@ export const WildzProfileSheet = memo(function WildzProfileSheet({ profile, vaul
       <p>{profile.reputation > 0 ? `Your choices carry ${profile.reputation} reputation into future encounters.` : "Explore, battle, and help the living world to build a remembered reputation."}</p>
     </section>
     {profile.explorer ? <p className="wildz-profile-traits">{profile.explorer.traits.outfit.replaceAll("-", " ")} · {profile.explorer.traits.trail.replaceAll("-", " ")} trail</p> : null}
-    <WildzProfileVaultGallery cards={profile.vault} ownerAssets={vaultAssets} profileHandle={profile.username} active={active} />
+    <WildzProfileVaultGallery cards={profile.vault} ownerAssets={vaultAssets} profileHandle={profile.username} active={active} initialSeed={initialSeed} marketService={marketService} />
   </div>;
 }, (previous, next) => previous.active === false && next.active === false && previous.profile.username === next.profile.username);

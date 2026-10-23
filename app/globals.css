@@ -1136,13 +1136,13 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wildz-profile-vault-heading strong { min-width: 0; overflow: hidden; color: #d9eddf; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .wildz-profile-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .wildz-profile-card-entry { display: grid; min-width: 0; align-content: start; overflow: hidden; border: 1px solid rgba(151,226,155,.2); border-radius: 18px; background: linear-gradient(155deg, rgba(29,72,52,.9), rgba(5,23,18,.96)); box-shadow: 0 12px 26px rgba(0,0,0,.2); }
-.wildz-profile-card-entry > a[data-market-value-asset] { display: grid; min-width: 0; min-height: 52px; gap: 4px; margin: 0; padding: 9px 10px; border: 0; border-bottom: 1px solid rgba(151,226,155,.14); background: rgba(5,23,18,.5); text-decoration: none; }
-.wildz-profile-card-entry > a[data-market-value-asset] > span { font-size: 9px; }
-.wildz-profile-card-entry > a[data-market-value-asset] > div { min-width: 0; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
-.wildz-profile-card-entry > a[data-market-value-asset] strong { font-size: 14px; overflow-wrap: anywhere; }
-.wildz-profile-card-entry > a[data-market-value-asset] small { font-size: 9px; }
-.wildz-profile-card-entry > a[data-market-value-asset]:hover { background: rgba(48,121,96,.25); }
-.wildz-profile-card-entry > a[data-market-value-asset]:focus-visible { outline: 3px solid rgba(113,232,195,.78); outline-offset: -3px; }
+.wildz-profile-card-entry > [data-market-value-asset] { display: grid; min-width: 0; min-height: 52px; gap: 4px; margin: 0; padding: 9px 10px; border: 0; border-bottom: 1px solid rgba(151,226,155,.14); background: rgba(5,23,18,.5); text-decoration: none; }
+.wildz-profile-card-entry > [data-market-value-asset] > span { font-size: 9px; }
+.wildz-profile-card-entry > [data-market-value-asset] > div { min-width: 0; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
+.wildz-profile-card-entry > [data-market-value-asset] strong { font-size: 14px; overflow-wrap: anywhere; }
+.wildz-profile-card-entry > [data-market-value-asset] small { font-size: 9px; }
+.wildz-profile-card-entry > [data-market-value-asset]:hover { background: rgba(48,121,96,.25); }
+.wildz-profile-card-entry > [data-market-value-asset]:focus-visible { outline: 3px solid rgba(113,232,195,.78); outline-offset: -3px; }
 .wildz-profile-card-entry > .wildz-profile-card-tile { border: 0; border-radius: 0; box-shadow: none; text-decoration: none; }
 .wildz-profile-card-entry > .wildz-profile-card-tile:focus-visible { outline-offset: -3px; }
 .wildz-profile-card-tile { position: relative; display: grid; min-width: 0; min-height: 44px; padding: 0; overflow: hidden; border: 1px solid rgba(151,226,155,.2); border-radius: 18px; color: #effff5; background: linear-gradient(155deg, rgba(29,72,52,.9), rgba(5,23,18,.96)); box-shadow: 0 12px 26px rgba(0,0,0,.2); text-align: left; touch-action: pan-y; cursor: pointer; }
@@ -17771,3 +17771,18 @@ body:has(.wilds-stage.is-creation-placement) .wildz-pwa-notice { visibility: hid
 @media (max-height: 540px) { .wilds-animal-actions { bottom: 118px; padding: 9px; } }
 @keyframes wildz-food-count-in { from { color: #efffcf; transform: scale(.85); } to { transform: scale(1); } }
 @media (prefers-reduced-motion: no-preference) { .wildz-nourishment-count > span { animation: wildz-food-count-in 180ms ease-out; } }
+
+/* Retain both profile and Market detail DOM while switching between them. */
+.wildz-profile-vault-gallery > [hidden], .wildz-profile-market-card[hidden] { display: none; }
+.wildz-profile-sheet:has([data-profile-market-card][data-open]) { padding: 0; overflow: hidden; }
+.wildz-profile-sheet:has([data-profile-market-card][data-open]) > :not(.wildz-profile-vault-gallery) { display: none; }
+.wildz-profile-sheet:has([data-profile-market-card][data-open]) > .wildz-profile-vault-gallery { height: 100%; min-height: 0; }
+.wildz-profile-market-card { border-radius: inherit; min-height: 100%; }
+.wildz-public-profile-page:has([data-profile-market-card][data-open]) { padding: 0; overflow: hidden; }
+.wildz-public-profile-page:has([data-profile-market-card][data-open]) > :not(.wildz-profile-sheet) { display: none; }
+.wildz-public-profile-page:has([data-profile-market-card][data-open]) > .wildz-profile-sheet { width: 100%; max-width: none; height: 100dvh; margin: 0; padding: 0; border: 0; border-radius: 0; }
+
+.wildz-profile-card-entry > [data-market-value-asset] { text-align: left; justify-items: start; }
+.wildz-shell-overlay:has([data-profile-market-card][data-open]) { inset: 12px; overflow: hidden; }
+.wildz-shell-overlay:has([data-profile-market-card][data-open]) > .wildz-profile-sheet { height: 100%; max-height: none; }
+@media (min-width: 760px) { .wildz-shell-overlay:has([data-profile-market-card][data-open]) { inset: 24px max(24px, calc((100vw - 1280px) / 2)); } }

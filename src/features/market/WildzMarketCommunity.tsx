@@ -1,6 +1,7 @@
 "use client";
 
-import {useState} from 'react';
+import {useState,type ReactNode} from 'react';
+import type {PortableCardAsset} from '../play/portable-card';
 import {ArrowLeft,ArrowRight,MessageCircle} from 'lucide-react';
 import type {WildzMarketOwnedCard} from '../../lib/receiz/wildz-market-collection';
 import type {WildzMarketOfferView} from './wildz-market-offers';
@@ -16,7 +17,7 @@ type OfferRequest=Parameters<NonNullable<WildzMarketServiceV128['makeOffer']>>[0
 // Keep the exact attempt through closing/reopening the mounted game's popover.
 const attempts=new WeakMap<WildzMarketServiceV128,Map<string,OfferRequest>>();
 
-export function WildzMarketOwnedDetail({card,service,busy,onBack,onOffer,onChart}:{card:WildzMarketOwnedCard;service:WildzMarketServiceV128|null;busy:boolean;onBack():void;onChart():void;onOffer(request:OfferRequest):Promise<WildzMarketResultV128|undefined>}){
+export function WildzMarketOwnedDetail({card,service,busy,onBack,onOffer,onChart,backLabel='Back to listings',front,readCard}:{card:WildzMarketOwnedCard;service:WildzMarketServiceV128|null;busy:boolean;onBack():void;onChart():void;onOffer(request:OfferRequest):Promise<WildzMarketResultV128|undefined>;backLabel?:string;front?:ReactNode;readCard?(card:WildzMarketOwnedCard,signal?:AbortSignal):Promise<PortableCardAsset>}){
  const [price,setPrice]=useState(''),[version,setVersion]=useState(0);
  const saved=service?.snapshot().pendingOffers?.find(v=>v.assetId===card.assetId);
  const held=service?attempts.get(service)?.get(card.assetId)??(saved?{assetId:saved.assetId,priceUsdCents:saved.priceUsdCents,attemptId:saved.offerId}:undefined):undefined;
@@ -29,8 +30,8 @@ export function WildzMarketOwnedDetail({card,service,busy,onBack,onOffer,onChart
   const result=await onOffer(request);
   if(result?.status==='completed'||result?.status==='failed'){values.delete(card.assetId);setVersion(v=>v+1);}
  };
- return <section className={styles.detail} aria-label="Creature details"><div className={styles.detailNav}><button className={styles.backLink} type="button" onClick={onBack}><ArrowLeft size={19}/>Back to listings</button><CardValue card={card} onChart={onChart} compact/></div>
-  <div className={styles.detailLayout}><div className={styles.detailMedia}><WildzMarketCardPreview key={`${card.assetId}:${card.proofDigest}`} card={card} full front={<MarketCardArtwork card={card}/>}/></div><div className={styles.detailBody}>
+ return <section className={styles.detail} aria-label="Creature details"><div className={styles.detailNav}><button className={styles.backLink} type="button" onClick={onBack}><ArrowLeft size={19}/>{backLabel}</button><CardValue card={card} onChart={onChart} compact/></div>
+  <div className={styles.detailLayout}><div className={styles.detailMedia}><WildzMarketCardPreview key={`${card.assetId}:${card.proofDigest}`} card={card} full readCard={readCard} front={front??<MarketCardArtwork card={card}/>}/></div><div className={styles.detailBody}>
    <span className={styles.kindLabel}>Owned creature · not listed for sale</span><h2>{card.title}</h2><p className={styles.seller}>{resolved?<>Owned by <a href={`/u/${encodeURIComponent(card.ownerHandle.replace(/\.receiz\.id$/,''))}`}>{marketHandle(card.ownerHandle)}</a></>:'Owner claim unresolved'}</p>
    <div className={styles.purchaseDock}>{!resolved?<><h3>Owner claim unresolved</h3><p>Re-upload the original card to claim it with your verified identity.</p></>:own?<><h3>This companion is yours</h3><p>Incoming offers appear in Activity and Messages. You choose which offers to accept.</p></>:<><h3>Make it your next companion</h3><p>Send the owner a USD offer. Acceptance opens the normal purchase review with the named players and exact payment.</p><label className={styles.field}>Your offer in USD<div className={styles.priceInput}><span>$</span><input aria-label="Your offer in USD" inputMode="decimal" autoComplete="off" placeholder="0.00" disabled={busy||Boolean(held)} value={held?formatWildsUsdCents(held.priceUsdCents).replace(/[$,]/g,''):price} onChange={e=>setPrice(e.target.value)}/></div></label><button className={styles.primary} type="button" disabled={busy||!service?.makeOffer||!held&&!cents} onClick={()=>void send()}>{busy?'Checking offer…':held?'Check this offer':'Send offer'}<ArrowRight size={20}/></button><p className={styles.dockNote}>No payment until you review and approve a purchase.</p></>}</div>
    <details className={styles.provenance}><summary>Creature provenance</summary><dl><div><dt>Creature ID</dt><dd>{card.assetId}</dd></div><div><dt>Card proof</dt><dd>{card.proofDigest}</dd></div>{card.claimKaiUPulse?<div><dt>Latest claim</dt><dd>{formatWildzMarketKai(card.claimKaiUPulse)}</dd></div>:null}{card.claimHead?<div><dt>Claim reference</dt><dd>{card.claimHead}</dd></div>:null}</dl></details>

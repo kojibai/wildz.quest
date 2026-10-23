@@ -73,7 +73,7 @@ test("Profile mounts the shared gallery with real published card artwork", () =>
 test("owner Profile keeps every card available while deferring offscreen detail previews", () => {
   const gallery = readFileSync("src/features/profile/WildzProfileVaultGallery.tsx", "utf8");
   assert.match(gallery, /cards\.map\(\(card, index\)/);
-  assert.match(gallery, /localAsset\s*\?\s*<DeferredProfileCardPreview[^\n]*eager=\{index < 2\}><WildsCard asset=\{localAsset\} compact/);
+  assert.match(gallery, /localAsset && !artwork\s*\?\s*<DeferredProfileCardPreview[^\n]*eager=\{index < 2\}><WildsCard asset=\{localAsset\} compact/);
   assert.equal((gallery.match(/<WildsCard\b/g) ?? []).length, 1);
 });
 

@@ -1,3 +1,5 @@
+import { fetchPublicWildzProfile } from "../../features/profile/public-profile-reader";
+export { fetchPublicWildzProfile } from "../../features/profile/public-profile-reader";
 import { createPublicWildzProfileRecord, parsePublicWildzProfileRecord, publicWildzProfileRecoverySourceUrls, type PublicWildzProfileRecord } from "./wildz-profile-record";
 export { WILDZ_PUBLIC_PROFILE_SCHEMA, verifiedWildzProfileCards, createPublicWildzProfileRecord, publicWildzProfileRecoverySourceUrls, parsePublicWildzProfileRecord } from "./wildz-profile-record";
 export type { PublicWildzProfileRecord } from "./wildz-profile-record";
@@ -95,6 +97,15 @@ export async function resolvePublicWildzProfile(
   if (options.repository) {
     return (await options.repository.load()).state.profiles[handle.toLowerCase()] ?? null;
   }
+  return (await resolvePublicWildzProfileRecord(username, options))?.profile ?? null;
+}
+
+export async function resolvePublicWildzProfileRecord(username: string, options: {
+  adapter?: WildzPublicProfileAdapterPort;
+  requestOrigin?: string;
+  platformDomain?: string;
+} = {}): Promise<PublicWildzProfileRecord | null> {
+  const handle = canonicalWildzHandle(username);
   const adapter = options.adapter ?? createReceizCommerceAdapter();
   const requestOrigin = options.requestOrigin ?? WILDZ_PRODUCT.origin;
   for (const sourceUrl of publicWildzProfileRecoverySourceUrls(
@@ -104,7 +115,7 @@ export async function resolvePublicWildzProfile(
   )) {
     try {
       const record = parsePublicWildzProfileRecord(await adapter.readAppStateByUrl(sourceUrl));
-      if (record?.handle === handle) return record.profile;
+      if (record?.handle === handle) return record;
     } catch {
       // Try the canonical production origin before reporting the profile unavailable.
     }
@@ -127,22 +138,6 @@ export function wildzProfilePublicationReadiness(input: {
     : "waiting";
 }
 
-export async function fetchPublicWildzProfile(username: string, fetcher: typeof fetch = globalThis.fetch, options: { signal?: AbortSignal } = {}) {
-  const handle = canonicalWildzHandle(username);
-  const response = await fetcher(publicProfileEndpoint(handle), {
-    signal: options.signal,
-    cache: "no-store",
-    credentials: "omit",
-    headers: { accept: "application/json", "cache-control": "no-cache" }
-  });
-  const value = await response.json().catch(() => null) as Record<string, unknown> | null;
-  if (response.status === 404) return null;
-  if (!response.ok || value?.ok !== true || !isRecord(value.profile)) {
-    throw new Error(typeof value?.error === "string" ? value.error : "wildz_public_profile_recovery_failed");
-  }
-  const profile = sanitizePublicWildzProfile(value.profile);
-  return profile.username === handle ? profile : null;
-}
 
 export async function publishCurrentWildzProfile(
   profile: PublicWildzProfile,

@@ -18,22 +18,22 @@ export function WildzMarketTradeHistory({sales,transfers,assetId}:{sales:readonl
  </section>;
 }
 
-export function WildzMarketAssetInsights({assetId,proofDigest,service,sales,transfers}:{assetId:string;proofDigest:string;service:WildzMarketServiceV128|null;sales:readonly WildzMarketSale[];transfers:readonly WildzMarketTransfer[]}){
+export function WildzMarketAssetInsights({assetId,proofDigest,service,sales,transfers,initialValue,active=true}:{assetId:string;proofDigest:string;service:Pick<WildzMarketServiceV128,'readValue'>|null;sales:readonly WildzMarketSale[];transfers:readonly WildzMarketTransfer[];initialValue?:WildzMarketValueRead;active?:boolean}){
  const [calculationOpen,setCalculationOpen]=useState(false),[chartDataOpen,setChartDataOpen]=useState(false);
- const [read,setRead]=useState<{assetId:string;service:WildzMarketServiceV128;result:WildzMarketValueRead}|null>(null),[unit,setUnit]=useState<'phi'|'usd'>('usd'),[range,setRange]=useState<'all'|'recent'>('all'),[selected,setSelected]=useState<string|null>(null);
+ const [read,setRead]=useState<{assetId:string;service:Pick<WildzMarketServiceV128,'readValue'>;result:WildzMarketValueRead}|null>(null),[unit,setUnit]=useState<'phi'|'usd'>('usd'),[range,setRange]=useState<'all'|'recent'>('all'),[selected,setSelected]=useState<string|null>(null);
  const chartId=useId().replace(/:/g,'');
  const valuePanel=useRef<HTMLElement>(null);
  useEffect(()=>{
-  if(!service?.readValue)return;
-  let active=true,pending=false,visible=true;
-  const refresh=async()=>{if(!active||pending||!visible||document.visibilityState==='hidden')return;pending=true;try{const result=await service.readValue!(assetId);if(active)setRead({assetId,service,result});}catch{if(active)setRead({assetId,service,result:{status:'unavailable',message:'Value could not refresh. Try reopening this card.'}});}finally{pending=false;}};
+  if(!active||!service?.readValue)return;
+  let current=true,pending=false,visible=true;
+  const refresh=async()=>{if(!current||pending||!visible||document.visibilityState==='hidden')return;pending=true;try{const result=await service.readValue!(assetId);if(current)setRead({assetId,service,result});}catch{if(current)setRead({assetId,service,result:{status:'unavailable',message:'Value could not refresh. Try reopening this card.'}});}finally{pending=false;}};
   const observer=new IntersectionObserver(entries=>{visible=entries.some(entry=>entry.isIntersecting);if(visible)void refresh();});
   if(valuePanel.current)observer.observe(valuePanel.current);
   void refresh();const interval=window.setInterval(()=>void refresh(),5500);
   document.addEventListener('visibilitychange',refresh);
-  return()=>{active=false;observer.disconnect();window.clearInterval(interval);document.removeEventListener('visibilitychange',refresh);};
- },[assetId,service]);
- const result=read?.assetId===assetId&&read.service===service?read.result:null;
+  return()=>{current=false;observer.disconnect();window.clearInterval(interval);document.removeEventListener('visibilitychange',refresh);};
+ },[assetId,proofDigest,service,active]);
+ const result=read?.assetId===assetId&&read.service===service?read.result:initialValue??null;
  const value=result?.status==='ready'&&result.value.assetId===assetId&&result.value.proofDigest===proofDigest?result.value:null;
  const displayUnit=unit==='usd'&&value?.displayUsdCents===null?'phi':unit;
  const samples=value?.samples??[],visible=range==='recent'?samples.slice(-24):samples;

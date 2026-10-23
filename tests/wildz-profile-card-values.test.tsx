@@ -5,28 +5,32 @@ import { WildzProfileVaultGallery } from "../src/features/profile/WildzProfileVa
 import { sealCollectedCard } from "../src/features/play/portable-card";
 import { createPublicWildsCardRecord } from "../src/features/play/public-card-registry";
 import { mountMutableReact } from "./helpers/react-mutation-renderer";
+import { prepareWildzProfilePageSeed } from "../src/lib/receiz/wildz-profile-page-seed";
+import { createPublicWildzProfileRecord } from "../src/lib/receiz/wildz-profile-record";
+import { WildzPublicProfilePage } from "../src/features/profile/WildzPublicProfilePage";
 
 const asset = sealCollectedCard({ capturedAt: "2026-08-11T12:00:00.000Z", encounterId: "profile-values", formId: "mintcub-1", ownerReceizId: "receiz:profile-owner" });
 const card = { id: asset.id, name: asset.manifest.name, proofDigest: asset.proof.digest, visibility: "public" as const };
 
-test("profile artwork and proof value link to the exact standalone card without waiting for recovery", () => {
+test("profile artwork and proof value open the Market card view without a document navigation", () => {
   const html = renderToStaticMarkup(<WildzProfileVaultGallery cards={[card]} profileHandle="profile-owner" />);
-  const path = `/cards/${encodeURIComponent(asset.id)}`;
-  assert.equal((html.match(new RegExp(`href="${path}"`, "g")) ?? []).length, 2);
+  assert.match(html, /aria-label="Open .* market card"/);
+  assert.match(html, /View value chart/);
+  assert.doesNotMatch(html, /href="\/cards\//);
   assert.match(html, /Proof value/);
-  assert.match(html, /Open .* standalone card/);
+  assert.match(html, /Open .* market card/);
   assert.doesNotMatch(html, /role="dialog"/);
 });
 
-test("every card on an owner profile keeps its standalone link before deferred previews mount", () => {
+test("every card on an owner profile can open Market before deferred previews mount", () => {
   const html = renderToStaticMarkup(<WildzProfileVaultGallery cards={[card]} ownerAssets={[asset]} profileHandle="profile-owner" />);
-  assert.match(html, new RegExp(`href="/cards/${encodeURIComponent(asset.id)}"`));
+  assert.match(html, /aria-label="Open .* market card"/);
   assert.match(html, /data-profile-preview="deferred"/);
   assert.match(html, /Proof value/);
 });
 
 function browser() {
-  const saved = new Map(["window", "document", "IntersectionObserver", "Worker", "fetch"].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  const saved = new Map(["window", "document", "self", "IntersectionObserver", "Worker", "fetch"].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   const badges = new Map<string, { dataset: { marketValueAsset: string } }>();
   const observations: { notify: IntersectionObserverCallback; target: Element }[] = [];
   const workers: ValueWorker[] = [];
@@ -45,8 +49,9 @@ function browser() {
     terminate() { this.stopped = true; }
   }
   Object.defineProperties(globalThis, {
-    window: { configurable: true, value: { location: { origin: "https://wildz.quest", href: "https://wildz.quest/u/profile-values" }, setInterval: (callback: () => void) => { tick = callback; return 1; }, clearInterval: () => { cleared = true; } } },
+    window: { configurable: true, value: { location: { origin: "https://wildz.quest", href: "https://wildz.quest/u/profile-values" }, requestAnimationFrame: () => 1, cancelAnimationFrame() {}, setInterval: (callback: () => void) => { tick = callback; return 1; }, clearInterval: () => { cleared = true; } } },
     document: { configurable: true, value: doc },
+    self: { configurable: true, value: { setTimeout } },
     Worker: { configurable: true, value: ValueWorker },
     IntersectionObserver: { configurable: true, value: class {
       constructor(private notify: IntersectionObserverCallback) {}
@@ -65,7 +70,7 @@ function browser() {
     publicInstance(node: { type?: string; props?: Record<string, unknown> }) {
       const id = node.props?.["data-market-value-asset"];
       if (typeof id === "string") { const badge = { dataset: { marketValueAsset: id } }; badges.set(id, badge); return badge; }
-      if (node.props?.className === "wildz-profile-vault-gallery") return { querySelectorAll: () => [...badges.values()] };
+      if (node.props?.className === "wildz-profile-vault-gallery") return { querySelectorAll: () => [...badges.values()], closest: () => null };
       return null;
     }
   };
@@ -90,6 +95,44 @@ test("profile uses Market values for visible cards and pauses reads and workers 
   assert.equal(env.cleared(), true);
 });
 
+test("a prepared profile's first HTML contains its cards, artwork and values without a loading pass", async () => {
+  const record = createPublicWildzProfileRecord({ username: "@profile-values", displayName: "Settled Explorer", vault: [card] }, "https://wildz.quest/u/profile-values", "2026-08-11T12:01:00.000Z");
+  record.vaultCards = [asset];
+  const seed = await prepareWildzProfilePageSeed(record);
+  assert.equal(seed.values[asset.id]?.status, "ready");
+  const html = renderToStaticMarkup(<WildzPublicProfilePage username="@profile-values" initialSeed={seed} />);
+  assert.match(html, /Settled Explorer/);
+  assert.match(html, /data:image\/svg\+xml/);
+  assert.match(html, /Proof value/);
+  assert.doesNotMatch(html, /Loading explorer|Finding explorer|Card preview|Proof value<\/span><div><strong>—/);
+});
+
+test("the prepared chart opens from profile values and survives Back and reopening without another card read", async context => {
+  const env = browser();
+  const view = await mountMutableReact(<WildzProfileVaultGallery cards={[card]} profileHandle="profile-values" />, env);
+  context.after(async () => { await view.unmount(); env.restore(); });
+  env.notify(true);
+  for (let frame = 0; frame < 20 && !view.text().includes("$123.45"); frame++) await view.flush();
+  const galleryCard = view.nodes().find(node => node.props?.["aria-label"] === `Open ${card.name} market card`)!;
+  const badge = view.nodes().find(node => node.props?.["data-market-value-asset"] === card.id)!;
+  (badge.props!.onClick as (event: unknown) => void)({ preventDefault() {} });
+  await view.flush();
+  assert.ok(view.nodes().some(node => node.props?.["aria-label"] === "Live proof value"));
+  assert.ok(view.nodes().some(node => node.type === "svg" && String(node.props?.["aria-label"]).includes("Recomputed proof value")));
+  const detail = view.nodes().find(node => node.props?.["data-profile-market-card"] !== undefined)!;
+  assert.equal(detail.props?.hidden, false);
+  const back = view.nodes().find(node => node.type === "button" && node.children.some(child => child.text === "Back to profile"))!;
+  (back.props!.onClick as () => void)();
+  await view.flush();
+  assert.equal(detail.props?.hidden, true);
+  assert.ok(view.nodes().includes(galleryCard), "profile tile DOM stays mounted");
+  (galleryCard.props!.onClick as (event: unknown) => void)({ currentTarget: { isConnected: false }, preventDefault() {} });
+  await view.flush();
+  assert.ok(view.nodes().includes(detail), "Market detail and chart DOM stay mounted");
+  assert.equal(detail.props?.hidden, false);
+  assert.equal(env.fetches(), 1);
+});
+
 test("a revised profile never shows the previous proof's value and retains navigation when recovery fails", async context => {
   const env = browser();
   const view = await mountMutableReact(<WildzProfileVaultGallery cards={[card]} profileHandle="profile-values-revision" />, env);
@@ -103,5 +146,24 @@ test("a revised profile never shows the previous proof's value and retains navig
   env.notify(true);
   for (let frame = 0; frame < 20 && !view.text().includes("Value unavailable"); frame++) await view.flush();
   assert.match(view.text(), /Value unavailable/);
-  assert.equal(view.nodes().filter(node => node.type === "a" && node.props?.href === `/cards/${encodeURIComponent(asset.id)}`).length, 2);
+  assert.ok(view.nodes().some(node => node.type === "a" && node.props?.["aria-label"] === `Open ${card.name} market card`));
+});
+
+test("opening a card while its profile value is recovering shares the exact pending proof read", async context => {
+  const env = browser();
+  let release!: () => void, requests = 0;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const respond = globalThis.fetch;
+  globalThis.fetch = async (...args) => { requests++; await gate; return respond(...args); };
+  const view = await mountMutableReact(<WildzProfileVaultGallery cards={[card]} profileHandle="profile-values-pending" />, env);
+  context.after(async () => { release(); await view.unmount(); env.restore(); });
+  env.notify(true);
+  await view.flush();
+  const tile = view.nodes().find(node => node.props?.["aria-label"] === `Open ${card.name} market card`)!;
+  (tile.props!.onClick as (event: unknown) => void)({ currentTarget: { isConnected: false }, preventDefault() {} });
+  await view.flush();
+  release();
+  for (let frame = 0; frame < 30 && !view.nodes().some(node => String(node.props?.className).startsWith("wilds-card-scene")); frame++) await view.flush();
+  assert.ok(view.nodes().some(node => String(node.props?.className).startsWith("wilds-card-scene")), "the verified card back becomes available");
+  assert.equal(requests, 1);
 });
