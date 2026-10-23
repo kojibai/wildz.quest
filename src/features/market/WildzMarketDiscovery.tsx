@@ -7,8 +7,9 @@ import {WILDZ_MARKET_PAGE_SIZE} from './wildz-market-warmup';
 import {WildzMarketCardPreview} from './WildzMarketCardPreview';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import type {PortableCardAsset} from '../play/portable-card';
-import {ArrowLeft,ArrowRight,ArrowDownRight,ArrowUpRight,ChevronRight,GalleryVertical,Grid2X2,Package,Search,SlidersHorizontal,X} from 'lucide-react';
-import {formatWildzMarketValueChange} from './wildz-market-value';
+import {ArrowLeft,ArrowRight,ChevronRight,GalleryVertical,Grid2X2,Package,Search,SlidersHorizontal,X} from 'lucide-react';
+import {CardValue} from './WildzMarketCardValue';
+export {CardValue} from './WildzMarketCardValue';
 import type {WildzMarketListingViewV128} from './wildz-market-service-v128';
 import {discoverWildzMarketListings,type WildzMarketDiscovery as Discovery,type WildzMarketSort} from './wildz-market-discovery';
 import {parseWildzMarketUsdInput} from './wildz-market-presentation';
@@ -22,17 +23,6 @@ import {createWildzMarketRarityIndex} from './wildz-market-rarity-index';
 
 export const marketHandle=(value:string)=>`@${value.replace(/\.receiz\.id$/,'')}`;
 export const marketKind=(kind:string)=>kind==='creature'?'Creature':'Resource package';
-
-export function CardValue({card,onChart,onVisible,compact=false}:{card:WildzMarketOwnedCard;onChart?():void;onVisible?(assetId:string):void;compact?:boolean}){
- const badge=useRef<HTMLButtonElement>(null);
- useEffect(()=>{
-  if(!onVisible||!badge.current)return;
-  const observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){observer.disconnect();onVisible(card.assetId);}},{rootMargin:'80px'});
-  observer.observe(badge.current);return()=>observer.disconnect();
- },[card.assetId,card.proofDigest,onVisible]);
- const bps=card.value?.changeBps,change=bps&&/^-?(?:0|[1-9][0-9]*)$/.test(bps)?BigInt(bps):null;
- return <button ref={badge} type="button" className={styles.tileValue} data-market-value-asset={card.assetId} title={card.valueUnavailable} aria-label={`View value chart · ${card.title}`} onClick={onChart}>{!compact?<span>Proof value</span>:null}<div><strong>{card.value?(card.value.displayUsdCents===null?`${formatWildsPhiExact(card.value.proofValuePhiMicro)} Φ`:formatWildsUsdCents(card.value.displayUsdCents)):(card.valueUnavailable?'Value unavailable':'—')}</strong>{change!==null?<small data-direction={change>0n?'up':change<0n?'down':'flat'} title="Change across the verified value chart window">{change>0n?<ArrowUpRight size={13}/>:change<0n?<ArrowDownRight size={13}/>:null}{formatWildzMarketValueChange(bps!)}</small>:null}</div></button>;
-}
 
 export function MarketArtwork({kind,large=false,priority=false}:{kind:string;large?:boolean;priority?:boolean}){
  if(kind==='creature')return null;

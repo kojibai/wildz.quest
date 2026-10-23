@@ -13,7 +13,8 @@ test('the opening explorer profile exposes real metadata and card actions withou
   const markup = renderToStaticMarkup(<WildzProfileSheet profile={profile} vaultAssets={[asset]} />);
   assert.match(markup, /Profile Owner/);
   assert.match(markup, /1 verified card/);
-  assert.ok(markup.includes(`Open ${asset.manifest.name} card`));
+  assert.ok(markup.includes(`Open ${asset.manifest.name} standalone card`));
+  assert.match(markup, new RegExp(`href="/cards/${encodeURIComponent(asset.id)}"`));
   assert.match(markup, /data-profile-preview="deferred"/);
   assert.doesNotMatch(markup, /wilds-collectible-card/);
 });
@@ -24,6 +25,6 @@ test('a retained closed explorer profile is hidden and inert without reading gam
   const markup = renderToStaticMarkup(<WildzProfileSheet active={false} profile={profile} vaultAssets={[asset]} bodyState={() => { bodyReads++; return { energy: 100 }; }} />);
   assert.equal(bodyReads, 0);
   assert.match(markup, /class="wildz-profile-sheet" hidden="" aria-hidden="true" inert=""/);
-  assert.ok(markup.includes(`Open ${asset.manifest.name} card`), 'the existing card action DOM remains available for reopening');
+  assert.ok(markup.includes(`Open ${asset.manifest.name} standalone card`), 'the existing card action DOM remains available for reopening');
   assert.doesNotMatch(markup, /wilds-collectible-card/);
 });

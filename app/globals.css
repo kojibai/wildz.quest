@@ -1135,6 +1135,16 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wildz-profile-vault-heading span { color: #9cbaa9; font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .wildz-profile-vault-heading strong { min-width: 0; overflow: hidden; color: #d9eddf; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .wildz-profile-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.wildz-profile-card-entry { display: grid; min-width: 0; align-content: start; overflow: hidden; border: 1px solid rgba(151,226,155,.2); border-radius: 18px; background: linear-gradient(155deg, rgba(29,72,52,.9), rgba(5,23,18,.96)); box-shadow: 0 12px 26px rgba(0,0,0,.2); }
+.wildz-profile-card-entry > a[data-market-value-asset] { display: grid; min-width: 0; min-height: 52px; gap: 4px; margin: 0; padding: 9px 10px; border: 0; border-bottom: 1px solid rgba(151,226,155,.14); background: rgba(5,23,18,.5); text-decoration: none; }
+.wildz-profile-card-entry > a[data-market-value-asset] > span { font-size: 9px; }
+.wildz-profile-card-entry > a[data-market-value-asset] > div { min-width: 0; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
+.wildz-profile-card-entry > a[data-market-value-asset] strong { font-size: 14px; overflow-wrap: anywhere; }
+.wildz-profile-card-entry > a[data-market-value-asset] small { font-size: 9px; }
+.wildz-profile-card-entry > a[data-market-value-asset]:hover { background: rgba(48,121,96,.25); }
+.wildz-profile-card-entry > a[data-market-value-asset]:focus-visible { outline: 3px solid rgba(113,232,195,.78); outline-offset: -3px; }
+.wildz-profile-card-entry > .wildz-profile-card-tile { border: 0; border-radius: 0; box-shadow: none; text-decoration: none; }
+.wildz-profile-card-entry > .wildz-profile-card-tile:focus-visible { outline-offset: -3px; }
 .wildz-profile-card-tile { position: relative; display: grid; min-width: 0; min-height: 44px; padding: 0; overflow: hidden; border: 1px solid rgba(151,226,155,.2); border-radius: 18px; color: #effff5; background: linear-gradient(155deg, rgba(29,72,52,.9), rgba(5,23,18,.96)); box-shadow: 0 12px 26px rgba(0,0,0,.2); text-align: left; touch-action: pan-y; cursor: pointer; }
 .wildz-profile-card-tile:focus-visible { outline: 3px solid rgba(113,232,195,.78); outline-offset: 3px; }
 .wildz-profile-card-tile img { display: block; width: 100%; height: auto; aspect-ratio: 5 / 7; object-fit: contain; background: #061a17; }
@@ -1163,18 +1173,6 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wildz-profile-card-tile > span { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 7px; padding: 9px 10px 10px; }
 .wildz-profile-card-tile strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .wildz-profile-card-tile small { flex: 0 0 auto; color: #8fc5a7; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
-.wildz-profile-card-viewer { position: fixed; z-index: 200; inset: 50% auto auto 50%; display: grid; width: min(360px, calc(100vw - 40px)); height: min(560px, calc(100dvh - 40px)); max-height: calc(100dvh - 40px); grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; padding: 14px; overflow: hidden; border: 1px solid rgba(126,235,205,.34); border-radius: 28px; color: #effff8; background: radial-gradient(circle at 50% 34%, rgba(48,121,96,.28), transparent 45%), linear-gradient(160deg, rgba(6,31,28,.99), rgba(2,13,15,.99)); box-shadow: 0 28px 76px rgba(0,0,0,.66), inset 0 1px rgba(255,255,255,.08); isolation: isolate; touch-action: pan-y; transform: translate(-50%, -50%); }
-.wildz-profile-card-viewer > header { display: grid; grid-template-columns: minmax(0,1fr) auto 44px; align-items: center; gap: 9px; }
-.wildz-profile-card-viewer > header span { display: inline-flex; min-width: 0; align-items: center; gap: 6px; color: #75e8c5; font-size: 9px; font-weight: 950; letter-spacing: .1em; text-transform: uppercase; }
-.wildz-profile-card-viewer > header strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.wildz-profile-card-viewer > header button { display: grid; width: 44px; height: 44px; padding: 0; place-items: center; border: 1px solid rgba(255,255,255,.14); border-radius: 50%; color: #effff8; background: rgba(255,255,255,.07); }
-.wildz-profile-card-viewer-body { display: grid; min-height: 0; place-items: center; overflow: hidden; }
-.wildz-profile-card-viewer .wilds-card-scene { width: min(100%, 310px, calc(58dvh * 5 / 7)); min-height: 0; aspect-ratio: 5 / 7; touch-action: pan-y; }
-.wildz-profile-card-viewer .wilds-card-float { animation: none; transform: none; }
-.wildz-profile-card-viewer > p { margin: 0; color: #8cb7aa; font-size: 9px; text-align: center; }
-.wildz-profile-card-state { display: grid; max-width: 240px; justify-items: center; gap: 7px; color: #bdebd7; text-align: center; }
-.wildz-profile-card-state svg { color: #70dfbd; }
-.wildz-profile-card-state span { color: #83a99e; font-size: 10px; line-height: 1.4; }
 @keyframes wildz-profile-action-success { 50% { transform: translateY(-1px) scale(1.025); } }
 @media (prefers-reduced-motion: reduce) { .wildz-profile-action-rail button, .wildz-profile-editor-actions button, .wildz-profile-card-tile { transition: none; } .wildz-profile-action-rail button[data-state="success"], .wildz-profile-action-rail button[data-state="working"] svg, .wildz-profile-editor-actions button[data-state="working"] svg { animation: none; } }
 .wildz-vault-sheet header { display: flex; justify-content: space-between; align-items: center; }

@@ -63,13 +63,11 @@ test("Profile card backs receive an actual QR PNG instead of the standalone page
   );
 });
 
-test("Profile mounts real published card artwork and only one complete selected card scene", () => {
+test("Profile mounts the shared gallery with real published card artwork", () => {
   const profile = readFileSync("src/features/profile/WildzProfileSheet.tsx", "utf8");
   const gallery = readFileSync("src/features/profile/WildzProfileVaultGallery.tsx", "utf8");
   assert.match(profile, /<WildzProfileVaultGallery cards=\{profile\.vault\} ownerAssets=\{vaultAssets\}/);
   assert.match(gallery, /profileVaultCardImageUrl\(card\.id, profileHandle\)/);
-  assert.match(gallery, /<WildsCardScene[\s\S]*asset=\{selectedAsset\}[\s\S]*tapToFlip/);
-  assert.equal((gallery.match(/<WildsCardScene/g) ?? []).length, 1);
 });
 
 test("owner Profile keeps every card available while deferring offscreen detail previews", () => {
@@ -77,15 +75,6 @@ test("owner Profile keeps every card available while deferring offscreen detail 
   assert.match(gallery, /cards\.map\(\(card, index\)/);
   assert.match(gallery, /localAsset\s*\?\s*<DeferredProfileCardPreview[^\n]*eager=\{index < 2\}><WildsCard asset=\{localAsset\} compact/);
   assert.equal((gallery.match(/<WildsCard\b/g) ?? []).length, 1);
-});
-
-test("the complete card viewer cancels stale recovery and restores its exact gallery origin", () => {
-  const gallery = readFileSync("src/features/profile/WildzProfileVaultGallery.tsx", "utf8");
-  for (const token of ["AbortController", "requestRef.current?.abort()", "originRef", "canRestoreFocus", "aria-modal=\"true\"", "inert"])
-    assert.ok(gallery.includes(token), `missing ${token}`);
-  assert.match(gallery, /stopImmediatePropagation/);
-  assert.match(gallery, /restoreFrameRef\.current = window\.requestAnimationFrame\(\(\) => \{[\s\S]*restoreFrameRef\.current = window\.requestAnimationFrame/);
-  assert.match(gallery, /originRef\.current\.focus\(\{ preventScroll: true \}\)/);
 });
 
 test("the complete Profile card scene adds opt-in tap flipping without changing standalone defaults", () => {
@@ -112,16 +101,6 @@ test("Profile cards are responsive real images with native vertical scrolling", 
   assert.match(css, /\.wildz-profile-card-local \.wilds-collectible-card > :not\(\.wilds-card-foil\)[^{]*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%/s);
   assert.match(css, /\.wildz-profile-card-local \.wilds-card-stats\s*\{[^}]*grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/s);
   assert.match(css, /@media \(min-width:\s*820px\)\s*\{[^}]*\.wildz-shell-overlay[^}]*overflow:\s*hidden[^}]*\}[^}]*\.wildz-shell-overlay\s*>\s*\.wildz-profile-sheet[^}]*height:\s*100%[^}]*max-height:\s*none/s);
-});
-
-test("a selected Profile card stays compact when the published gallery is long", () => {
-  const css = readFileSync("app/globals.css", "utf8");
-  const viewerRule = css.match(/\.wildz-profile-card-viewer\s*\{([^}]*)\}/s)?.[1] ?? "";
-
-  assert.match(viewerRule, /position:\s*fixed/);
-  assert.match(viewerRule, /height:\s*min\(/);
-  assert.match(viewerRule, /max-height:\s*calc\(100dvh/);
-  assert.doesNotMatch(viewerRule, /min-height:\s*min\(76dvh,\s*700px\)/);
 });
 
 test("game browser zoom is suppressed without changing custom world-map zoom", () => {

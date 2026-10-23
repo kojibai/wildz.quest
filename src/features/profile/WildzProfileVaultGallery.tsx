@@ -1,24 +1,18 @@
 "use client";
 
-import { canRestoreFocus } from "@/features/play/focus-recovery";
-import type { PortableCardAsset } from "@/features/play/portable-card";
-import { WildsCard } from "@/features/play/WildsCard";
-import { WildsCardScene } from "@/features/play/WildsCardScene";
-import { DeferredProfileCardPreview } from "./DeferredProfileCardPreview";
-import type { PublicWildzCard } from "@/features/profile/public-profile";
-import { RotateCcw, ShieldCheck, X } from "lucide-react";
 import Image from "next/image";
-import { standaloneCardUrl } from "@/features/play/card-export";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ownerProfileVaultAssets,
-  parseProfileVaultPublicAsset,
-  parseLatestProfileVaultPublicAsset,
-  profileVaultCardImageUrl,
-  profileVaultCardQrDataUrl
-} from "./profile-vault-card";
-
-type ViewerState = "idle" | "loading" | "ready" | "unavailable";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import type { PortableCardAsset } from "@/features/play/portable-card";
+import { standaloneCardUrl } from "@/features/play/card-url";
+import { WildsCard } from "@/features/play/WildsCard";
+import type { WildzMarketOwnedCard } from "@/lib/receiz/wildz-market-collection";
+import { WILDZ_PRODUCT } from "@/lib/wildz/product";
+import { CardValue } from "../market/WildzMarketCardValue";
+import { createWildzMarketValueBrowserPortV129 } from "../market/wildz-market-value-browser-v129";
+import { wildzMarketValueChange } from "../market/wildz-market-value";
+import { DeferredProfileCardPreview } from "./DeferredProfileCardPreview";
+import type { PublicWildzCard } from "./public-profile";
+import { ownerProfileVaultAssets, parseProfileVaultPublicAsset, profileVaultCardImageUrl } from "./profile-vault-card";
 
 export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({ cards, ownerAssets, profileHandle, active = true }: {
   cards: readonly PublicWildzCard[];
@@ -26,180 +20,109 @@ export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({
   ownerAssets?: readonly PortableCardAsset[];
   active?: boolean;
 }) {
-  const ownerAssetsById = useMemo(
-    () => ownerProfileVaultAssets(cards, ownerAssets ?? []),
-    [cards, ownerAssets]
-  );
-  const [selectedCard, setSelectedCard] = useState<PublicWildzCard | null>(null);
-  const [selectedAsset, setSelectedAsset] = useState<PortableCardAsset | null>(null);
-  const [selectedQr, setSelectedQr] = useState("");
-  const [viewerState, setViewerState] = useState<ViewerState>("idle");
-  const viewerRef = useRef<HTMLDivElement>(null);
-  const originRef = useRef<HTMLButtonElement | null>(null);
-  const requestRef = useRef<AbortController | null>(null);
-  const restoreFrameRef = useRef<number | null>(null);
-
-  const closeViewer = useCallback((restoreFocus = true) => {
-    requestRef.current?.abort();
-    requestRef.current = null;
-    setSelectedCard(null);
-    setSelectedAsset(null);
-    setViewerState("idle");
-    if (!restoreFocus) return;
-    if (restoreFrameRef.current !== null) window.cancelAnimationFrame(restoreFrameRef.current);
-    restoreFrameRef.current = window.requestAnimationFrame(() => {
-      restoreFrameRef.current = window.requestAnimationFrame(() => {
-        restoreFrameRef.current = null;
-        if (canRestoreFocus(originRef.current)) originRef.current.focus({ preventScroll: true });
-      });
-    });
-  }, []);
+  const galleryRef = useRef<HTMLElement>(null);
+  const ownerAssetsById = useMemo(() => ownerProfileVaultAssets(cards, ownerAssets ?? []), [cards, ownerAssets]);
+  const collection = useMemo(() => new Map(cards.map(card => [card.id, {
+    assetId: card.id, title: card.name, proofDigest: card.proofDigest, ownerHandle: profileHandle ?? "",
+    claimKaiUPulse: null, claimHead: null, asset: ownerAssetsById.get(card.id)
+  } satisfies WildzMarketOwnedCard])), [cards, ownerAssetsById, profileHandle]);
+  const [values, setValues] = useState<ReadonlyMap<string, Pick<WildzMarketOwnedCard, "value" | "valueUnavailable"> & { digest: string }>>(new Map());
 
   useEffect(() => {
-    if (!active) closeViewer(false);
-  }, [active, closeViewer]);
-
-  const openCard = useCallback(async (card: PublicWildzCard, origin: HTMLButtonElement) => {
-    requestRef.current?.abort();
+    if (!active || !galleryRef.current || !collection.size) return;
+    setValues(previous => new Map([...previous].filter(([id, value]) => collection.get(id)?.proofDigest === value.digest)));
     const controller = new AbortController();
-    requestRef.current = controller;
-    originRef.current = origin;
-    setSelectedCard(card);
-    const localAsset = ownerAssetsById.get(card.id) ?? null;
-    if (localAsset) {
-      setSelectedAsset(localAsset);
-      setViewerState("ready");
-      requestRef.current = null;
-      return;
-    }
-    setSelectedAsset(null);
-    setViewerState("loading");
-    const timeout = window.setTimeout(() => controller.abort("timeout"), 15_000);
-    try {
-      const response = await fetch(`/api/cards/${encodeURIComponent(card.id)}${profileHandle ? `?profile=${encodeURIComponent(profileHandle)}` : ""}`, {
-        cache: "no-store",
-        signal: controller.signal
-      });
-      if (!response.ok) throw new Error("wildz_profile_card_unavailable");
-      const payload = await response.json();
-      const asset = parseProfileVaultPublicAsset(card, payload) ?? parseLatestProfileVaultPublicAsset(card, payload);
-      if (!asset) throw new Error("wildz_profile_card_unverified");
-      if (requestRef.current !== controller) return;
-      setSelectedAsset(asset);
-      setViewerState("ready");
-    } catch (cause) {
-      if (requestRef.current !== controller) return;
-      setViewerState("unavailable");
-    } finally {
-      window.clearTimeout(timeout);
-      if (requestRef.current === controller) requestRef.current = null;
-    }
-  }, [ownerAssetsById, profileHandle]);
-
-  useEffect(() => {
-    if (!selectedCard) return;
-    const focusable = () => Array.from(viewerRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
-    ) ?? []).filter(canRestoreFocus);
-    const focusFrame = window.requestAnimationFrame(() => focusable()[0]?.focus());
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        closeViewer();
-        return;
+    const visible = new Set<string>(), pending = new Set<string>();
+    const recovered = new Map<string, PortableCardAsset>();
+    const port = createWildzMarketValueBrowserPortV129({
+      card: async assetId => {
+        const card = collection.get(assetId);
+        if (!card) return null;
+        if (card.asset) return card.asset;
+        const cached = recovered.get(assetId);
+        if (cached) { recovered.delete(assetId); recovered.set(assetId, cached); return cached; }
+        const path = `/api/cards/${encodeURIComponent(assetId)}`;
+        const options = { cache: "no-store", credentials: "omit", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) } as const;
+        let response = await fetch(`${path}${profileHandle ? `?profile=${encodeURIComponent(profileHandle)}` : ""}`, options);
+        if (response.status === 404 && profileHandle) response = await fetch(path, options);
+        if (!response.ok) return null;
+        const asset = parseProfileVaultPublicAsset({ id: assetId, name: card.title, proofDigest: card.proofDigest, visibility: "public" }, await response.json());
+        if (!asset || controller.signal.aborted) return null;
+        recovered.set(assetId, asset);
+        while (recovered.size > 8) recovered.delete(recovered.keys().next().value!);
+        return asset;
       }
-      if (event.key !== "Tab") return;
-      const items = focusable();
-      if (!items.length) return;
-      const first = items[0]!;
-      const last = items[items.length - 1]!;
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
+    });
+    const refresh = async (assetId: string) => {
+      if (controller.signal.aborted || pending.has(assetId) || document.visibilityState === "hidden") return;
+      const card = collection.get(assetId);
+      if (!card) return;
+      pending.add(assetId);
+      try {
+        const result = await port.read(assetId);
+        if (controller.signal.aborted) return;
+        if (result.status === "ready" && (result.value.assetId !== assetId || result.value.proofDigest !== card.proofDigest)) return;
+        const summary = result.status === "ready" ? { value: {
+          proofValuePhiMicro: result.value.proofValuePhiMicro,
+          displayUsdCents: result.value.displayUsdCents,
+          valuationKaiUPulse: result.value.valuationKaiUPulse,
+          algorithm: result.value.algorithm,
+          changeBps: wildzMarketValueChange(result.value.samples, result.value.displayUsdCents === null ? "phi" : "usd")
+        } } : { valueUnavailable: result.message };
+        setValues(previous => new Map(previous).set(assetId, { digest: card.proofDigest, ...summary }));
+      } finally { pending.delete(assetId); }
     };
-    window.addEventListener("keydown", onKeyDown);
+    const refreshVisible = () => { for (const assetId of visible) void refresh(assetId); };
+    const badges = galleryRef.current.querySelectorAll<HTMLElement>("[data-market-value-asset]");
+    const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        const assetId = (entry.target as HTMLElement).dataset.marketValueAsset;
+        if (!assetId) continue;
+        if (entry.isIntersecting) { visible.add(assetId); void refresh(assetId); }
+        else visible.delete(assetId);
+      }
+    }, { rootMargin: "80px" });
+    for (const badge of badges) {
+      if (observer) observer.observe(badge);
+      else if (badge.dataset.marketValueAsset) visible.add(badge.dataset.marketValueAsset);
+    }
+    if (!observer) refreshVisible();
+    const timer = window.setInterval(refreshVisible, 5500);
+    document.addEventListener("visibilitychange", refreshVisible);
     return () => {
-      window.cancelAnimationFrame(focusFrame);
-      window.removeEventListener("keydown", onKeyDown);
+      controller.abort();
+      observer?.disconnect();
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshVisible);
+      port.dispose?.();
     };
-  }, [closeViewer, selectedCard]);
+  }, [active, collection, profileHandle]);
 
-  useEffect(() => {
-    let current = true;
-    setSelectedQr("");
-    if (selectedAsset) {
-      void profileVaultCardQrDataUrl(selectedAsset.id, window.location.origin)
-        .then((qr) => { if (current) setSelectedQr(qr); })
-        .catch(() => undefined);
-    }
-    return () => { current = false; };
-  }, [selectedAsset]);
-
-  useEffect(() => () => {
-    requestRef.current?.abort();
-    if (restoreFrameRef.current !== null) window.cancelAnimationFrame(restoreFrameRef.current);
-  }, []);
-
-  return <section className="wildz-profile-vault-gallery" aria-label="Companion cards">
+  return <section ref={galleryRef} className="wildz-profile-vault-gallery" aria-label="Companion cards">
     <header className="wildz-profile-vault-heading">
       <span>Companion Vault</span>
       <strong>{cards.length} verified card{cards.length === 1 ? "" : "s"}</strong>
     </header>
-    <div aria-hidden={selectedCard ? true : undefined} className="wildz-profile-card-grid" inert={selectedCard ? true : undefined}>
+    <div className="wildz-profile-card-grid">
       {cards.map((card, index) => {
         const localAsset = ownerAssetsById.get(card.id);
-        return <button
-          aria-label={`Open ${card.name} card`}
-          className="wildz-profile-card-tile"
-          key={card.id}
-          onClick={(event) => void openCard(card, event.currentTarget)}
-          type="button"
-        >
-          {localAsset
-            ? <DeferredProfileCardPreview key={`${card.id}:${card.proofDigest}`} active={active} eager={index < 2}><WildsCard asset={localAsset} compact interactive={false} /></DeferredProfileCardPreview>
-            : <Image
-              alt={`${card.name} card front`}
-              height={700}
-              loading="lazy"
-              src={profileVaultCardImageUrl(card.id, profileHandle)}
-              unoptimized
-              width={500}
-            />}
-          <span><strong>{card.name}</strong><small>{card.status ?? "verified"}</small></span>
-        </button>;
+        const href = new URL(standaloneCardUrl(card.id, WILDZ_PRODUCT.origin)).pathname;
+        const read = values.get(card.id);
+        const marketCard: WildzMarketOwnedCard = {
+          ...collection.get(card.id)!,
+          ...(read?.digest === card.proofDigest ? { value: read.value, valueUnavailable: read.valueUnavailable } : {})
+        };
+        return <article className="wildz-profile-card-entry" key={card.id}>
+          <CardValue card={marketCard} href={href} />
+          <a aria-label={`Open ${card.name} standalone card`} className="wildz-profile-card-tile" href={href}>
+            {localAsset
+              ? <DeferredProfileCardPreview key={`${card.id}:${card.proofDigest}`} active={active} eager={index < 2}><WildsCard asset={localAsset} compact interactive={false} /></DeferredProfileCardPreview>
+              : <Image alt={`${card.name} card front`} height={700} loading="lazy" src={profileVaultCardImageUrl(card.id, profileHandle)} unoptimized width={500} />}
+            <span><strong>{card.name}</strong><small>{card.status ?? "verified"}</small></span>
+          </a>
+        </article>;
       })}
     </div>
     {!cards.length ? <p className="wildz-sheet-empty">No companion cards yet.</p> : null}
-    {selectedCard ? <div
-      aria-label={`${selectedCard.name} complete card viewer`}
-      aria-modal="true"
-      className="wildz-profile-card-viewer"
-      data-profile-card-viewer=""
-      ref={viewerRef}
-      role="dialog"
-    >
-      <header>
-        <span><ShieldCheck aria-hidden="true" size={17} /> Verified Vault card</span>
-        <strong>{selectedCard.name}</strong>
-        <button aria-label="Close complete card" onClick={() => closeViewer()} type="button"><X aria-hidden="true" size={20} /></button>
-      </header>
-      <div className="wildz-profile-card-viewer-body">
-        {viewerState === "loading" ? <div className="wildz-profile-card-state" role="status"><RotateCcw aria-hidden="true" size={24} /><strong>Recovering verified card…</strong></div> : null}
-        {viewerState === "unavailable" ? <div className="wildz-profile-card-state" role="status"><ShieldCheck aria-hidden="true" size={24} /><strong>Verified card unavailable</strong><span>The public proof could not be recovered right now.</span><button type="button" onClick={() => { if (originRef.current) void openCard(selectedCard, originRef.current); }}>Retry card</button><a href={standaloneCardUrl(selectedCard.id, window.location.origin)}>Open published card</a></div> : null}
-        {selectedAsset && selectedAsset.proof.digest !== selectedCard.proofDigest && <p role="status">Showing the verified public card. This saved profile hasn’t synced with its public link yet.</p>}
-        {selectedAsset ? <WildsCardScene
-          asset={selectedAsset}
-          origin={window.location.origin}
-          qr={selectedQr}
-          tapToFlip
-        /> : null}
-      </div>
-      <p>Tap or swipe sideways to turn the card. Scroll the back naturally.</p>
-    </div> : null}
   </section>;
 });
