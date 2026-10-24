@@ -52,7 +52,7 @@ test("a cold profile consumes its complete public delivery without separate card
   const seed = await prepareWildzProfilePageSeed(published, async () => { reads++; return null; });
   assert.equal(reads, 0);
   assert.equal(seed.vaultPacket, published.vaultPacket, "the existing delivery is reused without recompression");
-  assert.equal(Object.values(seed.values).filter(value => value.status === "ready").length, 4);
+  assert.equal(Object.values(seed.values).filter(value => value.status === "ready").length, 2);
   assert.deepEqual(readWildzProfileVaultPacket(seed.vaultPacket!), assets);
 });
 

@@ -13,6 +13,30 @@ import { gunzipSync } from "node:zlib";
 const asset = sealCollectedCard({ capturedAt: "2026-08-11T12:00:00.000Z", encounterId: "profile-values", formId: "mintcub-1", ownerReceizId: "receiz:profile-owner" });
 const card = { id: asset.id, name: asset.manifest.name, proofDigest: asset.proof.digest, visibility: "public" as const };
 
+test("offscreen card recovery cannot hold the first settled profile document", async () => {
+  const assets = Array.from({ length: 6 }, (_, index) => sealCollectedCard({ capturedAt: "2026-08-11T12:00:00.000Z", encounterId: `first-row-${index}`, formId: "mintcub-1", ownerReceizId: "first_row" }));
+  const record = createPublicWildzProfileRecord({ username: "@first_row", vault: assets.map(asset => ({ id: asset.id, name: asset.manifest.name, proofDigest: asset.proof.digest, visibility: "public" })) }, "https://wildz.quest/u/first_row");
+  const reads: string[] = [], artwork: string[] = [];
+  let release!: () => void;
+  const offscreen = new Promise<void>(resolve => { release = resolve; });
+  const operation = prepareWildzProfilePageSeed(record, async card => {
+    reads.push(card.id);
+    const index = assets.findIndex(asset => asset.id === card.id);
+    if (index >= 2) await offscreen;
+    return assets[index]!;
+  }, asset => { artwork.push(asset.id); });
+  const seed = await Promise.race([operation, new Promise<null>(resolve => setTimeout(() => resolve(null), 500))]);
+  release();
+  await operation;
+  assert.ok(seed, "the body must not wait for an offscreen Original");
+  assert.deepEqual(reads, assets.slice(0, 2).map(asset => asset.id));
+  assert.deepEqual(artwork, reads);
+  assert.equal(seed.profile.vault.length, 6, "all held rows remain in the profile");
+  const html = renderToStaticMarkup(<WildzPublicProfilePage username="@first_row" initialSeed={seed} />);
+  assert.equal((html.match(/loading="eager"/g) ?? []).length, 2);
+  assert.equal((html.match(/loading="lazy"/g) ?? []).length, 4);
+});
+
 test("profile artwork and proof value open the Market card view without a document navigation", () => {
   const html = renderToStaticMarkup(<WildzProfileVaultGallery cards={[card]} profileHandle="profile-owner" />);
   assert.match(html, /aria-label="Open .* market card"/);

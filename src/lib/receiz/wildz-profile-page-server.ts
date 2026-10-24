@@ -1,11 +1,8 @@
 import "server-only";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
-import { resolvePublicWildzProfileRecord } from "./wildz-profile-adapter";
-import { resolvePublicWildsCardRecord } from "./wildz-public-card-resolver";
+import { resolvePublicWildzProfileRecord } from "./wildz-profile-reader";
 import { WILDZ_PRODUCT } from "../wildz/product";
-import { createReceizCommerceAdapter } from "./adapter";
-import { createReceizWildzPublicRepository } from "./wildz-public-repository";
 import { createPublicWildzProfileRecord } from "./wildz-profile-record";
 import { canonicalWildzHandle, canonicalWildzProfilePath } from "../../features/profile/public-profile";
 
@@ -15,6 +12,7 @@ const publicRecord = cache(async (username: string) => {
   const source = await resolvePublicWildzProfileRecord(username);
   if (source) return source;
   // Match the public API's older repository recovery as well as signed profiles.
+  const [{ createReceizCommerceAdapter }, { createReceizWildzPublicRepository }] = await Promise.all([import("./adapter"), import("./wildz-public-repository")]);
   const { state } = await createReceizWildzPublicRepository({ adapter: createReceizCommerceAdapter() }).load();
   const profile = state.profiles[canonicalWildzHandle(username)];
   if (!profile) return null;
@@ -29,9 +27,11 @@ export const loadWildzProfilePageSeed = cache(async (handle: string) => {
     // source read, matching the complete public-profile delivery path.
     const preparation = Promise.all([import("./wildz-profile-page-seed"), import("./wildz-prepared-card-artwork")]);
     const [record, [{ prepareWildzProfilePageSeed }, { prepareVerifiedWildzCardArtwork }]] = await Promise.all([publicRecord(username), preparation]);
-    if (!record) return null;
-    return prepareWildzProfilePageSeed(record, async card =>
-      (await resolvePublicWildsCardRecord(card.id, WILDZ_PRODUCT.origin, username).catch(() => null))?.asset ?? null,
+    if (!record) throw new Error("wildz_public_profile_not_found");
+    return prepareWildzProfilePageSeed(record, async card => {
+      const { resolvePublicWildsCardRecord } = await import("./wildz-public-card-resolver");
+      return (await resolvePublicWildsCardRecord(card.id, WILDZ_PRODUCT.origin, username).catch(() => null))?.asset ?? null;
+    },
     asset => prepareVerifiedWildzCardArtwork(asset, WILDZ_PRODUCT.origin));
-  }, ["wildz-profile-page-v3", username], { revalidate: 60, tags: [`wildz-profile-page:${username}`] })();
+  }, ["wildz-profile-page-v4", username], { revalidate: 60, tags: [`wildz-profile-page:${username}`] })();
 });

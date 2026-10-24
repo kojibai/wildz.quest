@@ -211,11 +211,13 @@ async function shellCacheFirst(request, url, event) {
   }
 }
 
-async function publicDocumentNetworkFirst(request) {
+async function publicDocumentNetworkFirst(request, event) {
   const cache = await caches.open(PUBLIC_CACHE);
   try {
     const response = await fetch(request);
-    if (isCacheableDocument(response)) await cache.put(request, response.clone());
+    // Pass the current document straight to the browser. Cache.put consumes the
+    // whole body; offline persistence must not hold its first visible frame.
+    if (isCacheableDocument(response)) event.waitUntil(cache.put(request, response.clone()).catch(() => undefined));
     return response;
   } catch {
     return await cache.match(request) || await offlineResponse();
@@ -430,7 +432,7 @@ self.addEventListener("fetch", (event) => {
       event.respondWith(shellCacheFirst(request, url, event));
       return;
     case "public-document":
-      event.respondWith(publicDocumentNetworkFirst(request));
+      event.respondWith(publicDocumentNetworkFirst(request, event));
       return;
     case "public-profile-get":
       event.respondWith(publicProfileNetworkFirst(request));

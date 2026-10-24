@@ -9,6 +9,7 @@ import { profileVaultCardImageUrl } from "../../features/profile/profile-vault-c
 import { receizKaiNow } from "@receiz/sdk";
 import { publicWildzProfileCards } from "./wildz-profile-record";
 import { createWildzProfileVaultPacket } from "../../features/profile/profile-vault-packet";
+import { WILDZ_PROFILE_INITIAL_CARDS } from "../../features/profile/profile-viewport";
 
 /** Carry the first viewport's display projection, never full history dossiers,
  * SVG strings or offline replays. The browser reuses the public image URL. */
@@ -16,7 +17,7 @@ export async function prepareWildzProfilePageSeed(record: PublicWildzProfileReco
   const at = String(receizKaiNow().uPulse);
   const held = publicWildzProfileCards(record), byId = new Map(held.map(asset => [asset.id, asset]));
   let vaultPacket = record.vaultPacket ?? createWildzProfileVaultPacket(held);
-  const prepared = await Promise.allSettled(record.profile.vault.slice(0, 4).map(async card => {
+  const prepared = await Promise.allSettled(record.profile.vault.slice(0, WILDZ_PROFILE_INITIAL_CARDS).map(async card => {
     const candidate = byId.get(card.id) ?? await readCard?.(card);
     if (!candidate) return null;
     const asset = parseProfileVaultPublicAsset(card, { record: createPublicWildsCardRecord(candidate, record.sourceUrl, record.publishedAt) });

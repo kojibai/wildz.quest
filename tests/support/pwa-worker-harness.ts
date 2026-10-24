@@ -60,6 +60,9 @@ export function createWorkerHarness(options: {
           return store?.get(requestKey(request))?.clone();
         },
         async put(request: RequestInfo | URL | RequestLike, response: Response) {
+          // Like native Cache.put, persistence settles only after the response
+          // body has arrived. Returning headers must not await that work.
+          await response.clone().arrayBuffer();
           store?.set(requestKey(request), response.clone());
         }
       };

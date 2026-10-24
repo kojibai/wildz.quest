@@ -15,6 +15,7 @@ import type { PublicWildzCard } from "./public-profile";
 import type { WildzProfilePageSeed } from "./profile-page-seed";
 import { ownerProfileVaultAssets, parseProfileVaultPublicAsset, profileVaultCardImageUrl } from "./profile-vault-card";
 import { readWildzProfileVaultPacketAsync } from "./profile-vault-packet";
+import { WILDZ_PROFILE_INITIAL_CARDS } from "./profile-viewport";
 
 type DisplayValue = Pick<WildzMarketOwnedCard, "value" | "valueUnavailable"> & { digest: string };
 const summary = (digest: string, result: WildzMarketValueRead): DisplayValue => ({ digest, ...(result.status === "ready" ? { value: {
@@ -209,7 +210,7 @@ export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({
           <a href={`#market-card=${encodeURIComponent(card.id)}`} aria-label={`Open ${card.name} market card`} className="wildz-profile-card-tile" onClick={event => { event.preventDefault(); openCard(card, false, event.currentTarget); }}>
             {localAsset && !artwork
               ? <DeferredProfileCardPreview key={`${card.id}:${card.proofDigest}`} active={active} eager={index < 2}><WildsCard asset={localAsset} compact interactive={false} /></DeferredProfileCardPreview>
-              : <Image alt={`${card.name} card front`} height={700} loading={index < 4 ? "eager" : "lazy"} priority={index < 2} src={artwork ?? profileVaultCardImageUrl(card.id, profileHandle)} unoptimized width={500} />}
+              : <Image alt={`${card.name} card front`} height={700} loading={index < WILDZ_PROFILE_INITIAL_CARDS ? "eager" : "lazy"} priority={index < WILDZ_PROFILE_INITIAL_CARDS} src={artwork ?? profileVaultCardImageUrl(card.id, profileHandle)} unoptimized width={500} />}
             <span><strong>{card.name}</strong><small>{card.status ?? "verified"}</small></span>
           </a>
         </article>;

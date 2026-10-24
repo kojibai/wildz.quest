@@ -1,13 +1,13 @@
 import { fetchPublicWildzProfile, hasWildzProfileVaultDelivery } from "../../features/profile/public-profile-reader";
 export { fetchPublicWildzProfile } from "../../features/profile/public-profile-reader";
-import { createPublicWildzProfileRecord, parsePublicWildzProfileRecord, publicWildzProfileRecoverySourceUrls, type PublicWildzProfileRecord } from "./wildz-profile-record";
+import { createPublicWildzProfileRecord } from "./wildz-profile-record";
+export { resolvePublicWildzProfile, resolvePublicWildzProfileRecord } from "./wildz-profile-reader";
 export { WILDZ_PUBLIC_PROFILE_SCHEMA, verifiedWildzProfileCards, createPublicWildzProfileRecord, publicWildzProfileRecoverySourceUrls, parsePublicWildzProfileRecord } from "./wildz-profile-record";
 export type { PublicWildzProfileRecord } from "./wildz-profile-record";
 import { canonicalPortableCardJson } from "../../features/play/portable-card";
 import { publishWildzProfileWithIdentityProof } from "./wildz-profile-identity-publication";
 import {
   canonicalWildzHandle,
-  canonicalWildzProfilePath,
   sanitizePublicWildzProfile,
   type PublicWildzProfile
 } from "@/features/profile/public-profile";
@@ -82,45 +82,6 @@ export async function publishPublicWildzProfile(
   }, { idempotencyKey });
   if (!publicationSucceeded(result)) throw new Error("wildz_public_profile_publication_failed");
   return record;
-}
-
-export async function resolvePublicWildzProfile(
-  username: string,
-  options: {
-    adapter?: WildzPublicProfileAdapterPort;
-    repository?: WildzPublicProjectionRepository;
-    requestOrigin?: string;
-    platformDomain?: string;
-  } = {}
-): Promise<PublicWildzProfile | null> {
-  const handle = canonicalWildzHandle(username);
-  if (options.repository) {
-    return (await options.repository.load()).state.profiles[handle.toLowerCase()] ?? null;
-  }
-  return (await resolvePublicWildzProfileRecord(username, options))?.profile ?? null;
-}
-
-export async function resolvePublicWildzProfileRecord(username: string, options: {
-  adapter?: WildzPublicProfileAdapterPort;
-  requestOrigin?: string;
-  platformDomain?: string;
-} = {}): Promise<PublicWildzProfileRecord | null> {
-  const handle = canonicalWildzHandle(username);
-  const adapter = options.adapter ?? createReceizCommerceAdapter();
-  const requestOrigin = options.requestOrigin ?? WILDZ_PRODUCT.origin;
-  for (const sourceUrl of publicWildzProfileRecoverySourceUrls(
-    handle,
-    requestOrigin,
-    options.platformDomain ?? WILDZ_PRODUCT.domain
-  )) {
-    try {
-      const record = parsePublicWildzProfileRecord(await adapter.readAppStateByUrl(sourceUrl));
-      if (record?.handle === handle) return record;
-    } catch {
-      // Try the canonical production origin before reporting the profile unavailable.
-    }
-  }
-  return null;
 }
 
 function publicProfileEndpoint(username: string) {

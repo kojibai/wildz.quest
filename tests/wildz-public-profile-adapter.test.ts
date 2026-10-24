@@ -22,6 +22,23 @@ const fernProfile = {
   record: { wins: 2, losses: 0, raids: 1 }
 };
 
+test("the cold public reader uses one anonymous SDK source read without publication credentials", async context => {
+  let reads = 0;
+  context.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+    reads++;
+    const url = new URL(String(input));
+    assert.equal(url.pathname, "/api/public-proof/by-url");
+    assert.equal(url.searchParams.get("url"), "https://wildz.quest/u/fern");
+    assert.equal(new Headers(init?.headers).has("authorization"), false);
+    return Response.json({ ok: true, record: { data: { storeStateRecord: {
+      schema: "receiz.wilds_public_profile.v1", handle: "@fern", sourceUrl: "https://wildz.quest/u/fern",
+      publishedAt: "2026-07-15T12:00:00.000Z", profile: fernProfile
+    } } } });
+  });
+  assert.deepEqual(await resolvePublicWildzProfile("fern"), sanitizePublicWildzProfile(fernProfile));
+  assert.equal(reads, 1);
+});
+
 test("public profile reads bypass browser and intermediary caches for the current Vault revision", async () => {
   const profile = sanitizePublicWildzProfile(fernProfile);
   let reads = 0;

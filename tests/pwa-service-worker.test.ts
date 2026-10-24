@@ -7,6 +7,25 @@ const RELEASE = "qa-a";
 const SHELL_CACHE = `wildz-shell-${RELEASE}`;
 const PUBLIC_CACHE = `wildz-public-${RELEASE}`;
 
+test("a settled public profile streams to the browser before offline persistence finishes", async () => {
+  const encoder = new TextEncoder();
+  let finish!: () => void;
+  const body = new ReadableStream<Uint8Array>({ start(controller) {
+    controller.enqueue(encoder.encode("<html><body>Settled profile"));
+    finish = () => { controller.enqueue(encoder.encode("</body></html>")); controller.close(); };
+  } });
+  const worker = createWorkerHarness({ release: RELEASE, fetch: async () => new Response(body, { headers: { "content-type": "text/html", "cache-control": "public, max-age=0, s-maxage=60" } }) });
+  const pending = worker.dispatchFetch({ method: "GET", mode: "navigate", url: "https://wildz.quest/u/fern" }, { waitForBackground: false });
+  const immediate = await Promise.race([pending, new Promise<null>(resolve => setTimeout(() => resolve(null), 250))]);
+  finish();
+  const result = await pending;
+  await result.background;
+  assert.ok(immediate, "offline saving must not buffer the public document before browser delivery");
+  assert.equal(await immediate.response?.text(), "<html><body>Settled profile</body></html>");
+  assert.equal(immediate.waitCount, 1);
+  assert.equal(await (await worker.readCached(PUBLIC_CACHE, "/u/fern"))?.text(), "<html><body>Settled profile</body></html>");
+});
+
 test("activation keeps only the current release caches and controls open clients", async () => {
   const worker = createWorkerHarness({
     release: RELEASE,
