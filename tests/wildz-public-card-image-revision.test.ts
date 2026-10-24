@@ -12,6 +12,17 @@ import {prepareWildzProfilePageSeed} from '../src/lib/receiz/wildz-profile-page-
 import {createPublicWildzProfileRecord} from '../src/lib/receiz/wildz-profile-record';
 import {prepareVerifiedWildzCardArtwork} from '../src/lib/receiz/wildz-prepared-card-artwork';
 
+test('an older profile proof can reuse current verified artwork without admitting a different card revision',async()=>{
+ const asset=initialPlayState.inventory[0]!;
+ const record=createPublicWildzProfileRecord({username:'@old_front',vault:[{id:asset.id,name:asset.manifest.name,proofDigest:'sha256:'+'0'.repeat(64),visibility:'public'}]},'https://wildz.quest/u/old_front');
+ const prepared:string[]=[];
+ const seed=await prepareWildzProfilePageSeed(record,async()=>asset,async card=>{await Promise.resolve();prepared.push(card.proof.digest);});
+ assert.deepEqual(prepared,[asset.proof.digest]);
+ assert.equal(new URL(seed.artwork[asset.id]!,'https://wildz.quest').searchParams.get('digest'),asset.proof.digest);
+ assert.equal(seed.values[asset.id],undefined,'a different revision cannot supply this profile value');
+ assert.equal(seed.vaultPacket,undefined,'artwork does not admit a different card into the held Vault');
+});
+
 test('prepared profile image requests reuse exact verified artwork without another public-source lookup',async context=>{
  const asset=sealCollectedCard({formId:'mintcub-1',ownerReceizId:'prepared_front.receiz.id',encounterId:'profile-prepared-front',capturedAt:'2026-10-12T12:00:00.000Z'});
  const record=createPublicWildzProfileRecord({username:'@prepared_front',vault:[{id:asset.id,name:asset.manifest.name,proofDigest:asset.proof.digest,visibility:'public'}]},'https://wildz.quest/u/prepared_front');

@@ -1,9 +1,7 @@
 import type { PublicWildzProfileRecord } from "./wildz-profile-record";
 import type { WildzProfilePageSeed } from "../../features/profile/profile-page-seed";
 import type { PublicWildzCard } from "../../features/profile/public-profile";
-import type { PortableCardAsset } from "../../features/play/portable-card";
-import { parseProfileVaultPublicAsset } from "../../features/profile/profile-vault-card";
-import { createPublicWildsCardRecord } from "../../features/play/public-card-registry";
+import { verifyAnyWildsCard, type PortableCardAsset } from "../../features/play/portable-card";
 import { calculateWildzMarketLocalValueV129 } from "../../features/market/wildz-market-value-local-v129";
 import { profileVaultCardImageUrl } from "../../features/profile/profile-vault-card";
 import { receizKaiNow } from "@receiz/sdk";
@@ -13,26 +11,31 @@ import { WILDZ_PROFILE_INITIAL_CARDS } from "../../features/profile/profile-view
 
 /** Carry the first viewport's display projection, never full history dossiers,
  * SVG strings or offline replays. The browser reuses the public image URL. */
-export async function prepareWildzProfilePageSeed(record: PublicWildzProfileRecord, readCard?: (card: PublicWildzCard) => Promise<PortableCardAsset | null>, prepareArtwork?: (card: PortableCardAsset) => void): Promise<WildzProfilePageSeed> {
+export async function prepareWildzProfilePageSeed(record: PublicWildzProfileRecord, readCard?: (card: PublicWildzCard) => Promise<PortableCardAsset | null>, prepareArtwork?: (card: PortableCardAsset) => void | Promise<void>): Promise<WildzProfilePageSeed> {
   const at = String(receizKaiNow().uPulse);
   const held = publicWildzProfileCards(record), byId = new Map(held.map(asset => [asset.id, asset]));
   let vaultPacket = record.vaultPacket ?? createWildzProfileVaultPacket(held);
   const prepared = await Promise.allSettled(record.profile.vault.slice(0, WILDZ_PROFILE_INITIAL_CARDS).map(async card => {
     const candidate = byId.get(card.id) ?? await readCard?.(card);
-    if (!candidate) return null;
-    const asset = parseProfileVaultPublicAsset(card, { record: createPublicWildsCardRecord(candidate, record.sourceUrl, record.publishedAt) });
-    if (!asset) return null;
-    prepareArtwork?.(asset);
+    if (!candidate || candidate.id !== card.id || !verifyAnyWildsCard(candidate).ok) return null;
+    const artworkAsset = candidate;
+    await prepareArtwork?.(artworkAsset);
+    const artwork = `${profileVaultCardImageUrl(card.id, record.handle)}&digest=${encodeURIComponent(artworkAsset.proof.digest)}`;
+    const asset = candidate.manifest.name === card.name && candidate.proof.digest === card.proofDigest ? candidate : null;
+    // The image route already displays the latest verified public front. Reuse
+    // that read when an older profile references another proof, without using
+    // the different revision for values, custody or the carried Vault packet.
+    if (!asset) return { id: card.id, asset: null, artwork };
     const value = await calculateWildzMarketLocalValueV129(asset, { valuationKaiUPulse: at });
     if (value.status === "ready") {
       const { localModel: _model, sdkProjection: _sdk, replay: _replay, ...display } = value.value;
-      return { asset, value: { status: "ready" as const, value: { ...display, calculation: [], detailsDeferred: true } }, artwork: `${profileVaultCardImageUrl(asset.id, record.handle)}&digest=${encodeURIComponent(asset.proof.digest)}` };
+      return { id: card.id, asset, value: { status: "ready" as const, value: { ...display, calculation: [], detailsDeferred: true } }, artwork };
     }
-    return { asset, value, artwork: `${profileVaultCardImageUrl(asset.id, record.handle)}&digest=${encodeURIComponent(asset.proof.digest)}` };
+    return { id: card.id, asset, value, artwork };
   }));
   const rows = prepared.flatMap(result => result.status === "fulfilled" && result.value ? [result.value] : []);
   // Legacy reference-only profiles may recover these cards once. Keep that
   // result too, so opening their chart or flip never repeats the same read.
-  vaultPacket ??= createWildzProfileVaultPacket(rows.map(row => row.asset));
-  return { profile: record.profile, cards: [], values: Object.fromEntries(rows.map(row => [row.asset.id, row.value])), artwork: Object.fromEntries(rows.map(row => [row.asset.id, row.artwork])), ...(vaultPacket ? { vaultPacket } : {}) };
+  vaultPacket ??= createWildzProfileVaultPacket(rows.flatMap(row => row.asset ? [row.asset] : []));
+  return { profile: record.profile, cards: [], values: Object.fromEntries(rows.flatMap(row => row.value ? [[row.id, row.value]] : [])), artwork: Object.fromEntries(rows.map(row => [row.id, row.artwork])), ...(vaultPacket ? { vaultPacket } : {}) };
 }

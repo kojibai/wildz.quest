@@ -1,6 +1,7 @@
 import { signWildzProfilePublication, type WildzProfileSigningInput } from "./wildz-profile-signing";
 import { wildzGameplayBackground } from "../performance/wildz-gameplay-background";
 import { isAdmittedWildsCard } from "../../features/play/admitted-inventory";
+import type { PortableCardAsset } from "../../features/play/portable-card";
 
 type Result = Awaited<ReturnType<typeof signWildzProfilePublication>>;
 
@@ -17,11 +18,14 @@ export async function prepareWildzProfilePublication(input: WildzProfileSigningI
   let signingInput = input.keyFile
     ? { ...input, keyFile: { ...input.keyFile, portableState: null } }
     : input;
+  let publicCards: readonly PortableCardAsset[] | undefined;
   if (admittedCards) {
     const assets = new Map(input.assets!.map(asset => [asset.id, asset]));
-    for (const entry of input.profile.vault) {
-      if (assets.get(entry.id)?.proof.digest !== entry.proofDigest) throw new Error("wildz_public_profile_card_unverified");
-    }
+    publicCards = input.profile.vault.map(entry => {
+      const asset = assets.get(entry.id);
+      if (asset?.proof.digest !== entry.proofDigest) throw new Error("wildz_public_profile_card_unverified");
+      return asset;
+    });
     signingInput = { ...signingInput, assets: undefined };
   }
   let worker: Worker | undefined;
@@ -31,7 +35,8 @@ export async function prepareWildzProfilePublication(input: WildzProfileSigningI
   if (worker) {
     const activeWorker = worker;
     const result = await new Promise<Result | null>((resolve, reject) => {
-      const finish = () => { activeWorker.terminate(); signal?.removeEventListener("abort", abort); };
+      let stopped = false;
+      const finish = () => { stopped = true; activeWorker.terminate(); signal?.removeEventListener("abort", abort); };
       const abort = () => { finish(); reject(signal?.reason); };
       signal?.addEventListener("abort", abort, { once: true });
       activeWorker.onmessage = (event: MessageEvent<{ ok: boolean; result: Result; error: string }>) => {
@@ -41,10 +46,20 @@ export async function prepareWildzProfilePublication(input: WildzProfileSigningI
       };
       activeWorker.onerror = event => { event.preventDefault(); finish(); resolve(null); };
       if (signal?.aborted) { abort(); return; }
-      try { activeWorker.postMessage({ input: signingInput, admittedCards }); } catch { finish(); resolve(null); }
+      try { activeWorker.postMessage({ input: signingInput, admittedCards, ...(publicCards ? { cardCount: publicCards.length } : {}) }); } catch { finish(); resolve(null); }
+      if (publicCards?.length) void (async () => {
+        for (const card of publicCards) {
+          const sent = await wildzGameplayBackground.run(() => {
+            if (stopped || signal?.aborted) return false;
+            activeWorker.postMessage({ card });
+            return true;
+          });
+          if (!sent) break;
+        }
+      })().catch(() => { if (!stopped) { finish(); resolve(null); } });
     });
     if (result) return result;
   }
   signal?.throwIfAborted();
-  return wildzGameplayBackground.run(() => { signal?.throwIfAborted(); return signWildzProfilePublication(signingInput, admittedCards); });
+  return wildzGameplayBackground.run(() => { signal?.throwIfAborted(); return signWildzProfilePublication(publicCards ? { ...signingInput, assets: publicCards } : signingInput, admittedCards); });
 }

@@ -3,7 +3,7 @@ import { renderWildsCardSvg } from "@/features/play/card-export";
 import { parsePublicCardParam } from "@/features/play/public-card-registry";
 import { resolvePublicWildsCardArtwork } from "@/lib/receiz/wildz-public-card-resolver";
 import { WILDZ_PRODUCT } from "@/lib/wildz/product";
-import { preparedWildzCardArtwork } from "@/lib/receiz/wildz-prepared-card-artwork";
+import { retainedWildzCardArtwork } from "@/lib/receiz/wildz-prepared-card-artwork";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,8 +17,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ ass
       return NextResponse.json({ok: false, error: "wildz_public_card_digest_invalid"}, {status: 400, headers: {"cache-control": "no-store"}});
     }
     const origin = new URL(request.url).origin;
-    const prepared = expectedDigest ? preparedWildzCardArtwork(assetId, expectedDigest, origin)
-      ?? preparedWildzCardArtwork(assetId, expectedDigest, WILDZ_PRODUCT.origin) : null;
+    const prepared = expectedDigest ? await retainedWildzCardArtwork(assetId, expectedDigest, WILDZ_PRODUCT.origin) : null;
     if (prepared) return new NextResponse(prepared, {
       headers: {"cache-control": "public, max-age=60, stale-while-revalidate=86400", "content-type": "image/svg+xml; charset=utf-8"}
     });

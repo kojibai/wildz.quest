@@ -4,12 +4,13 @@ import { WildzPublicProfilePage } from "@/features/profile/WildzPublicProfilePag
 import { canonicalWildzHandle, canonicalWildzProfilePath } from "@/features/profile/public-profile";
 import { publicPageMetadata } from "@/lib/wildz/search-metadata";
 import { loadWildzProfilePageSeed } from "@/lib/receiz/wildz-profile-page-server";
+import { publicWildzProfileBuildParams } from "@/lib/receiz/wildz-profile-reader";
 
 // Retain the complete public document under the same 60-second display policy
-// as its seed. An empty list enables on-demand static generation for any player;
-// successful profile publications invalidate the seed and dependent document.
+// as its seed. Prepare known public profiles before the first visitor; new
+// players retain on-demand generation. Publications invalidate both layers.
 export const revalidate = 60;
-export function generateStaticParams() { return []; }
+export function generateStaticParams() { return publicWildzProfileBuildParams(); }
 
 export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }): Promise<Metadata> {
   const { handle } = await params;

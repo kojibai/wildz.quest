@@ -40,6 +40,8 @@ for (const file of files(root)) {
     .replaceAll("import 'server-only';", "")
     .replaceAll('"next/server"', '"next/server.js"')
     .replaceAll("'next/server'", "'next/server.js'")
+    .replaceAll('"next/cache"', '"next/cache.js"')
+    .replaceAll("'next/cache'", "'next/cache.js'")
     .replaceAll('"next/link"', '"next/link.js"')
     .replaceAll("'next/link'", "'next/link.js'")
     .replaceAll('"next/image"', '"next/image.js"')

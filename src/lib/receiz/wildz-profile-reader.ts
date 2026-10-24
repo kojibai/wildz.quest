@@ -5,6 +5,7 @@ import { WILDZ_PRODUCT } from "../wildz/product";
 import { WILDZ_RECEIZ_APPLICATION_ID } from "./wildz-application";
 import type { WildzPublicProjectionRepository } from "./wildz-public-repository";
 import type { WildzPublicProfileAdapterPort } from "./wildz-profile-adapter";
+import { parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
 
 type ProfileReadOptions = {
   adapter?: WildzPublicProfileAdapterPort;
@@ -35,4 +36,28 @@ export async function resolvePublicWildzProfileRecord(username: string, options:
 export async function resolvePublicWildzProfile(username: string, options: ProfileReadOptions & { repository?: WildzPublicProjectionRepository } = {}): Promise<PublicWildzProfile | null> {
   if (options.repository) return (await options.repository.load()).state.profiles[canonicalWildzHandle(username)] ?? null;
   return (await resolvePublicWildzProfileRecord(username, options))?.profile ?? null;
+}
+
+/** Like Bankeiz's prepared public asset catalog, discover known routes at build
+ * time. Directory metadata locates profiles; each page still reads its current
+ * canonical source. Originals, custody and account data are not opened here. */
+export async function publicWildzProfileBuildParams(readDirectory?: (namespace: string) => Promise<unknown>): Promise<{ handle: string }[]> {
+  try {
+    const { WILDZ_MARKET_COLLECTION_NAMESPACE, wildzMarketCollectionUrl } = await import("./wildz-market-collection");
+    const read = readDirectory ?? (namespace => createReceizClient({
+      baseUrl: process.env.RECEIZ_BASE_URL || RECEIZ_DEFAULT_BASE_URL,
+      fetchImpl: (input, init) => fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000) })
+    }).appState.byNamespace(namespace));
+    const value = await read(WILDZ_MARKET_COLLECTION_NAMESPACE) as { ok?: boolean; records?: unknown[] } | null;
+    if (!value?.ok || !Array.isArray(value.records) || value.records.length > 5000) return [];
+    const handles = new Set<string>();
+    for (const candidate of value.records) {
+      if (!candidate || typeof candidate !== "object") continue;
+      const row = candidate as Record<string, unknown>;
+      if (row.appNamespace !== WILDZ_MARKET_COLLECTION_NAMESPACE || row.appProjectionState !== "published" || typeof row.sourceUrl !== "string") continue;
+      const coordinate = typeof row.externalCreatorId === "string" ? parseWildzPlayerCoordinate(row.externalCreatorId) : null;
+      if (coordinate && row.externalCreatorId === coordinate.profileHandle && row.sourceUrl === wildzMarketCollectionUrl(coordinate.actorId)) handles.add(coordinate.actorId);
+    }
+    return [...handles].sort().slice(0, 1000).map(handle => ({ handle }));
+  } catch { return []; }
 }

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import {
   canonicalWildzHandle,
@@ -56,6 +56,12 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ ha
     const record = await resolvePublicWildzProfileRecord(username);
     const profile = record?.profile
       ?? (await repository.load()).state.profiles[username.toLowerCase()] ?? null;
+    // Publication already confirms through this fresh read. Prepare the public
+    // document from its held complete delivery after returning the response.
+    if (record && (record.vaultPacket || record.vaultCards?.length === record.profile.vault.length || !record.profile.vault.length)) after(async () => {
+      const { prepareDeliveredWildzProfilePage } = await import("@/lib/receiz/wildz-profile-page-server");
+      await prepareDeliveredWildzProfilePage(record);
+    });
     return profile
       ? json({ ok: true, profile, deliveryVersion: record?.vaultDeliveryVersion ?? (record?.vaultPacket || !profile.vault.length ? 1 : 0) }, 200, true)
       : json({ ok: false, error: "wildz_public_profile_not_found" }, 404);

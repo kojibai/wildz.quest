@@ -1,4 +1,5 @@
 import "server-only";
+import { unstable_cache } from "next/cache";
 import type { PortableCardAsset } from "../../features/play/portable-card";
 import { renderWildsCardSvg } from "../../features/play/card-export";
 
@@ -19,4 +20,21 @@ export function prepareVerifiedWildzCardArtwork(asset: PortableCardAsset, origin
   if (preparedWildzCardArtwork(asset.id, asset.proof.digest, origin)) return;
   artwork.set(key(asset.id, asset.proof.digest, origin), renderWildsCardSvg(asset, { origin }));
   while (artwork.size > 32) artwork.delete(artwork.keys().next().value!);
+}
+
+// Exact immutable fronts survive the build process and server restarts, like
+// the prepared document. Bump this rendering version when the SVG format changes.
+function retainedArtwork(id: string, digest: string, origin: string, rendered?: string) {
+  return unstable_cache(async () => {
+    const svg = rendered ?? preparedWildzCardArtwork(id, digest, origin);
+    if (!svg) throw Error("wildz_card_front_not_prepared");
+    return svg;
+  }, ["wildz-profile-front-v1", id, digest, origin], { revalidate: false })();
+}
+export async function persistVerifiedWildzCardArtwork(asset: PortableCardAsset, origin: string) {
+  prepareVerifiedWildzCardArtwork(asset, origin);
+  await retainedArtwork(asset.id, asset.proof.digest, origin, preparedWildzCardArtwork(asset.id, asset.proof.digest, origin)!);
+}
+export async function retainedWildzCardArtwork(id: string, digest: string, origin: string) {
+  return preparedWildzCardArtwork(id, digest, origin) ?? await retainedArtwork(id, digest, origin).catch(() => null);
 }
