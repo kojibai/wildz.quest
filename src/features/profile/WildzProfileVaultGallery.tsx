@@ -14,6 +14,7 @@ import { WildzProfileMarketCard } from "./WildzProfileMarketCard";
 import type { PublicWildzCard } from "./public-profile";
 import type { WildzProfilePageSeed } from "./profile-page-seed";
 import { ownerProfileVaultAssets, parseProfileVaultPublicAsset, profileVaultCardImageUrl } from "./profile-vault-card";
+import { readWildzProfileVaultPacketAsync } from "./profile-vault-packet";
 
 type DisplayValue = Pick<WildzMarketOwnedCard, "value" | "valueUnavailable"> & { digest: string };
 const summary = (digest: string, result: WildzMarketValueRead): DisplayValue => ({ digest, ...(result.status === "ready" ? { value: {
@@ -112,12 +113,20 @@ export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({
     const controller = new AbortController();
     const visible = new Set<string>(), pending = new Set<string>();
     const pendingAssets = new Map<string, Promise<PortableCardAsset | null>>();
+    // One complete server-admitted public delivery supplies every later local
+    // calculation and flip, including cards outside the first viewport.
+    const carriedCards = initialSeed?.vaultPacket
+      ? readWildzProfileVaultPacketAsync(initialSeed.vaultPacket).then(value => Array.isArray(value) ? ownerProfileVaultAssets(cards, value) : new Map<string, PortableCardAsset>()).catch(() => new Map<string, PortableCardAsset>())
+      : null;
     const recoverAsset = async (assetId: string) => {
       const card = collection.get(assetId);
       if (!card) return null;
       if (card.asset) return card.asset;
       const key = `${assetId}:${card.proofDigest}`, cached = recovered.current.get(key);
       if (cached) { recovered.current.delete(key); recovered.current.set(key, cached); return cached; }
+      const carried = (await carriedCards)?.get(assetId);
+      if (controller.signal.aborted) return null;
+      if (carried) return carried;
       const path = `/api/cards/${encodeURIComponent(assetId)}`;
       const options = { cache: "no-store", credentials: "omit", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) } as const;
       let response = await fetch(`${path}${profileHandle ? `?profile=${encodeURIComponent(profileHandle)}` : ""}`, options);

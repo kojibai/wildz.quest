@@ -712,6 +712,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
           onProgress: progress,
           confirmExisting: true,
           confirmMarketCollection: identity?.localAuthority === "verified",
+          requireVaultDelivery: identity?.localAuthority === "verified",
           proofObjects: profilePublicationRequest.proofObjects,
           // A connected proof session is not necessarily a delegated registry
           // write token. Publish the complete collection with the active seal,

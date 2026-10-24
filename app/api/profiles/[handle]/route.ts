@@ -12,7 +12,7 @@ import {
   loadVerifiedWildzPublicOwnershipAuthority,
   requireCurrentWildzPublicOwner
 } from "@/lib/receiz/wildz-public-ownership";
-import { publishPublicWildzProfile, resolvePublicWildzProfile } from "@/lib/receiz/wildz-profile-adapter";
+import { publishPublicWildzProfile, resolvePublicWildzProfileRecord } from "@/lib/receiz/wildz-profile-adapter";
 import { parseSignedWildzProfilePublication } from "@/lib/receiz/wildz-profile-publication-envelope";
 import {parseSignedWildzMarketCollection} from '@/lib/receiz/wildz-market-collection';
 import { resolveSdkPublicWildzCard } from "@/lib/receiz/wildz-market-public-card";
@@ -53,10 +53,11 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ ha
     const { handle } = await context.params;
     const username = canonicalWildzHandle(handle);
     const repository = createReceizWildzPublicRepository({ adapter: createReceizCommerceAdapter() });
-    const profile = await resolvePublicWildzProfile(username)
+    const record = await resolvePublicWildzProfileRecord(username);
+    const profile = record?.profile
       ?? (await repository.load()).state.profiles[username.toLowerCase()] ?? null;
     return profile
-      ? json({ ok: true, profile }, 200, true)
+      ? json({ ok: true, profile, deliveryVersion: record?.vaultDeliveryVersion ?? (record?.vaultPacket || !profile.vault.length ? 1 : 0) }, 200, true)
       : json({ ok: false, error: "wildz_public_profile_not_found" }, 404);
   } catch (cause) {
     return profileError(cause);

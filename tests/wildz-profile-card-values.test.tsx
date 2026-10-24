@@ -8,6 +8,7 @@ import { mountMutableReact } from "./helpers/react-mutation-renderer";
 import { prepareWildzProfilePageSeed } from "../src/lib/receiz/wildz-profile-page-seed";
 import { createPublicWildzProfileRecord } from "../src/lib/receiz/wildz-profile-record";
 import { WildzPublicProfilePage } from "../src/features/profile/WildzPublicProfilePage";
+import { gunzipSync } from "node:zlib";
 
 const asset = sealCollectedCard({ capturedAt: "2026-08-11T12:00:00.000Z", encounterId: "profile-values", formId: "mintcub-1", ownerReceizId: "receiz:profile-owner" });
 const card = { id: asset.id, name: asset.manifest.name, proofDigest: asset.proof.digest, visibility: "public" as const };
@@ -101,6 +102,9 @@ test("a prepared profile's first HTML contains its cards, artwork and values wit
   const seed = await prepareWildzProfilePageSeed(record);
   assert.equal(seed.values[asset.id]?.status, "ready");
   assert.equal(seed.cards.length, 0, "the public page carries display data, not full original dossiers");
+  const packet = (seed as unknown as { vaultPacket?: { data: string } }).vaultPacket;
+  assert.ok(packet, "the already verified public cards must remain available in the first response");
+  assert.deepEqual(JSON.parse(gunzipSync(Buffer.from(packet.data, "base64")).toString()), [asset]);
   assert.ok(JSON.stringify(seed).length < 15_000, "initial display excludes the calculation and offline replay payloads");
   const html = renderToStaticMarkup(<WildzPublicProfilePage username="@profile-values" initialSeed={seed} />);
   assert.match(html, /Settled Explorer/);
@@ -132,6 +136,19 @@ test("a prepared profile reuses its carried value when opening the chart, and re
   (calculation.props!.onToggle as (event: unknown) => void)({ currentTarget: { open: true } });
   for (let frame = 0; frame < 20 && !env.workers.length; frame++) await view.flush();
   assert.equal(env.workers.length, 1, "the complete calculation is recovered when expanded");
+  assert.equal(env.fetches(), 0, "local calculation reuses the carried card without downloading it again");
+});
+
+test("the complete public Vault is carried beyond the first visible cards", async () => {
+  const assets = Array.from({ length: 6 }, (_, index) => sealCollectedCard({ capturedAt: "2026-08-11T12:00:00.000Z", encounterId: `complete-profile-${index}`, formId: "mintcub-1", ownerReceizId: "receiz:profile-owner" }));
+  const record = createPublicWildzProfileRecord({ username: "@complete-profile", vault: assets.map(asset => ({ id: asset.id, name: asset.manifest.name, proofDigest: asset.proof.digest, visibility: "public" })) }, "https://wildz.quest/u/complete-profile");
+  record.vaultCards = assets;
+  let reads = 0;
+  const seed = await prepareWildzProfilePageSeed(record, async () => { reads++; return null; });
+  const packet = (seed as unknown as { vaultPacket?: { data: string } }).vaultPacket;
+  assert.ok(packet, "the first response retains the complete held collection");
+  assert.deepEqual(JSON.parse(gunzipSync(Buffer.from(packet.data, "base64")).toString()), assets);
+  assert.equal(reads, 0);
 });
 
 test("the prepared chart opens from profile values and survives Back and reopening without another card read", async context => {

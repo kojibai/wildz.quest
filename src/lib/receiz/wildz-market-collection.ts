@@ -1,7 +1,7 @@
 import {parseWildzSignedUploadOwnershipClaim,wildzUploadCardRootDigest} from "./wildz-upload-ownership";
 import {createReceizAppStateFeed,createReceizPublicStoreStateRecord,RECEIZ_PUBLIC_STORE_STATE_FEED_SCHEMA,type JsonObject,type ReceizPublicStoreSignedPublish} from '@receiz/sdk';
 import {canonicalPortableCardJson,verifyAnyWildsCard} from '../../features/play/portable-card';
-import {parsePublicWildzProfileRecord,type PublicWildzProfileRecord} from './wildz-profile-record';
+import {parsePublicWildzProfileRecord,publicWildzProfileCards,type PublicWildzProfileRecord} from './wildz-profile-record';
 import {latestWildzOwnershipClaims,ownershipSyncProjection} from './wildz-ownership-reconcile';
 import {parseWildzPlayerCoordinate,sameWildzPlayerCoordinate} from './wildz-player-coordinate';
 import {WILDZ_PRODUCT} from '../wildz/product';
@@ -63,20 +63,21 @@ export function projectWildzMarketCollection(profiles:readonly PublicWildzProfil
  const {heads,conflicts}=latestWildzOwnershipClaims(claims),candidates=new Map<string,WildzMarketOwnedCard[]>();
  const latestProfiles=new Map<string,PublicWildzProfileRecord>();
  for(const profile of profiles){const prior=latestProfiles.get(profile.handle);if(!prior||profile.publishedAt>prior.publishedAt)latestProfiles.set(profile.handle,profile);}
- for(const record of latestProfiles.values())for(const card of record.profile.vault){
+ for(const record of latestProfiles.values()){
+ const byId=new Map(publicWildzProfileCards(record).map(asset=>[asset.id,asset]));
+ for(const card of record.profile.vault){
   const owner=parseWildzPlayerCoordinate(record.handle)?.profileHandle;if(!owner)continue;
+  const candidate=byId.get(card.id),asset=candidate?.proof.digest===card.proofDigest&&verifyAnyWildsCard(candidate).ok?candidate:undefined;
   const claim=heads.get(card.id);
   const local = claim ? localClaims.get(claim.headReference) : undefined;
   if (local) {
-    const asset=record.vaultCards?.find(asset=>asset.id===card.id&&asset.proof.digest===card.proofDigest&&verifyAnyWildsCard(asset).ok);
     if (asset ? wildzUploadCardRootDigest(asset)!==local.claim.cardRootDigest : record.vaultCardRoots?.[card.id] ? record.vaultCardRoots[card.id]!==local.claim.cardRootDigest : card.proofDigest!==local.claim.cardProofDigest) continue;
   }
   if(claim&&!sameWildzPlayerCoordinate(claim.ownerReceizId,owner))continue;
   const rows=candidates.get(card.id)??[];
-  const asset=record.vaultCards?.find(asset=>asset.id===card.id&&asset.proof.digest===card.proofDigest&&verifyAnyWildsCard(asset).ok);
   rows.push({assetId:card.id,title:card.name,proofDigest:card.proofDigest,ownerHandle:owner,claimKaiUPulse:claim?.witnessedKaiUPulse??null,claimHead:claim?.headReference??null,...(asset?{asset}:{})});
   candidates.set(card.id,rows);
- }
+ }}
  return [...candidates.values()].flatMap(rows=>{
   if(new Set(rows.map(row=>row.proofDigest)).size!==1)return [];
   if(new Set(rows.map(row=>row.ownerHandle)).size===1&&!conflicts.has(rows[0]!.assetId))return [rows[0]!];

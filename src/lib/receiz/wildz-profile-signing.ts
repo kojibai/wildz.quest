@@ -7,6 +7,7 @@ import { WILDZ_PRODUCT } from "../wildz/product";
 import { parseWildzPlayerCoordinate, sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import type { WildzIdentitySession } from "./wildz-identity-repository";
 import {wildzMarketCollectionInput} from './wildz-market-collection';
+import {createWildzProfileVaultPacket} from '../../features/profile/profile-vault-packet';
 
 export type WildzProfileSigningInput = {
   profile: PublicWildzProfile;
@@ -38,10 +39,12 @@ export async function signWildzProfilePublication(input: WildzProfileSigningInpu
       if (!asset || asset.proof.digest !== entry.proofDigest) throw new Error("wildz_public_profile_card_unverified");
       return asset;
     });
-    // Admission is local and content-bound. Publish only the gallery references;
-    // embedding full proofs repeats their histories throughout the SDK envelope.
-    // Full card publication remains independent of this signed display projection.
+    // Keep the same complete public collection in one compact delivery. Full
+    // standalone publications remain independent; rendering never waits on them.
     if (!admittedCards) verifiedWildzProfileCards(record.profile, gallery);
+    const packet = createWildzProfileVaultPacket(gallery);
+    if (packet) record.vaultPacket = packet;
+    record.vaultDeliveryVersion = 1;
   }
   record.publisherKeyId = session.keyId;
   if (input.ownershipClaims?.length) {

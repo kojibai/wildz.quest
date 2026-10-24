@@ -1,5 +1,8 @@
 import { canonicalWildzHandle, sanitizePublicWildzProfile } from "./public-profile";
 
+const vaultDeliveries = new WeakSet<object>();
+export const hasWildzProfileVaultDelivery = (profile: object) => vaultDeliveries.has(profile);
+
 /** Public profile loading carries no publication, Wallet or signing runtime. */
 export async function fetchPublicWildzProfile(username: string, fetcher: typeof fetch = globalThis.fetch, options: { signal?: AbortSignal } = {}) {
   const handle = canonicalWildzHandle(username);
@@ -13,5 +16,6 @@ export async function fetchPublicWildzProfile(username: string, fetcher: typeof 
     throw new Error(typeof value?.error === "string" ? value.error : "wildz_public_profile_recovery_failed");
   }
   const profile = sanitizePublicWildzProfile(value.profile as Record<string, unknown>);
+  if (value.deliveryVersion === 1) vaultDeliveries.add(profile);
   return profile.username === handle ? profile : null;
 }

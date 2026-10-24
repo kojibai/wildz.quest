@@ -1,6 +1,7 @@
 import type { PortableCardAsset } from "../play/portable-card";
 import type { WildzMarketValueRead } from "../market/wildz-market-value";
 import type { PublicWildzProfile } from "./public-profile";
+import type { WildzProfileVaultPacket } from "./profile-vault-packet";
 
 /** Public display data, never ownership or transaction authority. */
 export type WildzProfilePageSeed = Readonly<{
@@ -8,6 +9,7 @@ export type WildzProfilePageSeed = Readonly<{
   cards: readonly PortableCardAsset[];
   values: Readonly<Record<string, WildzMarketValueRead>>;
   artwork: Readonly<Record<string, string>>;
+  vaultPacket?: WildzProfileVaultPacket;
 }>;
 
 const profiles = new Map<string, WildzProfilePageSeed>();

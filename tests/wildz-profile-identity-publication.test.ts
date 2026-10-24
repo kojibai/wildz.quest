@@ -70,6 +70,7 @@ test("signed collection carries verified card references without repeating proof
     const body = JSON.parse(raw);
     const admitted = parseSignedWildzProfilePublication(body.signedPublication, profile);
     assert.equal(admitted.record.vaultCards, undefined);
+    assert.ok("vaultPacket" in admitted.record, "one compact delivery preserves the verified public collection");
     assert.equal(admitted.record.profile.vault[0]!.proofDigest, asset.proof.digest);
     assert.equal(asset.manifest.ownerReceizId, "previous_keeper");
     assert.doesNotMatch(raw, /receizProofHistory|vaultCards/);

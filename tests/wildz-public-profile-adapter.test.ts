@@ -414,3 +414,15 @@ test("a failed preliminary public read cannot block publishing the current local
  assert.equal(writes, 1);
  assert.equal(reads, 2);
 });
+
+test("a reference-only profile upgrades its public delivery once without waiting for a new capture", async () => {
+ const asset = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "fern", encounterId: "profile-delivery-upgrade", capturedAt: "2026-09-13T12:00:00.000Z" });
+ const profile = sanitizePublicWildzProfile({ ...fernProfile, vault: [{ id: asset.id, name: asset.manifest.name, proofDigest: asset.proof.digest, visibility: "public" }] });
+ let deliveryVersion = 0, writes = 0;
+ const fetcher = (async () => Response.json({ ok: true, profile, deliveryVersion })) as typeof fetch;
+ const options = { confirmExisting: true, requireVaultDelivery: true, publishSourceProfile: async () => { writes++; deliveryVersion = 1; return profile; } };
+ assert.deepEqual(await publishCurrentWildzProfile(profile, [asset], fetcher, options), profile);
+ assert.equal(writes, 1, "unchanged legacy profiles still receive the complete delivery");
+ assert.deepEqual(await publishCurrentWildzProfile(profile, [asset], fetcher, options), profile);
+ assert.equal(writes, 1, "the admitted current delivery is reused after upgrade");
+});

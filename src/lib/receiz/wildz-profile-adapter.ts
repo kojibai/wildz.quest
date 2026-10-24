@@ -1,4 +1,4 @@
-import { fetchPublicWildzProfile } from "../../features/profile/public-profile-reader";
+import { fetchPublicWildzProfile, hasWildzProfileVaultDelivery } from "../../features/profile/public-profile-reader";
 export { fetchPublicWildzProfile } from "../../features/profile/public-profile-reader";
 import { createPublicWildzProfileRecord, parsePublicWildzProfileRecord, publicWildzProfileRecoverySourceUrls, type PublicWildzProfileRecord } from "./wildz-profile-record";
 export { WILDZ_PUBLIC_PROFILE_SCHEMA, verifiedWildzProfileCards, createPublicWildzProfileRecord, publicWildzProfileRecoverySourceUrls, parsePublicWildzProfileRecord } from "./wildz-profile-record";
@@ -143,7 +143,7 @@ export async function publishCurrentWildzProfile(
   profile: PublicWildzProfile,
   assetsOrFetcher: readonly PortableCardAsset[] | typeof fetch = [],
   suppliedFetcher: typeof fetch = globalThis.fetch,
-  options: { ownershipClaims?: readonly unknown[]; ownershipHistory?: readonly unknown[]; confirmExisting?: boolean; confirmMarketCollection?: boolean; signal?: AbortSignal; onProgress?: () => void; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string>; publishSourceProfile?: (profile: PublicWildzProfile, assets: readonly PortableCardAsset[], signal?: AbortSignal) => Promise<PublicWildzProfile>; publishWithIdentityProof?: (profile: PublicWildzProfile, signal?: AbortSignal) => Promise<PublicWildzProfile> } = {}
+  options: { ownershipClaims?: readonly unknown[]; ownershipHistory?: readonly unknown[]; confirmExisting?: boolean; confirmMarketCollection?: boolean; requireVaultDelivery?: boolean; signal?: AbortSignal; onProgress?: () => void; proofObjects?: WildzAdmittedVaultProofObjects; prepareBody?: (value: unknown) => Promise<string>; publishSourceProfile?: (profile: PublicWildzProfile, assets: readonly PortableCardAsset[], signal?: AbortSignal) => Promise<PublicWildzProfile>; publishWithIdentityProof?: (profile: PublicWildzProfile, signal?: AbortSignal) => Promise<PublicWildzProfile> } = {}
 ) {
   const assets = typeof assetsOrFetcher === "function" ? [] : assetsOrFetcher;
   const fetcher = typeof assetsOrFetcher === "function" ? assetsOrFetcher : suppliedFetcher;
@@ -171,7 +171,7 @@ export async function publishCurrentWildzProfile(
     const existing = await fetchPublicWildzProfile(profile.username, fetcher, { signal: options.signal }).catch(() => null);
     options.signal?.throwIfAborted();
     const collectionConfirmed = existing ? await confirmCollection(existing) : false;
-    if (existing && collectionConfirmed && canonicalPortableCardJson(existing) === canonicalPortableCardJson(sanitizePublicWildzProfile(profile))) {
+    if (existing && collectionConfirmed && (!options.requireVaultDelivery || hasWildzProfileVaultDelivery(existing)) && canonicalPortableCardJson(existing) === canonicalPortableCardJson(sanitizePublicWildzProfile(profile))) {
       pendingSourceProfiles.get(fetcher)?.delete(profile.username);
       return existing;
     }
@@ -183,7 +183,7 @@ export async function publishCurrentWildzProfile(
     let pending = pendingSourceProfiles.get(fetcher);
     if (!pending) { pending = new Map(); pendingSourceProfiles.set(fetcher, pending); }
     const profileKey = canonicalPortableCardJson(profile);
-    const key = `${profileKey}:${canonicalPortableCardJson(options.ownershipClaims ?? [])}:${canonicalPortableCardJson(options.ownershipHistory ?? [])}`;
+    const key = `${options.requireVaultDelivery ? "vault-v1:" : ""}${profileKey}:${canonicalPortableCardJson(options.ownershipClaims ?? [])}:${canonicalPortableCardJson(options.ownershipHistory ?? [])}`;
     if (pending.get(profile.username) !== key) {
       const published = await options.publishSourceProfile(profile, gallery, options.signal);
       options.signal?.throwIfAborted();
@@ -195,7 +195,7 @@ export async function publishCurrentWildzProfile(
     // An accepted append is not evidence that the public reader sees it yet.
     // Retry only the read while this exact successful write is awaiting delivery.
     const confirmed = await fetchPublicWildzProfile(profile.username, fetcher, { signal: options.signal });
-    if (!confirmed || canonicalPortableCardJson(confirmed) !== profileKey || !await confirmCollection(confirmed)) throw new Error("wildz_public_profile_publication_unconfirmed");
+    if (!confirmed || options.requireVaultDelivery && !hasWildzProfileVaultDelivery(confirmed) || canonicalPortableCardJson(confirmed) !== profileKey || !await confirmCollection(confirmed)) throw new Error("wildz_public_profile_publication_unconfirmed");
     pending.delete(profile.username);
     return confirmed;
   }
