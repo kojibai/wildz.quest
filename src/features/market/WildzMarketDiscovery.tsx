@@ -21,7 +21,7 @@ import {sameWildzPlayerCoordinate} from '../../lib/receiz/wildz-player-coordinat
 import {createWildzMarketCardPreparer,wildzMarketCardImageUrl,wildzMarketCardKey} from './wildz-market-card-preparation';
 import {createWildzMarketRarityIndex} from './wildz-market-rarity-index';
 
-export const marketHandle=(value:string)=>`@${value.replace(/\.receiz\.id$/,'')}`;
+export const marketHandle=(value:string)=>`@${value.trim().replace(/^@+/,'').replace(/\.receiz\.id$/i,'').toLowerCase()}`;
 export const marketKind=(kind:string)=>kind==='creature'?'Creature':'Resource package';
 
 export function MarketArtwork({kind,large=false,priority=false}:{kind:string;large?:boolean;priority?:boolean}){

@@ -12,6 +12,7 @@ export type WildzMarketLocalValueEvaluationV129=Readonly<{
  /** Optional pinned display basis for replay. Otherwise use Receiz's local
   * Wallet display policy; neither path fetches a quote or opens Wallet. */
  usdPerPhiMicrocents?:string|null;
+ artwork?:boolean;
 }>;
 const MAX_SAMPLES=32;
 const artwork=new Map<string,string>();
@@ -20,6 +21,7 @@ const artwork=new Map<string,string>();
  * local display math in the existing worker. Display-rate failures cannot
  * erase a valid object's artwork. Retain only eight small rendered strings. */
 export async function calculateWildzMarketLocalCardV129(card:PortableCardAsset,evaluation:WildzMarketLocalValueEvaluationV129):Promise<WildzMarketValueRead>{
+ if(evaluation.artwork===false)return calculateWildzMarketLocalValueV129(card,evaluation);
  if(!verifyAnyWildsCard(card).ok)return {status:'unavailable',message:'The complete card proof could not be verified.'};
  const key=`${card.id}:${card.proof.digest}`;
  let svg=artwork.get(key);

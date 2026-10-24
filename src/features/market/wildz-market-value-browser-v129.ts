@@ -17,6 +17,8 @@ export function createWildzMarketValueBrowserPortV129(input:Readonly<{
  ownerHandle?:string;
  current?():void;
  card(assetId:string):PortableCardAsset|null|Promise<PortableCardAsset|null>;
+ /** Profile fronts already use the public image; do not render it again. */
+ artwork?:boolean;
  /** Optional replay/display override; absent it the worker derives Receiz's
   * canonical public Wallet display rate locally for every identity. */
  usdPerPhiMicrocents?():string|null;
@@ -98,7 +100,7 @@ export function createWildzMarketValueBrowserPortV129(input:Readonly<{
    const cached=cache.get(key);if(cached){cache.delete(key);cache.set(key,cached);return cached;}
    const pending=running.get(key);if(pending)return pending;
    if(running.size>=MAX_PENDING)return unavailable('The visible collection is refreshing. Reopen this card to read its value.');
-   const evaluation:WildzMarketLocalValueEvaluationV129={valuationKaiUPulse,...(rate!==null?{usdPerPhiMicrocents:rate}:{})};
+   const evaluation:WildzMarketLocalValueEvaluationV129={valuationKaiUPulse,...(rate!==null?{usdPerPhiMicrocents:rate}:{}),...(input.artwork===false?{artwork:false}:{})};
    const operation=queue.catch(()=>undefined).then(()=>compute(assetId,card,evaluation,selectedGeneration)).then(result=>{
     if(disposed||selectedGeneration!==generation)return unavailable('Market value reading has closed.');input.current?.();
     if(result.status==='ready'){cache.set(key,result);while(cache.size>MAX_CACHE)cache.delete(cache.keys().next().value!);}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import {
   canonicalWildzHandle,
   sanitizePublicWildzProfile
@@ -124,6 +125,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ ha
       const result=await adapter.client.publicStore.publishSigned(collection,{idempotencyKey:`wildz-collection:${requestedHandle.slice(1)}:${signed!.record.publishedAt}`});
       collectionPublished=result.ok===true&&!!result.appendAnchorId&&result.knownHead?.appendAnchorId===result.appendAnchorId;
     }catch{/* Profile is published; the independent collection directory can retry. */}
+    revalidateTag(`wildz-profile-page:${requestedHandle}`);
     return json({ ok: true, published: true, profile, ...(collection?{collectionPublished}:{}) }, 201);
   } catch (cause) {
     return profileError(cause);

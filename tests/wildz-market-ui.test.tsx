@@ -6,7 +6,7 @@ import type {WildzMarketPurchaseReviewV128,WildzMarketServiceV128,WildzMarketSna
 import {createWildsWalletTradeAgreement,createWildsWalletTradeDraft} from '../src/features/play/wallet/wilds-wallet-trade';
 import {retainWildzMarketListingUiAttempt} from '../src/features/market/wildz-market-presentation';
 import {initialPlayState} from '../src/features/play/game-state';
-import {MarketCardArtwork} from '../src/features/market/WildzMarketDiscovery';
+import {MarketCardArtwork,marketHandle} from '../src/features/market/WildzMarketDiscovery';
 import {WildzMarketOffers,WildzMarketOwnedDetail} from '../src/features/market/WildzMarketCommunity';
 import type {WildzMarketOfferView} from '../src/features/market/wildz-market-offers';
 
@@ -47,6 +47,17 @@ test('an unresolved historical owner stays viewable without directing an offer t
  const asset=initialPlayState.inventory[0]!,card={assetId:asset.id,title:asset.manifest.name,proofDigest:asset.proof.digest,ownerHandle:'',artworkOwnerHandle:seller,claimKaiUPulse:null,claimHead:null,asset},f=fixture();
  const html=renderToStaticMarkup(<WildzMarketOwnedDetail card={card} service={f.service} busy={false} onBack={()=>{}} onChart={()=>{}} onOffer={async()=>{throw Error('No offer is authorized.');}}/>);
  assert.match(html,/Owner claim unresolved/);assert.doesNotMatch(html,/href="\/u\/"|>Send offer<\/button>/);assert.equal(f.calls(),0);
+});
+
+test('Market owner links display one @ and open the canonical player profile',()=>{
+ const asset=initialPlayState.inventory[0]!;
+ for(const ownerHandle of ['@bjklock','@@bjklock','bjklock.receiz.id',' @BJKLOCK.RECEIZ.ID ']){
+  const card={assetId:asset.id,title:asset.manifest.name,proofDigest:asset.proof.digest,ownerHandle,claimKaiUPulse:null,claimHead:null,asset};
+  const html=renderToStaticMarkup(<WildzMarketOwnedDetail card={card} service={null} busy={false} onBack={()=>{}} onChart={()=>{}} onOffer={async()=>undefined}/>);
+  assert.equal(marketHandle(ownerHandle),'@bjklock');
+  assert.match(html,/Owned by <a href="\/u\/bjklock">@bjklock<\/a>/);
+  assert.doesNotMatch(html,/@@|%40/);
+ }
 });
 
 test('Market omits creatures without their real card and paints cached resources without SDK work during render',()=>{

@@ -21,7 +21,7 @@ const summary = (digest: string, result: WildzMarketValueRead): DisplayValue => 
   valuationKaiUPulse: result.value.valuationKaiUPulse, algorithm: result.value.algorithm,
   changeBps: wildzMarketValueChange(result.value.samples, result.value.displayUsdCents === null ? "phi" : "usd")
 } } : { valueUnavailable: result.message }) });
-const exactValue = (card: PublicWildzCard, value?: WildzMarketValueRead) => value?.status === "ready" && value.value.assetId === card.id && value.value.proofDigest === card.proofDigest ? value : undefined;
+const exactValue = (card: Pick<PublicWildzCard, "id" | "proofDigest">, value?: WildzMarketValueRead) => value?.status === "ready" && value.value.assetId === card.id && value.value.proofDigest === card.proofDigest ? value : undefined;
 const closedValue = (): Promise<WildzMarketValueRead> => Promise.resolve({ status: "unavailable", message: "Open the profile to refresh this value." });
 
 export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({ cards, ownerAssets, profileHandle, active = true, initialSeed, marketService = null }: {
@@ -51,8 +51,8 @@ export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({
     if (!asset || asset.id !== card.assetId || asset.proof.digest !== card.proofDigest) throw Error("This exact profile card could not be loaded.");
     return asset;
   }, []);
-  const readerRef = useRef<{ readValue(assetId: string): Promise<WildzMarketValueRead> } | null>(null);
-  const reader = useMemo(() => ({ readValue: (id: string) => readerRef.current?.readValue(id) ?? closedValue() }), []);
+  const readerRef = useRef<{ readValue(assetId: string, details?: boolean): Promise<WildzMarketValueRead> } | null>(null);
+  const reader = useMemo(() => ({ readValue: (id: string) => readerRef.current?.readValue(id) ?? closedValue(), readDetails: (id: string) => readerRef.current?.readValue(id, true) ?? closedValue() }), []);
   const [values, setValues] = useState<ReadonlyMap<string, DisplayValue>>(() => new Map(cards.flatMap(card => {
     const value = exactValue(card, initialSeed?.values[card.id]);
     return value ? [[card.id, summary(card.proofDigest, value)] as const] : [];
@@ -137,14 +137,19 @@ export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({
       return operation;
     };
     assetReaderRef.current = readAsset;
-    const port = createWildzMarketValueBrowserPortV129({ card: readAsset });
-    const valueReader = { async readValue(assetId: string) {
+    const port = createWildzMarketValueBrowserPortV129({ card: readAsset, artwork: false });
+    const preparedUntil = new Map(cards.filter(card => exactValue(card, initialSeed?.values[card.id])).map(card => [card.id, Date.now() + 5500]));
+    const valueReader = { async readValue(assetId: string, details = false) {
+      const entry = collection.get(assetId);
+      const held = entry ? projections.current.get(`${assetId}:${entry.proofDigest}`) ?? exactValue({ id: assetId, proofDigest: entry.proofDigest }, initialSeed?.values[assetId]) : undefined;
+      if (held?.status === "ready" && (preparedUntil.get(assetId) ?? 0) > Date.now() && (!details || !held.value.detailsDeferred)) return held;
       const result = await port.read(assetId), card = collection.get(assetId);
       if (controller.signal.aborted || !card) return result;
       if (result.status === "ready" && (result.value.assetId !== assetId || result.value.proofDigest !== card.proofDigest)) return result;
       // Keep the chart and calculation, without retaining duplicate SVG artwork.
       const carried: WildzMarketValueRead = result.status === "ready" ? { status: "ready", value: result.value } : { status: "unavailable", message: result.message };
       projections.current.set(`${assetId}:${card.proofDigest}`, carried);
+      preparedUntil.set(assetId, Date.now() + 5500);
       while (projections.current.size > 48) projections.current.delete(projections.current.keys().next().value!);
       setValues(previous => new Map(previous).set(assetId, summary(card.proofDigest, result)));
       return result;
@@ -176,7 +181,7 @@ export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({
       if (assetReaderRef.current === readAsset) assetReaderRef.current = null;
       port.dispose?.();
     };
-  }, [active, collection, profileHandle]);
+  }, [active, collection, profileHandle, cards, initialSeed]);
 
   const displayCard = (card: PublicWildzCard): WildzMarketOwnedCard => {
     const seeded = exactValue(card, initialSeed?.values[card.id]);
@@ -189,7 +194,7 @@ export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({
     <header className="wildz-profile-vault-heading" hidden={showingDetail}><span>Companion Vault</span><strong>{cards.length} verified card{cards.length === 1 ? "" : "s"}</strong></header>
     <div className="wildz-profile-card-grid" hidden={showingDetail} inert={showingDetail ? true : undefined}>
       {cards.map((card, index) => {
-        const localAsset = ownerAssetsById.get(card.id), artwork = seedAssets.has(card.id) ? initialSeed?.artwork[card.id] : undefined;
+        const localAsset = ownerAssetsById.get(card.id), artwork = initialSeed?.profile.vault.some(entry => entry.id === card.id && entry.proofDigest === card.proofDigest) ? initialSeed.artwork[card.id] : undefined;
         return <article className="wildz-profile-card-entry" key={card.id}>
           <CardValue card={displayCard(card)} href={`#market-card=${encodeURIComponent(card.id)}&chart`} onChart={() => openCard(card, true)} />
           <a href={`#market-card=${encodeURIComponent(card.id)}`} aria-label={`Open ${card.name} market card`} className="wildz-profile-card-tile" onClick={event => { event.preventDefault(); openCard(card, false, event.currentTarget); }}>
@@ -202,6 +207,6 @@ export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({
       })}
     </div>
     {!cards.length ? <p className="wildz-sheet-empty">No companion cards yet.</p> : null}
-    {selectedEntry ? <WildzProfileMarketCard key={`${selectedEntry.id}:${selectedEntry.proofDigest}`} card={displayCard(selectedEntry)} active={showingDetail} artwork={seedAssets.has(selectedEntry.id) ? initialSeed?.artwork[selectedEntry.id] : undefined} focusChart={selected?.chart ?? false} onBack={backToProfile} profileHandle={profileHandle} service={marketService} valueReader={reader} readCard={readPreparedCard} initialValue={projections.current.get(`${selectedEntry.id}:${selectedEntry.proofDigest}`) ?? exactValue(selectedEntry, initialSeed?.values[selectedEntry.id])} /> : null}
+    {selectedEntry ? <WildzProfileMarketCard key={`${selectedEntry.id}:${selectedEntry.proofDigest}`} card={displayCard(selectedEntry)} active={showingDetail} artwork={initialSeed?.profile.vault.some(entry => entry.id === selectedEntry.id && entry.proofDigest === selectedEntry.proofDigest) ? initialSeed.artwork[selectedEntry.id] : undefined} focusChart={selected?.chart ?? false} onBack={backToProfile} profileHandle={profileHandle} service={marketService} valueReader={reader} readCard={readPreparedCard} initialValue={projections.current.get(`${selectedEntry.id}:${selectedEntry.proofDigest}`) ?? exactValue(selectedEntry, initialSeed?.values[selectedEntry.id])} /> : null}
   </section>;
 });

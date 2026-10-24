@@ -19,6 +19,9 @@ export type WildzMarketValueProjection=Readonly<{
  originKaiUPulse:string|null;valuationKaiUPulse:string;proofValuePhiMicro:string;marketReferenceValuePhiMicro:string|null;
  displayUsdCents:string|null;priceBasisDigest:string|null;
  samples:readonly WildzMarketValuePoint[];
+ /** A public first-paint projection carries the chart; expand the calculation
+  * to recover its full replay rather than serializing it into every page. */
+ detailsDeferred?:boolean;
  calculation:readonly Readonly<{id:string;label:string;formula:string;operands:Readonly<Record<string,string>>;result:string;unit:string;sourceReferences:readonly string[]}>[];
  replay?:Readonly<{filename:string;json:string}>;
 }>;

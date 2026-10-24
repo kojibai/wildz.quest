@@ -100,11 +100,38 @@ test("a prepared profile's first HTML contains its cards, artwork and values wit
   record.vaultCards = [asset];
   const seed = await prepareWildzProfilePageSeed(record);
   assert.equal(seed.values[asset.id]?.status, "ready");
+  assert.equal(seed.cards.length, 0, "the public page carries display data, not full original dossiers");
+  assert.ok(JSON.stringify(seed).length < 15_000, "initial display excludes the calculation and offline replay payloads");
   const html = renderToStaticMarkup(<WildzPublicProfilePage username="@profile-values" initialSeed={seed} />);
   assert.match(html, /Settled Explorer/);
-  assert.match(html, /data:image\/svg\+xml/);
+  const image = new URL(seed.artwork[asset.id]!, "https://wildz.quest");
+  assert.equal(image.pathname, `/api/cards/${encodeURIComponent(asset.id)}/image`);
+  assert.equal(image.searchParams.get("profile"), "@profile-values");
+  assert.equal(image.searchParams.get("digest"), asset.proof.digest);
+  assert.doesNotMatch(JSON.stringify(seed), /data:image\/svg\+xml/);
   assert.match(html, /Proof value/);
   assert.doesNotMatch(html, /Loading explorer|Finding explorer|Card preview|Proof value<\/span><div><strong>—/);
+});
+
+test("a prepared profile reuses its carried value when opening the chart, and reads full detail only on request", async context => {
+  const record = createPublicWildzProfileRecord({ username: "@profile-values", vault: [card] }, "https://wildz.quest/u/profile-values");
+  record.vaultCards = [asset];
+  const seed = await prepareWildzProfilePageSeed(record);
+  const env = browser();
+  const view = await mountMutableReact(<WildzProfileVaultGallery cards={[card]} profileHandle="@profile-values" initialSeed={seed} />, env);
+  context.after(async () => { await view.unmount(); env.restore(); });
+  env.notify(true);
+  await view.flush();
+  const badge = view.nodes().find(node => node.props?.["data-market-value-asset"] === card.id)!;
+  (badge.props!.onClick as (event: unknown) => void)({ preventDefault() {} });
+  for (let frame = 0; frame < 10 && !view.nodes().some(node => node.type === "svg" && String(node.props?.["aria-label"]).includes("Recomputed proof value")); frame++) await view.flush();
+  assert.ok(view.nodes().some(node => node.type === "svg" && String(node.props?.["aria-label"]).includes("Recomputed proof value")));
+  assert.equal(env.workers.length, 0, "opening a carried chart must not start another valuation");
+  assert.equal(env.fetches(), 0, "the front and chart do not need a full original download");
+  const calculation = view.nodes().find(node => node.type === "details" && node.children.some(child => child.type === "summary" && child.children.some(text => text.text === "How this value is calculated")))!;
+  (calculation.props!.onToggle as (event: unknown) => void)({ currentTarget: { open: true } });
+  for (let frame = 0; frame < 20 && !env.workers.length; frame++) await view.flush();
+  assert.equal(env.workers.length, 1, "the complete calculation is recovered when expanded");
 });
 
 test("the prepared chart opens from profile values and survives Back and reopening without another card read", async context => {
@@ -131,6 +158,24 @@ test("the prepared chart opens from profile values and survives Back and reopeni
   assert.ok(view.nodes().includes(detail), "Market detail and chart DOM stay mounted");
   assert.equal(detail.props?.hidden, false);
   assert.equal(env.fetches(), 1);
+});
+
+test("the owner byline returns straight to the retained profile", async context => {
+  const env = browser();
+  const view = await mountMutableReact(<WildzProfileVaultGallery cards={[card]} profileHandle="@profile-values" />, env);
+  context.after(async () => { await view.unmount(); env.restore(); });
+  const tile = view.nodes().find(node => node.props?.["aria-label"] === `Open ${card.name} market card`)!;
+  (tile.props!.onClick as (event: unknown) => void)({ currentTarget: { isConnected: false }, preventDefault() {} });
+  await view.flush();
+  const detail = view.nodes().find(node => node.props?.["data-profile-market-card"] !== undefined)!;
+  const owner = view.nodes().find(node => node.type === "a" && node.props?.href === "/u/profile-values")!;
+  assert.ok(owner, "the byline has a canonical native profile link");
+  let prevented = false;
+  (owner.props!.onClick as (event: unknown) => void)({ button: 0, preventDefault() { prevented = true; } });
+  await view.flush();
+  assert.equal(prevented, true);
+  assert.equal(detail.props?.hidden, true);
+  assert.ok(view.nodes().includes(tile), "the exact profile DOM is retained");
 });
 
 test("a revised profile never shows the previous proof's value and retains navigation when recovery fails", async context => {
@@ -161,6 +206,9 @@ test("opening a card while its profile value is recovering shares the exact pend
   await view.flush();
   const tile = view.nodes().find(node => node.props?.["aria-label"] === `Open ${card.name} market card`)!;
   (tile.props!.onClick as (event: unknown) => void)({ currentTarget: { isConnected: false }, preventDefault() {} });
+  for (let frame = 0; frame < 10 && !view.nodes().some(node => node.props?.["aria-label"] === `Flip ${card.name}`); frame++) await view.flush();
+  const front = view.nodes().find(node => node.props?.["aria-label"] === `Flip ${card.name}`)!;
+  (front.props!.onClick as (event: unknown) => void)({ detail: 0, currentTarget: { isConnected: false } });
   await view.flush();
   release();
   for (let frame = 0; frame < 30 && !view.nodes().some(node => String(node.props?.className).startsWith("wilds-card-scene")); frame++) await view.flush();

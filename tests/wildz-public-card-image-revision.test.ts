@@ -8,6 +8,22 @@ import {createPublicWildsCardRecord} from '../src/features/play/public-card-regi
 import * as publicCard from '../src/lib/receiz/wildz-market-public-card';
 import {resolvePublicWildsCardRecord} from '../src/lib/receiz/wildz-public-card-resolver';
 import {emptyWildzPublicState} from '../src/lib/receiz/wildz-public-state';
+import {prepareWildzProfilePageSeed} from '../src/lib/receiz/wildz-profile-page-seed';
+import {createPublicWildzProfileRecord} from '../src/lib/receiz/wildz-profile-record';
+import {prepareVerifiedWildzCardArtwork} from '../src/lib/receiz/wildz-prepared-card-artwork';
+
+test('prepared profile image requests reuse exact verified artwork without another public-source lookup',async context=>{
+ const asset=sealCollectedCard({formId:'mintcub-1',ownerReceizId:'prepared_front.receiz.id',encounterId:'profile-prepared-front',capturedAt:'2026-10-12T12:00:00.000Z'});
+ const record=createPublicWildzProfileRecord({username:'@prepared_front',vault:[{id:asset.id,name:asset.manifest.name,proofDigest:asset.proof.digest,visibility:'public'}]},'https://wildz.quest/u/prepared_front');
+ record.vaultCards=[asset];
+ const seed=await prepareWildzProfilePageSeed(record,undefined,card=>prepareVerifiedWildzCardArtwork(card,'https://wildz.quest'));
+ let reads=0;
+ context.mock.method(globalThis,'fetch',async()=>{reads++;throw Error('The public source should already be prepared.');});
+ const response=await GET(new NextRequest(new URL(seed.artwork[asset.id]!,'https://wildz.quest')),{params:Promise.resolve({assetId:asset.id})});
+ assert.equal(response.status,200);
+ assert.match(await response.text(),new RegExp(asset.manifest.name));
+ assert.equal(reads,0);
+});
 
 test('card images are pinned to the requested proof revision and reject malformed digests before lookup',async context=>{
  const asset=initialPlayState.inventory[0]!,params=Promise.resolve({assetId:asset.id});

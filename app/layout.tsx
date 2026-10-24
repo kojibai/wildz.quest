@@ -83,8 +83,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="wildz-document">
-      <body><NativeInteractionGuard /><WildzClientErrorCapture />{children}<PwaController /></body>
+    <html lang="en" className="wildz-document" style={{ background: "#09110d", colorScheme: "dark" }}>
+      <body style={{ background: "#09110d" }}><NativeInteractionGuard /><WildzClientErrorCapture />{children}<PwaController /></body>
     </html>
   );
 }

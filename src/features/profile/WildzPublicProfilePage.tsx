@@ -9,7 +9,8 @@ import { retainWildzProfilePage, retainedWildzProfilePage, type WildzProfilePage
 import { WildzProfileSheet } from "./WildzProfileSheet";
 
 export function WildzPublicProfilePage({ username, initialSeed = null }: { username: string; initialSeed?: WildzProfilePageSeed | null }) {
-  const [profile, setProfile] = useState<PublicWildzProfile | null>(() => initialSeed?.profile.username === username ? initialSeed.profile : null);
+  const carriedSeed = initialSeed?.profile.username === username ? initialSeed : retainedWildzProfilePage(username);
+  const [profile, setProfile] = useState<PublicWildzProfile | null>(() => carriedSeed?.profile ?? null);
   const [status, setStatus] = useState("Loading explorer…");
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -58,7 +59,7 @@ export function WildzPublicProfilePage({ username, initialSeed = null }: { usern
   }, [username, attempt, initialSeed]);
   return <main className="wildz-public-profile-page">
     <nav aria-label="Profile navigation"><Link href="/">← Enter Wildz</Link><span>{username}</span></nav>
-    {profile ? <WildzProfileSheet key={profile.username} profile={profile} initialSeed={initialSeed?.profile.username === username ? initialSeed : undefined} /> : <section className="wildz-public-profile-empty"><h1>{username}</h1><p role="status">{status}</p>{status !== "Loading explorer…" && <button type="button" onClick={() => setAttempt(value => value + 1)}>Try again</button>}</section>}
+    {profile ? <WildzProfileSheet key={profile.username} profile={profile} initialSeed={carriedSeed ?? undefined} /> : <section className="wildz-public-profile-empty"><h1>{username}</h1><p role="status">{status}</p>{status !== "Loading explorer…" && <button type="button" onClick={() => setAttempt(value => value + 1)}>Try again</button>}</section>}
     <footer className="wildz-public-profile-links"><Link prefetch={false} href="/guide">How to play Wildz</Link><Link prefetch={false} href="/about">About the game</Link><Link prefetch={false} href="/laws">World law</Link></footer>
   </main>;
 }
