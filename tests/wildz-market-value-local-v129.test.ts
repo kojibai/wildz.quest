@@ -4,7 +4,7 @@ import {creatureForm} from '../src/features/play/creature-catalog';
 import {deriveKaiKlokMomentFromUPulse} from '../src/features/play/kai-klok-moment';
 import {discoverLivingCreature} from '../src/features/play/living-taxonomy';
 import {sealCollectedCard,sealDiscoveredCard} from '../src/features/play/portable-card';
-import {calculateWildzMarketLocalValueV129 as calculate} from '../src/features/market/wildz-market-value-local-v129';
+import {calculateWildzMarketLocalValueV129 as calculate,calculateWildzMarketLocalSummaryV129 as summarize} from '../src/features/market/wildz-market-value-local-v129';
 import * as localCard from '../src/features/market/wildz-market-value-local-v129';
 import {computeIntrinsicUnsigned,SIGIL_VALUATION_ALGORITHM,SIGIL_VALUATION_POLICY_CHECKSUM} from '@receiz/sdk/valuation';
 import {digestReceizCanonicalV122,quoteReceizDisplayUsdV122} from '@receiz/sdk';
@@ -18,6 +18,24 @@ const identity=discoverLivingCreature({encounterId:'local-value:discovery',form:
  moment:deriveKaiKlokMomentFromUPulse({uPulse:13789277000570,authority:'world'})});
 const card=sealDiscoveredCard({identity,formId:'pearlbeak-1',ownerReceizId:owner,capturedAt});
 const evaluation={valuationKaiUPulse:'14063111123456',usdPerPhiMicrocents:'100000000'};
+test('first-paint summaries synchronously preserve the exact sealed rarity and USD math',async()=>{
+ for(const expected of rarityCases){
+  const selected=rarityCard(expected.formId),summary=summarize(selected,evaluation);
+  assert.ok(summary && !(summary instanceof Promise),'a badge is ready in the same render');
+  assert.equal(summary.assetId,selected.id);assert.equal(summary.proofDigest,selected.proof.digest);
+  assert.equal(summary.proofValuePhiMicro,expected.amount);assert.equal(summary.displayUsdCents,expected.usd);
+  const detailed=await calculate(selected,evaluation);
+  assert.equal(detailed.status,'ready');if(detailed.status!=='ready')continue;
+  const first=BigInt(detailed.value.samples[0]!.usdCents!),last=BigInt(detailed.value.displayUsdCents!);
+  assert.equal(summary.changeBps,first===0n?null:((last-first)*10000n/first).toString(),'the badge uses the same complete chart window');
+ }
+ const invalid=structuredClone(card);invalid.manifest.name='tampered';
+ assert.equal(summarize(invalid,evaluation),null);
+ assert.equal(summarize(card,{...evaluation,valuationKaiUPulse:'01'}),null);
+ assert.equal(summarize(card,{valuationKaiUPulse:evaluation.valuationKaiUPulse})?.displayUsdCents,'219486');
+ assert.equal(summarize(card,{...evaluation,valuationKaiUPulse:'13789277000570'})?.changeBps,null,'a new card has no earlier chart point');
+ assert.equal(summarize(card,{...evaluation,valuationKaiUPulse:'13789277000569'}),null);
+});
 test('SDK local card calculation preserves exact discovery uPulse and deterministic Phi/USD',async()=>{
  const result=await calculate(card,evaluation);
  assert.equal(result.status,'ready');if(result.status!=='ready')return;

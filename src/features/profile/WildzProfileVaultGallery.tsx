@@ -16,6 +16,8 @@ import type { WildzProfilePageSeed } from "./profile-page-seed";
 import { ownerProfileVaultAssets, parseProfileVaultPublicAsset, profileVaultCardImageUrl } from "./profile-vault-card";
 import { readWildzProfileVaultPacketAsync } from "./profile-vault-packet";
 import { WILDZ_PROFILE_INITIAL_CARDS } from "./profile-viewport";
+import { calculateWildzMarketLocalSummaryV129 } from "../market/wildz-market-value-local-v129";
+import { receizKaiNow } from "@receiz/sdk";
 
 type DisplayValue = Pick<WildzMarketOwnedCard, "value" | "valueUnavailable"> & { digest: string };
 const summary = (digest: string, result: WildzMarketValueRead): DisplayValue => ({ digest, ...(result.status === "ready" ? { value: {
@@ -44,6 +46,17 @@ export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({
     claimKaiUPulse: null, claimHead: null, asset: ownerAssetsById.get(card.id) ?? seedAssets.get(card.id)
   } satisfies WildzMarketOwnedCard])), [cards, ownerAssetsById, seedAssets, profileHandle]);
   const currentCollection = useRef(collection); currentCollection.current = collection;
+  const initialValues = useMemo(() => {
+    const at = String(receizKaiNow().uPulse);
+    return new Map(cards.flatMap(card => {
+      const projection = exactValue(card, initialSeed?.values[card.id]);
+      if (projection) return [[card.id, summary(card.proofDigest, projection)] as const];
+      const carried = initialSeed?.summaries?.[card.id];
+      const asset = active ? collection.get(card.id)?.asset : undefined;
+      const value = carried?.assetId === card.id && carried.proofDigest === card.proofDigest ? carried : asset ? calculateWildzMarketLocalSummaryV129(asset, { valuationKaiUPulse: at }) : null;
+      return value ? [[card.id, { digest: card.proofDigest, value }] as const] : [];
+    }));
+  }, [active, cards, collection, initialSeed]);
   const recovered = useRef(new Map<string, PortableCardAsset>());
   const projections = useRef(new Map<string, WildzMarketValueRead>());
   const assetReaderRef = useRef<((id: string) => Promise<PortableCardAsset | null>) | null>(null);
@@ -149,6 +162,7 @@ export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({
     assetReaderRef.current = readAsset;
     const port = createWildzMarketValueBrowserPortV129({ card: readAsset, artwork: false });
     const preparedUntil = new Map(cards.filter(card => exactValue(card, initialSeed?.values[card.id])).map(card => [card.id, Date.now() + 5500]));
+    const badgeUntil = new Map([...initialValues.keys()].map(id => [id, Date.now() + 5500]));
     const valueReader = { async readValue(assetId: string, details = false) {
       const entry = collection.get(assetId);
       const held = entry ? projections.current.get(`${assetId}:${entry.proofDigest}`) ?? exactValue({ id: assetId, proofDigest: entry.proofDigest }, initialSeed?.values[assetId]) : undefined;
@@ -160,15 +174,27 @@ export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({
       const carried: WildzMarketValueRead = result.status === "ready" ? { status: "ready", value: result.value } : { status: "unavailable", message: result.message };
       projections.current.set(`${assetId}:${card.proofDigest}`, carried);
       preparedUntil.set(assetId, Date.now() + 5500);
+      badgeUntil.set(assetId, Date.now() + 5500);
       while (projections.current.size > 48) projections.current.delete(projections.current.keys().next().value!);
       setValues(previous => new Map(previous).set(assetId, summary(card.proofDigest, result)));
       return result;
     } };
     readerRef.current = valueReader;
     const refresh = async (assetId: string) => {
-      if (controller.signal.aborted || pending.has(assetId) || document.visibilityState === "hidden") return;
+      if (controller.signal.aborted || pending.has(assetId) || document.visibilityState === "hidden" || (badgeUntil.get(assetId) ?? 0) > Date.now()) return;
       pending.add(assetId);
-      try { await valueReader.readValue(assetId); } finally { pending.delete(assetId); }
+      try {
+        // Refresh a held badge with its small local calculation. Charts and
+        // audit replays are read separately when the user opens those views.
+        const entry = collection.get(assetId);
+        const asset = entry?.asset ?? recovered.current.get(`${assetId}:${entry?.proofDigest}`) ?? (await carriedCards)?.get(assetId);
+        const value = asset ? calculateWildzMarketLocalSummaryV129(asset, { valuationKaiUPulse: String(receizKaiNow().uPulse) }) : null;
+        if (controller.signal.aborted) return;
+        if (entry && value?.assetId === assetId && value.proofDigest === entry.proofDigest) {
+          badgeUntil.set(assetId, Date.now() + 5500);
+          setValues(previous => new Map(previous).set(assetId, { digest: entry.proofDigest, value }));
+        } else await valueReader.readValue(assetId);
+      } finally { pending.delete(assetId); }
     };
     const refreshVisible = () => { for (const assetId of visible) void refresh(assetId); };
     const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(entries => {
@@ -191,12 +217,11 @@ export const WildzProfileVaultGallery = memo(function WildzProfileVaultGallery({
       if (assetReaderRef.current === readAsset) assetReaderRef.current = null;
       port.dispose?.();
     };
-  }, [active, collection, profileHandle, cards, initialSeed]);
+  }, [active, collection, profileHandle, cards, initialSeed, initialValues]);
 
   const displayCard = (card: PublicWildzCard): WildzMarketOwnedCard => {
-    const seeded = exactValue(card, initialSeed?.values[card.id]);
     const retained = values.get(card.id);
-    const read = retained?.digest === card.proofDigest ? retained : seeded ? summary(card.proofDigest, seeded) : undefined;
+    const read = retained?.digest === card.proofDigest ? retained : initialValues.get(card.id);
     const asset = collection.get(card.id)?.asset ?? recovered.current.get(`${card.id}:${card.proofDigest}`);
     return { ...collection.get(card.id)!, ...(asset ? { asset } : {}), ...(read?.digest === card.proofDigest ? { value: read.value, valueUnavailable: read.valueUnavailable } : {}) };
   };

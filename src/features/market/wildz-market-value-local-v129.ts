@@ -4,7 +4,7 @@ import {computeIntrinsicUnsigned,stableStringify,SIGIL_VALUATION_ALGORITHM,SIGIL
 import {verifyAnyWildsCard,type PortableCardAsset} from '../play/portable-card';
 import {deriveKaiKlokMoment,deriveKaiKlokMomentFromUPulse} from '../play/kai-klok-moment';
 import type {WildzMarketValueRead,WildzMarketValuePoint,WildzMarketValueProjection} from './wildz-market-value';
-import {calculateReceizLocalDisplayRateV129} from './receiz-local-display-rate-v129';
+import {calculateReceizLocalDisplayRateV129,receizLocalDisplayRateAmountV129} from './receiz-local-display-rate-v129';
 import {renderWildsCardSvg} from '../play/card-svg';
 
 export type WildzMarketLocalValueEvaluationV129=Readonly<{
@@ -77,6 +77,32 @@ function phiMicro(valuePhi:number){
  const rounded=Math.round(valuePhi*1_000_000);
  if(!Number.isSafeInteger(rounded)||rounded<0)throw Error('LOCAL_VALUE_AMOUNT_INVALID');
  return BigInt(rounded).toString();
+}
+export type WildzMarketLocalSummaryV129=Readonly<{
+ assetId:string;proofDigest:string;proofValuePhiMicro:string;displayUsdCents:string;
+ valuationKaiUPulse:string;algorithm:string;changeBps:string|null;
+}>;
+
+/** First-paint badge math over the exact verified card. Only the two chart
+ * endpoints affect its change; no replay, hashes, artwork or transport is needed. */
+export function calculateWildzMarketLocalSummaryV129(card:PortableCardAsset,evaluation:WildzMarketLocalValueEvaluationV129):WildzMarketLocalSummaryV129|null{
+ try{
+  const at=coordinate(evaluation.valuationKaiUPulse),{metadata,source,rarity}=sourceInput(card),origin=coordinate(source.originKaiUPulse);
+  if(at<origin)return null;
+  const rate=evaluation.usdPerPhiMicrocents??receizLocalDisplayRateAmountV129(evaluation.valuationKaiUPulse);
+  if(!/^[1-9][0-9]{0,29}$/.test(rate))return null;
+  const amountAt=(point:bigint)=>{
+   const sdk=computeIntrinsicUnsigned(metadata,Number(point/1_000_000n));
+   return ((BigInt(phiMicro(sdk.unsigned.valuePhi))*BigInt(RARITY_POLICY.multipliersBps[rarity])+5000n)/10000n).toString();
+  };
+  const proofValuePhiMicro=amountAt(at);
+  const convert=(amount:string)=>amount==='0'?'0':quoteReceizDisplayUsdV122(amount,rate);
+  const displayUsdCents=convert(proofValuePhiMicro);
+  const start=at-BigInt(MAX_SAMPLES-1)*1_000_000n,first=BigInt(convert(amountAt(start<origin?origin:start)));
+  return {assetId:card.id,proofDigest:card.proof.digest,proofValuePhiMicro,displayUsdCents,
+   valuationKaiUPulse:evaluation.valuationKaiUPulse,algorithm:SIGIL_VALUATION_ALGORITHM,
+   changeBps:at===origin||first===0n?null:((BigInt(displayUsdCents)-first)*10000n/first).toString()};
+ }catch{return null;}
 }
 
 /** The actual SDK129 pure law followed by the explicit Wildz rarity policy,

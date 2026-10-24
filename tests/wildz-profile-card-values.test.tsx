@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { WildzProfileVaultGallery } from "../src/features/profile/WildzProfileVaultGallery";
-import { sealCollectedCard } from "../src/features/play/portable-card";
+import { sealCollectedCard, wildsCardVerificationDiagnostics } from "../src/features/play/portable-card";
 import { createPublicWildsCardRecord } from "../src/features/play/public-card-registry";
 import { mountMutableReact } from "./helpers/react-mutation-renderer";
 import { prepareWildzProfilePageSeed } from "../src/lib/receiz/wildz-profile-page-seed";
@@ -52,6 +52,16 @@ test("every card on an owner profile can open Market before deferred previews mo
   assert.match(html, /aria-label="Open .* market card"/);
   assert.match(html, /data-profile-preview="deferred"/);
   assert.match(html, /Proof value/);
+  assert.doesNotMatch(html, /<strong>—<\/strong>/, "held owner proofs supply values during the first render");
+  assert.match(html, /<strong>\$[\d,.]+<\/strong>/);
+});
+
+test("a closed owner profile does not calculate card values during gameplay", () => {
+  const held = sealCollectedCard({ capturedAt: "2026-08-11T12:00:00.000Z", encounterId: "inactive-profile-value", formId: "mintcub-1", ownerReceizId: "inactive_profile" });
+  const entries = [{ id: held.id, name: held.manifest.name, proofDigest: held.proof.digest, visibility: "public" as const }];
+  const before = wildsCardVerificationDiagnostics().executions;
+  renderToStaticMarkup(<WildzProfileVaultGallery active={false} cards={entries} ownerAssets={[held]} profileHandle="inactive_profile" />);
+  assert.equal(wildsCardVerificationDiagnostics().executions, before, "hidden profile work must not run on the gameplay path");
 });
 
 function browser() {
@@ -168,11 +178,51 @@ test("the complete public Vault is carried beyond the first visible cards", asyn
   const record = createPublicWildzProfileRecord({ username: "@complete-profile", vault: assets.map(asset => ({ id: asset.id, name: asset.manifest.name, proofDigest: asset.proof.digest, visibility: "public" })) }, "https://wildz.quest/u/complete-profile");
   record.vaultCards = assets;
   let reads = 0;
-  const seed = await prepareWildzProfilePageSeed(record, async () => { reads++; return null; });
+  const artwork: string[] = [];
+  const seed = await prepareWildzProfilePageSeed(record, async () => { reads++; return null; }, card => { artwork.push(card.id); });
   const packet = (seed as unknown as { vaultPacket?: { data: string } }).vaultPacket;
   assert.ok(packet, "the first response retains the complete held collection");
   assert.deepEqual(JSON.parse(gunzipSync(Buffer.from(packet.data, "base64")).toString()), assets);
   assert.equal(reads, 0);
+  assert.deepEqual(artwork, assets.slice(0, 2).map(card => card.id), "preparing all values must not render offscreen artwork");
+  const html = renderToStaticMarkup(<WildzPublicProfilePage username="@complete-profile" initialSeed={seed} />);
+  assert.equal((html.match(/<strong>\$[\d,.]+<\/strong>/g) ?? []).length, 6, "all values arrive in the first HTML, including offscreen cards");
+  assert.doesNotMatch(html, /<strong>—<\/strong>/);
+  const revised = { ...record.profile.vault[5]!, proofDigest: `sha256:${"0".repeat(64)}` };
+  const revisedHtml = renderToStaticMarkup(<WildzProfileVaultGallery cards={[revised]} initialSeed={seed} profileHandle="@complete-profile" />);
+  assert.match(revisedHtml, /<strong>—<\/strong>/, "an old summary cannot supply a different proof revision");
+});
+
+test("offscreen prepared values are present before observers or workers run", async context => {
+  const assets = Array.from({ length: 6 }, (_, index) => sealCollectedCard({ capturedAt: "2026-08-11T12:00:00.000Z", encounterId: `settled-values-${index}`, formId: "mintcub-1", ownerReceizId: "settled_values" }));
+  const record = createPublicWildzProfileRecord({ username: "@settled_values", vault: assets.map(asset => ({ id: asset.id, name: asset.manifest.name, proofDigest: asset.proof.digest, visibility: "public" })) }, "https://wildz.quest/u/settled_values");
+  record.vaultCards = assets;
+  const seed = await prepareWildzProfilePageSeed(record);
+  const env = browser();
+  const view = await mountMutableReact(<WildzProfileVaultGallery cards={record.profile.vault} initialSeed={seed} profileHandle="@settled_values" />, env);
+  context.after(async () => { await view.unmount(); env.restore(); });
+  assert.equal(view.nodes().filter(node => node.type === "strong" && node.children.some(child => /^\$[\d,.]+$/.test(child.text ?? ""))).length, 6);
+  assert.equal(env.workers.length, 0);
+  assert.equal(env.fetches(), 0);
+  env.notify(true);
+  for (let frame = 0; frame < 5; frame++) await view.flush();
+  assert.equal(env.workers.length, 0, "revealing a settled badge must not rebuild its full calculation");
+  assert.equal(env.fetches(), 0);
+});
+
+test("live owner badges refresh from held proofs without building full replay values", async context => {
+  const env = browser();
+  const view = await mountMutableReact(<WildzProfileVaultGallery cards={[card]} ownerAssets={[asset]} profileHandle="@profile-values" />, env);
+  context.after(async () => { await view.unmount(); env.restore(); });
+  env.notify(true);
+  await view.flush();
+  const future = Date.now() + 6000;
+  context.mock.method(Date, "now", () => future);
+  env.tick();
+  await view.flush();
+  assert.match(view.text(), /\$[\d,.]+/);
+  assert.equal(env.workers.length, 0);
+  assert.equal(env.fetches(), 0);
 });
 
 test("the prepared chart opens from profile values and survives Back and reopening without another card read", async context => {

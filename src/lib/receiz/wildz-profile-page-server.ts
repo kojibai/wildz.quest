@@ -34,7 +34,7 @@ function preparedPage(handle: string, delivered?: PublicWildzProfileRecord) {
       return (await resolvePublicWildsCardRecord(card.id, WILDZ_PRODUCT.origin, username).catch(() => null))?.asset ?? null;
     },
     asset => persistVerifiedWildzCardArtwork(asset, WILDZ_PRODUCT.origin));
-  }, ["wildz-profile-page-v5", username], { revalidate: 60, tags: [`wildz-profile-page:${username}`] })();
+  }, ["wildz-profile-page-v6", username], { revalidate: 60, tags: [`wildz-profile-page:${username}`] })();
 }
 export const loadWildzProfilePageSeed = cache((handle: string) => preparedPage(handle));
 

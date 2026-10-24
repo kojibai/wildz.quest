@@ -31,12 +31,19 @@ function compute(pulse:number){
 // identity, card count and Wallet freshness. No timer or transport exists.
 let cached:ReturnType<typeof compute>|null=null;
 
-export async function calculateReceizLocalDisplayRateV129(valuationKaiUPulse:string){
+function rateAt(valuationKaiUPulse:string){
  if(!/^(?:0|[1-9][0-9]{0,15})$/.test(valuationKaiUPulse))throw Error('LOCAL_VALUE_COORDINATE_INVALID');
  const exact=BigInt(valuationKaiUPulse);
  if(exact>BigInt(Number.MAX_SAFE_INTEGER))throw Error('LOCAL_VALUE_COORDINATE_INVALID');
  const pulse=Number(exact/1_000_000n);
- const selected=cached?.pulse===pulse?cached:(cached=compute(pulse));
+ return cached?.pulse===pulse?cached:(cached=compute(pulse));
+}
+/** The same deterministic display amount without building its audit payload. */
+export function receizLocalDisplayRateAmountV129(valuationKaiUPulse:string){
+ return rateAt(valuationKaiUPulse).usdPerPhiMicrocents;
+}
+export async function calculateReceizLocalDisplayRateV129(valuationKaiUPulse:string){
+ const selected=rateAt(valuationKaiUPulse),pulse=selected.pulse;
  policyChecksum??=digestReceizCanonicalV122(policy);
  return {
   schema:'wildz.receiz-local-display-rate.v129',algorithm:'receiz.wallet.default-issuance-display.v1',

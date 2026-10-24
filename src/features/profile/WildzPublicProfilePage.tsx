@@ -31,7 +31,7 @@ export function WildzPublicProfilePage({ username, initialSeed = null }: { usern
       try {
         const value = await fetchPublicWildzProfile(username, globalThis.fetch, { signal: controller.signal });
         if (!active) return;
-        if (value) retainWildzProfilePage({ profile: value, cards: carried?.cards ?? [], values: carried?.values ?? {}, artwork: carried?.artwork ?? {}, ...(carried?.vaultPacket ? { vaultPacket: carried.vaultPacket } : {}) });
+        if (value) retainWildzProfilePage({ profile: value, cards: carried?.cards ?? [], values: carried?.values ?? {}, summaries: carried?.summaries, artwork: carried?.artwork ?? {}, ...(carried?.vaultPacket ? { vaultPacket: carried.vaultPacket } : {}) });
         setProfile(previous => canonicalPortableCardJson(previous) === canonicalPortableCardJson(value) ? previous : value);
         setStatus(value ? "" : "This profile is not live yet. Its owner can open Profile in Wildz to publish it.");
       } catch {
