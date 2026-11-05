@@ -3,6 +3,7 @@
 import type { WildsActivityEntry } from "./wilds-activity-history";
 import type { WildsLivingOperationPlanV1 } from "../wilds-living-operation";
 import React, { useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { RECEIZ_SDK_VERSION } from "@receiz/sdk";
 import type { WildsWalletControllerState, WildsWalletPage, WildsWalletPresentationState } from "./wilds-wallet-controller";
 import { PhiNetworkMark } from "./PhiNetworkMark";
 import { WildsWalletAssets } from "./WildsWalletAssets";
@@ -115,7 +116,7 @@ export function WildsWalletTerminal({ actionHistory, livingOperations, cards = [
         {state.page === "trade" ? <WildsWalletTrade key={publicUsername ?? "signed-out"} cards={cards} nourishment={nourishment} materialLots={materialLots} resourceLots={resourceLots} resourceCards={resourceCards} publicUsername={publicUsername} onProposeTrade={onProposeTrade} incomingTrades={incomingTrades} incomingAgreements={incomingAgreements} incomingAssets={incomingAssets} onAcceptIncomingAsset={onAcceptIncomingAsset} nativeTradeResults={nativeTradeResults} onApproveTrade={onApproveTrade} onRecoverTrade={onRecoverTrade} /> : null}
         {state.page === "ledger" ? <WildsWalletLedger actionHistory={actionHistory} livingOperations={livingOperations} cards={cards} materialLots={ledgerMaterialLots ?? materialLots} resourceLots={resourceLots} nourishment={nourishment} resourceCards={resourceCards} state={state} stewardPhiAwards={stewardPhiAwards} /> : null}
       </main>
-      <footer><span>RECEIZ V128 · PROOF-NATIVE CUSTODY</span><span>PRIVATE · NO-STORE</span></footer>
+      <footer><span>{`RECEIZ V${RECEIZ_SDK_VERSION.split(".")[0]} · PROOF-NATIVE CUSTODY`}</span><span>PRIVATE · NO-STORE</span></footer>
     </section>
   </div>;
 }

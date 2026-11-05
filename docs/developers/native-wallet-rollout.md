@@ -1,10 +1,13 @@
-# Published v128 wallet integration
+# Native wallet integration
 
 Wildz uses the exact public `@receiz/sdk`, `@receiz/mcp-server`, and
-`@receiz/ai-skills` packages at `128.0.0`. There are no package patches, Receiz
+`@receiz/ai-skills` packages at `129.0.0`. There are no package patches, Receiz
 source changes, new Receiz endpoints, or database migrations in this integration.
-The public SDK catalog has 680 callable functions and digest
-`687bdd064b49bf7df1c32eb4ab3c0f1389c80c8bc90d7cfbec32147db1cc73ad`.
+The public SDK catalog has 704 callable functions and digest
+`af61e23d857fa1fa54fd2a09d5b0f02afadd55b6a02936dcacbae300f124cb94`.
+See the [v129 integration record](../release/receiz-v129-integration.md) for
+current package evidence and the deployed stages still requiring qualification.
+The dated v128 validation results below retain their original release coordinates.
 
 The wallet read/controller/source/loading baseline is commit
 `84a4270e6dff96366362d698036c07ff183f261a`. Resource display additions use the
@@ -101,7 +104,7 @@ These compatibility decisions are recorded in
 `docs/receiz-decisions/2026-10-10-published-v128-staged-marketplace.md`.
 
 Before release, run typecheck, lint, tests, production build, architecture lock,
-secret scan and the coordinated v128 compatibility/conformance checks. Live
+secret scan and the coordinated v129 compatibility/conformance checks. Live
 transfers and deployment require the separately reviewed user confirmation;
 local tests do not claim that production funds or custody moved.
 

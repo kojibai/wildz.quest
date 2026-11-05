@@ -99,7 +99,7 @@ test("SDK, operational MCP, and AI skills request and install only Receiz v129",
   assert.ok(lockfile.includes("sha512-Y8WMYMVim5LrMpsCP85kxYdR6yQpBmIgt0DIWqXy320BqCECxg8du+AOUwzWJsAOQeJSorIPkysdoTnQPsWsrQ=="));
   assert.ok(lockfile.includes("sha512-BN+x3ETZ8DeaEi4ARWOEpw8uUWI88m3BFSOrzPyy06DPbCfT2DdP4rdaWgixVYtVh4OPlPOurEapxm0thxDGEg=="));
   assert.ok(lockfile.includes("sha512-EMWSpxTTZCMIoGeXHaMj4Lw0XQIcQIhekRYZkpNOEG5T6gavtrm920zqmmxwI7dLNNbap6p75hlYV8iqtXRDOQ=="));
-  assert.equal(pkg.scripts?.["receiz:check"], "node scripts/receiz-v128-check.mjs");
+  assert.equal(pkg.scripts?.["receiz:check"], "node scripts/receiz-v129-check.mjs");
   assert.equal(pkg.scripts?.["receiz:conformance"], "receiz conformance");
   for (const version of [requestedSdk, requestedMcp, requestedAiSkills, installedSdk, installedMcp, installedAiSkills]) {
     assert.equal(major(version), 129);

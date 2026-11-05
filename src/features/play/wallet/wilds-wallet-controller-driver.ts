@@ -348,12 +348,26 @@ export function createWildsWalletControllerDriver(input: {
       try {
         void markObservationPending();
         if (!runtime.isCurrentTransfer(request.id) || request.controller.signal.aborted) return;
-        const response = await boundedJson("/api/wilds/wallet/transfer/execute", {
-          method: "POST", body: JSON.stringify({ attempt, consent }), signal: request.controller.signal
-        }, input.transferTimeoutMs ?? 15_000);
-        const projection = admitWildsWalletTransferResponse(response);
-        if (!runtime.isCurrentTransfer(request.id) || request.controller.signal.aborted) return;
-        publish({ type: "transfer-result", requestId: request.id, identityKey, authorityGeneration, projection });
+        try {
+          const response = await boundedJson("/api/wilds/wallet/transfer/execute", {
+            method: "POST", body: JSON.stringify({ attempt, consent }), signal: request.controller.signal
+          }, input.transferTimeoutMs ?? 15_000);
+          const projection = admitWildsWalletTransferResponse(response);
+          if (!runtime.isCurrentTransfer(request.id) || request.controller.signal.aborted) return;
+          publish({ type: "transfer-result", requestId: request.id, identityKey, authorityGeneration, projection });
+        } catch {
+          if (!runtime.isCurrentTransfer(request.id) || request.controller.signal.aborted) return;
+          transferUnknown(request.id, identityKey, authorityGeneration);
+        }
+        // A lost acknowledgement can follow a completed payment. Read the
+        // exact retained attempt once before asking the user to check again.
+        if (runtime.isCurrentTransfer(request.id) && !request.controller.signal.aborted && state.transfer.phase === "unknown") {
+          publish({ type: "transfer-recovery-start", requestId: request.id });
+          const response = await boundedJson(`/api/wilds/wallet/transfer/status?attempt=${encodeURIComponent(attempt)}`, { signal: request.controller.signal }, input.transferTimeoutMs ?? 15_000);
+          const projection = admitWildsWalletTransferResponse(response);
+          if (!runtime.isCurrentTransfer(request.id) || request.controller.signal.aborted) return;
+          publish({ type: "transfer-result", requestId: request.id, identityKey, authorityGeneration, projection });
+        }
         if (state.transfer.phase === "committed") await refresh({ replace: true });
       } catch {
         if (runtime.isCurrentTransfer(request.id) && !request.controller.signal.aborted) transferUnknown(request.id, identityKey, authorityGeneration);

@@ -205,6 +205,7 @@ test("ambiguous HTTP 401 clears the shared cache and live diagnostics stay uncha
 
 test("driver deduplicates staging, requires an armed pointer, and recovers an ambiguous exact attempt", async () => {
   const calls: string[] = [];
+  let statusReads = 0;
   let checkpoint: unknown;
   const driver = createWildsWalletControllerDriver({
     identityKey: "kai", authorityGeneration: "issued-1", publish: () => {},
@@ -221,7 +222,7 @@ test("driver deduplicates staging, requires an armed pointer, and recovers an am
       };
       if (path.includes("/status?")) return {
         ok: true, status: 200,
-        json: async () => ({ status: "committed", rail: "settlement", amountPhiMicro: "25", recipientUsername: "friend" })
+        json: async () => ({ status: ++statusReads === 1 ? "unknown" : "committed", rail: "settlement", amountPhiMicro: "25", recipientUsername: "friend" })
       };
       const part = path.endsWith("summary") ? response().summary : path.endsWith("capabilities") ? response().capabilities : response().ledger;
       return { ok: true, status: 200, json: async () => part };
@@ -245,6 +246,38 @@ test("driver deduplicates staging, requires an armed pointer, and recovers an am
   assert.equal(driver.state.stagedTransactionId, null);
   assert.equal(calls.filter((path) => path.endsWith("/preview")).length, 1);
 });
+
+for (const reply of ["lost", "malformed", "pending"] as const) {
+  test(`driver resolves a ${reply} execution reply by reading the original payment without another send`, async () => {
+    const calls: string[] = [];
+    let checkpoint: unknown;
+    const driver = createWildsWalletControllerDriver({
+      identityKey: `recovery-${reply}`, authorityGeneration: "issued-1", publish() {},
+      recoveryStore: { load: () => checkpoint, write: (_identity, value) => { checkpoint = value; }, delete: () => { checkpoint = undefined; } },
+      fetcher: async path => {
+        calls.push(path);
+        if (path.endsWith("/preview")) return { ok: true, status: 200, json: async () => ({ status: "staged", rail: "settlement", amountPhiMicro: "100", quotedUsdCents: "0", attempt: "v3.original-payment", expiresAtKai: 100 }) };
+        if (path.endsWith("/execute")) {
+          if (reply === "lost") throw new TypeError("connection closed after submission");
+          return { ok: true, status: 202, json: async () => reply === "malformed" ? { ok: true } : { status: "unknown", rail: "settlement", amountPhiMicro: "100" } };
+        }
+        if (path.includes("/status?")) return { ok: true, status: 200, json: async () => ({ status: "committed", rail: "settlement", amountPhiMicro: "100", recipientUsername: "friend" }) };
+        const part = path.endsWith("summary") ? response().summary : path.endsWith("capabilities") ? response().capabilities : response().ledger;
+        return { ok: true, status: 200, json: async () => part };
+      }
+    });
+    driver.open();
+    driver.selectTransferRecipient("friend");
+    driver.reviewTransferAmount("settlement", "100", "original-nonce");
+    await driver.stageTransfer();
+    driver.authorizationPointerStart(7);
+    await driver.authorizeTransfer(7, { artifact: "signed", challenge: {} });
+    assert.equal(driver.state.transfer.phase, "committed");
+    assert.equal(checkpoint, undefined);
+    assert.equal(calls.filter(path => path.endsWith("/execute")).length, 1);
+    assert.deepEqual(calls.filter(path => path.includes("/status?")), ["/api/wilds/wallet/transfer/status?attempt=v3.original-payment"]);
+  });
+}
 
 test("a scanned receiving QR stages against its sealed locator and keeps its proposed amount editable", async () => {
   const bodies: Record<string, unknown>[] = [];

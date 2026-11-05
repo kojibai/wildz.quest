@@ -9,7 +9,7 @@ import { wildsWalletTransferConsentStatementDigest } from "./wilds-wallet-transf
 import { createWildzReceizChatClient, type WildzReceizChatSession } from "./wildz-receiz-chat-session";
 import { receizOAuthSecret } from "./oauth-state";
 
-type Rail = Pick<ReceizCommerceAdapter, "walletSummary" | "connectTransfer" | "exchangeProofAuthorityV123" | "introspectAccessToken">;
+type Rail = Pick<ReceizCommerceAdapter, "walletSummary" | "connectTransfer" | "connectTransferByClientNonce" | "exchangeProofAuthorityV123" | "introspectAccessToken">;
 const PURPOSE = "wildz.wallet.connect-attempt.v1";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const HASH = /^[a-f0-9]{64}$/;
@@ -52,9 +52,14 @@ export function createWildsWalletConnectTransferRuntime(input: { session: WildzR
     if (session.userId !== authority.ownerReceizId || normalizeWildsWalletPublicUsername(session.profileHandle) !== normalizeWildsWalletPublicUsername(authority.profileHandle)) throw new Error("wilds_wallet_transfer_attempt_identity_mismatch");
     return session;
   };
+  const ownerBound = (authority: WildsWalletReadAuthority, value: string) => {
+    const attempt = open(value, secret);
+    if (attempt.ownerReceizId !== authority.ownerReceizId || attempt.actorId !== authority.actorId || attempt.profileHandle !== authority.profileHandle) throw new Error("wilds_wallet_transfer_attempt_identity_mismatch");
+    return attempt;
+  };
   const bound = (authority: WildsWalletReadAuthority, value: string) => {
-    const attempt = open(value, secret); const session = sessionFor(authority);
-    if (attempt.ownerReceizId !== authority.ownerReceizId || attempt.actorId !== authority.actorId || attempt.profileHandle !== authority.profileHandle || attempt.keyId !== session.keyId) throw new Error("wilds_wallet_transfer_attempt_identity_mismatch");
+    const attempt = ownerBound(authority, value); const session = sessionFor(authority);
+    if (attempt.keyId !== session.keyId) throw new Error("wilds_wallet_transfer_attempt_identity_mismatch");
     return { attempt, session };
   };
   const projection = (status: "committed" | "unknown", attempt: Attempt) => Object.freeze({ status, rail: "settlement" as const, amountPhiMicro: attempt.amountPhiMicro, recipientUsername: attempt.recipientUsername });
@@ -87,6 +92,39 @@ export function createWildsWalletConnectTransferRuntime(input: { session: WildzR
       && originalTransfer.kind === "chat_transfer" && originalTransfer.senderUserId === attempt.ownerReceizId && originalTransfer.recipientUserId === attempt.recipientUserId && originalTransfer.amountPhiMicro === attempt.amountPhiMicro && originalTransfer.note === attempt.note
       && typeof original.receiptDigest === "string" && HASH.test(original.receiptDigest) && typeof original.payloadDigest === "string" && HASH.test(original.payloadDigest) && typeof original.originDigest === "string" && HASH.test(original.originDigest);
   };
+  const matchesOriginal = (value: unknown, attempt: Attempt) => {
+    const response = record(value), transfer = record(response.transfer), source = record(response.source);
+    const row = record(source.transfer), message = record(source.message), original = record(message.sealed_original), receipt = record(message.receiz_receipt);
+    if (response.ok !== true || response.found !== true
+      || typeof transfer.id !== "string" || !UUID.test(transfer.id) || typeof transfer.messageId !== "string" || !UUID.test(transfer.messageId)
+      || transfer.clientNonce !== attempt.clientNonce || transfer.conversationId !== attempt.conversationId
+      || transfer.senderUserId !== attempt.ownerReceizId || transfer.recipientUserId !== attempt.recipientUserId || transfer.amountPhiMicro !== attempt.amountPhiMicro
+      || typeof transfer.amountUsdCents !== "string" || !/^(0|[1-9][0-9]{0,29})$/.test(transfer.amountUsdCents)
+      || typeof transfer.usdPerPhiMicrocents !== "string" || !MICRO.test(transfer.usdPerPhiMicrocents)
+      || row.id !== transfer.id || row.message_id !== transfer.messageId || row.client_nonce !== attempt.clientNonce
+      || row.conversation_id !== attempt.conversationId || row.sender_user_id !== attempt.ownerReceizId || row.recipient_user_id !== attempt.recipientUserId
+      || message.id !== transfer.messageId || message.conversation_id !== attempt.conversationId || message.sender_user_id !== attempt.ownerReceizId
+      || original.version !== 1 || original.primitive !== "receiz.chat.message.original.v1" || original.messageId !== transfer.messageId
+      || original.conversationId !== attempt.conversationId || original.senderUserId !== attempt.ownerReceizId
+      || typeof message.body !== "string" || original.body !== message.body) return false;
+    for (const [field, carried] of [["digest", "receiptDigest"], ["payloadDigest", "payloadDigest"], ["originDigest", "originDigest"]]) {
+      if (typeof receipt[field] !== "string" || !HASH.test(receipt[field]) || original[carried] !== receipt[field]) return false;
+    }
+    const carried = [record(row.metadata), record(message.wallet_transfer), record(original.walletTransfer)];
+    for (const payload of carried) {
+      if (payload.kind !== "chat_transfer" || payload.senderUserId !== attempt.ownerReceizId || payload.recipientUserId !== attempt.recipientUserId || payload.note !== attempt.note) return false;
+      for (const [field, column] of [["amountPhiMicro", "amount_phi_micro"], ["amountUsdCents", "amount_usd_cents"], ["usdPerPhiMicrocents", "usd_per_phi_microcents"]]) {
+        if (row[column] !== transfer[field] || payload[field] !== transfer[field]) return false;
+      }
+      if (payload.noteVisibility !== record(row.metadata).noteVisibility) return false;
+    }
+    return true;
+  };
+  // Recover the sender's retained coordinate directly, as Bankeiz does. Chat
+  // discovery can be unavailable or paginated after the wallet has committed.
+  const observeSender = async (authority: WildsWalletReadAuthority, attempt: Attempt) => matchesOriginal(
+    await input.createAdapter(authority.accessToken).connectTransferByClientNonce(attempt.clientNonce), attempt
+  );
   const observe = async (attempt: Attempt, session: WildzReceizChatSession, expectedMessageId?: string, expectedTransferId?: string) => {
     const client = createWildzReceizChatClient(session, input.fetchImpl);
     let before: string | null = null;
@@ -160,21 +198,19 @@ export function createWildsWalletConnectTransferRuntime(input: { session: WildzR
       if (granted.keyId !== session.keyId || introspection.active !== true || introspection.sub !== authority.ownerReceizId || introspection.actor_label !== session.keyId || !scopes.includes("receiz:wallet.transfer")) throw new Error("wilds_wallet_transfer_consent_binding_invalid");
       if(currentKai()>=attempt.reviewExpiresAtKai)throw Error("wilds_wallet_transfer_review_expired");
       try {
-        const response = record(await writer.connectTransfer({ conversationId: attempt.conversationId, recipientUserId: attempt.recipientUserId, unit: "phi", amountPhi: phiAmount(attempt.amountPhiMicro), note: attempt.note, clientNonce: attempt.clientNonce }, attempt.clientNonce));
-        const transfer = record(response.transfer);
-        if (response.ok !== true || typeof transfer.id !== "string" || !UUID.test(transfer.id) || typeof transfer.messageId !== "string" || !UUID.test(transfer.messageId) || transfer.conversationId !== attempt.conversationId || transfer.senderUserId !== attempt.ownerReceizId || transfer.recipientUserId !== attempt.recipientUserId || transfer.amountPhiMicro !== attempt.amountPhiMicro || typeof transfer.alreadyProcessed !== "boolean") return projection("unknown", attempt);
-        return projection(await observe(attempt, session, transfer.messageId, transfer.id) ? "committed" : "unknown", attempt);
+        await writer.connectTransfer({ conversationId: attempt.conversationId, recipientUserId: attempt.recipientUserId, unit: "phi", amountPhi: phiAmount(attempt.amountPhiMicro), note: attempt.note, clientNonce: attempt.clientNonce }, attempt.clientNonce);
       } catch (error) {
         // The host can fail after its atomic wallet transaction. Retain the
         // same attempt for an authenticated read; never infer zero writes.
         const payload = record(record(error).payload);
         if (record(error).status===409&&payload.error === "wallet_insufficient_funds") return { status: "zero-write", rail: "settlement", code: "INSUFFICIENT_VALUE",noWriteWitness:seal(noWriteBasis(attempt,request.attempt),secret,"nw1") };
-        return projection("unknown", attempt);
       }
+      try { return projection(await observeSender(authority, attempt) ? "committed" : "unknown", attempt); }
+      catch { return projection("unknown", attempt); }
     },
     async status(authority, value) {
-      const { attempt, session } = bound(authority, value);
-      try { return projection(await observe(attempt, session) ? "committed" : "unknown", attempt); } catch { return projection("unknown", attempt); }
+      const attempt = ownerBound(authority, value);
+      try { return projection(await observeSender(authority, attempt) ? "committed" : "unknown", attempt); } catch { return projection("unknown", attempt); }
     },
     async observe(authority, command) {
       const {attempt,session}=observationBinding(authority,command);

@@ -20,7 +20,7 @@ V124 remains source-first and non-breaking for Wildz: sealed proof objects remai
 
 Run `pnpm receiz:check` to invoke the official v129 repository checker against package target `129.0.0` and verify the coordinated release, `127.0.0` ruleset, registry digest, 60-operation matrix, protocol limits, and authority flags. The command is also part of the release gate. A clean checker result confirms that the declared repository integration requirements have evidence; it is not a substitute for artifact verification, strict-live qualification, or remote mutation evidence.
 
-The command retains the filename `scripts/receiz-v128-check.mjs` for existing script wiring; its target and identity checks are v129. The current matrix range is `>=129.0.0 <130.0.0`. V124/V125/V128 protocol schemas and historical application coordinates remain unchanged.
+The command runs `scripts/receiz-v129-check.mjs`. The current matrix range is `>=129.0.0 <130.0.0`. V124/V125/V128 protocol schemas and historical application coordinates remain unchanged.
 
 ## V129 native purchase and local valuation tools
 

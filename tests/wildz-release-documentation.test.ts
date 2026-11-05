@@ -15,6 +15,7 @@ test("Wildz current release doctrine names the exact Receiz v129 toolchain", () 
   const mcp = read("docs/MCP.md");
   const currentDoctrine = {
     readme: read("README.md"),
+    aiSkills: read("ai-skills/README.md"),
     rails: read("docs/RECEIZ_RAILS.md"),
     releaseSkill: read("ai-skills/wildz-release-skill/SKILL.md"),
     mcp
@@ -30,7 +31,7 @@ test("Wildz current release doctrine names the exact Receiz v129 toolchain", () 
     }
     assert.match(source, /8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065/i, name);
     assert.match(source, /c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1/i, name);
-    assert.doesNotMatch(source, /@receiz\/(?:sdk|mcp-server|ai-skills)@122\.0\.0/i, name);
+    assert.doesNotMatch(source, /@receiz\/(?:sdk|mcp-server|ai-skills)@(?:122|128)\.0\.0/i, name);
   }
   assert.match(mcp, /@receiz\/sdk@129\.0\.0/);
   assert.match(mcp, /@receiz\/mcp-server@129\.0\.0/);

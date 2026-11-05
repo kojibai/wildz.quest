@@ -246,6 +246,7 @@ export type ReceizCommerceAdapter = {
   connectWallet(): Promise<ConnectWalletResponse>;
   walletSummary(): Promise<ConnectWalletResponse>;
   connectTransfer(body: ConnectTransferRequest, idempotencyKey?: string): Promise<ConnectTransferResponse>;
+  connectTransferByClientNonce(clientNonce: string): Promise<unknown>;
   connectRecord(body: JsonObject): Promise<JsonObject>;
   uploadMedia(file: Blob, options?: ReceizMediaUploadOptions): Promise<ReceizMediaUploadResponse>;
   transformMedia(body: ReceizMediaTransformRequest, idempotencyKey?: string): Promise<JsonObject>;
@@ -940,6 +941,9 @@ export function createReceizCommerceAdapter(
     },
     connectTransfer(body, idempotencyKey) {
       return client.connect.transfer(body, { idempotencyKey });
+    },
+    connectTransferByClientNonce(clientNonce) {
+      return client.request(`/api/connect/transfers?clientNonce=${encodeURIComponent(clientNonce)}`, { method: "GET" });
     },
     connectRecord(body) {
       return client.connect.record(body);

@@ -11,26 +11,28 @@ const MESSAGE = "44444444-4444-4444-8444-444444444444";
 const TRANSFER = "55555555-5555-4555-8555-555555555555";
 const SECRET = "connect-runtime-synthetic-fixture-secret-32-bytes";
 
-async function fixture() {
+async function fixture(options: { amountPhiMicro?: string; amountUsdCents?: string } = {}) {
   const { keyFile } = await createReceizIdentityKeyFile({ owner: { uid: "fixture", username: "alice", displayName: "Fixture" }, passphrase: "fixture-only" });
   const artifact = serializeReceizIdentityArtifact(keyFile);
   const authority = { accessToken: "fixture-read", ownerReceizId: OWNER, actorId: "alice", profileHandle: "alice.receiz.id" };
   const session = { schema: "wildz.receiz.chat-session.v1", origin: "https://receiz.example", userId: OWNER, keyId: keyFile.keyId, profileHandle: "alice.receiz.id", cookie: "fixture-upstream-cookie", issuedAt: Date.now() };
-  let lostReply = false;
+  let lostReply = false, chatUnavailable = false;
   let corruptMember = false;
   let debitCount = 0;
   let endlessPages=false,pageIndex=0,insufficient=false,now=receizKaiNow().pulse;
-  const calls: { path: string; body: any }[] = [];
+  const calls: { path: string; body: any; method: string }[] = [];
   const committed = new Map<string, any>();
+  const originals = new Map<string, any>();
   const fetchImpl: typeof fetch = async (url, init) => {
     const path = new URL(String(url)).pathname;
     const body = init?.body ? JSON.parse(String(init.body)) : null;
-    calls.push({ path, body });
+    calls.push({ path, body, method: init?.method ?? "GET" });
     if (path === "/api/chat/conversations") {
       assert.equal(new Headers(init?.headers).get("cookie"), "receiz_session=fixture-upstream-cookie");
       return Response.json({ ok: true, conversation: { id: CONVERSATION, kind: "dm", members: [{ kind: "user", userId: OWNER, username: "alice" }, { kind: "user", userId: PEER, username: corruptMember ? "mallory" : "bob" }] } });
     }
     if (path.endsWith("/messages")) {
+      if (chatUnavailable) throw new TypeError("fixture chat history unavailable");
       assert.equal(new Headers(init?.headers).get("cookie"), "receiz_session=fixture-upstream-cookie");
       return Response.json({ ok: true, conversation: { id: CONVERSATION }, messages: [...committed.values()], hasMore: endlessPages, nextCursor: endlessPages?new Date(Date.now()-(++pageIndex)*86_400_000).toISOString():null });
     }
@@ -41,6 +43,12 @@ async function fixture() {
       return Response.json({ ...basis, authorityDigest: await digestReceizCanonicalV122(basis), accessToken: "fixture-write" });
     }
     if (path === "/api/connect/transfers") {
+      if ((init?.method ?? "GET") === "GET") {
+        assert.equal(new Headers(init?.headers).get("authorization"), "Bearer fixture-read");
+        const nonce = new URL(String(url)).searchParams.get("clientNonce");
+        assert.ok(nonce, "recovery uses the exact retained nonce");
+        return Response.json(originals.get(nonce) ?? { ok: true, found: false });
+      }
       if(insufficient)return Response.json({ok:false,error:"wallet_insufficient_funds"},{status:409});
       assert.equal(new Headers(init?.headers).get("authorization"), "Bearer fixture-write");
       const previous = committed.get(body.clientNonce);
@@ -49,6 +57,13 @@ async function fixture() {
         const amountPhiMicro = BigInt(body.amountPhi.replace(".", "")).toString();
         const walletTransfer = { kind: "chat_transfer", transferId: TRANSFER, senderUserId: OWNER, recipientUserId: PEER, amountPhiMicro, note: body.note };
         committed.set(body.clientNonce, { id: MESSAGE, conversationId: CONVERSATION, senderUserId: OWNER, walletTransfer, sealedOriginal: { primitive: "receiz.chat.message.original.v1", version: 1, messageId: MESSAGE, conversationId: CONVERSATION, senderUserId: OWNER, walletTransfer: { ...walletTransfer, transferId: null }, receiptDigest: "b".repeat(64), payloadDigest: "c".repeat(64), originDigest: "d".repeat(64) } });
+        const values = { ...walletTransfer, transferId: null, amountUsdCents: options.amountUsdCents ?? amountPhiMicro, usdPerPhiMicrocents: options.amountUsdCents === "0" ? "100000000" : "1000000000000" };
+        const receipt = { digest: "b".repeat(64), payloadDigest: "c".repeat(64), originDigest: "d".repeat(64) };
+        originals.set(body.clientNonce, { ok: true, found: true,
+          transfer: { id: TRANSFER, messageId: MESSAGE, conversationId: CONVERSATION, senderUserId: OWNER, recipientUserId: PEER, clientNonce: body.clientNonce, amountPhiMicro, amountUsdCents: values.amountUsdCents, usdPerPhiMicrocents: values.usdPerPhiMicrocents },
+          source: { transfer: { id: TRANSFER, message_id: MESSAGE, conversation_id: CONVERSATION, sender_user_id: OWNER, recipient_user_id: PEER, client_nonce: body.clientNonce, amount_phi_micro: amountPhiMicro, amount_usd_cents: values.amountUsdCents, usd_per_phi_microcents: values.usdPerPhiMicrocents, metadata: { ...values } },
+            message: { id: MESSAGE, conversation_id: CONVERSATION, sender_user_id: OWNER, body: "Synthetic transfer original", wallet_transfer: { ...values }, receiz_receipt: receipt,
+              sealed_original: { version: 1, primitive: "receiz.chat.message.original.v1", messageId: MESSAGE, conversationId: CONVERSATION, senderUserId: OWNER, body: "Synthetic transfer original", walletTransfer: { ...values }, receiptDigest: receipt.digest, payloadDigest: receipt.payloadDigest, originDigest: receipt.originDigest } } } });
       }
       if (lostReply) { lostReply = false; throw new TypeError("fixture committed reply lost"); }
       return Response.json({ ok: true, transfer: { id: TRANSFER, messageId: MESSAGE, conversationId: CONVERSATION, senderUserId: OWNER, recipientUserId: PEER, amountPhiMicro: committed.get(body.clientNonce).walletTransfer.amountPhiMicro, alreadyProcessed: Boolean(previous) } });
@@ -58,18 +73,18 @@ async function fixture() {
   const clientFor = (accessToken: string) => createReceizClient({ baseUrl: session.origin, accessToken, fetchImpl });
   const createAdapter = (accessToken: string) => {
     const client = clientFor(accessToken);
-    return { client, walletSummary: () => client.connect.wallet(), connectTransfer: (body: any, idempotencyKey?: string) => client.connect.transfer(body, { idempotencyKey }), exchangeProofAuthorityV123: (body: any) => client.identity.exchangeProofAuthority(body), introspectAccessToken: async () => ({ active: true, sub: OWNER, scope: "receiz:wallet.read receiz:wallet.transfer", actor_label: keyFile.keyId }) };
+    return { client, walletSummary: () => client.connect.wallet(), connectTransfer: (body: any, idempotencyKey?: string) => client.connect.transfer(body, { idempotencyKey }), connectTransferByClientNonce: (nonce: string) => client.request(`/api/connect/transfers?clientNonce=${encodeURIComponent(nonce)}`, { method: "GET" }), exchangeProofAuthorityV123: (body: any) => client.identity.exchangeProofAuthority(body), introspectAccessToken: async () => ({ active: true, sub: OWNER, scope: "receiz:wallet.read receiz:wallet.transfer", actor_label: keyFile.keyId }) };
   };
   const connectRuntimeModule = await import(modulePath);
   const create = (admittedSession: unknown = session) => connectRuntimeModule.createWildsWalletConnectTransferRuntime({ session: admittedSession, createAdapter, fetchImpl, secret: SECRET, applicationId: WILDZ_RECEIZ_APPLICATION_ID, currentKai: () => now });
   const consent = async (attempt: string, scopes = receizOidcScopesForRails("wallet")) => {
     // Use the SDK's exact artifact digest, never the fixture's display account.
     const { sha256ReceizBytes } = await import("@receiz/sdk");
-    const signed = createReceizProofAuthorityChallenge({ applicationId: WILDZ_RECEIZ_APPLICATION_ID, artifactDigest: await sha256ReceizBytes(new TextEncoder().encode(artifact)), scopes, consentStatementDigest: await wildsWalletTransferConsentStatementDigest({ attempt, amountPhiMicro: "9007199254740993", rail: "settlement" }), ttlPulses: 60 });
+    const signed = createReceizProofAuthorityChallenge({ applicationId: WILDZ_RECEIZ_APPLICATION_ID, artifactDigest: await sha256ReceizBytes(new TextEncoder().encode(artifact)), scopes, consentStatementDigest: await wildsWalletTransferConsentStatementDigest({ attempt, amountPhiMicro: options.amountPhiMicro ?? "9007199254740993", rail: "settlement" }), ttlPulses: 60 });
     return { artifact, challenge: { ...signed.challenge, proof: await signReceizIdentityLoginProof({ keyFile, passphrase: "fixture-only", challengeB64Url: signed.challengeB64Url }) } };
   };
-  const command = { recipientUsername: "bob", amountPhiMicro: "9007199254740993", rail: "settlement", operationNonce: "88888888-8888-4888-8888-888888888888" };
-  return { authority, session, create, command, consent, calls, committed, debitCount: () => debitCount, loseReply: () => { lostReply = true; }, corruptMember: () => { corruptMember = true; },insufficient:()=>{insufficient=true;},clearInsufficient:()=>{insufficient=false;},endlessPages:()=>{endlessPages=true;},setKai:(value:number)=>{now=value;} };
+  const command = { recipientUsername: "bob", amountPhiMicro: options.amountPhiMicro ?? "9007199254740993", rail: "settlement", operationNonce: "88888888-8888-4888-8888-888888888888" };
+  return { authority, session, create, command, consent, calls, committed, originals, debitCount: () => debitCount, loseReply: () => { lostReply = true; }, hideChat: () => { chatUnavailable = true; }, corruptMember: () => { corruptMember = true; },insufficient:()=>{insufficient=true;},clearInsufficient:()=>{insufficient=false;},endlessPages:()=>{endlessPages=true;},setKai:(value:number)=>{now=value;} };
 }
 
 test("released SDK Connect Send resolves real members and moves exact micro-Phi once across a lost reply and runtime reconstruction", async () => {
@@ -78,14 +93,14 @@ test("released SDK Connect Send resolves real members and moves exact micro-Phi 
   assert.match(staged.attempt, /^v3\./);
   f.loseReply();
   const result = await f.create().execute(f.authority, { attempt: staged.attempt, consent: await f.consent(staged.attempt) });
-  assert.equal(result.status, "unknown");
+  assert.equal(result.status, "committed");
   assert.equal(f.debitCount(), 1);
-  const before = f.calls.filter(call => call.path === "/api/connect/transfers").length;
+  const before = f.calls.filter(call => call.path === "/api/connect/transfers" && call.method === "POST").length;
   assert.deepEqual(await f.create().status(f.authority, staged.attempt), { status: "committed", rail: "settlement", amountPhiMicro: "9007199254740993", recipientUsername: "bob" });
-  assert.equal(f.calls.filter(call => call.path === "/api/connect/transfers").length, before, "status is strictly read-only");
+  assert.equal(f.calls.filter(call => call.path === "/api/connect/transfers" && call.method === "POST").length, before, "status is strictly read-only");
   await f.create().execute(f.authority, { attempt: staged.attempt, consent: await f.consent(staged.attempt) });
   assert.equal(f.debitCount(), 1);
-  const writes = f.calls.filter(call => call.path === "/api/connect/transfers");
+  const writes = f.calls.filter(call => call.path === "/api/connect/transfers" && call.method === "POST");
   assert.equal(writes[0].body.amountPhi, "9007199254.740993");
   assert.equal(writes[0].body.conversationId, CONVERSATION);
   assert.equal(writes[0].body.recipientUserId, PEER);
@@ -126,11 +141,54 @@ test("an unexecuted exact attempt stays unknown on read-only recovery", async ()
   assert.equal(f.debitCount(), 0);
 });
 
+test("sender confirms a 0.0001 PHI original by its nonce when chat history is unavailable", async () => {
+  const f = await fixture({ amountPhiMicro: "100", amountUsdCents: "0" });
+  const staged = await f.create().preview(f.authority, f.command);
+  f.hideChat();
+  const result = await f.create().execute(f.authority, { attempt: staged.attempt, consent: await f.consent(staged.attempt) });
+  assert.equal(result.status, "committed");
+  const writesBefore = f.calls.filter(call => call.method === "POST" && call.path === "/api/connect/transfers").length;
+  assert.equal((await f.create().status(f.authority, staged.attempt)).status, "committed");
+  assert.equal(f.calls.filter(call => call.method === "POST" && call.path === "/api/connect/transfers").length, writesBefore);
+  assert.equal(f.debitCount(), 1);
+});
+
+test("the same authenticated sender recovers the retained original without a chat cookie", async () => {
+  const f = await fixture();
+  const staged = await f.create().preview(f.authority, f.command);
+  await f.create().execute(f.authority, { attempt: staged.attempt, consent: await f.consent(staged.attempt) });
+  const reader = f.create(null);
+  const callsBefore = f.calls.length;
+  assert.equal((await reader.status(f.authority, staged.attempt)).status, "committed");
+  assert.deepEqual(f.calls.slice(callsBefore).map(call => [call.method, call.path]), [["GET", "/api/connect/transfers"]]);
+  for (const authority of [{ ...f.authority, ownerReceizId: PEER }, { ...f.authority, actorId: "mallory" }, { ...f.authority, profileHandle: "mallory.receiz.id" }]) {
+    await assert.rejects(reader.status(authority, staged.attempt), /identity_mismatch/);
+  }
+  await assert.rejects(reader.execute(f.authority, { attempt: staged.attempt, consent: await f.consent(staged.attempt) }), /session_required/);
+  assert.equal(f.debitCount(), 1);
+});
+
+for (const corruption of ["nonce", "amount", "note", "message", "receipt"] as const) {
+  test(`sender recovery rejects an exact original with a foreign ${corruption}`, async () => {
+    const f = await fixture();
+    const staged = await f.create().preview(f.authority, f.command);
+    await f.create().execute(f.authority, { attempt: staged.attempt, consent: await f.consent(staged.attempt) });
+    const original = [...f.originals.values()][0];
+    if (corruption === "nonce") original.source.transfer.client_nonce = "different-nonce";
+    if (corruption === "amount") original.source.transfer.amount_phi_micro = "1";
+    if (corruption === "note") original.source.message.sealed_original.walletTransfer.note = "other payment";
+    if (corruption === "message") original.source.message.id = PEER;
+    if (corruption === "receipt") original.source.message.receiz_receipt.digest = "f".repeat(64);
+    assert.equal((await f.create().status(f.authority, staged.attempt)).status, "unknown");
+    assert.equal(f.debitCount(), 1);
+  });
+}
+
 test("forged receipt recipient or amount is never accepted as a committed send", async () => {
   const f = await fixture(); const staged = await f.create().preview(f.authority, f.command);
   await f.create().execute(f.authority, { attempt: staged.attempt, consent: await f.consent(staged.attempt) });
-  const message = [...f.committed.values()][0];
-  message.sealedOriginal.walletTransfer.recipientUserId = OWNER;
+  const original = [...f.originals.values()][0];
+  original.source.message.sealed_original.walletTransfer.recipientUserId = OWNER;
   assert.equal((await f.create().status(f.authority, staged.attempt)).status, "unknown");
 });
 

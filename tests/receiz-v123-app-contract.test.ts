@@ -57,7 +57,7 @@ describe("Receiz v129 application contract", () => {
   });
 
   it("passes the v129 repository integration checker", () => {
-    const result = spawnSync(process.execPath, ["scripts/receiz-v128-check.mjs"], { encoding: "utf8" });
+    const result = spawnSync(process.execPath, ["scripts/receiz-v129-check.mjs"], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const report = JSON.parse(result.stdout) as { ok: boolean; blockingFindings: unknown[]; releaseIdentity: Record<string, string> };
     assert.equal(report.ok, true);
@@ -102,7 +102,7 @@ describe("Receiz v129 application contract", () => {
   it("wires the v129 checker into the release gate", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts?: Record<string, string> };
     const releaseCheck = readFileSync("scripts/release-check.mjs", "utf8");
-    assert.equal(pkg.scripts?.["receiz:check"], "node scripts/receiz-v128-check.mjs");
+    assert.equal(pkg.scripts?.["receiz:check"], "node scripts/receiz-v129-check.mjs");
     assert.match(releaseCheck, /["']receiz:check["']/);
   });
 });
