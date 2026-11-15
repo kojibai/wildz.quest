@@ -1,6 +1,6 @@
 # Wildz Receiz SDK, MCP, and AI-skills contract
 
-Wildz pins `@receiz/sdk@129.0.0` as the application/runtime boundary and `@receiz/mcp-server@129.0.0` plus `@receiz/ai-skills@129.0.0` as development tooling. All three exact packages resolve from the public npm registry, and `pnpm-lock.yaml` pins their published SHA-512 integrity values. The release adopts the coordinated v129 registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1`. No fork, package patch, third-party database, or external database is introduced.
+Wildz pins `@receiz/sdk@129.5.0` as the application/runtime boundary and `@receiz/mcp-server@129.5.0` plus `@receiz/ai-skills@129.5.0` as development tooling. All three exact packages resolve from the public npm registry, and `pnpm-lock.yaml` pins their published SHA-512 integrity values. The release adopts the coordinated v129 registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1`. No fork, package patch, third-party database, or external database is introduced.
 
 The packaged MCP runtime remains operator tooling, and the packaged AI skills remain doctrine for builders and agents. Neither outranks verified artifact continuity or server admission.
 
@@ -18,13 +18,13 @@ V129 coordinates the SDK, MCP, AI manifests, ruleset, registry, operation matrix
 
 V124 remains source-first and non-breaking for Wildz: sealed proof objects remain authority, projections only accelerate distribution and restoration, and weaker partial projections cannot erase stronger verified fields.
 
-Run `pnpm receiz:check` to invoke the official v129 repository checker against package target `129.0.0` and verify the coordinated release, `127.0.0` ruleset, registry digest, 60-operation matrix, protocol limits, and authority flags. The command is also part of the release gate. A clean checker result confirms that the declared repository integration requirements have evidence; it is not a substitute for artifact verification, strict-live qualification, or remote mutation evidence.
+Run `pnpm receiz:check` to invoke the official v129 repository checker against package target `129.5.0` and verify the coordinated release, `127.0.0` ruleset, registry digest, 60-operation matrix, protocol limits, and authority flags. The command is also part of the release gate. A clean checker result confirms that the declared repository integration requirements have evidence; it is not a substitute for artifact verification, strict-live qualification, or remote mutation evidence.
 
 The command runs `scripts/receiz-v129-check.mjs`. The current matrix range is `>=129.0.0 <130.0.0`. V124/V125/V128 protocol schemas and historical application coordinates remain unchanged.
 
 ## V129 native purchase and local valuation tools
 
-The installed full library contains 356 tools, 425 SDK client methods and 704 public SDK functions. Native calls use the exact public registered OIDC client ID as application/audience, preserving case and the `rc_` prefix. The stable Wildz product/world namespace and subject identity are separate coordinates. Read the installed SDK `docs/registered-native-runtime.md`, MCP `docs/capability-execution-coverage.md`, and AI `receiz-commerce-skill/examples/create-no-db-store.md` before composing the grant, current subject publication, authority session and runtime qualification sequence.
+The installed full library contains 356 tools, 425 SDK client methods and 705 public SDK functions. Native calls use the exact public registered OIDC client ID as application/audience, preserving case and the `rc_` prefix. The stable Wildz product/world namespace and subject identity are separate coordinates. Read the installed SDK `docs/registered-native-runtime.md`, MCP `docs/capability-execution-coverage.md`, and AI `receiz-commerce-skill/examples/create-no-db-store.md` before composing the grant, current subject publication, authority session and runtime qualification sequence.
 
 `receiz_connect_checkout`, `receiz_connect_checkout_session`, `receiz_commerce_one_click_checkout`, retained V123 Settlement/Reserve execution/recovery, and `receiz_bearer_artifact_claim` compose distinct purchase stages. Checkout creates a card session; verify admitted wallet credit, approved payment, seller proceeds, complete delivery, canonical claim and buyer custody separately. Canonical bearer claim takes a digest-bound private `artifactReference` and exact single-use confirmation, retaining the SDK-issued sealed artifact rather than accepting a detached owner or card. Historical HTTP adapters require an explicitly configured compatible host. Package presence and fixture forwarding do not qualify the deployed server/database or payment provider.
 
@@ -120,4 +120,4 @@ The [v129 integration record](release/receiz-v129-integration.md) records packag
 Historical HTTP compatibility remains disabled without a real explicitly
 configured compatibility host; no default Receiz route is invented.
 
-Receiz package release 129.0.0 retains constitutional ruleset 127.0.0; package and ruleset versions are deliberately distinct.
+Receiz package release 129.5.0 retains constitutional ruleset 127.0.0; package and ruleset versions are deliberately distinct.

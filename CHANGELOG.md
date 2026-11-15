@@ -2,6 +2,10 @@
 
 All notable changes to Wildz are documented here. Wildz uses semantic versioning for public releases.
 
+## [Unreleased]
+
+- Upgrade the coordinated Receiz SDK, MCP server, and AI skills to exact `129.5.0`, with matching release checks, offline resources, and documentation.
+
 ## [11.0.0] - 2026-10-04
 
 See the [complete release notes](docs/release/v11.0.0.md) and full source ledger since v10.1.0.

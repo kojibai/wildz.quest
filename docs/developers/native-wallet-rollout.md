@@ -1,10 +1,10 @@
 # Native wallet integration
 
 Wildz uses the exact public `@receiz/sdk`, `@receiz/mcp-server`, and
-`@receiz/ai-skills` packages at `129.0.0`. There are no package patches, Receiz
+`@receiz/ai-skills` packages at `129.5.0`. There are no package patches, Receiz
 source changes, new Receiz endpoints, or database migrations in this integration.
-The public SDK catalog has 704 callable functions and digest
-`af61e23d857fa1fa54fd2a09d5b0f02afadd55b6a02936dcacbae300f124cb94`.
+The public SDK catalog has 705 callable functions and digest
+`efe63aa1a98c48b84472837496fa008f172b318186c95749a8b0c7b3ceb9bde7`.
 See the [v129 integration record](../release/receiz-v129-integration.md) for
 current package evidence and the deployed stages still requiring qualification.
 The dated v128 validation results below retain their original release coordinates.

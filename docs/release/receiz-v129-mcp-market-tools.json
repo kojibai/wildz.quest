@@ -1,6 +1,6 @@
 {
   "schema": "wildz.receiz-market-tool-evidence.v1",
-  "releaseVersion": "129.0.0",
+  "releaseVersion": "129.5.0",
   "evidenceKind": "installed-full-library-descriptors",
   "deploymentQualified": false,
   "tools": [

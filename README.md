@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml/badge.svg)](https://github.com/kojibai/wildz.quest/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f.svg)](LICENSE)
-[![Receiz SDK](https://img.shields.io/badge/Receiz%20SDK-129.0.0-6f42c1.svg)](https://www.npmjs.com/package/@receiz/sdk)
+[![Receiz SDK](https://img.shields.io/badge/Receiz%20SDK-129.5.0-6f42c1.svg)](https://www.npmjs.com/package/@receiz/sdk)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 
 > Wildz is both a product and a reference implementation. The game is the product; the repository is the evidence that the Receiz application model can be reshaped into something genuinely different without replacing its proof authority.
@@ -20,11 +20,11 @@ It demonstrates four layers working together:
 | Layer | What Wildz uses it for | Authority boundary |
 |---|---|---|
 | [Receiz Commerce Kit](https://github.com/kojibai/Receiz-commerce) | The forkable application kernel and original commerce architecture | Starting point, not a runtime dependency |
-| `@receiz/sdk@129.0.0` | Identity, proof objects, durable subjects, authority sessions, durable execution, recipient resolution, and executable Phi value rails | The typed application/runtime boundary |
-| `@receiz/mcp-server@129.0.0` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
-| `@receiz/ai-skills@129.0.0` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
+| `@receiz/sdk@129.5.0` | Identity, proof objects, durable subjects, authority sessions, durable execution, recipient resolution, and executable Phi value rails | The typed application/runtime boundary |
+| `@receiz/mcp-server@129.5.0` | Capability inspection and authorized operator workflows | Tooling only; it cannot manufacture proof or authority |
+| `@receiz/ai-skills@129.5.0` plus the checked-in Wildz skills | Proof-aware build, market, and release procedures for coding agents | Operating guidance only; verification still wins |
 
-All three Receiz packages resolve at exact version `129.0.0` from the public npm registry, with their published SHA-512 integrity values pinned by `pnpm-lock.yaml`. This release uses the retained v127 constitutional ruleset with the v129 package release, whose registry digest is `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest is `c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1`. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority, declares the complete 60-operation V129 matrix, and explicitly disables database authority. See the [V124 runtime composition](docs/RECEIZ_V124_RUNTIME.md) for qualified Twin enrichment, proof memory, authority sessions, durable execution, replay/private additions, and MCP custody boundaries.
+All three Receiz packages resolve at exact version `129.5.0` from the public npm registry, with their published SHA-512 integrity values pinned by `pnpm-lock.yaml`. This release uses the retained v127 constitutional ruleset with the v129 package release, whose registry digest is `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest is `c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1`. The application contract in [`receiz.app.json`](receiz.app.json) selects artifact-first authority, declares the complete 60-operation V129 matrix, and explicitly disables database authority. See the [V124 runtime composition](docs/RECEIZ_V124_RUNTIME.md) for qualified Twin enrichment, proof memory, authority sessions, durable execution, replay/private additions, and MCP custody boundaries.
 
 V123 keeps that source-first continuity and adds exact proof-authority exchange, scope introspection, namespace resolution, Settlement/Reserve execution, and idempotent value-execution recovery to the retained V122 planning rails. Wildz uses only the exact SDK-custodied primitives that the published client exposes; missing durable application dependencies remain fail-closed instead of being recreated locally.
 
@@ -164,7 +164,7 @@ V121 exposes direct bearer transfer preview, instrument issue, inspection, claim
 
 ## Release status
 
-The current working tree targets Receiz `129.0.0`; see the [v129 integration record](docs/release/receiz-v129-integration.md) for package verification and untested deployed stages.
+The current working tree targets Receiz `129.5.0`; see the [v129 integration record](docs/release/receiz-v129-integration.md) for package verification and untested deployed stages.
 
 The prior published **v11.0.0 — Continuity, Messages and Receiz v128** includes message notifications, capture animation, Vault import fixes, interruption recovery, wallet renewal fixes, movement and mobile gesture corrections. Application and installed-PWA versions are `11.0.0` and `v11.0.0-r1`; the coordinated Receiz toolchain is exact `128.0.0`.
 

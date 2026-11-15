@@ -7,7 +7,7 @@ description: Inspect and operate Wildz markets using verified Receiz custody and
 
 All reasoning begins from the exact installed Receiz release: inspect SDK custody/ownership/settlement primitives first, MCP tool schemas second, and applicable AI-skill doctrine third; then trace the current exact artifact/head/custody path and use the smallest native composition. Never invent a market, payment, transfer, or settlement rail because a native surface was not inspected. A real capability gap requires a reviewed `docs/receiz-decisions/` record before custom infrastructure is implemented.
 
-Target only Receiz `129.0.0`, registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065`, and operation-matrix digest `c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1`. Receiz proof authority controls custody, ownership, and settlement; request explicit confirmation before an admitted ownership change.
+Target only Receiz `129.5.0`, registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065`, and operation-matrix digest `c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1`. Receiz proof authority controls custody, ownership, and settlement; request explicit confirmation before an admitted ownership change.
 
 Treat v129 as one coordinated SDK/MCP/AI/ruleset/registry/matrix/package-range/runtime release identity. Durable proof memory is first admission only, then append forever. V129 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
 

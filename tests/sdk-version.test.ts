@@ -81,36 +81,36 @@ test("SDK, operational MCP, and AI skills request and install only Receiz v129",
   const installedMcpPackage = readJson("node_modules/@receiz/mcp-server/package.json");
   const installedAiSkillsIndex = readJson("node_modules/@receiz/ai-skills/skills.json");
 
-  assert.equal(requestedSdk, "129.0.0");
-  assert.equal(requestedMcp, "129.0.0");
-  assert.equal(requestedAiSkills, "129.0.0");
-  assert.equal(installedSdk, "129.0.0");
-  assert.equal(installedMcp, "129.0.0");
-  assert.equal(installedAiSkills, "129.0.0");
-  assert.equal(installedSdkPackage.dependencies?.["@receiz/ai-skills"], "129.0.0");
-  assert.equal(installedMcpPackage.dependencies?.["@receiz/sdk"], "129.0.0");
-  assert.equal(installedMcpPackage.dependencies?.["@receiz/ai-skills"], "129.0.0");
+  assert.equal(requestedSdk, "129.5.0");
+  assert.equal(requestedMcp, "129.5.0");
+  assert.equal(requestedAiSkills, "129.5.0");
+  assert.equal(installedSdk, "129.5.0");
+  assert.equal(installedMcp, "129.5.0");
+  assert.equal(installedAiSkills, "129.5.0");
+  assert.equal(installedSdkPackage.dependencies?.["@receiz/ai-skills"], "129.5.0");
+  assert.equal(installedMcpPackage.dependencies?.["@receiz/sdk"], "129.5.0");
+  assert.equal(installedMcpPackage.dependencies?.["@receiz/ai-skills"], "129.5.0");
   assert.equal(installedAiSkillsIndex.schema, "receiz.ai-skills-index.v129");
-  assert.equal(installedAiSkillsIndex.version, "129.0.0");
+  assert.equal(installedAiSkillsIndex.version, "129.5.0");
   assert.equal(pkg.pnpm?.overrides?.["@receiz/sdk"], undefined);
   assert.equal(pkg.pnpm?.overrides?.["@receiz/mcp-server"], undefined);
   assert.equal(pkg.pnpm?.overrides?.["@receiz/ai-skills"], undefined);
   assert.doesNotMatch(lockfile, /file:.*receiz/);
-  assert.ok(lockfile.includes("sha512-Y8WMYMVim5LrMpsCP85kxYdR6yQpBmIgt0DIWqXy320BqCECxg8du+AOUwzWJsAOQeJSorIPkysdoTnQPsWsrQ=="));
-  assert.ok(lockfile.includes("sha512-BN+x3ETZ8DeaEi4ARWOEpw8uUWI88m3BFSOrzPyy06DPbCfT2DdP4rdaWgixVYtVh4OPlPOurEapxm0thxDGEg=="));
-  assert.ok(lockfile.includes("sha512-EMWSpxTTZCMIoGeXHaMj4Lw0XQIcQIhekRYZkpNOEG5T6gavtrm920zqmmxwI7dLNNbap6p75hlYV8iqtXRDOQ=="));
+  assert.ok(lockfile.includes("sha512-pGjC3fP2zZ2c+YmhbrUGm8tRXZHg0s5FuQGevap+9AB1dC5e1dd8hloDfeMf4B40OLvOx92Mhwgu6XMCxOv3WA=="));
+  assert.ok(lockfile.includes("sha512-eT+rMow8xepsKoB3u1LiUi2PeC6RP0BifJkrcB8EnCsYV1SejNqmHhdGrRn82Q02hWycHvrM/+2lQsLFjv+VEw=="));
+  assert.ok(lockfile.includes("sha512-Ne7fdTmw3nnEXlH+jVl9w9cTnFSNENjVpobzuIZu5m+oOhUgkiXypMg4bDAHgggW2sAkZUklAdOzBI1hHy7r1Q=="));
   assert.equal(pkg.scripts?.["receiz:check"], "node scripts/receiz-v129-check.mjs");
   assert.equal(pkg.scripts?.["receiz:conformance"], "receiz conformance");
   for (const version of [requestedSdk, requestedMcp, requestedAiSkills, installedSdk, installedMcp, installedAiSkills]) {
     assert.equal(major(version), 129);
   }
-  assert.match(docs, /@receiz\/sdk@129\.0\.0/);
-  assert.match(docs, /@receiz\/mcp-server@129\.0\.0/);
-  assert.match(docs, /@receiz\/ai-skills@129\.0\.0/);
+  assert.match(docs, /@receiz\/sdk@129\.5\.0/);
+  assert.match(docs, /@receiz\/mcp-server@129\.5\.0/);
+  assert.match(docs, /@receiz\/ai-skills@129\.5\.0/);
 });
 
 test("v129 release binding retains the shipped v127 constitutional registry", () => {
-  assert.equal(RECEIZ_RELEASE_VERSION, "129.0.0");
+  assert.equal(RECEIZ_RELEASE_VERSION, "129.5.0");
   assert.equal(RECEIZ_RULESET_VERSION, "127.0.0");
   assert.equal(RECEIZ_CURRENT_CONSTITUTION_REGISTRY.version, "127.0.0");
   assert.equal(RECEIZ_CURRENT_REGISTRY_DIGEST, "8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065");
@@ -237,20 +237,20 @@ test("Receiz doctor verifies requested and installed SDK/MCP/AI-skills major 129
     targetMajor: 129,
     compatible: true,
     sdk: {
-      requested: "129.0.0",
-      installed: "129.0.0",
+      requested: "129.5.0",
+      installed: "129.5.0",
       requestedMajor: 129,
       installedMajor: 129
     },
     mcp: {
-      requested: "129.0.0",
-      installed: "129.0.0",
+      requested: "129.5.0",
+      installed: "129.5.0",
       requestedMajor: 129,
       installedMajor: 129
     },
     aiSkills: {
-      requested: "129.0.0",
-      installed: "129.0.0",
+      requested: "129.5.0",
+      installed: "129.5.0",
       requestedMajor: 129,
       installedMajor: 129
     }

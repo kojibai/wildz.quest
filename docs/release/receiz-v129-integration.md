@@ -1,5 +1,23 @@
 # Receiz v129 package alignment and capability evidence
 
+## Current package alignment: 129.5.0
+
+Wildz pins the public `@receiz/sdk`, `@receiz/mcp-server`, and `@receiz/ai-skills` packages to exact `129.5.0`. Public npm metadata verified on 2026-11-14 returned these SHA-512 values, pinned in `pnpm-lock.yaml`:
+
+| Package | Published integrity |
+| --- | --- |
+| `@receiz/sdk` | `sha512-pGjC3fP2zZ2c+YmhbrUGm8tRXZHg0s5FuQGevap+9AB1dC5e1dd8hloDfeMf4B40OLvOx92Mhwgu6XMCxOv3WA==` |
+| `@receiz/mcp-server` | `sha512-eT+rMow8xepsKoB3u1LiUi2PeC6RP0BifJkrcB8EnCsYV1SejNqmHhdGrRn82Q02hWycHvrM/+2lQsLFjv+VEw==` |
+| `@receiz/ai-skills` | `sha512-Ne7fdTmw3nnEXlH+jVl9w9cTnFSNENjVpobzuIZu5m+oOhUgkiXypMg4bDAHgggW2sAkZUklAdOzBI1hHy7r1Q==` |
+
+The upgrade aligns package pins, release checks, offline resources, saved MCP descriptor metadata, tests, and current documentation. Installed SDK constants retain ruleset `127.0.0`, registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065`, operation-matrix digest `c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1`, all 60 operations, and compatible range `>=129.0.0 <130.0.0`. The application contract and generated matrix need no changes. Historical proof bytes and protocol coordinates remain intact.
+
+The installed catalogs expose 705 SDK public functions, 425 client methods, 356 full MCP tools, and 43 AI skills. The public-function inventory digest is `efe63aa1a98c48b84472837496fa008f172b318186c95749a8b0c7b3ceb9bde7`. All 13 saved Market MCP descriptors match the installed release exactly. Existing transitive dependency versions are retained. The older qualification evidence in this document applies to its original package version.
+
+Local validation on 2026-11-14 passed: frozen offline dependency installation; architecture lock; all 4,643 passing repository tests with zero failures and one skip; TypeScript; ESLint; official integration checker with zero blocking findings; MCP conformance; secret scan; optimized production build; and the local doctor reporting all three requested and installed versions as `129.5.0`. Wallet capability fixtures now use the exact installed release, preserving the runtime's version-mismatch rejection. Offline resource synchronization retained every existing resource hash. These checks do not establish deployed payment, provider, device, or custody qualification for `129.5.0`.
+
+## Initial 129.0.0 integration evidence
+
 Wildz pins the public `@receiz/sdk`, `@receiz/mcp-server` and `@receiz/ai-skills` packages to `129.0.0`. Read-only `pnpm view <package>@129.0.0 dist.integrity --registry=https://registry.npmjs.org` on 2026-10-11 independently returned the exact SHA-512 values already present in `pnpm-lock.yaml`:
 
 | Package | Published integrity |

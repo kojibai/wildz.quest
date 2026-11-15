@@ -2,7 +2,7 @@
 
 The complete V124 production-runtime composition and its latency/authority boundaries are documented in [`RECEIZ_V124_RUNTIME.md`](./RECEIZ_V124_RUNTIME.md).
 
-Wildz targets the exact `@receiz/sdk@129.0.0` release. Application code uses SDK identity, artifact, durable subject admission, proof-authority exchange, authority sessions, durable execution, recipient resolution, and executable Phi clients. `@receiz/mcp-server@129.0.0` and `@receiz/ai-skills@129.0.0` are operator tooling only; neither can replace proof verification or independently admit a mutation. The packages resolve from the public npm registry, and their published SHA-512 lockfile integrity values keep installation reproducible. This release adopts the v129 registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1`.
+Wildz targets the exact `@receiz/sdk@129.5.0` release. Application code uses SDK identity, artifact, durable subject admission, proof-authority exchange, authority sessions, durable execution, recipient resolution, and executable Phi clients. `@receiz/mcp-server@129.5.0` and `@receiz/ai-skills@129.5.0` are operator tooling only; neither can replace proof verification or independently admit a mutation. The packages resolve from the public npm registry, and their published SHA-512 lockfile integrity values keep installation reproducible. This release adopts the v129 registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065` and operation-matrix digest `c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1`.
 
 ## Authority map
 
@@ -90,4 +90,4 @@ restore. A document seal never substitutes for native ownership or settlement
 admission. See [save verification](game-image-export-verification.md) and
 [v129 release evidence](release/receiz-v129-integration.md).
 
-Receiz package release 129.0.0 retains constitutional ruleset 127.0.0; package and ruleset versions are deliberately distinct.
+Receiz package release 129.5.0 retains constitutional ruleset 127.0.0; package and ruleset versions are deliberately distinct.

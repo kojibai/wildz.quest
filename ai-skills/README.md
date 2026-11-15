@@ -1,6 +1,6 @@
 # Wildz v129 AI operating doctrine
 
-Wildz is aligned only to the public npm releases `@receiz/ai-skills@129.0.0`, `@receiz/sdk@129.0.0`, and `@receiz/mcp-server@129.0.0`, with published SHA-512 integrity values pinned in `pnpm-lock.yaml`. All current procedures bind to registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065`, operation-matrix digest `c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1`, and artifact laws `ARTIFACT-001` through `ARTIFACT-030`.
+Wildz is aligned only to the public npm releases `@receiz/ai-skills@129.5.0`, `@receiz/sdk@129.5.0`, and `@receiz/mcp-server@129.5.0`, with published SHA-512 integrity values pinned in `pnpm-lock.yaml`. All current procedures bind to registry digest `8d0b5b839d02d9efbd4306cc99410595a183705c2670b76d2567eaaaade99065`, operation-matrix digest `c4e0cff348b62f31db2bb2ffdeec533a92ca3a6d476757bb9b559ac58a7875e1`, and artifact laws `ARTIFACT-001` through `ARTIFACT-030`.
 
 V129 is one coordinated release identity across SDK, MCP, AI manifests, ruleset, registry, operation matrix, compatible package range, and packed runtime. Durable proof memory is first admission only, then append forever. V129 causal orchestration keeps the enclosing artifact strongest, paints known truth before discovery, selects causal heads by Kai, and commits exact appends through Merkle roots with Fibonacci sparse ancestry.
 
@@ -24,4 +24,4 @@ For creature-compatible experiences, follow the [developer integration guide](..
 
 Public card URLs require a publicly recoverable record. Follow the [publication authorization guide](../docs/developers/public-card-publication.md): card verification does not grant registry write permission. Use matching delegated authority or local Identity Seal signing through the exact same-origin relay, and confirm anonymous recovery before advertising a QR. Never transmit private seal material or put publication in the frame loop.
 
-Receiz package release 129.0.0 retains constitutional ruleset 127.0.0 and the V124/V125/V128 wire identifiers; package, ruleset, and protocol versions are deliberately distinct. The current 60-operation matrix uses compatible package range `>=129.0.0 <130.0.0`.
+Receiz package release 129.5.0 retains constitutional ruleset 127.0.0 and the V124/V125/V128 wire identifiers; package, ruleset, and protocol versions are deliberately distinct. The current 60-operation matrix uses compatible package range `>=129.0.0 <130.0.0`.

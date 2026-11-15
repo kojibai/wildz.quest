@@ -20,9 +20,9 @@ async function call(name, args = {}) {
   return parseReceizMcpToolResult(response.result);
 }
 try {
-  assert.equal(RECEIZ_RELEASE_VERSION, '129.0.0');
+  assert.equal(RECEIZ_RELEASE_VERSION, '129.5.0');
   const initialization = await handleReceizMcpMessage({ jsonrpc: '2.0', id: ++id, method: 'initialize', params: {} });
-  assert.equal(initialization.result.serverInfo.version, '129.0.0');
+  assert.equal(initialization.result.serverInfo.version, '129.5.0');
   await writeFile(join(workspace, 'input.json'), JSON.stringify({ game: 'wildz', qualification: 'v129', unknownNamespace: { retained: true } }));
   const status = await call('receiz_offline_seal_status');
   assert.equal(status.ready, true);
