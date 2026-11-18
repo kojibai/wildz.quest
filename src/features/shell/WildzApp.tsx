@@ -1,8 +1,8 @@
 "use client";
 
-import { recordWildzUploadOwnershipClaims, readWildzUploadOwnershipHeads, retainVerifiedWildzUploadOwnershipClaims, verifyWildzPublishedOwnershipClaims } from "../../lib/receiz/wildz-upload-ownership";
-import { readWildzOwnerPublishedOwnershipClaims, verifiedWildzPublishedOwnershipRecords } from "../../lib/receiz/wildz-published-ownership";
-import { lostWildzOwnershipAssetIdsFromSync, reconciledWildzLostOwnershipAssetIds } from "../../lib/receiz/wildz-ownership-reconcile";
+import { recordWildzUploadOwnershipClaims, retainVerifiedWildzUploadOwnershipClaims, verifyWildzPublishedOwnershipClaims } from "../../lib/receiz/wildz-upload-ownership";
+import { readWildzOwnerPublishedOwnershipClaims } from "../../lib/receiz/wildz-published-ownership";
+import { receizBase64UrlDecode } from "@receiz/sdk";
 import { readWildzIdentityForSigning } from "../../lib/receiz/wildz-identity-signing-read";
 import { saveWildzRestoredPlayState } from "../identity/wildz-restore";
 import { observeWildsKaiUPulse } from "../play/wilds-kai-runtime";
@@ -13,7 +13,7 @@ import { readWildzLocalSealerReadiness } from "../../lib/receiz/local-seal/brows
 import { hasLaterWildsPlayerLedger } from "@/features/play/wilds-play-state-source";
 import { isCurrentWildzGameplaySource } from "../identity/wildz-gameplay-source";
 import { validateWildsRoamingHandoffCard } from "../../lib/receiz/wilds-roaming-handoff";
-import { pruneWildzCrewCustody, mergeWildzCrewCustody, admitWildzUploadClaimCrewCustody, retainWildzCrewCustodyMemory } from "../../lib/receiz/wildz-artifact-codec";
+import { readWildzArtifactCrewCustody, transferredWildzCrewAssetIds, pruneWildzCrewCustody, mergeWildzCrewCustody, admitWildzUploadClaimCrewCustody, retainWildzCrewCustodyMemory } from "../../lib/receiz/wildz-artifact-codec";
 import { retainWildzProfilePage, type WildzProfilePageSeed } from "../profile/profile-page-seed";
 import {readWildzProfileDisplayName,saveWildzProfileDisplayName} from "../profile/profile-display-name";
 
@@ -36,7 +36,7 @@ import {
   type WildzCardOnlyConfirmation
 } from "@/features/identity/wildz-restore";
 import {
-  locallyClaimedWildzAssetIds,
+  locallyTransferredWildzAssetIds,
   recordLocalWildzOwnershipTransfer,
   removeWildzAssetsFromActiveVault
 } from "@/features/identity/wildz-ownership-reconciliation";
@@ -106,14 +106,13 @@ import { canRestoreFocus } from "@/features/play/focus-recovery";
 import type { WildzPlayerStateRecord } from "@/lib/receiz/wildz-player-state-sync";
 import { wildzGameplayBackground } from "@/lib/performance/wildz-gameplay-background";
 import type { WildzPlayerStateReceipt } from "@/lib/performance/wildz-player-state-transport";
-import { prepareWildzRemotePlayerSnapshot } from "@/features/identity/wildz-remote-player-admission";
+import { readWildzPlayerDeliveryHead } from "@/features/identity/wildz-remote-player-admission";
 import { wildzPlayerStateSerializer } from "@/lib/performance/wildz-player-state-serializer";
 import { wildzJsonSerializer } from "@/lib/performance/wildz-json-serializer";
 import { projectWildzContinuityExplorer } from "@/features/play/wildz-explorer-proof";
 import type { WildsWorldProjection } from "@/features/play/wilds-world-state";
 import {
   clearWildzPendingInventoryCheckpoint,
-  prepareWildzRuntimeCheckpoint,
   writeWildzPendingInventoryCheckpoint
 } from "@/features/play/wildz-runtime-checkpoint";
 import { createWildzRuntimeCheckpointStore } from '@/features/play/wildz-runtime-checkpoint-store';
@@ -194,13 +193,21 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
   const playerStateMutationRef = useRef(0);
   const playerStateSourceTimesRef = useRef(new WeakMap<WildzContinuitySnapshot, { mutation: number; exportedAt: string }>());
   const playerStateSubmittedMutationRef = useRef(0);
-  const lastRemotePlayerDigestRef = useRef("");
-  const knownRemotePlayerHeadRef = useRef<{ keyId: string; restoreEpoch: WildzContinuitySnapshot["restoreEpoch"]; digest: string } | null>(null);
-  const adoptingRemotePlayStateRef = useRef<PlayState | null>(null);
   const playStateSaveSchedulerRef = useRef<WildzPlayStatePersistenceCoordinator<PendingPlayStateSave> | null>(null);
   const [runtimeCheckpointStore] = useState(() => createWildzRuntimeCheckpointStore({
     database: defaultContinuityDatabase, getStorage: () => window.localStorage
   }));
+
+  const resetCheckpointAfterRestore = useCallback((snapshot: WildzContinuitySnapshot) => {
+    const scope = { keyId: snapshot.session.keyId, actorId: snapshot.session.actorId };
+    void runtimeCheckpointStore.clear(scope).then(() => {
+      if (snapshot.playState && isCurrentWildzGameplaySource(continuityRef.current, snapshot)) {
+        return runtimeCheckpointStore.retainDurableAtlas({
+          ...scope, restoreEpoch: snapshot.restoreEpoch, playState: snapshot.playState
+        });
+      }
+    }).catch(() => undefined);
+  }, [runtimeCheckpointStore]);
 
   if (!playStateSaveSchedulerRef.current) {
     playStateSaveSchedulerRef.current = createWildzPlayStatePersistenceCoordinator({
@@ -214,7 +221,8 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
         });
       },
       writeRuntime: async ({ snapshot, playState }: PendingPlayStateSave) => {
-        const prepared = prepareWildzRuntimeCheckpoint({
+        const prepared = runtimeCheckpointStore.prepare({
+          restoreEpoch: snapshot.restoreEpoch,
           keyId: snapshot.session.keyId,
           actorId: snapshot.session.actorId,
           playState
@@ -224,15 +232,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
           const latest = continuityRef.current;
           if (!latest || !isCurrentWildzGameplaySource(latest, snapshot)
             || (latest.playState && hasLaterWildsPlayerLedger(latest.playState, playState))) return;
-          if (serialized) {
-            await runtimeCheckpointStore.writePrepared({ key: prepared.key, serialized });
-          } else {
-            await runtimeCheckpointStore.write({
-              keyId: snapshot.session.keyId,
-              actorId: snapshot.session.actorId,
-              playState
-            });
-          }
+          await prepared.commit(serialized ?? JSON.stringify(prepared.checkpoint));
         }, { timeoutMs: 1_200 });
       },
       writeVault: async ({ snapshot, playState, playerContinuity }: PendingPlayStateSave) => {
@@ -242,7 +242,9 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
           playerContinuity,
           snapshot.character
         );
-        if (saved) {
+        if (saved && isCurrentWildzGameplaySource(continuityRef.current, snapshot)) {
+          void runtimeCheckpointStore.retainDurableAtlas({ keyId: snapshot.session.keyId, actorId: snapshot.session.actorId,
+            restoreEpoch: snapshot.restoreEpoch, playState: saved }).catch(() => undefined);
           clearWildzPendingInventoryCheckpoint(window.localStorage, {
             keyId: snapshot.session.keyId,
             actorId: snapshot.session.actorId,
@@ -524,21 +526,23 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
   const acceptSnapshot = useCallback((snapshot: WildzContinuitySnapshot) => {
     snapshot = { ...snapshot, crewCustody: pruneWildzCrewCustody(snapshot.crewCustody, snapshot.session.actorId, snapshot.playState?.inventory ?? []) };
     const previous = continuityRef.current;
+    if (previous && (previous.session.keyId !== snapshot.session.keyId || previous.session.actorId !== snapshot.session.actorId)) {
+      runtimeCheckpointStore.release(previous.session);
+    }
     continuityRef.current = snapshot;
     setContinuity(snapshot);
     setCharacter(snapshot.character);
     if (!isCurrentWildzGameplaySource(previous, snapshot)) {
+      if (previous) wildzPlayerStateSerializer.close();
       marketEntryGeneration.current++;setPendingMarketEntry(false);
       playerStateMutationRef.current = 0;
       playerStateSubmittedMutationRef.current = 0;
-      lastRemotePlayerDigestRef.current = "";
-      knownRemotePlayerHeadRef.current = null;
       playerStateSyncQueuedRef.current = null;
       if (playerStateSyncTimerRef.current !== null) window.clearTimeout(playerStateSyncTimerRef.current);
       playerStateSyncTimerRef.current = null;
     }
     // A same-player Vault merge keeps its authenticated world session. Only
-    // delayed sync saves and remembered remote heads belong to the old restore.
+    // delayed sync saves belong to the old restore.
     const sameMessagingSource=previous?.session.keyId===snapshot.session.keyId
       && previous.session.localAuthority===snapshot.session.localAuthority;
     if (!sameMessagingSource) setMarketMessengerPrincipal(null);
@@ -547,7 +551,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
       setProofSessionGeneration("");
       setMarketMessengerPrincipal(null);
     }
-  }, []);
+  }, [runtimeCheckpointStore]);
 
   useEffect(() => {
     const snapshot = continuityRef.current;
@@ -586,6 +590,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
       if (current?.playState) {
         try {
           void runtimeCheckpointStore.write({
+            restoreEpoch: current.restoreEpoch,
             keyId: current.session.keyId,
             actorId: current.session.actorId,
             playState: current.playState
@@ -781,14 +786,16 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
           const resumed = await resumePendingWildzVault(resumeId);
           if (!active) return;
           clearWildzAuthQuery();
-          acceptSnapshot({
+          const next = {
             session: resumed.restore.session,
             playState: resumed.restore.playState,
             character: resumed.restore.character,
             playerContinuity: resumed.restore.playerContinuity,
             crewCustody: resumed.restore.crewCustody,
             restoreEpoch: resumed.restore.restoreEpoch
-          });
+          };
+          resetCheckpointAfterRestore(next);
+          acceptSnapshot(next);
           setOpeningStage(4);
           return;
         } catch (cause) {
@@ -810,11 +817,13 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
         if (active) setOpeningStage(stage === "identity" ? 1 : stage === "owner-state" ? 2 : 3);
       });
       if (!active) return;
+      const durableOwner = snapshot.playState !== null;
       const checkpointBaseline = snapshot.playState ?? createOwnerBoundInitialPlayState(
         snapshot.session.actorId,
         snapshot.session.createdAt
       );
       snapshot.playState = await runtimeCheckpointStore.read({
+        durableOwner, restoreEpoch: snapshot.restoreEpoch,
         keyId: snapshot.session.keyId,
         actorId: snapshot.session.actorId,
         playState: checkpointBaseline
@@ -822,6 +831,8 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
       if (!active) return;
       acceptSnapshot(snapshot);
       setOpeningStage(4);
+      if (durableOwner) void runtimeCheckpointStore.retainDurableAtlas({ keyId: snapshot.session.keyId, actorId: snapshot.session.actorId,
+        restoreEpoch: snapshot.restoreEpoch, playState: checkpointBaseline }).catch(() => undefined);
       if (snapshot.playState.inventory !== checkpointBaseline.inventory && snapshot.playerContinuity) {
         void saveWildzContinuityPlayState(
           snapshot,
@@ -842,7 +853,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
       if (active) setIdentityError(cause instanceof Error ? cause.message : "Unable to prepare your Receiz ID.");
     });
     return () => { active = false; };
-  }, [acceptSnapshot, runtimeCheckpointStore]);
+  }, [acceptSnapshot, resetCheckpointAfterRestore, runtimeCheckpointStore]);
 
   const completeGenesis = useCallback(async (next: WildzCharacterGenesis) => {
     const current = continuityRef.current;
@@ -861,12 +872,14 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     };
     const snapshot: WildzContinuitySnapshot = { ...current, playState, character: next, playerContinuity };
     try {
-      await saveWildzContinuityPlayState(snapshot, playState, playerContinuity, next);
+      const saved = await saveWildzContinuityPlayState(snapshot, playState, playerContinuity, next);
       acceptSnapshot(snapshot);
+      if (saved) void runtimeCheckpointStore.retainDurableAtlas({ keyId: snapshot.session.keyId, actorId: snapshot.session.actorId,
+        restoreEpoch: snapshot.restoreEpoch, playState: saved }).catch(() => undefined);
     } catch {
       setIdentityError("Your explorer could not be saved. Try again before closing Wildz.");
     }
-  }, [acceptSnapshot]);
+  }, [acceptSnapshot, runtimeCheckpointStore]);
 
   useEffect(() => {
     if (!identity?.createdAt || character || genesisInFlightRef.current === identity.keyId) return;
@@ -949,7 +962,10 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
       sameSnapshot: (left, right) => left.session === right.session
         && left.playState === right.playState && left.playerContinuity === right.playerContinuity
         && left.character === right.character,
-      build: buildCombinedVault
+      build: buildCombinedVault,
+      retryWithPrompt: error => error instanceof Error && [
+        "wildz_identity_passphrase_required", "offline_seal_enrollment_required", "wildz_background_export_worker_unavailable"
+      ].includes(error.message)
     });
   }
   const prewarmCombinedVault = useCallback(async () => {
@@ -961,13 +977,8 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     await combinedVaultCoordinator.current!.prepare(current, false);
   }, []);
   // Seal and Vault reuse the exact prepared snapshot; movement never queues backups.
-  const prepareCombinedVaultForSave = async (current: WildzContinuitySnapshot) => {
-    try { return await combinedVaultCoordinator.current!.prepare(current, false, { explicit: true }); }
-    catch (error) {
-      if (!(error instanceof Error) || !["wildz_identity_passphrase_required", "offline_seal_enrollment_required"].includes(error.message)) throw error;
-      return combinedVaultCoordinator.current!.prepare(current, true);
-    }
-  };
+  const prepareCombinedVaultForSave = (current: WildzContinuitySnapshot) =>
+    combinedVaultCoordinator.current!.prepare(current, true);
 
   const saveCombinedVault = async () => {
     const current = continuityRef.current;
@@ -1017,10 +1028,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     await retainVerifiedWildzUploadOwnershipClaims(defaultContinuityDatabase, outcome.playerContinuity.receipts.flatMap(receipt => receipt.ownershipClaim ? [receipt.ownershipClaim] : []));
     await beforeVisible?.(outcome);
     const next = commitWildzArtifactContinuity(outcome);
-    void runtimeCheckpointStore.clear({
-      keyId: outcome.session.keyId,
-      actorId: outcome.session.actorId
-    }).catch(() => undefined);
+    resetCheckpointAfterRestore(next);
     clearWildzPendingInventoryCheckpoint(window.localStorage, {
       keyId: outcome.session.keyId,
       actorId: outcome.session.actorId
@@ -1038,7 +1046,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
       channel.close();
     }
     return outcome;
-  }, [acceptSnapshot, runtimeCheckpointStore]);
+  }, [acceptSnapshot, resetCheckpointAfterRestore]);
 
   const restoreRoamingCapture = useCallback(async (file: File, currentCard: PortableCardAsset, currentPlayState: PlayState) => {
     const current = continuityRef.current;
@@ -1207,38 +1215,14 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     return outcome.verifiedAssetIds.length;
   }, [claimAndRestoreVaultArtifact]);
 
-  const admitRemotePlayerState = useCallback(async (record: WildzPlayerStateRecord | null) => {
-    if (!record) return false;
-    const source = continuityRef.current;
-    if (!source?.playState || !sameWildzPlayerCoordinate(source.session.actorId, record.playerId)) return false;
-    if (record.sourceDigest === lastRemotePlayerDigestRef.current) return true;
-    const snapshot = await prepareWildzRemotePlayerSnapshot(source, record, () => continuityRef.current);
-    if (!snapshot?.playState) return false;
-    const playState = snapshot.playState;
-    lastRemotePlayerDigestRef.current = record.sourceDigest;
-    adoptingRemotePlayStateRef.current = playState;
-    acceptSnapshot(snapshot);
-    await runtimeCheckpointStore.write({
-      keyId: snapshot.session.keyId,
-      actorId: snapshot.session.actorId,
-      playState
-    });
-    await saveWildzContinuityPlayState(
-      snapshot,
-      playState,
-      snapshot.playerContinuity!,
-      snapshot.character
-    ).catch(() => null);
-    return true;
-  }, [acceptSnapshot, runtimeCheckpointStore]);
-
   const queueGlobalPlayerStateSync = useCallback((snapshot: WildzContinuitySnapshot) => {
     if (!proofSessionConnected || !snapshot.playState || !snapshot.playerContinuity
       || !isCurrentWildzGameplaySource(continuityRef.current, snapshot)) return;
     playerStateSyncQueuedRef.current = snapshot;
-    if (playerStateSyncTimerRef.current !== null || playerStateSyncInFlightRef.current) return;
+    if (navigator.onLine === false || playerStateSyncTimerRef.current !== null || playerStateSyncInFlightRef.current) return;
     playerStateSyncTimerRef.current = window.setTimeout(() => {
       playerStateSyncTimerRef.current = null;
+      if (navigator.onLine === false) return;
       const queued = playerStateSyncQueuedRef.current;
       playerStateSyncQueuedRef.current = null;
       if (!queued?.playState || !queued.playerContinuity) return;
@@ -1249,39 +1233,29 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
       const mutationAtSubmit = source.mutation;
       const projectionInput = playerVaultInputFromSnapshot(queued, queued.playState, source.exportedAt);
       playerStateSyncInFlightRef.current = true;
-      void wildzPlayerStateSerializer.serialize(projectionInput).then((workerBody) => workerBody
-        ?? wildzGameplayBackground.run(() => {
+      void wildzPlayerStateSerializer.serialize(projectionInput).then((workerBody) => {
+        if (workerBody !== null) return workerBody;
+        if (navigator.onLine === false || !isCurrentWildzGameplaySource(continuityRef.current, queued)) return null;
+        return wildzGameplayBackground.run(() => {
           const player = createWildsPlayerVault(projectionInput);
           return JSON.stringify({ player });
-        }, { timeoutMs: 1_500 })).then((body) => {
+        }, { timeoutMs: 1_500 });
+      }).then((body) => {
         // A seal can be restored while the worker is preparing an old save.
-        if (!isCurrentWildzGameplaySource(continuityRef.current, queued)) return null;
+        if (body === null || navigator.onLine === false || !isCurrentWildzGameplaySource(continuityRef.current, queued)) return null;
         return fetch("/api/wilds/player-state", {
           method: "POST",
           credentials: "same-origin",
           cache: "no-store",
-          headers: { "content-type": "application/json", "x-wildz-player-state-response": "compact" },
+          headers: { "content-type": "application/json", "x-wildz-player-state-response": "receipt" },
           body
         });
       }).then(async (response) => {
         if (!response) return;
         const result = await response.json().catch(() => null) as { ok?: boolean; record?: WildzPlayerStateRecord | null; receipt?: WildzPlayerStateReceipt } | null;
-        const head = result?.record ?? result?.receipt;
-        if (!response.ok || !result?.ok || !head
-          || !sameWildzPlayerCoordinate(queued.session.actorId, head.playerId)
-          || !/^sha256:[a-f0-9]{64}$/.test(head.sourceDigest)
-          || !Number.isSafeInteger(head.revision) || head.revision < 1
-          || queued.session.keyId !== continuityRef.current?.session.keyId
-          || queued.restoreEpoch !== continuityRef.current?.restoreEpoch) return;
+        const head = readWildzPlayerDeliveryHead(queued, result?.record ?? result?.receipt, continuityRef.current);
+        if (!response.ok || !result?.ok || !head) return;
         playerStateSubmittedMutationRef.current = Math.max(playerStateSubmittedMutationRef.current, mutationAtSubmit);
-        if (result.record) {
-          // A response racing newer local input still needs to be pulled later.
-          // Do not mark an unconsumed converged Vault as already downloaded.
-          if (playerStateMutationRef.current !== mutationAtSubmit) return;
-          if (!await admitRemotePlayerState(result.record)
-            || !isCurrentWildzGameplaySource(continuityRef.current, queued)) return;
-        }
-        knownRemotePlayerHeadRef.current = { keyId: queued.session.keyId, restoreEpoch: queued.restoreEpoch, digest: head.sourceDigest };
       }).catch(() => undefined).finally(() => {
         playerStateSyncInFlightRef.current = false;
         const latest = playerStateSyncQueuedRef.current;
@@ -1300,84 +1274,25 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
         }
       });
     }, 2_500);
-  }, [admitRemotePlayerState, proofSessionConnected]);
+  }, [proofSessionConnected]);
 
   useEffect(() => {
-    if (!proofSessionConnected || !identity) return;
-    let active = true;
-    let inFlight = false;
-    let timer: number | null = null;
-    const schedule = (delayMs: number) => {
-      if (!active || timer !== null || document.visibilityState !== "visible" || navigator.onLine === false) return;
-      timer = window.setTimeout(() => {
-        timer = null;
-        void pull();
-      }, delayMs);
+    const resume = () => {
+      const queued = playerStateSyncQueuedRef.current;
+      if (queued) queueGlobalPlayerStateSync(queued);
     };
-    const pull = async () => {
-      if (!active || document.visibilityState !== "visible"
-        || inFlight
-        || playerStateMutationRef.current !== playerStateSubmittedMutationRef.current) {
-        schedule(5_000);
-        return;
-      }
-      inFlight = true;
-      const mutationAtRead = playerStateMutationRef.current;
-      const restoreEpochAtRead = continuityRef.current?.restoreEpoch;
-      const knownHead = knownRemotePlayerHeadRef.current;
-      await fetch("/api/wilds/player-state", {
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: knownHead?.keyId === identity.keyId && knownHead.restoreEpoch === continuityRef.current?.restoreEpoch
-          ? { "if-none-match": `"${knownHead.digest}"` } : undefined
-      }).then(async (response) => {
-        if (response.status === 304) return;
-        const result = await response.json().catch(() => null) as { ok?: boolean; record?: WildzPlayerStateRecord | null } | null;
-        if (active && response.ok && result?.ok && result.record
-          && sameWildzPlayerCoordinate(identity.actorId, result.record.playerId)
-          && restoreEpochAtRead !== undefined && restoreEpochAtRead === continuityRef.current?.restoreEpoch
-          && playerStateMutationRef.current === mutationAtRead
-          && playerStateMutationRef.current === playerStateSubmittedMutationRef.current) {
-          if (!await admitRemotePlayerState(result.record)
-            || !active || restoreEpochAtRead !== continuityRef.current?.restoreEpoch
-            || identity.keyId !== continuityRef.current?.session.keyId) return;
-          knownRemotePlayerHeadRef.current = { keyId: identity.keyId, restoreEpoch: restoreEpochAtRead, digest: result.record.sourceDigest };
-        }
-      }).catch(() => undefined).finally(() => {
-        inFlight = false;
-        schedule(5_000);
-      });
-    };
-    void pull();
-    const onVisibility = () => {
-      if (timer !== null) window.clearTimeout(timer);
-      timer = null;
-      if (document.visibilityState === "visible" && navigator.onLine !== false) void pull();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    window.addEventListener("pageshow", onVisibility);
-    window.addEventListener("online", onVisibility);
+    window.addEventListener("online", resume);
+    resume();
     return () => {
-      active = false;
-      if (timer !== null) window.clearTimeout(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-      window.removeEventListener("pageshow", onVisibility);
-      window.removeEventListener("online", onVisibility);
+      window.removeEventListener("online", resume);
+      if (playerStateSyncTimerRef.current !== null) window.clearTimeout(playerStateSyncTimerRef.current);
+      playerStateSyncTimerRef.current = null;
     };
-  }, [admitRemotePlayerState, identity, proofSessionConnected]);
-
-  useEffect(() => () => {
-    if (playerStateSyncTimerRef.current !== null) window.clearTimeout(playerStateSyncTimerRef.current);
-  }, []);
+  }, [queueGlobalPlayerStateSync]);
 
   const persistPlayState = useCallback((playState: PlayState, playerContinuity: NonNullable<WildzContinuitySnapshot["playerContinuity"]>, source: WildzContinuitySnapshot) => {
     const current = continuityRef.current;
     if (!current || !isCurrentWildzGameplaySource(current, source)) return;
-    if (adoptingRemotePlayStateRef.current === playState) {
-      adoptingRemotePlayStateRef.current = null;
-      continuityRef.current = { ...current, playerContinuity };
-      return;
-    }
     const cardTruthChanged = current.playState?.inventory === playState.inventory
       ? false
       : (() => {
@@ -1431,68 +1346,37 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     if (identity?.localAuthority !== "verified") return;
     let disposed = false;
     let reconcileInFlight = false;
-    let controller: AbortController | null = null;
-
     const reconcileActiveVaultOwnership = async () => {
-      if (disposed || reconcileInFlight) return;
       const current = continuityRef.current;
-      const activeAssetIds = current?.playState?.inventory.map((asset) => asset.id) ?? [];
-      const pendingBearerClaims = new Set(current
-        ? locallyClaimedWildzAssetIds(window.localStorage, current.session.actorId, activeAssetIds)
-        : []);
-      const assetIds = activeAssetIds
-        .filter((assetId) => !pendingBearerClaims.has(assetId))
-        .slice(0, WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS);
-      if (!current || !activeAssetIds.length) return;
-      const requestedActorId = current.session.actorId;
-      const allAssetIds = activeAssetIds.slice(0, WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS);
-      const isCurrent = () => !disposed && continuityRef.current?.session.keyId === current.session.keyId
-        && continuityRef.current?.session.actorId === current.session.actorId && continuityRef.current?.restoreEpoch === current.restoreEpoch;
+      if (disposed || reconcileInFlight || !current?.crewCustody || !current.playState) return;
+      const assetIds = locallyTransferredWildzAssetIds(window.localStorage, current.session.actorId,
+        current.playState.inventory.map(card => card.id)).slice(0, WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS);
+      if (!assetIds.length) return;
+      const isCurrent = () => !disposed && current.session.keyId === continuityRef.current?.session.keyId
+        && current.session.actorId === continuityRef.current?.session.actorId && current.restoreEpoch === continuityRef.current?.restoreEpoch;
       reconcileInFlight = true;
-      controller = new AbortController();
       try {
-        const local = await readWildzUploadOwnershipHeads(defaultContinuityDatabase, allAssetIds);
-        if (!isCurrent()) return;
-        const localLost = lostWildzOwnershipAssetIdsFromSync(local, requestedActorId, allAssetIds);
-        if (localLost.length) removeLostVaultAssets(localLost);
-        const publicResponse = await fetch("/api/wilds/market/collection", {credentials: "omit", cache: "no-store", signal: controller.signal});
-        const publicResult = await publicResponse.json().catch(() => null);
-        let published: readonly unknown[] = [];
-        if (publicResponse.ok && publicResult?.ok === true && Array.isArray(publicResult.ownershipClaims)) {
-          published = await verifiedWildzPublishedOwnershipRecords(publicResult.ownershipClaims);
-          await retainVerifiedWildzUploadOwnershipClaims(defaultContinuityDatabase, published);
-          const publicLocal = await readWildzUploadOwnershipHeads(defaultContinuityDatabase, allAssetIds);
-          if (isCurrent()) {
-            const lost = lostWildzOwnershipAssetIdsFromSync([...published, ...publicLocal], requestedActorId, allAssetIds);
-            if (lost.length) removeLostVaultAssets(lost);
+        for (const id of assetIds) {
+          const page = await defaultWildzProofSourceRepository.locateAsset(id);
+          for (const sha of page.artifactSha256s) {
+            if (!isCurrent()) return;
+            const source = await defaultWildzProofSourceRepository.read(sha);
+            if (!source) continue;
+            const artifact = source.artifact;
+            const file = new File([receizBase64UrlDecode(artifact.exactBytesB64u).slice().buffer], artifact.filename, { type: artifact.mimeType });
+            const { inspection } = await prepareWildzRestore(file);
+            if (!isCurrent()) return;
+            const live = continuityRef.current;
+            if (!live?.playState) return;
+            const lost = transferredWildzCrewAssetIds(live.crewCustody, live.playState.inventory.filter(card => card.id === id),
+              readWildzArtifactCrewCustody(inspection));
+            if (lost.length) { removeLostVaultAssets(lost); return; }
           }
-          // The complete public read already included this same native namespace.
-          // Its verified coordinates plus fresh local heads finish this refresh.
-          return;
         }
-        if (!proofSessionConnected || !assetIds.length || !isCurrent()) return;
-        const response = await fetch("/api/market/ownership/reconcile", {
-          method: "POST",
-          credentials: "same-origin",
-          cache: "no-store",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ assetIds }),
-          signal: controller.signal
-        });
-        const result = await response.json().catch(() => null);
-        if (!response.ok || result?.status !== "ready" || !isCurrent()) return;
-        // A new explicit upload may have committed while this native request
-        // was in flight. Re-open its actual signed coordinate before removal.
-        const freshLocal = await readWildzUploadOwnershipHeads(defaultContinuityDatabase, allAssetIds);
-        if (!isCurrent()) return;
-        const lostAssetIds = reconciledWildzLostOwnershipAssetIds({nativeResult: result,
-          verifiedClaims: [...published, ...freshLocal], actorId: requestedActorId, assetIds: allAssetIds});
-        if (lostAssetIds.length) removeLostVaultAssets(lostAssetIds);
       } catch {
-        // Sync unavailability changes no local custody; the visible world retries.
+        // An unavailable source leaves the current keeper's cards intact.
       } finally {
         reconcileInFlight = false;
-        controller = null;
       }
     };
     const stop = startWildzLiveOwnershipRefresh({
@@ -1502,9 +1386,8 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     return () => {
       disposed = true;
       stop();
-      controller?.abort();
     };
-  }, [proofSessionConnected, identity?.keyId, identity?.actorId, identity?.localAuthority, profileRetryRevision, removeLostVaultAssets]);
+  }, [identity?.keyId, identity?.actorId, identity?.localAuthority, profileRetryRevision, removeLostVaultAssets]);
 
   useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;

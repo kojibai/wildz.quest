@@ -165,6 +165,21 @@ test("successful payment displays its exact recipient and amount", () => {
   assert.match(markup, /0\.000001/);
 });
 
+test("QR review submits its displayed recipient as a constraint and stays in review if the sealed recipient differs", async () => {
+  const requests: unknown[] = [];
+  const { driver } = transferDriver(async (_path, init) => {
+    requests.push(JSON.parse(init.body!));
+    return { ok: false, status: 400, json: async () => ({ error: "wilds_wallet_receive_recipient_mismatch" }) };
+  });
+  driver.selectReceiveCoordinate("friend", "wildz:receive:v2.fixture.locator.tag", "1");
+  driver.reviewTransferAmount("settlement", "1", "nonce-one");
+  await driver.stageTransfer();
+  assert.deepEqual(requests, [{ recipientLocator: "wildz:receive:v2.fixture.locator.tag", expectedRecipientUsername: "friend", amountPhiMicro: "1", rail: "settlement", operationNonce: "nonce-one" }]);
+  assert.equal(driver.state.transfer.phase, "review");
+  assert.match(driver.state.transfer.preparationError ?? "", /sealed recipient/);
+  assert.equal(driver.state.transfer.attempt, null);
+});
+
 test("a crossed preparation amount returns to review instead of leaving the payment stuck", async () => {
   const { driver } = transferDriver(async () => ({ ok: true, status: 200, json: async () => ({ status: "staged", rail: "settlement", amountPhiMicro: "2", quotedUsdCents: "0", attempt: "v2.crossed", expiresAtKai: 999 }) }));
   driver.selectTransferRecipient("friend"); driver.reviewTransferAmount("settlement", "1", "nonce-one");

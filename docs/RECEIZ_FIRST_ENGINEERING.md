@@ -40,8 +40,17 @@ Absence of documentation, unfamiliarity, time pressure, a temporary integration 
 - AI skills are mandatory engineering doctrine; they never become runtime code or proof authority.
 - Server, database, index, cache, receipt, plan, model output, UI state, and agent explanation remain projections unless an exact Receiz law explicitly admits them.
 
+Wildz player-state v1 acknowledges delivery of a local publication. Its account
+name, revision and recomputable digest identify the projection. A second
+installation restores gameplay from the held Identity Seal or Vault through the
+source reader. Transfers and received assets follow their own custody readers.
+The public ownership feed can locate activity for an asset. Removing an
+active card on a custody change requires a verified successor linked to the
+previous keeper's held artifact. Importing a Profile or Vault that happens to
+contain the same card ID preserves each other keeper's saved state.
+
 ## Enforcement
 
 `pnpm receiz:architecture-lock` enforces the coordinated package identity, runtime/tooling separation, current high-risk path invariants, checked-in doctrine, and capability-gap process. It runs inside `pnpm release:check`, and CI runs that release gate on every pull request and push to `main`.
 
-The lock is intentionally only one layer. Contributors must also run the official v122 repository checker and MCP conformance, update the application contract when appropriate, and supply live evidence for claims that source inspection cannot prove.
+The release gate also runs the current repository checker with `pnpm receiz:check`, SDK conformance with `pnpm receiz:conformance`, and MCP conformance through the installed server in the Node test suite. Update the application contract when appropriate and supply live evidence for claims about deployed behavior.

@@ -71,6 +71,12 @@ export function createWildsWalletAssetPortV128(input: WildsWalletAssetPortInputV
     sendSource: async (leg, descriptor, authority) => (await forLeg(leg)).sendSource(leg, descriptor, authority),
     observeSource: async (leg, descriptor, locator, authority) => (await forLeg(leg)).observeSource(leg, descriptor, locator, authority),
     verifyAccepted: async (leg, descriptor, outcome, authority) => { await (await forLeg(leg)).verifyAccepted(leg, descriptor, outcome, authority); assertCurrent(); },
+    publishAccepted: async (leg, descriptor, outcome, authority) => {
+      const port = await forLeg(leg);
+      if (!port.publishAccepted) throw Error("The native receipt delivery is unavailable.");
+      await port.publishAccepted(leg, descriptor, outcome, authority);
+      assertCurrent();
+    },
     acceptSource: async (leg, descriptor, authority) => {
       const current = await forLeg(leg);
       if (!current.acceptSource) throw Error("This exact asset has no recipient acceptance path.");

@@ -49,7 +49,7 @@ async function sealed(bytes: Uint8Array, ownerReceizId: string): Promise<ReceizS
         fromOwnerReceizId: "former.receiz.id",
         toOwnerReceizId: ownerReceizId,
         priorHeadReference: "claim-former.receiz.id",
-        sourceArtifactSha256: "a".repeat(64),
+        sourceArtifactSha256: await digest(originalBytes),
         headReference: claimId,
         historyDigestSha256: "c".repeat(64)
       }

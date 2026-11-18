@@ -51,7 +51,7 @@ import {
   createWildzIdentitySealPng,
   wildzIdentitySealFilename
 } from "./wildz-identity-seal";
-import { createWildzIdentityPlayerCardOffThread, createWildzIdentityPlayerCardBundleOffThread } from "./wildz-identity-export-client";
+import { createWildzIdentityPlayerCardBundleOffThread } from "./wildz-identity-export-client";
 import { readWildzIdentityForSigning } from "./wildz-identity-signing-read";
 import {
   createWildzIdentityBoundPlayerVault,
@@ -415,13 +415,15 @@ export async function prepareWildzRestore(
   file: File,
   codec: WildzArtifactCodec = defaultArtifactCodec
 ): Promise<WildzPreparedRestore> {
+  const sizeError = codec.inspectSize?.(file.size);
+  if (sizeError) throw new Error(sizeError.code);
   const bytes = new Uint8Array(await file.arrayBuffer());
   const inspection = await codec.inspect({ bytes, mimeType: file.type, name: file.name });
   return { file, bytes, inspection };
 }
 
 export async function inspectWildzRestore(file: File, codec: WildzArtifactCodec = defaultArtifactCodec) {
-  return (await prepareWildzRestore(file, codec)).inspection;
+  return codec.inspectSize?.(file.size) ?? (await prepareWildzRestore(file, codec)).inspection;
 }
 
 export async function bootstrapWildzContinuity(
@@ -602,16 +604,16 @@ function identityKeyNeedsPassphrase(keyFile: ReceizKeyFile) {
   return wildzIdentityKeyNeedsPassphrase(keyFile);
 }
 
-export async function createWildzIdentityPlayerCard(input: {
+async function buildWildzIdentityPlayerCardBundle(input: {
   keyFile: ReceizKeyFile;
   session: WildzIdentitySession;
   assets: PortableCardAsset[];
   player: WildsPlayerVaultPayload | Parameters<typeof createWildsPlayerVault>[0];
   passphrase?: string;
-}) {
+}, allowLocalWriter: boolean) {
   if (input.keyFile.keyId !== input.session.keyId) throw new Error("wildz_identity_card_key_id_mismatch");
   const artwork = await createWildzIdentityCardArtworkPng(input.session, input.player.exportedAt);
-  const offThread = await createWildzIdentityPlayerCardOffThread({
+  const offThread = await createWildzIdentityPlayerCardBundleOffThread({
     artwork,
     assets: input.assets,
     player: input.player,
@@ -619,13 +621,19 @@ export async function createWildzIdentityPlayerCard(input: {
     ...(input.passphrase !== undefined ? { passphrase: input.passphrase } : {})
   });
   if (offThread) return offThread;
+  if (!allowLocalWriter) throw new Error("wildz_background_export_worker_unavailable");
   const player = "payloadDigest" in input.player ? input.player : createWildsPlayerVault(input.player);
   const vaultBytes = embedPortableVaultInPng(artwork, input.assets, player);
-  return createWildzIdentityBoundPlayerVault({
+  const bytes = await createWildzIdentityBoundPlayerVault({
     keyFile: input.keyFile,
     vaultBytes,
     ...(input.passphrase !== undefined ? { passphrase: input.passphrase } : {})
   });
+  return { bytes, playerPayloadDigest: player.payloadDigest };
+}
+
+export async function createWildzIdentityPlayerCard(input: Parameters<typeof buildWildzIdentityPlayerCardBundle>[0]) {
+  return (await buildWildzIdentityPlayerCardBundle(input, true)).bytes;
 }
 
 /** Background preparation never falls back to synchronous whole-vault work. */
@@ -640,9 +648,7 @@ export async function prepareWildzBackgroundPlayerVault(session: WildzIdentitySe
       passphrase = window.prompt("Enter this Identity Seal’s passphrase to sign the Vault export.") ?? undefined;
       if (!passphrase) throw new Error("wildz_identity_passphrase_required");
     }
-    const artwork = await createWildzIdentityCardArtworkPng(session, player.exportedAt);
-    const result = await createWildzIdentityPlayerCardBundleOffThread({artwork, assets, player, keyFile, passphrase});
-    if (!result) throw new Error("wildz_background_export_worker_unavailable");
+    const result = await buildWildzIdentityPlayerCardBundle({ session, assets, player, keyFile, passphrase }, options.allowPrompt === true);
     const sealed = await prepareWildzGameImage({ bytes: result.bytes, filename: `wilds-vault-${session.keyId}.png`, kind: "vault", allowEnrollment: options.allowPrompt === true });
     return { ...result, ...sealed,
       keyId: session.keyId, ownerReceizId: player.playerId };

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createReceizCommerceAdapter, type ReceizCommerceAdapter } from "./adapter";
 import { receizOAuthSecret } from "./oauth-state";
 import {
+  assertWildsWalletReceiveRecipient,
   normalizeWildsWalletCursor,
   normalizeWildsWalletPublicUsername,
   parseWildsWalletMicroPhi,
@@ -56,6 +57,7 @@ type WalletTransferAdapter = Pick<
 export type WildsWalletTransferPreviewCommand = Readonly<{
   recipientUsername?: string;
   recipientLocator?: string;
+  expectedRecipientUsername?: string;
   amountPhiMicro: string;
   rail: ReceizValueRailV122;
   operationNonce: string;
@@ -385,6 +387,7 @@ export function createWildsWalletTransferRouteRuntime(input: Readonly<{
       await input.journal.purgeTerminal(cleanupKai, 32);
       const idempotencyKey = idempotencyFor(authority, command.operationNonce, secret);
       const locator = command.recipientLocator ? openReceiveLocator(command.recipientLocator, secret) : null;
+      assertWildsWalletReceiveRecipient(command.expectedRecipientUsername, locator?.recipientUsername);
       const recipientUsername = command.recipientUsername
         ? normalizeWildsWalletPublicUsername(command.recipientUsername)
         : locator?.recipientUsername;
@@ -554,6 +557,7 @@ const SAFE_FAILURES = Object.freeze({
   wilds_wallet_transfer_attempt_expired: 410,
   wilds_wallet_receive_locator_invalid: 400,
   wilds_wallet_receive_locator_expired: 410,
+  wilds_wallet_receive_recipient_mismatch: 400,
   wilds_wallet_transfer_review_expired: 409,
   wilds_wallet_transfer_insufficient_value: 409,
   wilds_wallet_transfer_consent_binding_invalid: 400,
@@ -756,10 +760,11 @@ export function createWildsWalletRouteHandlers(
       try {
         assertSameOrigin(request);
         const authority = await dependencies.resolveAuthority(request);
-        const body = assertExactFields(await readJsonBody(request), ["recipientUsername", "recipientLocator", "amountPhiMicro", "rail", "operationNonce"], ["amountPhiMicro", "rail", "operationNonce"]);
+        const body = assertExactFields(await readJsonBody(request), ["recipientUsername", "recipientLocator", "expectedRecipientUsername", "amountPhiMicro", "rail", "operationNonce"], ["amountPhiMicro", "rail", "operationNonce"]);
         const hasUsername = body.recipientUsername !== undefined;
         const hasLocator = body.recipientLocator !== undefined;
-        if (hasUsername === hasLocator) throw new Error("wilds_wallet_transfer_request_invalid");
+        if (hasUsername === hasLocator || !hasLocator && body.expectedRecipientUsername !== undefined) throw new Error("wilds_wallet_transfer_request_invalid");
+        const expectedRecipientUsername = body.expectedRecipientUsername === undefined ? undefined : normalizeWildsWalletPublicUsername(body.expectedRecipientUsername);
         const recipientUsername = hasUsername ? normalizeWildsWalletPublicUsername(body.recipientUsername) : undefined;
         const recipientLocator = hasLocator && typeof body.recipientLocator === "string" ? body.recipientLocator : undefined;
         if (hasLocator && (!recipientLocator || !/^wildz:receive:v[12]\./.test(recipientLocator))) throw new Error("wilds_wallet_receive_locator_invalid");
@@ -773,6 +778,7 @@ export function createWildsWalletRouteHandlers(
         }
         const value = await transferRuntimeOrThrow(dependencies.transferRuntime).preview(authority, {
           ...(recipientUsername ? { recipientUsername } : { recipientLocator: recipientLocator! }),
+          ...(expectedRecipientUsername ? { expectedRecipientUsername } : {}),
           amountPhiMicro, rail: body.rail, operationNonce: body.operationNonce
         }, request);
         return json(exactStagedProjection(value));

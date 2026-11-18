@@ -15,9 +15,13 @@ export function WildsWalletQrScanner({ onCancel, onScan }: { onCancel(): void; o
   const [status, setStatus] = useState("Starting the rear camera…");
   const settledRef = useRef(false);
   const accept = useCallback((value: string) => {
-    if (settledRef.current) return;
-    try { settledRef.current = true; onScan(parseWildsWalletReceiveCoordinate(value)); }
-    catch { setStatus("That QR is not a valid Receiz receiving coordinate."); }
+    if (settledRef.current) return true;
+    let coordinate: WildsWalletReceiveCoordinate;
+    try { coordinate = parseWildsWalletReceiveCoordinate(value); }
+    catch { setStatus("That QR is not a valid Receiz receiving coordinate."); return false; }
+    settledRef.current = true;
+    onScan(coordinate);
+    return true;
   }, [onScan]);
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -35,7 +39,7 @@ export function WildsWalletQrScanner({ onCancel, onScan }: { onCancel(): void; o
         if (context) {
           context.drawImage(video, 0, 0, canvas.width, canvas.height);
           const value = scanPixels(context, canvas.width, canvas.height);
-          if (value) { accept(value); return; }
+          if (value && accept(value)) return;
         }
       }
       frame = window.requestAnimationFrame(tick);

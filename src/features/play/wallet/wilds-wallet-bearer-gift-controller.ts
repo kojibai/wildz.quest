@@ -107,9 +107,6 @@ export function createWildsWalletBearerGiftController(input: WildsWalletBearerGi
       catch { projectionPending = true; }
     }
     assertCurrent();
-    const message: WildsWalletBearerGiftMessage = { kind: "trade-bearer-accepted", tradeId: saved.leg.legId.slice(0, saved.leg.legId.lastIndexOf(":")), legId: saved.leg.legId, sourceArtifactSha256: source.original.artifactSha256, original: accepted };
-    try { if (await input.publish(message, saved.leg.senderHandle) !== true) throw Error("Private receipt publication was not confirmed."); assertCurrent(); }
-    catch { return { status: "pending", receipt: proofReceipt, message: "The gift was accepted. Check the same gift to deliver its saved proof to the sender." }; }
     return { status: "accepted", receipt: proofReceipt, ...(projectionPending ? { projectionPending: true } : {}), message: projectionPending ? "The gift was accepted. Refresh received assets to finish importing the same Original." : "Gift received. The exact ownership successor is saved." };
   };
   const claim = input.claim ?? (async (request: Readonly<{ leg: WildsWalletBearerGiftLeg; source: WildsWalletBearerGiftSource; authority: WildsWalletStagedTradeAssetAuthority }>) => {
@@ -134,7 +131,12 @@ export function createWildsWalletBearerGiftController(input: WildsWalletBearerGi
         await verifyAuthority(leg, descriptor, authority); assertCurrent(); const saved = await checkpoint(leg);
         if (!saved || !same(saved.descriptor, descriptor)) throw Error("Review and durably save this exact Original before Send.");
         const source = await messageSource(leg, descriptor);
-        await save({ ...saved, state: saved.state === "accepted" ? "accepted" : "submitted" });
+        if (saved.successorArtifactSha256) {
+          const accepted = await savedSource(saved.successorArtifactSha256, descriptor.projectionArtifactSha256);
+          await verifyAccepted(leg, descriptor, source, accepted.original, authority);
+          return { status: "sent" as const, message: "Gift received. The recipient's ownership proof is saved." };
+        }
+        await save({ ...saved, state: "submitted" });
         const message: WildsWalletBearerGiftMessage = { kind: "trade-bearer-source", tradeId: authority.plan.tradeId, legId: leg.legId, ...source };
         admitWildsWalletBearerGiftMessage(message, leg.senderHandle, leg.recipientHandle, leg);
         assertCurrent(); if (await input.publish(message, leg.recipientHandle) !== true) return { status: "pending" as const, message: "Private delivery is pending. Check the same gift; its Original will not be replaced.", retryable: true };
@@ -185,6 +187,18 @@ export function createWildsWalletBearerGiftController(input: WildsWalletBearerGi
       assertCurrent(); if (outcome.status !== "accepted") throw Error("An actual native accepted successor is required.");
       const hint = verifyLocator(leg, descriptor, outcome.receipt), source = await messageSource(leg, descriptor), accepted = await savedSource(hint.successorArtifactSha256, descriptor.projectionArtifactSha256);
       await verifyAccepted(leg, descriptor, source, accepted.original, authority);
+    },
+    async publishAccepted(leg, descriptor, outcome, authority) {
+      assertNativeCreature(leg, descriptor);
+      assertCurrent();
+      if (leg.recipientHandle !== input.ownerHandle || outcome.status !== "accepted") throw Error("Only the recipient can deliver the accepted gift proof.");
+      const hint = verifyLocator(leg, descriptor, outcome.receipt);
+      const source = await messageSource(leg, descriptor);
+      const accepted = await savedSource(hint.successorArtifactSha256, descriptor.projectionArtifactSha256);
+      await verifyAccepted(leg, descriptor, source, accepted.original, authority);
+      const message: WildsWalletBearerGiftMessage = { kind: "trade-bearer-accepted", tradeId: authority.plan.tradeId, legId: leg.legId, sourceArtifactSha256: source.original.artifactSha256, original: accepted.original };
+      if (await input.publish(message, leg.senderHandle) !== true) throw Error("Private gift receipt delivery is pending.");
+      assertCurrent();
     },
     async acceptSource(leg, descriptor, authority) {
       try { return await locked(leg, async () => {

@@ -2,13 +2,24 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { deriveKaiKlokMoment } from "../src/features/play/kai-klok-moment";
 import { receizKaiNow } from "@receiz/sdk";
-import { createWildsKaiRuntimeClock, observeWildsKaiPulse, resolveWildsRuntimeKaiMoment } from "../src/features/play/wilds-kai-runtime";
+import { createWildsKaiRuntimeClock, observeWildsKaiPulse, observeWildsKaiUPulse, resolveWildsRuntimeKaiMoment } from "../src/features/play/wilds-kai-runtime";
 
 test("wallet authority observes the canonical V124 Receiz Kai pulse", () => {
   const before = receizKaiNow().pulse;
   const observed = observeWildsKaiPulse();
   const after = receizKaiNow().pulse;
   assert.ok(observed >= before && observed <= after);
+});
+
+test("gameplay observations advance the SDK's same causal clock across repeated and earlier device samples", (context) => {
+  const sampledAt = Date.now();
+  const clock = context.mock.method(Date, "now", () => sampledAt);
+  const before = receizKaiNow().uPulse;
+  const first = observeWildsKaiUPulse();
+  const second = observeWildsKaiUPulse();
+  clock.mock.mockImplementation(() => sampledAt - 3);
+  const third = observeWildsKaiUPulse();
+  assert.deepEqual([first, second, third, receizKaiNow().uPulse], [before + 1, before + 2, before + 3, before + 4]);
 });
 
 const cursor = {

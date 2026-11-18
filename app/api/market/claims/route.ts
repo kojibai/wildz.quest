@@ -1,6 +1,7 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import type { WildzOwnershipReceipt } from "@/features/market/wildz-market";
 import { createReceizCommerceAdapter } from "@/lib/receiz/adapter";
+import { readWildzArtifactCardPayload } from "@/lib/receiz/wildz-artifact-custody";
 import { claimWildzBearerArtifact } from "@/lib/receiz/wildz-bearer-ownership";
 import { extractVerifiedWildzCards } from "@/lib/receiz/wildz-cross-platform-cards";
 import { resolveWildzCookieActor } from "@/lib/receiz/wildz-cookie-actor";
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
       pngBasis: null,
       verifiedPortableSnapshot: null,
       restoredVaultFiles: [],
-      proofObjectPayload: { bytes: admitted.payloadBytes, mimeType: admitted.mimeType }
+      proofObjectPayload: await readWildzArtifactCardPayload(admitted)
     });
     if (!extracted.assets.length) throw new Error("market_bearer_claim_card_invalid");
     const ownershipWitness = admitted.ownershipWitness;

@@ -3,6 +3,7 @@ export type WildzStoreName = "wrappingKeys" | "identities" | "ownerStates" | "me
 export interface WildzContinuityTransaction {
   get<T>(store: WildzStoreName, key: IDBValidKey): Promise<T | null>;
   getAll<T>(store: WildzStoreName): Promise<T[]>;
+  getAllKeys?(store: WildzStoreName): Promise<IDBValidKey[]>;
   /** Bounded string-key range; filtering happens before IndexedDB clones values. */
   getAllByPrefix?<T>(store: WildzStoreName, prefix: string, limit: number): Promise<T[]>;
   put<T>(store: WildzStoreName, value: T, key?: IDBValidKey): Promise<void>;
@@ -48,6 +49,7 @@ function transactionPort(transaction: IDBTransaction): WildzContinuityTransactio
     async getAll<T>(store: WildzStoreName) {
       return requestResult(transaction.objectStore(store).getAll()) as Promise<T[]>;
     },
+    getAllKeys(store) { return requestResult(transaction.objectStore(store).getAllKeys()); },
     async getAllByPrefix<T>(store: WildzStoreName, prefix: string, limit: number) {
       if (!prefix || prefix.length > 1024 || !Number.isInteger(limit) || limit < 1 || limit > 256)
         throw Error("wildz_indexed_db_range_invalid");

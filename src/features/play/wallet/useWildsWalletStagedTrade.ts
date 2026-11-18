@@ -35,6 +35,7 @@ export function useWildsWalletStagedTrade(input: HookInput) {
       sendSource: (leg, descriptor, authority) => live.current.assetPort.sendSource(leg, descriptor, authority),
       observeSource: (leg, descriptor, locator, authority) => live.current.assetPort.observeSource(leg, descriptor, locator, authority),
       verifyAccepted: (leg, descriptor, outcome, authority) => live.current.assetPort.verifyAccepted(leg, descriptor, outcome, authority),
+      publishAccepted: async (leg, descriptor, outcome, authority) => { await live.current.assetPort.publishAccepted?.(leg, descriptor, outcome, authority); },
       acceptSource: (leg, descriptor, authority) => {
         const action = live.current.assetPort.acceptSource;
         if (!action) throw Error("Acceptance is unavailable for this asset source.");

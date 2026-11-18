@@ -70,3 +70,46 @@ test("movement messages retain unchanged admitted inventory and replace it after
   await serializer.serialize(input);
   assert.equal(messages[4]!.reuseInventory, undefined);
 });
+
+test("signed-in movement sends only new territory and reproduces the complete player projection across resets", async () => {
+  const { createWildzPlayerProjectionEncoder } = await import("../src/lib/performance/wildz-player-state-projection");
+  const { createOwnerBoundInitialPlayState } = await import("../src/features/play/game-state");
+  const { normalizeWildsExplorationAtlas, revealWildsExplorationAt } = await import("../src/features/play/wilds-exploration-atlas");
+  const { createWildsPlayerVault } = await import("../src/features/play/wilds-player-vault");
+  const encode = createWildzPlayerProjectionEncoder();
+  const messages: Parameters<typeof encode>[0][] = [];
+  const worker = {
+    onmessage: null as ((event: MessageEvent) => void) | null,
+    onerror: null as ((event: ErrorEvent) => void) | null,
+    postMessage(message: Parameters<typeof encode>[0]) {
+      messages.push(message);
+      const body = encode(structuredClone(message));
+      queueMicrotask(() => this.onmessage?.({ data: { id: message.id, ok: true, body } } as MessageEvent));
+    },
+    terminate() {}
+  };
+  const serializer = createWildzPlayerStateSerializer({ createWorker: () => worker });
+  const playerId = "atlas_sync", exportedAt = "2026-11-17T12:00:00.000Z";
+  const state = createOwnerBoundInitialPlayState(playerId, exportedAt);
+  const atlas = normalizeWildsExplorationAtlas({ version: 1, rows: Array.from({ length: 1200 }, (_, z) =>
+    ({ z: z + 50, ranges: [{ minX: 3, maxX: 92 }] })) }, state.player);
+  const input = { playerId, exportedAt, playState: { ...state, explorationAtlas: atlas },
+    settings: { avatarStyle: null, movementMode: "walk" as const, audio: {} }, personalEvents: [], receipts: [],
+    canonicalCursor: { worldId: "wilds:global:v3" as const, revision: 0, eventId: null } };
+  const submit = async (map: typeof atlas, owner = playerId) => {
+    const snapshot = { ...input, playerId: owner, playState: { ...input.playState, explorationAtlas: map } };
+    const body = await serializer.serialize(snapshot);
+    assert.equal(body, JSON.stringify({ player: createWildsPlayerVault(snapshot) }));
+    return messages.at(-1)!.input.playState.explorationAtlas;
+  };
+  assert.equal((await submit(atlas)).rows.length, atlas.rows.length);
+  assert.equal((await submit(atlas)).rows.length, 0);
+  const extended = revealWildsExplorationAt(atlas, { x: 5500, z: 5200 });
+  assert.ok((await submit(extended)).rows.length <= 3);
+  assert.equal((await submit(state.explorationAtlas)).rows.length, state.explorationAtlas.rows.length);
+  serializer.close();
+  assert.equal((await submit(extended)).rows.length, extended.rows.length);
+  assert.equal((await submit(extended, "other_sync")).rows.length, extended.rows.length);
+  const last = messages.at(-1)!;
+  assert.throws(() => encode({ ...last, atlasBaseId: "unavailable" }), /atlas_missing/);
+});

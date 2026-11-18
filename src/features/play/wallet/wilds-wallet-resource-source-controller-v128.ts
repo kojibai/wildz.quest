@@ -149,11 +149,6 @@ export function createWildsWalletResourceSourceAssetPortV128(input: WildsWalletR
     // An already unpacked/reoffered package must not resurrect as a received
     // available package merely because its immutable earlier claim still exists.
     if (kind === "sent" || verified.outcome.record.status === "claimed" && verified.outcome.record.ownerReceizId === input.ownerHandle) saved = await project(saved, { kind, leg, package: verified.outcome.package, proof: verified.outcome.proof, source: original, receipt: verified.receipt,continuation:{descriptor,authority} });
-    if (leg.recipientHandle === input.ownerHandle) {
-      const context: WildsWalletResourceSourceMessageV128 = { kind: "trade-resource-accepted", tradeId: authority.plan.tradeId, legId: leg.legId, receipt: verified.receipt };
-      if (await input.publish(context, leg.senderHandle) !== true) return { status: "pending" as const, receipt: verified.receipt, message: "Package received. Check the same offer to finish private receipt delivery." };
-      current();
-    }
     return { status: "accepted" as const, receipt: verified.receipt, message: "Package received. Keep it for sending again, or unpack its contents." };
   };
   return {
@@ -199,6 +194,15 @@ export function createWildsWalletResourceSourceAssetPortV128(input: WildsWalletR
     async verifyAccepted(leg, descriptor, outcome, authority) {
       current(); resource(leg, descriptor); if (outcome.status !== "accepted") throw Error("An actual accepted resource source receipt is required.");
       admitWildsWalletResourceSourceReceiptV128(outcome.receipt); await observe(leg, descriptor, authority, outcome.receipt);
+    },
+    async publishAccepted(leg, descriptor, outcome, authority) {
+      current(); resource(leg, descriptor);
+      if (leg.recipientHandle !== input.ownerHandle || outcome.status !== "accepted") throw Error("Only the recipient can deliver the accepted package receipt.");
+      const receipt = admitWildsWalletResourceSourceReceiptV128(outcome.receipt);
+      await observe(leg, descriptor, authority, receipt);
+      const context: WildsWalletResourceSourceMessageV128 = { kind: "trade-resource-accepted", tradeId: authority.plan.tradeId, legId: leg.legId, receipt };
+      if (await input.publish(context, leg.senderHandle) !== true) throw Error("Private package receipt delivery is pending.");
+      current();
     },
     async acceptSource(leg, descriptor, authority) {
       try { return await locked(leg, async () => {

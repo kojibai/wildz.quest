@@ -95,7 +95,7 @@ test("fresh genesis, Identity Seal restore, and identity-bearing Vault restore c
 
   assert.match(genesis, /acceptSnapshot\(snapshot\)/);
   assert.match(restore, /acceptSnapshot\(next\)/);
-  assert.match(initialize, /const resumed = await resumePendingWildzVault[\s\S]*acceptSnapshot\(\{/);
+  assert.match(initialize, /const resumed = await resumePendingWildzVault[\s\S]*const next = \{\s*session: resumed\.restore\.session,\s*playState: resumed\.restore\.playState,[\s\S]*resetCheckpointAfterRestore\(next\);\s*acceptSnapshot\(next\)/);
   assert.match(initialize, /const snapshot = await bootstrapWildzContinuity\(window\.localStorage(?:\s*,|\))/);
   assert.match(initialize, /acceptSnapshot\(snapshot\)/);
 });
@@ -141,7 +141,8 @@ test("matching Identity Seal upgrades a proof Vault login without clearing the l
   assert.match(source, /deriveWildzVaultCardAdmission/);
   assert.match(source, /connectWildzProofSession\(identity,\s*\{\s*vaultAdmission/);
   assert.match(accept, /sameWildzPlayerCoordinate\(previous\.session\.actorId,\s*snapshot\.session\.actorId\)/);
-  assert.doesNotMatch(accept, /previous\.session\.keyId !== snapshot\.session\.keyId[\s\S]*setProofSessionConnected\(false\)/);
+  assert.equal(accept.match(/setProofSessionConnected\(false\)/g)?.length, 1);
+  assert.match(accept, /if \(!previous \|\| !sameWildzPlayerCoordinate\(previous\.session\.actorId, snapshot\.session\.actorId\)\) \{\s*setProofSessionConnected\(false\)/);
   assert.match(campaign, /key=\{`\$\{identity\.keyId\}:\$\{identity\.actorId\}:\$\{identityActivationRevision\}`\}/);
   assert.doesNotMatch(campaign, /restoreEpoch/);
 });

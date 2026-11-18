@@ -1,9 +1,10 @@
 import { createAdmittedWildsInventory } from "../play/admitted-inventory";
 import { prepareWildsIncomingInventory } from "../play/wilds-incoming-inventory";
-import { restoreWildzInventoryMemory, retainWildzInventoryMemory } from "./wildz-inventory-memory";
-import { hasLaterWildsPlayerLedger } from "../play/wilds-play-state-source";
+import { wildzInventoryMemoryKey, restoreWildzInventoryMemory, retainWildzInventoryMemory } from "./wildz-inventory-memory";
+import { hasLaterWildsPlayerLedger, retainWildsExploration } from "../play/wilds-play-state-source";
+import { normalizeWildsExplorationAtlas } from "../play/wilds-exploration-atlas";
 import { isVerifiedWildzCardDescendant } from "../../lib/receiz/wildz-card-descendant";
-import { readWildzArtifactCrewCustody, mergeWildzCrewCustody, wildzCrewCustodySources, retainWildzCrewCustodyMemory, type WildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
+import { readWildzArtifactCrewCustody, restoreWildzCrewCustodyMemory, transferredWildzCrewAssetIds, wildzCrewOwnershipWitnesses, mergeWildzCrewCustody, wildzCrewCustodySources, retainWildzCrewCustodyMemory, type WildzCrewCustody } from "../../lib/receiz/wildz-artifact-codec";
 import { normalizeWildzCrewCustodySources, wildzCrewCustodySourceKey } from "../../lib/receiz/wildz-crew-custody-source";
 import {
   applyWildsInput,
@@ -234,7 +235,7 @@ export function prepareWildzPlayerPlayState(player: WildsPlayerVaultPayload, ass
     inventory: [...assets]
   }), player.playerId).inventory;
   const expected = new Map(normalizedExpected.map((asset) => [asset.id, canonicalPortableCardJson(asset)]));
-  const restored = restorePlayState(serializePlayState(player.playState), player.playerId);
+  const restored = normalizeWildsRuntimePlayState(player.playState, player.playerId);
   if (restored.inventory.length !== expected.size) throw new Error("wildz_restore_binding_invalid");
   const playerIds = new Set<string>();
   for (const asset of restored.inventory) {
@@ -429,10 +430,16 @@ export async function saveWildzRestoredPlayState(input: {
   const scope = wildzOwnerScope(input.session.keyId, input.session.actorId);
   const saved = await input.database.transaction(["ownerStates", "meta"], "readwrite", async (tx) => {
     const current = storedOwnerState(await tx.get<unknown>("ownerStates", scope), input.session, input.playState.inventory);
-    if (current && hasLaterWildsPlayerLedger(current.playState, input.playState)) return current.playState;
+    const atlas = normalizeWildsExplorationAtlas(input.playState.explorationAtlas, input.playState.player);
+    const incoming = atlas === input.playState.explorationAtlas ? input.playState : { ...input.playState, explorationAtlas: atlas };
+    if (current && hasLaterWildsPlayerLedger(current.playState, incoming)) {
+      const playState = retainWildsExploration(current.playState, incoming);
+      if (playState !== current.playState) await tx.put("ownerStates", { ...current, playState }, scope);
+      return playState;
+    }
     const stored = createStoredWildzPlayState(
       input.session,
-      input.playState,
+      current ? retainWildsExploration(incoming, current.playState) : incoming,
       input.player ?? (current ? continuityFromOwner(current) : null),
       new Date().toISOString(),
       input.character === undefined ? current?.character ?? null : input.character
@@ -536,6 +543,34 @@ export async function restoreWildzArtifactForSurface(input: {
   const quarantinedIds = new Set(quarantinedAssets.map(asset => asset.id));
   const verifiedAssetIds = [...new Set(assets.filter(asset => !quarantinedIds.has(asset.id)).map((asset) => asset.id))].sort();
   const scope = wildzOwnerScope(session.keyId, session.actorId);
+  // Only a locally opened native ownership append can affect another keeper.
+  // Locate that keeper by key, then authenticate the predecessor outside the write transaction.
+  const transfers = wildzCrewOwnershipWitnesses(crewCustody, assets).filter(({ witness }) =>
+    witness.previousArtifactSha256 && witness.priorHeadReference
+    && !sameWildzPlayerCoordinate(witness.previousOwnerReceizId, session.actorId));
+  const previousOwners: { scope: string; previous: StoredWildzOwnerState; custodyHead: unknown; lost: readonly string[] }[] = [];
+  if (transfers.length) {
+    const keys = await input.database.transaction(["ownerStates"], "readonly", tx => tx.getAllKeys?.("ownerStates") ?? Promise.resolve([])).catch(() => []);
+    for (const key of keys) {
+      if (typeof key !== "string" || key === scope) continue;
+      const parts = key.split(":");
+      if (parts.length !== 3 || parts[0] !== "wildz") continue;
+      try {
+        const actor = decodeURIComponent(parts[2]!);
+        if (!transfers.some(({witness}) => sameWildzPlayerCoordinate(actor, witness.previousOwnerReceizId))) continue;
+        const previous = await input.database.read<StoredWildzOwnerState>("ownerStates", key);
+        if (previous?.schema !== OWNER_STATE_SCHEMA || wildzOwnerScope(previous.keyId, previous.actorId) !== key) continue;
+        const cards = await restoreWildzInventoryMemory(input.database, previous, previous.playState.inventory)
+          ?? await prepareWildsIncomingInventory(previous.playState.inventory);
+        const custodyHead = await input.database.read("meta", wildzInventoryMemoryKey(previous, "crew-custody"));
+        const held = await restoreWildzCrewCustodyMemory(input.database, previous, cards);
+        const lost = transferredWildzCrewAssetIds(held, cards, crewCustody);
+        if (lost.length) previousOwners.push({scope: key, previous, custodyHead, lost});
+      } catch {
+        // Missing prior custodian evidence cannot delay admission of the verified successor.
+      }
+    }
+  }
   let committedOwnerState: StoredWildzOwnerState | null = null;
   try {
     await input.database.transaction(["identities", "ownerStates", "meta"], "readwrite", async (tx) => {
@@ -550,7 +585,7 @@ export async function restoreWildzArtifactForSurface(input: {
         : sameActivePlayer && input.currentPlayState
         ? normalizeWildsRuntimePlayState(input.currentPlayState, session.actorId)
         : previous
-          ? restorePlayState(serializePlayState(previous.playState))
+          ? previous.playState
           : assets.length
             ? emptyVaultPlayState()
             : createOwnerBoundInitialPlayState(session.actorId, session.createdAt);
@@ -626,32 +661,17 @@ export async function restoreWildzArtifactForSurface(input: {
           ? input.currentCharacter ?? previous?.character ?? null
           : playerForSession && !shouldMergeIntoActiveVault ? playerForSession.character : previous?.character ?? null
       );
-      const custodyAssetIds = shouldCarryCurrentVault
-        && verifiedIdentity
-        && active
-        && !sameWildzPlayerCoordinate(active.actorId, session.actorId)
-        ? [...new Set([...verifiedAssetIds, ...record.playState.inventory.map((asset) => asset.id)])].sort()
-        : verifiedAssetIds;
       const verifiedIdentityMatchesActive = active && verifiedIdentity && sameWildzPlayerCoordinate(verifiedIdentity.session.actorId, active.actorId);
       if (verifiedIdentity && (!shouldMergeIntoActiveVault || verifiedIdentityMatchesActive)) {
         await input.repository.writePrepared(tx, verifiedIdentity.prepared, true);
       }
-      if (custodyAssetIds.length) {
-        const ownerStates = await tx.getAll<StoredWildzOwnerState>("ownerStates");
-        for (const ownerState of ownerStates) {
-          if (ownerState?.schema !== OWNER_STATE_SCHEMA
-            || typeof ownerState.keyId !== "string"
-            || typeof ownerState.actorId !== "string") continue;
-          const ownerScope = wildzOwnerScope(ownerState.keyId, ownerState.actorId);
-          if (ownerScope === scope) continue;
-          const reconciled = removeWildzAssetsFromActiveVault(ownerState.playState, custodyAssetIds);
-          if (reconciled === ownerState.playState) continue;
-          await tx.put("ownerStates", {
-            ...ownerState,
-            playState: reconciled,
-            updatedAt: new Date().toISOString()
-          }, ownerScope);
-        }
+      for (const owner of previousOwners) {
+        const held = await tx.get<StoredWildzOwnerState>("ownerStates", owner.scope);
+        if (!held || held.updatedAt !== owner.previous.updatedAt
+          || JSON.stringify(owner.custodyHead) !== JSON.stringify(await tx.get("meta", wildzInventoryMemoryKey(held, "crew-custody")))
+          || canonicalPortableCardJson(held.playState.inventory) !== canonicalPortableCardJson(owner.previous.playState.inventory)) continue;
+        const reconciled = removeWildzAssetsFromActiveVault(held.playState, owner.lost);
+        if (reconciled !== held.playState) await tx.put("ownerStates", {...held, playState: reconciled, updatedAt: new Date().toISOString()}, owner.scope);
       }
       await tx.put("ownerStates", record, scope);
       const sourceKey = wildzCrewCustodySourceKey(session.keyId, session.actorId);

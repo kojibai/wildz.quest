@@ -7,6 +7,8 @@ import {
   type DocumentVerifyResponse
 } from "@receiz/sdk";
 import { applyWildsInput, initialPlayState, type PlayState } from "../src/features/play/game-state";
+import { loadWildzRestoredOwnerState, saveWildzRestoredPlayState } from "../src/features/identity/wildz-restore";
+import { revealWildsExplorationAt, wildsExplorationContainsWorld } from "../src/features/play/wilds-exploration-atlas";
 import { embedPortableVaultInPng } from "../src/features/play/card-export";
 import { createWildsPlayerVault } from "../src/features/play/wilds-player-vault";
 import { sealCollectedCard } from "../src/features/play/portable-card";
@@ -558,4 +560,16 @@ test("an SDK-verified Identity Seal logs into its embedded identity and player w
   assert.equal(restored.restore.playState.inventory.length, value.assets.length);
   assert.equal(restored.restore.playState.worldMastery, 64);
   assert.equal(verifierCalls, 0);
+  const discovered = { x: 190_000, z: -180 };
+  const { session, playState: active } = restored.restore;
+  await saveWildzRestoredPlayState({ database, session, playState: {
+    ...active, explorationAtlas: revealWildsExplorationAt(active.explorationAtlas, discovered)
+  } });
+  const beforeReplay = await loadWildzRestoredOwnerState({ database, session });
+  assert.ok(beforeReplay && wildsExplorationContainsWorld(beforeReplay.playState.explorationAtlas, discovered));
+  const replay = await coordinator.begin({ surface: "genesis",
+    bytes: new TextEncoder().encode(serializeReceizIdentityArtifact(identity.keyFile)), mimeType: "application/json" });
+  assert.equal(replay.status, "committed");
+  const reopened = await loadWildzRestoredOwnerState({ database, session });
+  assert.deepEqual(reopened?.playState.explorationAtlas, restored.restore.playState.explorationAtlas);
 });

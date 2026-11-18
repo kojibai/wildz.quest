@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { sha256ReceizBytes } from "@receiz/sdk";
+import { imageDigest } from "../src/features/play/portable-card-png-proof";
 import { canonicalPortableCardJson, sealCollectedCard, sha256PortableBasis, verifyPortableCard } from "../src/features/play/portable-card";
 import { admitLegacyCard, verifyLivingCard } from "../src/features/play/living-card-proof";
 
@@ -9,6 +11,20 @@ const basis = {
   encounterId: "encounter:kai-proof",
   capturedAt: "2026-07-17T12:00:00.000Z"
 };
+
+test("large and padding-boundary game payloads retain the SDK SHA-256 digest", async () => {
+  for (const length of [0, 1, 55, 56, 63, 64, 65, 127, 128, 129, 1_048_576]) {
+    const text = "x".repeat(length);
+    assert.equal(sha256PortableBasis(text), "sha256:" + await sha256ReceizBytes(new TextEncoder().encode(text)));
+  }
+  const text = "Atlas 🌎\u0000\ud800";
+  assert.equal(sha256PortableBasis(text), "sha256:" + await sha256ReceizBytes(new TextEncoder().encode(text)));
+  const bytes = Uint8Array.from({ length: 8193 }, (_, i) => i % 256);
+  const chunks = [{ type: "IHDR", data: bytes.subarray(1, 4) }, { type: "tEXt", data: bytes },
+    { type: "PLTE", data: bytes.subarray(1, 1) }, { type: "IDAT", data: bytes.subarray(1) }];
+  const expected = "IHDR:010203|PLTE:|IDAT:" + Buffer.from(bytes.subarray(1)).toString("hex");
+  assert.equal(imageDigest(chunks), "sha256:" + await sha256ReceizBytes(new TextEncoder().encode(expected)));
+});
 
 test("legacy v1 and Kai-born v2 cards verify independently", () => {
   const legacy = sealCollectedCard({ ...basis, generatorVersion: 1 });

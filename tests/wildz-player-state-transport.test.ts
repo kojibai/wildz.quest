@@ -13,6 +13,15 @@ function record() {
   return convergeWildzPlayerState({ actorId: "transport", current: null, incoming: player, now: player.exportedAt });
 }
 
+test("the PWA can acknowledge publication of a merged server head without downloading its map", () => {
+  const saved = record();
+  Object.defineProperty(saved, "player", { get() { throw Error("receipt read the server map"); } });
+  const response = projectWildzPlayerStateResponse(saved, { receiptOnly: true, incomingDigest: "different" });
+  assert.deepEqual(response.body, { ok: true, receipt: {
+    playerId: saved.playerId, sourceDigest: saved.sourceDigest, revision: saved.revision
+  } });
+});
+
 test("an exact accepted save returns a compact receipt without reading the vault", () => {
   const saved = record();
   Object.defineProperty(saved, "player", { get() { throw Error("vault should not be copied into a receipt"); } });

@@ -457,6 +457,14 @@ test("the upload adapter reads a File exactly once", async () => {
   assert.equal(reads, 1);
 });
 
+test("Profile reports an oversized restore before reading its bytes into browser memory", async () => {
+  const file = { size: 64 * 1024 * 1024 + 1, type: "image/png", name: "keeper.png",
+    arrayBuffer() { throw Error("oversized_file_read"); } } as unknown as File;
+  assert.deepEqual(await inspectWildzRestore(file, codec()), {
+    kind: "invalid", code: "wildz_restore_artifact_too_large", errors: ["wildz_restore_artifact_too_large"]
+  });
+});
+
 test("an admitted upload commits without inspecting the Identity artifact again", async () => {
   const identity = await createReceizIdentityKeyFile({
     owner: { uid: "codec_single_admission_uid", username: "codec_single_admission", displayName: "Single Admission" },

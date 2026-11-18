@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createReceizCommerceAdapter } from "@/lib/receiz/adapter";
 import { resolveWildzCookieActor } from "@/lib/receiz/wildz-cookie-actor";
 import {
-  lostWildzOwnershipAssetIdsFromSync,
   requestedWildzNativeOwnershipRecords,
   parseWildzOwnershipReconcileRequest,
   WILDZ_OWNERSHIP_SYNC_NAMESPACE
@@ -30,7 +29,7 @@ export async function POST(request: NextRequest) {
     return json({
       status: "ready",
       ownershipClaims: requestedWildzNativeOwnershipRecords(projection.records, assetIds),
-      lostAssetIds: lostWildzOwnershipAssetIdsFromSync(projection.records, actor.actorId, assetIds)
+      lostAssetIds: []
     });
   } catch (cause) {
     const failure = marketRouteError(cause, "wildz_ownership_reconcile_unavailable");

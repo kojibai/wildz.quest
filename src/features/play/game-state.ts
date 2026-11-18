@@ -497,6 +497,7 @@ export function createOwnerBoundInitialPlayState(ownerReceizId: string, createdA
   const starter = admitLegacyCard(legacyStarter, legacyStarter.manifest.capturedAt);
   return {
     ...structuredClone(initialPlayState),
+    explorationAtlas: initialPlayState.explorationAtlas,
     playerNourishment: createWildsNourishmentState(owner),
     playerLivestock: createWildsLivestockState(owner),
     explorerProgress:createWildsExplorerProgress(owner),
@@ -531,11 +532,15 @@ export function normalizeWildsRuntimePlayState(state: PlayState, ownerReceizId: 
   // causal-head merging; an inventory handle would incorrectly skip that work.
   const sourceCards = !admitted && Array.isArray(state.inventory)
     && Array.from(state.inventory).every(isAdmittedWildsCard) ? state.inventory : undefined;
+  // The atlas reader validates raw rows and retains its own immutable result.
+  // Routing the original rows there avoids a full JSON copy on cold reopen.
   return restorePlayStateSource(
-    serializePlayState(admitted || sourceCards ? { ...state, inventory: [] } : state),
+    serializePlayState({ ...state, inventory: admitted || sourceCards ? [] : state.inventory,
+      explorationAtlas: initialPlayState.explorationAtlas }),
     ownerReceizId,
     admitted ?? undefined,
-    sourceCards
+    sourceCards,
+    state.explorationAtlas
   );
 }
 
@@ -696,7 +701,8 @@ function restorePlayStateSource(
   value: string | null | undefined,
   ownerReceizId?: string,
   admittedInventory?: AdmittedWildsInventory,
-  admittedSourceCards?: PortableCardAsset[]
+  admittedSourceCards?: PortableCardAsset[],
+  sourceAtlas?: WildsExplorationAtlas
 ): PlayState {
   let recovery: PlayState | undefined;
   const recover = () => recovery ?? (recovery = fallbackPlayState(ownerReceizId));
@@ -848,7 +854,7 @@ function restorePlayStateSource(
       energy: isPlayerBreaths(saved.playerBreaths) ? playerBreathEnergy(saved.playerBreaths) : Math.max(0,Math.min(100,typeof saved.energy==='number'&&Number.isFinite(saved.energy)?saved.energy:84)),
       player: restoredPlayer,
       siteSpace: restoreOwnedConstructionGround(restoredSiteSpace, restoredWorldAdditions, saved.siteSpace),
-      explorationAtlas: normalizeWildsExplorationAtlas(saved.explorationAtlas, restoredPlayer),
+      explorationAtlas: normalizeWildsExplorationAtlas(sourceAtlas ?? saved.explorationAtlas, restoredPlayer),
       ownedWorldAdditions: restoredWorldAdditions,
       missionProgress: !foreignExplorer && typeof saved.missionProgress === "number" && Number.isFinite(saved.missionProgress)
         ? Math.max(0, Math.min(99, Math.floor(saved.missionProgress)))

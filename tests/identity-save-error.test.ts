@@ -3,6 +3,16 @@ import { test } from "node:test";
 import { identitySaveErrorMessage } from "../src/features/profile/identity-save-error";
 import { openWildzSealedDocument } from "../src/lib/receiz/wildz-sealed-document";
 
+test("a failed signing-device enrollment tells the player which save step to retry", () => {
+  const message = identitySaveErrorMessage(new Error("offline_seal_enrollment_failed:503"));
+  assert.match(message, /device/i);
+  assert.match(message, /503/);
+  assert.match(identitySaveErrorMessage(new Error("wildz_local_enrollment_unreachable")), /reach Receiz.*signing-device/);
+  assert.match(identitySaveErrorMessage(new Error("offline_seal_certificate_invalid")), /certificate/);
+  assert.match(identitySaveErrorMessage(new Error("offline_seal_output_verification_failed")), /verify the new Identity Seal/);
+  assert.doesNotMatch(identitySaveErrorMessage(new Error("offline_seal_enrollment_failed:503:private")), /503|private/);
+});
+
 test("oversized in-memory verification reports the actual SDK denial and byte count", async () => {
   const bytes = new Uint8Array(16 * 1024 * 1024 + 1);
   await assert.rejects(openWildzSealedDocument({ bytes, mimeType: "image/png" }), error => {

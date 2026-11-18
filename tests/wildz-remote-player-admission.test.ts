@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createOwnerBoundInitialPlayState } from "../src/features/play/game-state";
 import { createWildsPlayerVault } from "../src/features/play/wilds-player-vault";
-import { prepareWildzRemotePlayerSnapshot } from "../src/features/identity/wildz-remote-player-admission";
+import { readWildzPlayerDeliveryHead } from "../src/features/identity/wildz-remote-player-admission";
 import type { WildzContinuitySnapshot } from "../src/lib/receiz/wildz-identity-adapter";
 import type { WildzPlayerStateRecord } from "../src/lib/receiz/wildz-player-state-sync";
+import { admitWildsForwardPosition } from "../src/features/play/wilds-play-state-source";
+import { normalizeWildsExplorationAtlas, revealWildsExplorationAt, wildsExplorationContainsRegion } from "../src/features/play/wilds-exploration-atlas";
+import { WILDS_REGION_SIZE } from "../src/features/play/multiplayer-core";
 
 function fixture() {
   const playState = createOwnerBoundInitialPlayState("async_sync", "2026-10-07T00:00:00.000Z");
@@ -17,42 +20,74 @@ function fixture() {
   return { source, record };
 }
 
-test("incoming admission merges with movement made while verification was pending", async () => {
+test("a publication acknowledgement survives further local movement in the same owner session", () => {
   const { source, record } = fixture();
-  let current = source;
-  const pending = prepareWildzRemotePlayerSnapshot(source, record, () => current);
-  current = { ...source, playState: { ...source.playState!, player: { x: 12, z: 13 }, actionHistory: [{ ...source.playState!.actionHistory[0]!, uPulse: 101 }] } };
-  const admitted = await pending;
-  assert.ok(admitted?.playState);
-  assert.deepEqual(admitted.playState.player, { x: 12, z: 13 });
-  assert.equal(admitted.playState.actionHistory[0]!.uPulse, 101);
-  assert.equal(admitted.playState.inventory[0], source.playState!.inventory[0]);
+  const latest = { ...source, playState: { ...source.playState!, player: { x: 12, z: 13 } } };
+  const head = readWildzPlayerDeliveryHead(source, record, latest);
+  assert.deepEqual(head, { playerId: record.playerId, revision: record.revision, sourceDigest: record.sourceDigest });
+});
+
+test("a newer unsigned player projection with a valid digest cannot change the held save", () => {
+  const { source, record } = fixture();
+  const playState = source.playState!;
+  const remote = createWildsPlayerVault({ ...record.player, playState: {
+    ...playState, player: { x: 90_000, z: -90_000 }, inventory: [],
+    actionHistory: [{ ...playState.actionHistory[0]!, uPulse: 300 }],
+    explorationAtlas: revealWildsExplorationAt(playState.explorationAtlas, { x: 90_000, z: -90_000 })
+  } });
+  const next = { ...record, player: remote, revision: 2, sourceDigest: remote.payloadDigest };
+  const head = readWildzPlayerDeliveryHead(source, next, source);
+  assert.deepEqual(head, { playerId: record.playerId, revision: 2, sourceDigest: remote.payloadDigest });
+  assert.equal(source.playState, playState);
+  assert.equal(wildsExplorationContainsRegion(playState.explorationAtlas, 1875, -1875), false);
+});
+
+test("a thin delivery preserves a large held atlas and discoveries made before the campaign adopts a local snapshot", () => {
+  const { source, record } = fixture();
+  const local = source.playState!;
+  const held = { ...local, explorationAtlas: normalizeWildsExplorationAtlas({
+    version: 1, rows: [{ z: -60, ranges: [{ minX: -200_000, maxX: -1 }] }]
+  }, local.player) };
+  const opened = { ...source, playState: held };
+  const head = readWildzPlayerDeliveryHead(opened, record, opened);
+  assert.equal(head?.sourceDigest, record.sourceDigest);
+  assert.equal(wildsExplorationContainsRegion(opened.playState.explorationAtlas, -200_000, -60), true);
+  const position = { x: 93 * WILDS_REGION_SIZE, z: 11 * WILDS_REGION_SIZE };
+  const travelling = { ...held, player: position, explorationAtlas: revealWildsExplorationAt(held.explorationAtlas, position) };
+  const viewed = admitWildsForwardPosition(opened.playState, travelling);
+  assert.equal(viewed.player, position);
+  assert.equal(wildsExplorationContainsRegion(viewed.explorationAtlas, 93, 11), true);
+  assert.equal(wildsExplorationContainsRegion(viewed.explorationAtlas, -200_000, -60), true);
+  assert.equal(wildsExplorationContainsRegion(viewed.explorationAtlas, 0, -60), false);
 });
 
 for (const changed of ["owner", "key", "restore"] as const) {
-  test(`pending incoming admission is discarded after a ${changed} change`, async () => {
+  test(`pending delivery is discarded after a ${changed} change`, () => {
     const { source, record } = fixture();
-    let current = source;
-    const pending = prepareWildzRemotePlayerSnapshot(source, record, () => current);
-    current = changed === "restore" ? { ...source, restoreEpoch: 2 }
+    const current = changed === "restore" ? { ...source, restoreEpoch: 2 }
       : { ...source, session: { ...source.session, ...(changed === "owner" ? { actorId: "another_owner" } : { keyId: "another-key" }) } };
-    assert.equal(await pending, null);
+    assert.equal(readWildzPlayerDeliveryHead(source, record, current), null);
   });
 }
 
-test("a remote snapshot for a different actor cannot enter the local collection", async () => {
+test("a remote snapshot for a different actor cannot enter the local collection", () => {
   const { source, record } = fixture();
   record.playerId = "another_actor";
-  assert.equal(await prepareWildzRemotePlayerSnapshot(source, record, () => source), null);
+  assert.equal(readWildzPlayerDeliveryHead(source, record, source), null);
 });
 
-test("pending admission does not restore a card removed by ownership reconciliation", async () => {
+test("a transport head cannot restore a card removed by ownership reconciliation", () => {
   const { source, record } = fixture();
   const removedId = source.playState!.inventory[0]!.id;
-  let current = source;
-  const pending = prepareWildzRemotePlayerSnapshot(source, record, () => current);
-  current = { ...source, playState: { ...source.playState!, inventory: [], discoveredCardIds: [] } };
-  const admitted = await pending;
-  assert.ok(admitted?.playState);
-  assert.equal(admitted.playState.inventory.some(card => card.id === removedId), false);
+  const current = { ...source, playState: { ...source.playState!, inventory: source.playState!.inventory.filter(card => card.id !== removedId), discoveredCardIds: [] } };
+  const head = readWildzPlayerDeliveryHead(source, record, current);
+  assert.deepEqual(head, { playerId: record.playerId, revision: record.revision, sourceDigest: record.sourceDigest });
+  assert.equal(current.playState.inventory.some(card => card.id === removedId), false);
+});
+
+test("a response with an invalid revision or digest cannot acknowledge a publication", () => {
+  const { source, record } = fixture();
+  for (const broken of [{ ...record, revision: 0 }, { ...record, sourceDigest: "bad" }]) {
+    assert.equal(readWildzPlayerDeliveryHead(source, broken, source), null);
+  }
 });

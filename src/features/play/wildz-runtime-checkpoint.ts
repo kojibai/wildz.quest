@@ -1,4 +1,4 @@
-import { hasLaterWildsPlayerLedger } from "./wilds-play-state-source";
+import { hasLaterWildsPlayerLedger, retainWildsExploration } from "./wilds-play-state-source";
 import { restorePlayState, serializePlayState, type PlayState } from "./game-state";
 import {
   createAdmittedWildsInventory,
@@ -9,6 +9,7 @@ import { sha256PortableBasis } from "./portable-card";
 import { reuseWildsTraversalConditionReferences } from "./wilds-traversal-capabilities";
 
 const RUNTIME_SCHEMA = "receiz.wildz.runtime_checkpoint.v1" as const;
+export const WILDZ_RUNTIME_MOVEMENT_SCHEMA = "receiz.wildz.runtime_movement.v2" as const;
 const RUNTIME_KEY_PREFIX = "receiz:wildz:runtime:v1";
 const PENDING_INVENTORY_SCHEMA = "receiz.wildz.pending_inventory.v1" as const;
 const PENDING_INVENTORY_JOURNAL_SCHEMA = "receiz.wildz.pending_inventory_journal.v2" as const;
@@ -247,13 +248,13 @@ export function readWildzRuntimeCheckpoint(storage: RuntimeStorage, input: {
   keyId: string;
   actorId: string;
   playState: PlayState;
-}) {
+}, movement = false) {
   const key = wildzRuntimeCheckpointKey(input.keyId, input.actorId);
   const serialized = storage.getItem(key);
   if (!serialized) return input.playState;
   try {
-    const checkpoint = JSON.parse(serialized) as Partial<WildzRuntimeCheckpoint>;
-    if (checkpoint.schema !== RUNTIME_SCHEMA
+    const checkpoint = JSON.parse(serialized) as Partial<Omit<WildzRuntimeCheckpoint, "schema">> & { schema?: string };
+    if (checkpoint.schema !== (movement ? WILDZ_RUNTIME_MOVEMENT_SCHEMA : RUNTIME_SCHEMA)
       || checkpoint.keyId !== input.keyId
       || checkpoint.actorId !== input.actorId
       || typeof checkpoint.vaultRoot !== "string"
@@ -282,10 +283,10 @@ export function readWildzRuntimeCheckpoint(storage: RuntimeStorage, input: {
       // would only parse and immediately discard it.
       inventory: []
     } as PlayState), input.actorId, admittedInventory);
-    if (hasLaterWildsPlayerLedger(input.playState, restored)) return input.playState;
+    if (hasLaterWildsPlayerLedger(input.playState, restored)) return retainWildsExploration(input.playState, restored);
     const traversalAssetIds = [restored.selectedAssetId, ...restored.supportAssetIds].filter((assetId): assetId is string => Boolean(assetId));
     return {
-      ...restored,
+      ...retainWildsExploration(restored, input.playState),
       inventory,
       adventureConditions: reuseWildsTraversalConditionReferences(
         restored.adventureConditions,

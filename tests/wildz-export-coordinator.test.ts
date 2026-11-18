@@ -2,6 +2,30 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createWildzExportCoordinator } from "../src/lib/receiz/wildz-export-coordinator";
 
+test("explicit Save uses its permission on the first build and can finish a joined background preparation", async () => {
+  const builds: Array<[string, boolean]> = [];
+  const permissionRequired = Error("offline_seal_enrollment_required");
+  const cancelled = Error("wildz_identity_passphrase_required");
+  const options = {
+    sameSnapshot: (a: string, b: string) => a === b,
+    retryWithPrompt: (error: unknown) => error === permissionRequired || error === cancelled,
+    build: async (snapshot: string, allowPrompt: boolean) => {
+      builds.push([snapshot, allowPrompt]);
+      if (!allowPrompt) throw permissionRequired;
+      if (snapshot === "cancel") throw cancelled;
+      return snapshot;
+    }
+  };
+  const coordinator = createWildzExportCoordinator(options);
+  assert.equal(await coordinator.prepare("cold", true), "cold");
+  const background = coordinator.prepare("warm", false).catch(error => error);
+  const first = coordinator.prepare("warm", true), second = coordinator.prepare("warm", true);
+  assert.equal(await background, permissionRequired);
+  assert.deepEqual(await Promise.all([first, second]), ["warm", "warm"]);
+  await assert.rejects(coordinator.prepare("cancel", true), error => error === cancelled);
+  assert.deepEqual(builds, [["cold", true], ["warm", false], ["warm", true], ["cancel", true]]);
+});
+
 test("Identity Seal and Vault saves join one export without changing live state", async () => {
   const snapshot: { key: string; player: { x: number; z: number }; inventory: readonly string[] } = Object.freeze({ key: "owner", player: Object.freeze({ x: 24, z: 48 }), inventory: Object.freeze(["card"]) });
   let builds = 0;

@@ -65,7 +65,3 @@ export async function createWildzIdentityPlayerCardBundleOffThread(input: Input)
     } catch { closeWorker(); }
   });
 }
-
-export async function createWildzIdentityPlayerCardOffThread(input: Input) {
-  return (await createWildzIdentityPlayerCardBundleOffThread(input))?.bytes ?? null;
-}

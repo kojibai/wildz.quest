@@ -128,12 +128,66 @@ test("accepted projection/publication retries use saved successor and never clai
   const f = await protocolFixture(); f.setRestoreFailure(true);
   const accepted = await createWildsWalletBearerGiftController(f.input).acceptSource(leg, f.descriptor, authority);
   assert.equal(accepted.status, "accepted"); assert.equal("projectionPending" in accepted && accepted.projectionPending, true); assert.equal(f.claims, 1);
-  assert.equal(f.messages[0]?.kind, "trade-bearer-accepted");
+  assert.equal(f.messages.length, 0);
   f.setRestoreFailure(false); f.setPublication(false);
-  assert.equal((await createWildsWalletBearerGiftController(f.input).acceptSource(leg, f.descriptor, authority)).status, "pending"); assert.equal(f.claims, 1);
+  const cold = createWildsWalletBearerGiftController({ ...f.input, readMessages: async () => { throw Error("offline"); } });
+  const restored = await cold.acceptSource(leg, f.descriptor, authority);
+  assert.equal(restored.status, "accepted");
+  assert.deepEqual(restored.receipt, accepted.receipt);
+  await assert.rejects(cold.publishAccepted!(leg, f.descriptor, restored, authority), /delivery is pending/);
   f.setPublication(true);
-  assert.equal((await createWildsWalletBearerGiftController(f.input).acceptSource(leg, f.descriptor, authority)).status, "accepted"); assert.equal(f.claims, 1);
+  await cold.publishAccepted!(leg, f.descriptor, restored, authority);
+  assert.equal(f.messages[0]?.kind, "trade-bearer-accepted");
+  assert.deepEqual(f.messages[0], f.messages[1]);
+  assert.equal(f.claims, 1);
   assert.equal(f.restores, 2);
+});
+
+test("sender and receiver reopen separate custody stores and deliver the exact saved successor after a receipt outage", async () => {
+  const f = await protocolFixture();
+  const senderDatabase = createMemoryWildzContinuityDatabase(), receiverDatabase = createMemoryWildzContinuityDatabase();
+  const inbox: { senderHandle: string; recipientHandle: string; context: WildsWalletBearerGiftMessage }[] = [];
+  let online = true, outgoing = 0;
+  function open(ownerHandle: string, database: typeof senderDatabase) {
+    return createWildsWalletBearerGiftController({
+      ...f.input, ownerHandle, store: createWildsWalletBearerGiftRecoveryStore(database),
+      currentIdentity: () => ({ keyId: f.input.keyId, ownerHandle }),
+      readMessages: async () => { if (!online) throw Error("offline"); return inbox; },
+      publish: async (context, recipientHandle) => {
+        if (!online) throw Error("offline");
+        inbox.push({ senderHandle: ownerHandle, recipientHandle, context });
+        return true;
+      },
+      onAcceptedOutgoing: async (_leg, source) => { assert.deepEqual(source.original, f.f.successor); outgoing++; },
+    });
+  }
+  const sender = open(leg.senderHandle, senderDatabase);
+  const descriptor = await sender.prepareSource(leg);
+  assert.equal((await sender.sendSource(leg, descriptor, authority)).status, "sent");
+  const receiver = open(leg.recipientHandle, receiverDatabase);
+  assert.equal((await receiver.observeSource(leg, descriptor, undefined, authority)).status, "offered");
+  assert.equal(outgoing, 0);
+  const accepted = await receiver.acceptSource(leg, descriptor, authority);
+  assert.equal(accepted.status, "accepted");
+  online = false;
+  const reopened = open(leg.recipientHandle, receiverDatabase);
+  const held = await reopened.observeSource(leg, descriptor, accepted.receipt, authority);
+  assert.equal(held.status, "accepted");
+  assert.deepEqual(held.receipt, accepted.receipt);
+  await assert.rejects(reopened.publishAccepted!(leg, descriptor, held, authority), /offline/);
+  online = true;
+  await reopened.publishAccepted!(leg, descriptor, held, authority);
+  const senderReopened = open(leg.senderHandle, senderDatabase);
+  const received = await senderReopened.observeSource(leg, descriptor, accepted.receipt, authority);
+  assert.equal(received.status, "accepted"); assert.equal(outgoing, 1);
+  assert.deepEqual(received.receipt, accepted.receipt);
+  const messageCount = inbox.length;
+  online = false;
+  await senderReopened.verifyAccepted(leg, descriptor, received, authority);
+  assert.equal((await senderReopened.sendSource(leg, descriptor, authority)).status, "sent");
+  assert.equal((await createWildsWalletBearerGiftRecoveryStore(senderDatabase).readAttempt(leg.senderHandle, f.input.keyId, leg.legId))?.state, "accepted");
+  assert.equal(inbox.length, messageCount);
+  assert.equal(f.claims, 1); assert.equal(f.restores, 1);
 });
 
 test("recipient observation repairs a saved accepted projection after reload without another native claim",async()=>{

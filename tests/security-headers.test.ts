@@ -43,6 +43,15 @@ test("Next emits the complete global security-header contract", async () => {
   assert.ok(!headers.has("access-control-allow-origin"), "there is no blanket CORS policy");
 });
 
+test("only wallet pages allow their same-origin receiving QR camera", async () => {
+  const config = (await import(pathToFileURL(resolve("next.config.mjs")).href)).default;
+  const rules: HeaderRule[] = await config.headers();
+  const cameraRules = rules.filter(rule => rule.headers.some(header =>
+    header.key.toLowerCase() === "permissions-policy" && header.value === "camera=(self), microphone=(), geolocation=()"));
+  assert.deepEqual(cameraRules.map(rule => rule.source), ["/", "/market", "/test-fixtures/wallet"]);
+  assert.ok(cameraRules.every(rule => rules.indexOf(rule) > rules.findIndex(global => global.source === "/:path*")));
+});
+
 test("service-worker delivery is revalidated while inheriting the global header rule", async () => {
   const moduleUrl = pathToFileURL(resolve("next.config.mjs")).href;
   const nextConfig = (await import(moduleUrl)).default as { headers(): Promise<HeaderRule[]> };

@@ -14,7 +14,11 @@ import {
 import {
   RECEIZ_MARKETPLACE_NONFINANCIAL_TOOL_NAMES,
   RECEIZ_MCP_TOOLS,
-  describeReceizMcpCapabilityParity
+  createReceizMcpRuntime,
+  describeReceizMcpCapabilityParity,
+  handleReceizMcpMessage,
+  parseReceizMcpToolResult,
+  type McpToolResult
 } from "@receiz/mcp-server";
 
 type PackageManifest = {
@@ -127,6 +131,31 @@ test("v129 release binding retains the shipped v127 constitutional registry", ()
     registryDigest: RECEIZ_CURRENT_REGISTRY_DIGEST,
     operationMatrixDigest: RECEIZ_CURRENT_APPLICATION_OPERATION_MATRIX_DIGEST
   });
+});
+
+test("the installed MCP serves its declared tools and runs offline conformance through JSON-RPC", async (t) => {
+  const network = t.mock.method(globalThis, "fetch", async () => { throw new Error("unexpected_conformance_network_access"); });
+  const runtime = createReceizMcpRuntime({ fetch: network });
+  const initialized = await handleReceizMcpMessage({ jsonrpc: "2.0", id: 1, method: "initialize", params: {
+    protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "wildz-conformance", version: "1" }
+  } }, runtime);
+  assert.partialDeepStrictEqual(initialized?.result, { serverInfo: { name: "@receiz/mcp-server", version: RECEIZ_RELEASE_VERSION } });
+  const listed = await handleReceizMcpMessage({ jsonrpc: "2.0", id: 2, method: "tools/list" }, runtime);
+  assert.deepEqual(listed?.result, { tools: RECEIZ_MCP_TOOLS });
+  const response = await handleReceizMcpMessage({ jsonrpc: "2.0", id: 3, method: "tools/call", params: {
+    name: "receiz_conformance_run", arguments: {}
+  } }, runtime);
+  assert.ok(response?.result && !response.error);
+  const result = response.result as McpToolResult;
+  assert.ok(!result.isError);
+  assert.partialDeepStrictEqual(parseReceizMcpToolResult(result), {
+    report: {
+      ok: true, sdkVersion: RECEIZ_RELEASE_VERSION, summary: { passed: 15, failed: 0, networkCalls: 0, dbCalls: 0 },
+      authority: { qualificationIsVerification: false, emulatorVerdict: "sandbox-only" }
+    },
+    writesPerformed: 0
+  });
+  assert.equal(network.mock.callCount(), 0);
 });
 
 test("v129 full MCP schemas keep checkout, bearer custody and local valuation boundaries distinct", () => {

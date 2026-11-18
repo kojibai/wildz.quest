@@ -42,6 +42,20 @@ const OTHER_SESSION: WildzIdentitySession = {
   displayName: "Trail Scout"
 };
 
+test("a late same-owner save at the same ledger pulse retains geography already committed by another tab", async () => {
+  const database = createMemoryWildzContinuityDatabase();
+  const base = createOwnerBoundInitialPlayState(SESSION.actorId);
+  const distant = { x: 48_000, z: -480 };
+  await saveWildzRestoredPlayState({ database, session: SESSION, playState: {
+    ...base, explorationAtlas: revealWildsExplorationAt(base.explorationAtlas, distant)
+  } });
+  await saveWildzRestoredPlayState({ database, session: SESSION, playState: { ...base, energy: 70 } });
+  const reopened = await loadWildzRestoredOwnerState({ database, session: SESSION });
+  assert.ok(reopened);
+  assert.equal(reopened.playState.energy, 70);
+  assert.equal(wildsExplorationContainsWorld(reopened.playState.explorationAtlas, distant), true);
+});
+
 test("owner persistence retains complete V3 settings, history, receipts, and cursor across later gameplay saves", async () => {
   const database = createMemoryWildzContinuityDatabase();
   const player = createWildsPlayerVault({

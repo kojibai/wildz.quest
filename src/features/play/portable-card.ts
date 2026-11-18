@@ -147,6 +147,10 @@ function rotateRight(value: number, amount: number) {
 
 // Small synchronous SHA-256 implementation keeps offline capture available in browsers and tests.
 export function sha256PortableBasis(input: string) {
+  return sha256PortableBytes(new TextEncoder().encode(input));
+}
+
+export function sha256PortableBytes(bytes: Uint8Array) {
   const constants = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
     0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -157,21 +161,24 @@ export function sha256PortableBasis(input: string) {
     0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
   ];
-  const bytes = Array.from(new TextEncoder().encode(input));
   const bitLength = bytes.length * 8;
-  bytes.push(0x80);
-  while (bytes.length % 64 !== 56) bytes.push(0);
-  const high = Math.floor(bitLength / 0x1_0000_0000);
-  const low = bitLength >>> 0;
-  for (let shift = 24; shift >= 0; shift -= 8) bytes.push((high >>> shift) & 0xff);
-  for (let shift = 24; shift >= 0; shift -= 8) bytes.push((low >>> shift) & 0xff);
+  const remainder = bytes.length % 64;
+  const completeLength = bytes.length - remainder;
+  const tail = new Uint8Array(remainder < 56 ? 64 : 128);
+  tail.set(bytes.subarray(completeLength));
+  tail[remainder] = 0x80;
+  const padding = new DataView(tail.buffer);
+  padding.setUint32(tail.length - 8, Math.floor(bitLength / 0x1_0000_0000));
+  padding.setUint32(tail.length - 4, bitLength >>> 0);
+  const source = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 
   const hash = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
   const words = new Array<number>(64);
-  for (let offset = 0; offset < bytes.length; offset += 64) {
+  for (let offset = 0; offset < completeLength + tail.length; offset += 64) {
+    const block = offset < completeLength ? source : padding;
+    const start = offset < completeLength ? offset : offset - completeLength;
     for (let index = 0; index < 16; index += 1) {
-      const start = offset + index * 4;
-      words[index] = ((bytes[start]! << 24) | (bytes[start + 1]! << 16) | (bytes[start + 2]! << 8) | bytes[start + 3]!) >>> 0;
+      words[index] = block.getUint32(start + index * 4);
     }
     for (let index = 16; index < 64; index += 1) {
       const s0 = rotateRight(words[index - 15]!, 7) ^ rotateRight(words[index - 15]!, 18) ^ (words[index - 15]! >>> 3);

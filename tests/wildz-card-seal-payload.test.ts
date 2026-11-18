@@ -9,8 +9,22 @@ import { createWildzIdentityBoundPlayerVault } from "../src/lib/receiz/wildz-ide
 import { createWildsPlayerVault } from "../src/features/play/wilds-player-vault";
 import { initialPlayState } from "../src/features/play/game-state";
 import { openWildzSealedCard } from "../src/lib/receiz/wildz-sealed-card";
+import { hasWildzCanonicalPngProof, extractWildzSealedPngBasis } from "../src/lib/receiz/wildz-png-envelope";
 
 const png = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));
+
+test("looking up proof metadata and extracting the basis do not copy the full PNG as scratch space", () => {
+  const sealed = withWildzPngPayloadChunk(png, "receiz.proof_bundle", "transport marker");
+  let copied = 0;
+  const original = sealed.slice.bind(sealed);
+  sealed.slice = (start, end) => { const copy = original(start, end); copied += copy.length; return copy; };
+  assert.equal(hasWildzCanonicalPngProof(sealed), true);
+  assert.deepEqual(extractWildzSealedPngBasis(sealed), png);
+  assert.equal(copied, 0);
+  sealed[sealed.length - 1]! ^= 1;
+  assert.throws(() => hasWildzCanonicalPngProof(sealed), /png_crc_invalid:IEND/);
+  assert.throws(() => extractWildzSealedPngBasis(sealed), /png_crc_invalid:IEND/);
+});
 
 test("seal payload preserves the complete signed envelope and unknown PNG namespaces byte-for-byte", async () => {
   const identity = await createReceizIdentityKeyFile({ owner: { uid: "seal-payload-test", username: "keeper" } });

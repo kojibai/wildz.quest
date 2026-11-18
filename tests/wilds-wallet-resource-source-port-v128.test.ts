@@ -56,7 +56,11 @@ test("recipient resolves a dropped CAS reply, retains package, and unpacks it ex
   const f = await fixture("bob.receiz.id"), port = f.port();
   f.messages.push({ senderHandle: f.leg.senderHandle, recipientHandle: f.leg.recipientHandle, context: { kind: "trade-resource-source", tradeId: f.authority.plan.tradeId, legId: f.leg.legId, original: f.original } });
   f.loseAcceptReply(); assert.equal((await port.acceptSource(f.leg, f.descriptor, f.authority)).status, "pending");
+  f.publishPending();
   const recovered = await f.port().acceptSource(f.leg, f.descriptor, f.authority); assert.equal(recovered.status, "accepted"); assert.equal(f.counts().accepts, 1); assert.equal(f.counts().unpacks, 0);
+  await assert.rejects(f.port().publishAccepted!(f.leg, f.descriptor, recovered, f.authority), /receipt delivery is pending/);
+  const observed = await f.port().observeSource(f.leg, f.descriptor, recovered.receipt, f.authority);
+  assert.equal(observed.status, "accepted"); assert.deepEqual(observed.receipt, recovered.receipt);
   assert.equal((await f.port().unpackHeldPackage(f.descriptor.packageId)).status, "accepted");
   const firstProjectionCount=f.counts().projections;
   assert.equal((await f.port().unpackReceivedPackage(f.leg, f.descriptor, f.authority)).status, "accepted"); assert.equal(f.counts().unpacks, 1);

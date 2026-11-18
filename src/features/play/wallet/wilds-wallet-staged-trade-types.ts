@@ -15,6 +15,8 @@ export type WildsWalletStagedTradeAssetPort = Readonly<{
   sendSource(leg: Extract<WildsWalletStagedTradeLeg, { kind: "asset" }>, descriptor: WildsWalletStagedTradeSourceHead, authority: WildsWalletStagedTradeAssetAuthority): Promise<WildsWalletAssetSendResult>;
   observeSource(leg: Extract<WildsWalletStagedTradeLeg, { kind: "asset" }>, descriptor: WildsWalletStagedTradeSourceHead, locator: unknown, authority: WildsWalletStagedTradeAssetAuthority): Promise<WildsWalletStagedTradeLegOutcome>;
   verifyAccepted(leg: Extract<WildsWalletStagedTradeLeg, { kind: "asset" }>, descriptor: WildsWalletStagedTradeSourceHead, outcome: WildsWalletStagedTradeLegOutcome, authority: WildsWalletStagedTradeAssetAuthority): Promise<void>;
+  /** Deliver the verified receiver's native carrier after its acceptance checkpoint is durable. */
+  publishAccepted?(leg: Extract<WildsWalletStagedTradeLeg, { kind: "asset" }>, descriptor: WildsWalletStagedTradeSourceHead, outcome: WildsWalletStagedTradeLegOutcome, authority: WildsWalletStagedTradeAssetAuthority): Promise<void>;
   /** Explicit recipient acceptance of this same approved source; ambiguous retries preserve its original attempt. */
   acceptSource?(leg: Extract<WildsWalletStagedTradeLeg, { kind: "asset" }>, descriptor: WildsWalletStagedTradeSourceHead, authority: WildsWalletStagedTradeAssetAuthority): Promise<WildsWalletStagedTradeLegOutcome>;
 }>;

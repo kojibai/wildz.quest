@@ -14,7 +14,8 @@ function safeUPulse(value: number) {
   return value;
 }
 
-export function observeWildsKaiUPulse(epochMs = Date.now()) {
+export function observeWildsKaiUPulse(epochMs?: number) {
+  if (epochMs === undefined) return receizKaiNow().uPulse;
   if (!Number.isFinite(epochMs)) throw new Error("wilds_kai_runtime_observation_invalid");
   return deriveKaiKlokMoment({
     occurredAt: new Date(Math.trunc(epochMs)).toISOString(),

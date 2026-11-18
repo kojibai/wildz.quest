@@ -1,5 +1,5 @@
 import { pngCrc32 as crc32 } from "../../lib/png-crc32";
-import { sha256PortableBasis, verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
+import { sha256PortableBytes, verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 export const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 export const PROOF_CHUNK_TYPE = "rzCd";
 export type PortableCardPngProof = {
@@ -57,15 +57,28 @@ export function parsePng(bytes: Uint8Array): PngChunk[] {
 }
 
 export function imageDigest(chunks: readonly PngChunk[]) {
-  const basis = chunks
-    .filter((chunk) => chunk.type === "IHDR" || chunk.type === "PLTE" || chunk.type === "IDAT")
-    .map((chunk) => `${chunk.type}:${Array.from(chunk.data, (byte) => byte.toString(16).padStart(2, "0")).join("")}`)
-    .join("|");
-  return sha256PortableBasis(basis);
+  const image = chunks.filter(chunk => chunk.type === "IHDR" || chunk.type === "PLTE" || chunk.type === "IDAT");
+  // The published digest covers ASCII chunk names and lowercase hex, in file order.
+  const basis = new Uint8Array(image.reduce((total, chunk) => total + 5 + chunk.data.length * 2, Math.max(0, image.length - 1)));
+  const hex = "0123456789abcdef";
+  let offset = 0;
+  for (const { type, data } of image) {
+    if (offset) basis[offset++] = 0x7c; // |
+    for (let i = 0; i < type.length; i++) basis[offset++] = type.charCodeAt(i);
+    basis[offset++] = 0x3a; // :
+    for (const byte of data) {
+      basis[offset++] = hex.charCodeAt(byte >>> 4);
+      basis[offset++] = hex.charCodeAt(byte & 15);
+    }
+  }
+  return sha256PortableBytes(basis);
 }
 
 export function readPortableCardFromPng(source: Uint8Array): PortableCardPngProof {
-  const chunks = parsePng(source);
+  return readPortableCardProof(parsePng(source));
+}
+
+function readPortableCardProof(chunks: readonly PngChunk[]): PortableCardPngProof {
   const proofs = chunks.filter((chunk) => chunk.type === PROOF_CHUNK_TYPE);
   if (proofs.length !== 1) throw new Error(proofs.length ? "wilds_png_proof_duplicate" : "wilds_png_proof_missing");
   const decoded = JSON.parse(new TextDecoder().decode(proofs[0]!.data)) as Partial<PortableCardPngProof>;
@@ -76,7 +89,7 @@ export function readPortableCardFromPng(source: Uint8Array): PortableCardPngProo
 export function verifyPortableCardPng(source: Uint8Array): { ok: boolean; errors: string[]; asset: PortableCardAsset | null } {
   try {
     const chunks = parsePng(source);
-    const proof = readPortableCardFromPng(source);
+    const proof = readPortableCardProof(chunks);
     const errors = [...verifyAnyWildsCard(proof.asset).errors];
     if (proof.imageDigest !== imageDigest(chunks)) errors.push("png_image_digest_mismatch");
     return { ok: errors.length === 0, errors, asset: errors.length ? null : proof.asset };

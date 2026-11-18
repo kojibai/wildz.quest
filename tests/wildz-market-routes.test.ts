@@ -30,14 +30,15 @@ test("market shares the persistent game shell in its page and popover and mutati
   }
 });
 
-test("ownership reconciliation returns only foreign active asset IDs from the synced projection", () => {
+test("ownership reconciliation routes source hints without issuing a loss verdict", () => {
   const route = readFileSync("app/api/market/ownership/reconcile/route.ts", "utf8");
 
   assert.match(route, /resolveWildzCookieActor/);
   assert.match(route, /parseWildzOwnershipReconcileRequest/);
   assert.match(route, /adapter\.client\.appState\.resolve/);
   assert.match(route, /WILDZ_OWNERSHIP_SYNC_NAMESPACE/);
-  assert.match(route, /lostWildzOwnershipAssetIdsFromSync/);
+  assert.match(route, /requestedWildzNativeOwnershipRecords/);
+  assert.match(route, /lostAssetIds: \[\]/);
   assert.match(route, /lostAssetIds/);
   assert.doesNotMatch(route, /resolveWildzMarketConditionalAppendRail/);
   assert.doesNotMatch(route, /currentOwner|ownerReceizId/);

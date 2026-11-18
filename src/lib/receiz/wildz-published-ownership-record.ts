@@ -15,8 +15,7 @@ export function parseWildzPublishedOwnershipClaims(value:unknown,owner:string,as
 }
 
 export async function verifiedWildzPublishedOwnershipRecords(values:readonly unknown[]){
- const local=await verifyWildzPublishedOwnershipClaims(values);
- return [...values.filter(row=>ownershipSyncProjection(row)&&!parseWildzSignedUploadOwnershipClaim(row)),...local];
+ return verifyWildzPublishedOwnershipClaims(values);
 }
 
 /** Registry-authenticated profile owner plus relay-enforced publisher key bind

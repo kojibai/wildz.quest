@@ -10,7 +10,6 @@ import {
 } from "../src/features/identity/wildz-ownership-reconciliation";
 import { wildzVaultUploadDisposition } from "../src/features/identity/wildz-restore";
 import {
-  lostWildzOwnershipAssetIdsFromSync,
   parseWildzOwnershipReconcileRequest,
   WILDZ_OWNERSHIP_SYNC_NAMESPACE,
   WILDZ_OWNERSHIP_SYNC_SCHEMA,
@@ -78,7 +77,7 @@ test("ownership reconciliation requests are exact and bounded", () => {
   }), /wildz_ownership_reconcile_request_invalid/);
 });
 
-test("v119 app-state reconciliation treats the server record as sync-only", () => {
+test("native routing rows cannot remove a held creature in the active Vault or its reopened save", async () => {
   const asset = initialPlayState.inventory[0]!;
   const syncRecord = (ownerReceizId: string, appendCount: number, headReference: string) => ({
     namespace: WILDZ_OWNERSHIP_SYNC_NAMESPACE,
@@ -102,21 +101,20 @@ test("v119 app-state reconciliation treats the server record as sync-only", () =
     }
   });
 
-  assert.deepEqual(lostWildzOwnershipAssetIdsFromSync(
-    [syncRecord("first.receiz.id", 1, "claim-first"), syncRecord("second.receiz.id", 2, "claim-second")],
-    "first.receiz.id",
-    [asset.id]
-  ), [asset.id]);
-  assert.deepEqual(lostWildzOwnershipAssetIdsFromSync(
-    [syncRecord("first.receiz.id", 1, "claim-first"), syncRecord("second.receiz.id", 2, "claim-second")],
-    "second.receiz.id",
-    [asset.id]
-  ), []);
-  assert.deepEqual(lostWildzOwnershipAssetIdsFromSync(
-    [syncRecord("second.receiz.id", 2, "claim-second"), syncRecord("third.receiz.id", 2, "claim-divergent")],
-    "first.receiz.id",
-    [asset.id]
-  ), []);
+  const records = [syncRecord("first.receiz.id", 1, "claim-first"), syncRecord("second.receiz.id", 2, "claim-second")];
+  const { verifiedWildzPublishedOwnershipRecords } = await import("../src/lib/receiz/wildz-published-ownership-record");
+  const { restorePlayState, serializePlayState } = await import("../src/features/play/game-state");
+  const ready = {status: "ready", lostAssetIds: [asset.id], ownershipClaims: records};
+  const { latestWildzOwnershipClaims } = await import("../src/lib/receiz/wildz-ownership-reconcile");
+  assert.equal(latestWildzOwnershipClaims(records).heads.get(asset.id)?.ownerReceizId, "second.receiz.id");
+  const publicRecords = await verifiedWildzPublishedOwnershipRecords(records);
+  const { readWildzArtifactCrewCustody, transferredWildzCrewAssetIds } = await import("../src/lib/receiz/wildz-artifact-codec");
+  const lost = transferredWildzCrewAssetIds(null, [asset], readWildzArtifactCrewCustody(ready as never));
+  const held = {...structuredClone(initialPlayState), selectedAssetId: asset.id, hearttreeSquadAssetIds: [asset.id]};
+  const saved = removeWildzAssetsFromActiveVault(held, lost);
+  assert.equal(saved, held, "a raw synchronization row cannot rewrite the active save");
+  assert.deepEqual(restorePlayState(serializePlayState(saved)).inventory, restorePlayState(serializePlayState(held)).inventory);
+  assert.deepEqual(publicRecords, [], "unsigned native ownership hints must not be classified as verified proof");
 });
 
 test("owned Vault uploads merge directly while foreign bearer artifacts claim first", () => {
@@ -204,29 +202,75 @@ test("Vault upload disposition treats bearer claiming as transfer-only", () => {
   }, asset.manifest.ownerReceizId), "claim-bearer");
 });
 
-test("cross-device Vault invalidation uses guarded live refresh outside Market", () => {
+test("active Vault refresh opens exact local bytes and applies the successor to the current keeper", () => {
   const shell = readFileSync("src/features/shell/WildzApp.tsx", "utf8");
-
-  assert.match(shell, /const removeLostVaultAssets = useCallback/);
-  assert.match(shell, /removeWildzAssetsFromActiveVault/);
-  assert.match(shell, /kind:\s*"vault"/);
-  assert.match(shell, /proofSessionConnected/);
-  assert.match(shell, /reconcileInFlight/);
-  assert.match(shell, /fetch\("\/api\/market\/ownership\/reconcile"/);
-  assert.match(shell, /JSON\.stringify\(\{\s*assetIds\s*\}\)/);
-  assert.match(shell, /pendingBearerClaims/);
-  assert.match(shell, /filter\(\(assetId\) => !pendingBearerClaims\.has\(assetId\)\)/);
-  assert.match(shell, /reconciledWildzLostOwnershipAssetIds/);
-  assert.match(shell, /readWildzUploadOwnershipHeads\(defaultContinuityDatabase, allAssetIds\)/);
-  assert.doesNotMatch(shell, /removeLostVaultAssets\(result\.lostAssetIds/);
   const reconciliation = shell.slice(
     shell.lastIndexOf("useEffect(() => {", shell.indexOf("const reconcileActiveVaultOwnership")),
     shell.indexOf("useEffect(() => {", shell.indexOf("const reconcileActiveVaultOwnership") + 1)
   );
-  assert.doesNotMatch(reconciliation, /overlay\?\.kind/);
   assert.match(reconciliation, /startWildzLiveOwnershipRefresh/);
-  assert.match(reconciliation, /identity\?\.keyId, identity\?\.actorId/);
-  assert.match(reconciliation, /controller\?\.abort\(\)/);
+  assert.match(reconciliation, /defaultWildzProofSourceRepository.read/);
+  assert.match(reconciliation, /prepareWildzRestore\(file\)/);
+  assert.match(reconciliation, /transferredWildzCrewAssetIds\(live.crewCustody/);
   assert.match(reconciliation, /if \(!isCurrent\(\)\) return/);
-  assert.match(reconciliation, /verifiedClaims: \[\.\.\.published, \.\.\.freshLocal\]/);
+  assert.doesNotMatch(reconciliation, /fetch\(|\.lostAssetIds|overlay\?\.kind/);
+});
+
+test("restoring into another keeper preserves the old Vault until the exact native predecessor transfers", async () => {
+  const { createMemoryWildzContinuityDatabase } = await import("./support/memory-wildz-continuity-database");
+  const { createWildzIdentityRepository } = await import("../src/lib/receiz/wildz-identity-repository");
+  const { createWildzArtifactCodec, transferredWildzCrewAssetIds, readWildzArtifactCrewCustody } = await import("../src/lib/receiz/wildz-artifact-codec");
+  const { restoreWildzArtifactForSurface, loadWildzRestoredOwnerState } = await import("../src/features/identity/wildz-restore");
+  const { sealCollectedCard } = await import("../src/features/play/portable-card");
+  const { embedPortableCardInPng } = await import("../src/features/play/card-export");
+  const { sha256WildzArtifactBytes } = await import("../src/lib/receiz/wildz-artifact-custody");
+  const database = createMemoryWildzContinuityDatabase();
+  const repository = createWildzIdentityRepository({ database });
+  const base = await repository.bootstrap();
+  const keeper = (name: string) => ({ ...base, actorId: name, keyId: name + "-key", username: name });
+  const former = keeper("former_keeper"), next = keeper("next_keeper"), observer = keeper("observer");
+  let active = former;
+  const card = sealCollectedCard({ formId: "mintcub-1", ownerReceizId: "creator", encounterId: "same-held-object", capturedAt: "2026-08-16T12:00:00.000Z" });
+  const png = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));
+  const payload = embedPortableCardInPng(png, card);
+  const bytes = (label: string) => new TextEncoder().encode(JSON.stringify({kind: "receiz.bundle.v1", label}));
+  const priorBytes = bytes("prior"), successorBytes = bytes("successor"), siblingBytes = bytes("sibling");
+  const priorSha = await sha256WildzArtifactBytes(priorBytes);
+  const payloadSha = await sha256WildzArtifactBytes(payload);
+  const codec = createWildzArtifactCodec({ identityRepository: repository, commerceVaultReader: {inspect: async () => null},
+    artifactOpener: {open: async input => {
+      const label = JSON.parse(new TextDecoder().decode(input.bytes)).label;
+      const from = label === "prior" ? "creator.receiz.id" : "former_keeper.receiz.id";
+      const owner = label === "prior" ? "former_keeper.receiz.id" : "next_keeper.receiz.id";
+      const head = "head-" + label;
+      return { artifactBytes: input.bytes, artifactSha256: await sha256WildzArtifactBytes(input.bytes), payloadBytes: payload,
+        payloadSha256: payloadSha, filename: label + ".receized", mimeType: "image/png", ownerReceizId: owner,
+        claimId: head, verifyPath: "/v/" + head, recordId: "card", compatibility: "current-native",
+        ownershipWitness: {artifactId: "a".repeat(64), namespace: "native-card", genesisOwnerReceizId: "creator.receiz.id",
+          ownerReceizId: owner, previousOwnerReceizId: from, priorHeadReference: label === "prior" ? "genesis" : "head-prior",
+          previousArtifactSha256: label === "successor" ? priorSha : "f".repeat(64), appendCount: label === "prior" ? 1 : 2,
+          headReference: head, historyDigestSha256: "b".repeat(64), witnessedKaiPulse: "123", witnessedAt: "2026-08-16T12:00:00.000Z"} };
+    }} });
+  const restore = (input: Uint8Array, mimeType = "application/json") => restoreWildzArtifactForSurface({
+    surface: "card-vault", bytes: input, mimeType, codec, database, repository: {...repository, active: async () => active},
+    preserveActiveIdentity: true, confirmCardOnly: true
+  });
+  const old = await restore(priorBytes);
+  const read = (session: typeof former) => loadWildzRestoredOwnerState({database, session});
+  const before = await read(former);
+  assert.ok(before);
+  assert.ok(before.playState.inventory.some(asset => asset.id === card.id));
+  active = observer;
+  await restore(payload, "image/png");
+  assert.deepEqual(await read(former), before, "ordinary portable import must preserve another owner's durable state");
+  active = next;
+  await restore(siblingBytes);
+  assert.deepEqual(await read(former), before, "a signed append for a different predecessor cannot prune this card");
+  const nextInspection = await codec.inspect({bytes: successorBytes, mimeType: "application/json"});
+  const issued = readWildzArtifactCrewCustody(nextInspection);
+  assert.deepEqual(transferredWildzCrewAssetIds(old.crewCustody, [card], {...issued!}), [], "a copied token has no admission");
+  const transferred = await restore(successorBytes);
+  assert.deepEqual(transferred.playState.inventory.find(asset => asset.id === card.id)?.proof, before.playState.inventory.find(asset => asset.id === card.id)?.proof);
+  assert.equal((await read(former))?.playState.inventory.some(asset => asset.id === card.id), false);
+  assert.ok((await read(observer))?.playState.inventory.some(asset => asset.id === card.id), "an unrelated holder was untouched");
 });

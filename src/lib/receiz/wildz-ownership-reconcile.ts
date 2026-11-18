@@ -2,7 +2,6 @@ import {verifiedWildzUploadOwnershipProjection} from "./wildz-upload-ownership";
 export {recordWildzUploadOwnershipClaims,verifyWildzPublishedOwnershipClaims} from "./wildz-upload-ownership";
 import type { JsonObject, ReceizClient } from "@receiz/sdk";
 import type { WildzOwnershipWitness } from "./wildz-artifact-custody";
-import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import { WILDZ_PRODUCT } from "../wildz/product";
 
 export const WILDZ_OWNERSHIP_RECONCILE_MAX_ASSETS = 1_000;
@@ -124,19 +123,6 @@ function sameSyncHead(left: WildzOwnershipSyncProjection, right: WildzOwnershipS
     && left.historyDigestSha256 === right.historyDigestSha256;
 }
 
-export function lostWildzOwnershipAssetIdsFromSync(
-  records: unknown,
-  actorId: string,
-  assetIds: readonly string[]
-) {
-  if (!Array.isArray(records) || records.length > 100_000) return [];
-  const {heads} = latestWildzOwnershipClaims(records);
-  return assetIds.filter((assetId) => {
-    const head = heads.get(assetId);
-    return Boolean(head && !sameWildzPlayerCoordinate(head.ownerReceizId, actorId));
-  });
-}
-
 function syncData(assetId: string, witness: WildzOwnershipWitness): JsonObject {
   return {
     schema: WILDZ_OWNERSHIP_SYNC_SCHEMA,
@@ -213,16 +199,4 @@ export function requestedWildzNativeOwnershipRecords(records:readonly unknown[],
       authority:{claim:'witnessed-kai-pulse-in-sealed-artifact',server:'synchronization-projection-only'}
     }
   })));
-}
-
-/** Old lost-ID responses are refresh hints. Only actual claim coordinates can
- * supersede a locally verified upload or an already verified public claim. */
-export function reconciledWildzLostOwnershipAssetIds(input:Readonly<{
-  nativeResult:unknown;verifiedClaims:readonly unknown[];actorId:string;assetIds:readonly string[];
-}>){
-  const response=isRecord(input.nativeResult)?input.nativeResult:null;
-  const native=response?.status==='ready'&&Array.isArray(response.ownershipClaims)
-    &&response.ownershipClaims.length<=input.assetIds.length*2
-    ? requestedWildzNativeOwnershipRecords(response.ownershipClaims,input.assetIds):[];
-  return lostWildzOwnershipAssetIdsFromSync([...input.verifiedClaims,...native],input.actorId,input.assetIds);
 }

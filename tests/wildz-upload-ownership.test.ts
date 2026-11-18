@@ -26,7 +26,7 @@ test('a successful foreign upload keeps one immutable card and records exact sig
  const newProfile=createPublicWildzProfileRecord({username:'next_keeper',vault:[{id:card.id,name:card.manifest.name,proofDigest:card.proof.digest,visibility:'public'}]},'https://wildz.quest/u/next_keeper','2026-10-11T12:00:00.000Z');
  const cards=projectWildzMarketCollection([oldProfile,newProfile],verified);assert.equal(cards.length,1);assert.equal(cards[0]?.ownerHandle,'next_keeper.receiz.id');
  assert.equal(projectWildzMarketTransfers(verified,cards).length,1);
- assert.deepEqual(ownership.lostWildzOwnershipAssetIdsFromSync(verified,'first_keeper',[card.id]),[card.id]);
+ assert.equal(ownership.latestWildzOwnershipClaims(verified).heads.get(card.id)?.ownerReceizId, 'next_keeper.receiz.id');
  const tampered=structuredClone(claim);tampered.claim.kaiUPulse='999999999';assert.deepEqual(await verify!([tampered]),[]);
  assert.equal(ownership.latestWildzOwnershipClaims([structuredClone(claim)]).heads.size,0,'unverified JSON is not an ownership claim');
 });
@@ -176,18 +176,20 @@ test('opened native custody retains its original exact witness beside local uplo
  witness.headReference='mutated-projection';assert.equal(wildzCrewOwnershipWitnesses(token,[card])[0]?.witness.headReference,'native-actual-head');assert.equal(wildzCrewOwnershipWitnesses(token,[card])[0]?.witness.witnessedKaiUPulse,'123000001');
 });
 
-test('native refresh compares exact coordinates against the latest verified local reclaim',async()=>{
- const reconcile=(ownership as Record<string,unknown>).reconciledWildzLostOwnershipAssetIds as ((input:{nativeResult:unknown;verifiedClaims:readonly unknown[];actorId:string;assetIds:readonly string[]})=>string[])|undefined;
- assert.equal(typeof reconcile,'function','a native lost-ID verdict must not bypass the exact claim comparison');
+test('foreign synchronization hints and signed display receipts carry no native successor',async()=>{
+ const {verifiedWildzPublishedOwnershipRecords}=await import('../src/lib/receiz/wildz-published-ownership-record');
+ const {readWildzArtifactCrewCustody}=await import('../src/lib/receiz/wildz-artifact-codec');
  const upload=await import('../src/lib/receiz/wildz-upload-ownership');
  const identity=await createReceizIdIdentity({username:'reclaimed_keeper',displayName:'Reclaimed'}),database=createMemoryWildzContinuityDatabase();
  const card=sealCollectedCard({formId:'mintcub-1',ownerReceizId:'first_keeper',encounterId:'native-after-reclaim',capturedAt:'2026-09-09T11:00:00.000Z'});
  const local=await upload.recordWildzUploadOwnershipClaims({database,session:{keyId:identity.keyFile.keyId,actorId:'reclaimed_keeper',localAuthority:'verified',remoteStatus:'offline'},keyFile:identity.keyFile,assets:[card],sourceBytes:new Uint8Array([1]),attemptId:'actual-local-reclaim',kaiUPulse:'123999999',uploadedAt:'2026-10-12T12:00:00.000Z'});
  const native=(kaiUPulse:string)=>({namespace:ownership.WILDZ_OWNERSHIP_SYNC_NAMESPACE,schema:ownership.WILDZ_OWNERSHIP_SYNC_SCHEMA,state:'published',data:{schema:ownership.WILDZ_OWNERSHIP_SYNC_SCHEMA,assetId:card.id,artifactId:'a'.repeat(64),previousOwnerReceizId:'reclaimed_keeper.receiz.id',ownerReceizId:'other_keeper.receiz.id',headReference:`native:${kaiUPulse}`,historyDigestSha256:'b'.repeat(64),appendCount:99,witnessedKaiPulse:String(BigInt(kaiUPulse)/1000000n),witnessedKaiUPulse:kaiUPulse,witnessedAt:'2026-10-12T11:00:00.000Z',authority:{claim:'witnessed-kai-pulse-in-sealed-artifact',server:'synchronization-projection-only'}}});
- const input={verifiedClaims:local,actorId:'reclaimed_keeper',assetIds:[card.id]};
- assert.deepEqual(reconcile!({...input,nativeResult:{status:'ready',lostAssetIds:[card.id],ownershipClaims:[native('123000001')]}}),[]);
- assert.deepEqual(reconcile!({...input,nativeResult:{status:'ready',lostAssetIds:[],ownershipClaims:[native('124000001')]}}),[card.id]);
- assert.deepEqual(reconcile!({...input,nativeResult:{status:'ready',lostAssetIds:[card.id]}}),[],'old coordinate-free results cannot override a signed local claim');
+ const raw = native('124000001');
+ const recordsForDisplay = await verifiedWildzPublishedOwnershipRecords([raw, ...local]);
+ assert.equal(recordsForDisplay.length, 1);
+ assert.deepEqual(recordsForDisplay[0], local[0]);
+ assert.equal(readWildzArtifactCrewCustody(recordsForDisplay[0] as never), null);
+ assert.equal(readWildzArtifactCrewCustody(raw as never), null);
  const bounded=(ownership as Record<string,unknown>).requestedWildzNativeOwnershipRecords as ((records:readonly unknown[],ids:readonly string[])=>readonly unknown[])|undefined;
  assert.equal(typeof bounded,'function');
  const foreign={...native('125000001'),data:{...native('125000001').data,assetId:'wilds:'+'f'.repeat(24)}};

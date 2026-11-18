@@ -1,5 +1,6 @@
 import {ownershipSyncProjection,wildzOwnershipWitnessProjectionRecord} from "./wildz-ownership-reconcile";
 import {verifyWildzPublishedOwnershipClaims,readWildzOwnerUploadOwnershipClaims,wildzUploadCardRootDigest} from "./wildz-upload-ownership";
+import { migrateWildsInventoryCard } from "../../features/play/wilds-inventory-convergence";
 import { isLivingCardAsset } from "../../features/play/living-card-types";
 import { livingCardHasIrreversibleMortality, verifyLivingCardRetirementAuthority } from "../../features/play/living-card-proof";
 import { hasWildzCanonicalPngProof } from "./wildz-png-envelope";
@@ -36,7 +37,7 @@ import {
 import { isWildzPng, splitWildzPngEnvelope } from "./wildz-png-envelope";
 import { requireWildzIdentityBindingFromEnvelope } from "./wildz-identity-binding";
 import { sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
-import { wildzOwnershipWitnessFromOpened, type WildzOwnershipWitness, type WildzAdmittedArtifact } from "./wildz-artifact-custody";
+import { readWildzArtifactCardPayload, wildzOwnershipWitnessFromOpened, type WildzOwnershipWitness, type WildzAdmittedArtifact } from "./wildz-artifact-custody";
 import { openWildzSealedDocument } from "./wildz-sealed-document";
 
 /** Operational custody is issued only while inspecting an opened native source. */
@@ -55,10 +56,12 @@ function issueCrewCustody(owner: string, entries: readonly CrewCustodyEntry[]): 
 export function readWildzArtifactCrewCustody(inspection: WildzArtifactInspection) {
   return inspectionCrewAdmissions.get(inspection) ?? null;
 }
+function sameOrDescendant(source: PortableCardAsset, card: PortableCardAsset) {
+  return source.id === card.id && (source === card || canonicalPortableCardJson(source) === canonicalPortableCardJson(card)
+    || isVerifiedWildzCardDescendant(source, card));
+}
 function crewEntryAdmitsCard(entry: CrewCustodyEntry, card: PortableCardAsset) {
-  return entry.card.id === card.id && (entry.card === card
-    || canonicalPortableCardJson(entry.card) === canonicalPortableCardJson(card)
-    || isVerifiedWildzCardDescendant(entry.card, card));
+  return sameOrDescendant(entry.card, card);
 }
 export function mergeWildzCrewCustody(owner: string, tokens: readonly (WildzCrewCustody | null | undefined)[], inventory: readonly PortableCardAsset[]) {
   const cards = new Map(inventory.map(card => [card.id, card]));
@@ -112,6 +115,30 @@ export function wildzCrewOwnershipWitnesses(token: WildzCrewCustody | null | und
       && card && crewEntryAdmitsCard(entry, card)
       ? [{assetId: card.id, witness: entry.ownershipWitness}] : [];
   });
+}
+
+/** A native transfer retires the previous holder's exact admitted predecessor.
+ * Signed upload receipts, relay rows and a matching asset ID carry no successor. */
+export function transferredWildzCrewAssetIds(
+  held: WildzCrewCustody | null | undefined, cards: readonly PortableCardAsset[],
+  successor: WildzCrewCustody | null | undefined
+) {
+  if (!held || !successor || sameWildzPlayerCoordinate(held.owner, successor.owner)) return [];
+  const nextEntries = crewAdmissions.get(successor) ?? [];
+  const heldEntries = crewAdmissions.get(held) ?? [];
+  return cards.filter(card => nextEntries.some(next => {
+    const witness = next.ownershipWitness;
+    if (card.id !== next.card.id || !witness?.previousArtifactSha256 || !witness.priorHeadReference
+      || !sameWildzPlayerCoordinate(witness.ownerReceizId, successor.owner)
+      || !sameWildzPlayerCoordinate(witness.previousOwnerReceizId, held.owner)
+      || !sameOrDescendant(migrateWildsInventoryCard(card), migrateWildsInventoryCard(next.card))) return false;
+    const sources = heldEntries.filter(entry => crewEntryAdmitsCard(entry, card));
+    if (sources.some(entry => entry.ownershipWitness && (entry.ownershipWitness.artifactId !== witness.artifactId
+      || entry.ownershipWitness.appendCount >= witness.appendCount))) return false;
+    return sources.some(entry => entry.artifactSha256 === witness.previousArtifactSha256
+      && (!entry.ownershipWitness || entry.ownershipWitness.headReference === witness.priorHeadReference
+        && entry.ownershipWitness.appendCount + 1 === witness.appendCount));
+  })).map(card => card.id);
 }
 
 export function canOperateWildzCrewCard(card: PortableCardAsset, owner: string, token?: WildzCrewCustody | null) {
@@ -246,7 +273,7 @@ export async function retainWildzCrewCustodyMemory(database: WildzContinuityData
  * reopening the large original Seal. Changed heads return to source inspection. */
 export async function restoreWildzCrewCustodyMemory(database: WildzContinuityDatabase,
   owner: { keyId: string; actorId: string }, inventory: readonly PortableCardAsset[]) {
-  if (!inventory.some(card => !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, owner.actorId))) return null;
+  if (!inventory.length) return null;
   try {
     const memory = await readWildzInventoryMemoryHead(database, owner, "crew-custody");
     if (!memory?.coordinates.length) return null;
@@ -379,6 +406,7 @@ export class WildzRetirementQuarantineError extends Error {
 }
 
 export interface WildzArtifactCodec {
+  inspectSize?(byteLength: number): Extract<WildzArtifactInspection, { kind: "invalid" }> | null;
   inspect(input: { bytes: Uint8Array; mimeType: string; name?: string }): Promise<WildzArtifactInspection>;
 }
 
@@ -396,6 +424,10 @@ const MAX_ARTIFACT_BYTES = 64 * 1024 * 1024;
 
 function invalid(code: WildzRestoreErrorCode): Extract<WildzArtifactInspection, { kind: "invalid" }> {
   return { kind: "invalid", code, errors: [code] };
+}
+
+function inspectRestoreSize(byteLength: number) {
+  return byteLength > MAX_ARTIFACT_BYTES ? invalid("wildz_restore_artifact_too_large") : null;
 }
 
 function normalizedError(error: unknown): WildzRestoreErrorCode {
@@ -468,9 +500,11 @@ export function createWildzArtifactCodec(input: {
 
 function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArtifactCodec>[0], depth: number): WildzArtifactCodec {
   return {
+    inspectSize: inspectRestoreSize,
     async inspect(artifact) {
       const bytes = artifact.bytes;
-      if (bytes.byteLength > MAX_ARTIFACT_BYTES) return invalid("wildz_restore_artifact_too_large");
+      const sizeError = inspectRestoreSize(bytes.byteLength);
+      if (sizeError) return sizeError;
 
       let pngBasis: Uint8Array | null = null;
       if (isWildzPng(bytes)) {
@@ -526,9 +560,10 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
             ...(artifact.name ? { name: artifact.name } : {})
           });
           admittedOwnershipWitness = admitted.ownershipWitness ?? null;
+          const content = await readWildzArtifactCardPayload(admitted);
           proofObjectPayload = {
-            bytes: isWildzPng(admitted.payloadBytes) ? await unpackWildzCardSealPayload(admitted.payloadBytes) : admitted.payloadBytes,
-            mimeType: admitted.mimeType
+            bytes: isWildzPng(content.bytes) ? await unpackWildzCardSealPayload(content.bytes) : content.bytes,
+            mimeType: content.mimeType
           };
           proofObject = {
             schema: "receiz.wildz.verified_artifact.v119",
@@ -699,8 +734,7 @@ function createWildzArtifactCodecAtDepth(input: Parameters<typeof createWildzArt
             restoredVaultFiles: [], proofObjectPayload, retirementAuthorityVerifier: quarantinedAssets.length
               ? { verifyRetirement: () => true } : input.retirementAuthorityVerifier });
           const quarantinedIds = new Set(quarantinedAssets.map(card => card.id));
-          const entries = exact.assets.filter(card => !quarantinedIds.has(card.id)
-            && !sameWildzPlayerCoordinate(card.manifest.ownerReceizId, proofObject!.ownerReceizId))
+          const entries = exact.assets.filter(card => !quarantinedIds.has(card.id))
             .map(card => ({ card: structuredClone(card), artifactSha256: proofObject!.artifactBasisSha256, ownershipWitness: admittedOwnershipWitness }));
           if (entries.length) inspectionCrewAdmissions.set(result, issueCrewCustody(proofObject.ownerReceizId, entries));
         }

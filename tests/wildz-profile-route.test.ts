@@ -31,7 +31,8 @@ test("shared profiles recover and publish through Receiz instead of a local plac
   assert.match(shell, /publish: async \(signal, progress\)/);
   assert.match(shell, /publication\.stop\(\)/);
   assert.doesNotMatch(shell, /const surface = overlay\?\.kind === "profile" \? "profile" : "gameplay"/);
-  assert.match(shell, /locallyClaimedWildzAssetIds/);
+  assert.match(shell, /locallyTransferredWildzAssetIds\(window\.localStorage/);
+  assert.match(shell, /transferredWildzCrewAssetIds\(live\.crewCustody,[\s\S]*readWildzArtifactCrewCustody\(inspection\)\)/);
   assert.match(shell, /startWildzProfilePublication/);
   assert.match(shell, /setOwnerPublicationStatus/);
   assert.match(shell, /shareEnabled=\{[^}]*ownerPublicationStatus === "ready"/);

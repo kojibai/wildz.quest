@@ -175,6 +175,21 @@ test("Campaign background whole Vault checks a locked key before creating identi
     if (descriptor) Object.defineProperty(globalThis, "document", descriptor); else Reflect.deleteProperty(globalThis, "document"); }
 });
 
+test("an explicit profile export can reach the canonical sealer when the archive worker is unavailable", async () => {
+  const { defaultIdentityRepository, prepareWildzBackgroundPlayerVault } = await import("../src/lib/receiz/wildz-identity-adapter");
+  const f = await preparationFixture();
+  const original = defaultIdentityRepository.withKeyFile;
+  defaultIdentityRepository.withKeyFile = async (_id, action) => action(f.identity.keyFile);
+  try {
+    await assert.rejects(prepareWildzBackgroundPlayerVault(f.session, [f.asset], f.player),
+      /wildz_background_export_worker_unavailable/);
+    // Node has neither a browser Worker nor the browser's enrolled IndexedDB signer.
+    // Explicit Save must build the complete signed carrier and stop at that signer.
+    await assert.rejects(prepareWildzBackgroundPlayerVault(f.session, [f.asset], f.player, { allowPrompt: true }),
+      /wildz_local_signer_storage_unavailable/);
+  } finally { defaultIdentityRepository.withKeyFile = original; }
+});
+
 for (const firstAllowsPrompt of [true, false]) {
   test(`queued owned-card Save ${firstAllowsPrompt ? "retains" : "promotes"} its required passphrase callback across explicit joins`, async () => {
     const f = await preparationFixture();

@@ -230,6 +230,10 @@ class FakeObjectStore {
     });
   }
 
+  getAllKeys() {
+    return this.transaction.request(() => [...this.values.keys()].map(key => clone(key)));
+  }
+
   getAll(range?: IDBKeyRange, count?: number) {
     return this.transaction.request(() => range
       ? [...this.values.entries()].filter(([key]) => range.includes(key))

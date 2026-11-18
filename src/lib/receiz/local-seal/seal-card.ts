@@ -10,6 +10,9 @@ import { sameWildzPlayerCoordinate } from "../wildz-player-coordinate";
 import { packWildzCardSealPayload } from "../wildz-card-seal-payload";
 import { openWildzSealedCard, verifyWildzSealedCard } from "../wildz-sealed-card";
 
+type SdkSeal = ReturnType<typeof createReceizOfflineSealer>["seal"];
+export type WildzCardSealResult = Pick<Awaited<ReturnType<SdkSeal>>, "artifactBytes" | "filename" | "mimeType">;
+
 export async function openCanonicalWildzCard(bytes: Uint8Array, filename = "wildz-card.png") {
   const admitted = await openWildzSealedCard({ bytes, name: filename, mimeType: "image/png" });
   return { admitted, payload: admitted.payloadBytes };
@@ -20,7 +23,7 @@ export async function openCanonicalWildzCard(bytes: Uint8Array, filename = "wild
 export async function sealWildzCardLocally(input: {
   payload: Uint8Array;
   filename: string;
-  sealer: Pick<ReturnType<typeof createReceizOfflineSealer>, "seal">;
+  sealer: { seal(input: Parameters<SdkSeal>[0]): Promise<WildzCardSealResult> };
   kind?: WildzGameImageKind;
   mapOwner?: string;
 }) {

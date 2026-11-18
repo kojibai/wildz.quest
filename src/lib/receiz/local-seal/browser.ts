@@ -1,7 +1,7 @@
 import type { createReceizOfflineSealer } from "@receiz/sdk/offline";
 import { createWildzIdentityRepository } from "../wildz-identity-repository";
 import type { WildzGameImageKind } from "../wildz-game-image-export";
-import { sealWildzCardLocally } from "./seal-card";
+import { sealWildzCardLocally, type WildzCardSealResult } from "./seal-card";
 
 type Sealer = ReturnType<typeof createReceizOfflineSealer>;
 let worker: Worker | undefined;
@@ -48,5 +48,5 @@ export async function sealWildzOwnedCardBlob(payload: Blob, filename: string, ki
   const session = await createWildzIdentityRepository().active();
   return sealWildzCardLocally({ kind, mapOwner: session?.username ?? undefined,
     payload: new Uint8Array(await payload.arrayBuffer()), filename,
-    sealer: { seal: async input => await request("seal", input) as Awaited<ReturnType<Sealer["seal"]>> } });
+    sealer: { seal: async input => await request("seal", input) as WildzCardSealResult } });
 }

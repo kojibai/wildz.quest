@@ -84,6 +84,12 @@ test("an admitted collection update preserves local position without remounting 
   assert.doesNotMatch(source, /key=\{[^}]*sourceDigest/);
 });
 
+test("the settled shell sends player-state requests only to publish a local mutation", async () => {
+  const source = await import("node:fs/promises").then(fs => fs.readFile("src/features/shell/WildzApp.tsx", "utf8"));
+  const requests = [...source.matchAll(/fetch\("\/api\/wilds\/player-state",\s*\{\s*(?:method:\s*"([^"]+)")?/g)];
+  assert.deepEqual(requests.map(request => request[1] ?? "GET"), ["POST"]);
+});
+
 
 test("a delayed publication keeps gameplay time so a later action can still become current", () => {
   const older = vault("wildz", "2026-08-26T01:00:00.000Z", { beans: 4, achievements: ["older"] });

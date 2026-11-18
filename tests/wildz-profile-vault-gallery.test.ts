@@ -117,7 +117,7 @@ test("full Identity Seal proof assembly leaves the visible Profile thread", () =
   const adapter = readFileSync("src/lib/receiz/wildz-identity-adapter.ts", "utf8");
   const client = readFileSync("src/lib/receiz/wildz-identity-export-client.ts", "utf8");
   const worker = readFileSync("src/lib/receiz/wildz-identity-export.worker.ts", "utf8");
-  assert.match(adapter, /createWildzIdentityPlayerCardOffThread/);
+  assert.match(adapter, /await createWildzIdentityPlayerCardBundleOffThread\([\s\S]*?if \(offThread\) return offThread;[\s\S]*?if \(!allowLocalWriter\) throw/);
   assert.match(client, /new Worker\(new URL\("\.\/wildz-identity-export\.worker\.ts", import\.meta\.url\)/);
   assert.match(client, /worker\.terminate\(\)/);
   assert.match(client, /postMessage\([\s\S]*artwork\.buffer/);

@@ -29,8 +29,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json() as { player?: WildsPlayerVaultPayload };
     if (!body.player) throw new Error("wildz_player_state_source_required");
     const record = await publishWildzPlayerState(request, actor, body.player);
+    const responseMode = request.headers.get("x-wildz-player-state-response");
     const response = projectWildzPlayerStateResponse(record, {
-      compact: request.headers.get("x-wildz-player-state-response") === "compact",
+      compact: responseMode === "compact",
+      receiptOnly: responseMode === "receipt",
       incomingDigest: body.player.payloadDigest
     });
     return NextResponse.json(response.body, { headers: { "cache-control": "private, no-store",

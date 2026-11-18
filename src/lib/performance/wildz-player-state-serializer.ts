@@ -1,6 +1,7 @@
 import type { createWildsPlayerVault } from "../../features/play/wilds-player-vault";
 import type { WildzPlayerProjectionMessage } from "./wildz-player-state-projection";
 import { isAdmittedWildsCard } from "../../features/play/admitted-inventory";
+import { isNormalizedWildsExplorationAtlas, wildsExplorationCheckpointDelta, type WildsExplorationAtlas } from "../../features/play/wilds-exploration-atlas";
 
 export type WildzPlayerStateProjectionInput = Parameters<typeof createWildsPlayerVault>[0];
 
@@ -27,12 +28,14 @@ export function createWildzPlayerStateSerializer(options: {
   let worker: ProjectionWorker | null = null;
   let unavailable = false;
   let lastInventory: WildzPlayerStateProjectionInput["playState"]["inventory"] | undefined;
+  let lastAtlas: { id: string; owner: string; value: WildsExplorationAtlas } | undefined;
   const pending = new Map<string, { resolve(value: string | null): void; reject(cause: Error): void }>();
 
   const close = () => {
     worker?.terminate();
     worker = null;
     lastInventory = undefined;
+    lastAtlas = undefined;
     for (const request of pending.values()) request.resolve(null);
     pending.clear();
   };
@@ -52,6 +55,7 @@ export function createWildzPlayerStateSerializer(options: {
         if (event.data.ok) request.resolve(event.data.body);
         else {
           lastInventory = undefined;
+          lastAtlas = undefined;
           request.reject(new Error(event.data.error));
         }
       };
@@ -85,13 +89,34 @@ export function createWildzPlayerStateSerializer(options: {
           const inventoryDelta = !reuseInventory && inventory && lastInventory && inventory.every(isAdmittedWildsCard)
             ? { length: inventory.length, changes: inventory.flatMap((card, index) => card === lastInventory![index] ? [] : [{ index, card }]) }
             : undefined;
-          activeWorker.postMessage({ id, input: reuseInventory || inventoryDelta
-            ? { ...input, playState: { ...input.playState, inventory: [] } }
-            : input, ...(reuseInventory ? { reuseInventory: true } : {}), ...(inventoryDelta ? { inventoryDelta } : {}) });
+          const atlas = input.playState?.explorationAtlas;
+          let atlasBaseId: string | undefined;
+          let territory = atlas;
+          if (lastAtlas?.owner === input.playerId && isNormalizedWildsExplorationAtlas(atlas)) {
+            const removed = wildsExplorationCheckpointDelta(atlas, lastAtlas.value);
+            if (!removed.rows.length && !removed.siteKeys.length) {
+              atlasBaseId = lastAtlas.id;
+              territory = wildsExplorationCheckpointDelta(lastAtlas.value, atlas);
+            }
+          }
+          const playState = input.playState && {
+            ...input.playState,
+            inventory: reuseInventory || inventoryDelta ? [] : inventory,
+            explorationAtlas: territory
+          };
+          activeWorker.postMessage({
+            id,
+            input: playState ? { ...input, playState } : input,
+            ...(reuseInventory ? { reuseInventory: true } : {}),
+            ...(inventoryDelta ? { inventoryDelta } : {}),
+            ...(atlasBaseId ? { atlasBaseId } : {})
+          });
+          lastAtlas = isNormalizedWildsExplorationAtlas(atlas) ? { id, owner: input.playerId, value: atlas } : undefined;
           lastInventory = inventory?.slice();
         } catch {
           pending.delete(id);
           lastInventory = undefined;
+          lastAtlas = undefined;
           resolve(null);
         }
       });

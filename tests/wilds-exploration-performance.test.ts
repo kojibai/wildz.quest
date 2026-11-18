@@ -104,6 +104,7 @@ test("post-restore saves retain exact admitted cards without repeated proof veri
   const before = portableCardModule.wildsCardVerificationDiagnostics();
   for (let i = 0; i < 20; i++) {
     const saved = createStoredWildzPlayState(session, state);
+    assert.equal(saved.playState.explorationAtlas, state.explorationAtlas);
     assert.equal(saved.playState.inventory, state.inventory);
     assert.equal(saved.playState.inventory.at(-1), state.inventory.at(-1));
   }

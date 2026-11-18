@@ -1,38 +1,19 @@
 import type { WildzContinuitySnapshot } from "../../lib/receiz/wildz-identity-adapter";
-import type { WildzPlayerStateRecord } from "../../lib/receiz/wildz-player-state-sync";
+import type { WildzPlayerStateReceipt } from "../../lib/performance/wildz-player-state-transport";
 import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
-import { prepareWildsIncomingInventory } from "../play/wilds-incoming-inventory";
-import { mergeWildsRemotePlayerPlayState } from "../play/wilds-player-vault";
-import { hasLaterWildsPlayerLedger } from "../play/wilds-play-state-source";
 import { isCurrentWildzGameplaySource } from "./wildz-gameplay-source";
-import { mergePlayerContinuity } from "./wildz-restore";
 
-/** Admission can span browser turns. Read live gameplay afterward so movement
- * is retained, and discard the result if identity or restore authority changed.
- */
-export async function prepareWildzRemotePlayerSnapshot(
+/** V1 app-state carries an inventory projection and a recomputable content
+ * digest. Its delivery head acknowledges publication. Signed Originals
+ * and custody transitions enter gameplay through their owning source readers. */
+export function readWildzPlayerDeliveryHead(
   source: WildzContinuitySnapshot,
-  record: WildzPlayerStateRecord,
-  current: () => WildzContinuitySnapshot | null
-): Promise<WildzContinuitySnapshot | null> {
-  if (!source.playState || !sameWildzPlayerCoordinate(source.session.actorId, record.playerId)
-    || !sameWildzPlayerCoordinate(source.session.actorId, record.player.playerId)) return null;
-  const inventory = await prepareWildsIncomingInventory(record.player.playState.inventory, source.playState.inventory);
-  const latest = current();
-  if (!latest?.playState || !isCurrentWildzGameplaySource(latest, source)) return null;
-  // Ownership reconciliation can finish while admission yields. An older
-  // download cannot restore cards removed from this same gameplay source.
-  const currentIds = new Set(latest.playState.inventory.map(card => card.id));
-  const removedIds = new Set(source.playState.inventory.filter(card => !currentIds.has(card.id)).map(card => card.id));
-  const restored = { ...record.player.playState, inventory: inventory.filter(card => !removedIds.has(card.id)) };
-  const remoteIsNewer = hasLaterWildsPlayerLedger(restored, latest.playState);
-  return {
-    ...latest,
-    playState: mergeWildsRemotePlayerPlayState({ local: latest.playState, restored, actorId: latest.session.actorId }),
-    character: remoteIsNewer ? record.player.character ?? latest.character : latest.character,
-    playerContinuity: {
-      ...mergePlayerContinuity(latest.playerContinuity, record.player)!,
-      settings: remoteIsNewer ? record.player.settings : latest.playerContinuity?.settings ?? record.player.settings
-    }
-  };
+  envelope: WildzPlayerStateReceipt | null | undefined,
+  current: WildzContinuitySnapshot | null
+): WildzPlayerStateReceipt | null {
+  if (!current?.playState || !isCurrentWildzGameplaySource(current, source) || !envelope
+    || typeof envelope.playerId !== "string" || !sameWildzPlayerCoordinate(source.session.actorId, envelope.playerId)
+    || typeof envelope.sourceDigest !== "string" || !/^sha256:[a-f0-9]{64}$/.test(envelope.sourceDigest)
+    || !Number.isSafeInteger(envelope.revision) || envelope.revision < 1) return null;
+  return { playerId: envelope.playerId, revision: envelope.revision, sourceDigest: envelope.sourceDigest };
 }

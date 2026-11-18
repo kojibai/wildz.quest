@@ -150,13 +150,20 @@ export function createWildsWalletStagedTradeAdapter(input: WildsWalletStagedTrad
       if(leg.kind!=="phi"||outcome.status!=="failed")throw Error("No native rejected payment was checked.");
       return phi.verifyPhiRejection(leg,outcome.receipt);
     },
-    publish: message => {
+    publish: async message => {
       assertCurrent();
       const plan = message.kind === "trade-staged-approval" ? message.plan
         : admitWildsWalletStagedTradeRecovery(store.load(input.ownerHandle), currentBinding()).trades.find(entry => entry.plan.tradeId === message.tradeId)?.plan;
       if (!plan) throw Error("The saved staged agreement is required for private delivery.");
       const peer = [plan.agreement.first.senderHandle, plan.agreement.second.senderHandle].find(owner => owner !== input.ownerHandle);
       if (!peer) throw Error("The exact trade peer is required.");
+      if (message.kind === "trade-staged-progress" && message.outcome.status === "accepted" && input.assetPort.publishAccepted) {
+        const leg = plan.legs.find(candidate => candidate.legId === message.legId);
+        if (leg?.kind === "asset" && leg.recipientHandle === input.ownerHandle) {
+          await input.assetPort.publishAccepted(leg, descriptorForLeg(leg), message.outcome, await assetAuthorityForLeg(leg));
+          assertCurrent();
+        }
+      }
       return input.publish(message, peer);
     },
   };

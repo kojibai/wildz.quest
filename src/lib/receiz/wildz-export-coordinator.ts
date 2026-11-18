@@ -3,6 +3,7 @@
 export function createWildzExportCoordinator<Snapshot, Artifact>(options: {
   sameSnapshot: (left: Snapshot, right: Snapshot) => boolean;
   build: (snapshot: Snapshot, allowPrompt: boolean) => Promise<Artifact>;
+  retryWithPrompt?: (error: unknown) => boolean;
 }) {
   type Job = { snapshot: Snapshot; allowPrompt: boolean; explicit: boolean;
     promise: Promise<Artifact>; resolve: (value: Artifact) => void; reject: (error: unknown) => void };
@@ -39,7 +40,7 @@ export function createWildzExportCoordinator<Snapshot, Artifact>(options: {
     peek(snapshot: Snapshot): Artifact | null {
       return cached && options.sameSnapshot(cached.snapshot, snapshot) ? cached.artifact : null;
     },
-    prepare(snapshot: Snapshot, allowPrompt: boolean, request: { explicit?: boolean } = {}): Promise<Artifact> {
+    prepare: function prepare(snapshot: Snapshot, allowPrompt: boolean, request: { explicit?: boolean } = {}): Promise<Artifact> {
       const explicit = request.explicit ?? allowPrompt;
       if (!explicit) cancelOtherSpeculative(snapshot);
       if (cached && options.sameSnapshot(cached.snapshot, snapshot)) return Promise.resolve(cached.artifact);
@@ -53,6 +54,14 @@ export function createWildzExportCoordinator<Snapshot, Artifact>(options: {
             existing.allowPrompt = allowPrompt;
           }
           existing.explicit = true;
+        }
+        const retryWithPrompt = options.retryWithPrompt;
+        if (existing === active && allowPrompt && !existing.allowPrompt && retryWithPrompt) {
+          // An already running warmup cannot use permission granted by a later tap.
+          return existing.promise.catch(error => {
+            if (!retryWithPrompt(error)) throw error;
+            return prepare(snapshot, true);
+          });
         }
         return existing.promise;
       }

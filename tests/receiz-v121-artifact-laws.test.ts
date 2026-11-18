@@ -97,7 +97,9 @@ test("the thirty-law custody matrix has executable repository and SDK evidence",
     "ARTIFACT-002": /downloadAndReopenWildzArtifact/.test(exportSource),
     "ARTIFACT-003": /sha256WildzArtifactBytes/.test(custody),
     "ARTIFACT-004": /verifyAndOpen/.test(custody),
-    "ARTIFACT-005": /verifiedPayload\.bytes/.test(custody) && /admitted\.payloadBytes/.test(codec),
+    "ARTIFACT-005": /payloadBytes: opened\.verifiedPayload\.bytes\.slice\(\)/.test(custody)
+      && /readWildzArtifactCardPayload\(admitted\)/.test(codec)
+      && /readWildzPortableOwnershipDocument\(artifact\.payloadBytes\)/.test(custody),
     "ARTIFACT-006": /signatureVersion !== 4/.test(custody),
     "ARTIFACT-007": /ownerReceizId/.test(custody) && /claimId/.test(custody) && /verifyPath/.test(custody),
     "ARTIFACT-008": /verified-legacy-read/.test(custody) && !/extractLegacyReceizPortableAssetDocument/.test(codec),

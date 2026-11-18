@@ -1,3 +1,5 @@
+import {isWildzPng} from "./wildz-png-envelope";
+import {parseReceizPortableAssetDocument, receizBase64UrlDecode, serializeReceizPortableAssetDocument} from "@receiz/sdk";
 import type {
   ReceizClient,
   ReceizOpenedArtifact,
@@ -11,6 +13,8 @@ export type WildzOwnershipWitness = Readonly<{
   namespace: string;
   genesisOwnerReceizId: string;
   previousOwnerReceizId: string;
+  previousArtifactSha256?: string;
+  priorHeadReference?: string;
   ownerReceizId: string;
   headReference: string;
   historyDigestSha256: string;
@@ -37,6 +41,34 @@ export type WildzAdmittedArtifact = Readonly<{
 
 function strictArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.slice().buffer;
+}
+
+/** The sealed payload can be the SDK's ownership document. Its inner media
+ * stays immutable across claims while the enclosing document gains the append. */
+export async function readWildzPortableOwnershipDocument(bytes: Uint8Array) {
+  if (bytes[0] !== 0x7b) return null;
+  let value: unknown;
+  try { value = JSON.parse(new TextDecoder("utf-8", {fatal: true}).decode(bytes)); } catch { return null; }
+  if (asRecord(value)?.schema !== "receiz.portable_asset.v1") return null;
+  const document = await parseReceizPortableAssetDocument(value);
+  const canonical = serializeReceizPortableAssetDocument(document);
+  if (canonical.length !== bytes.length || !canonical.every((byte, index) => byte === bytes[index]))
+    throw Error("wildz_artifact_payload_invalid");
+  return document;
+}
+
+export async function readWildzArtifactCardPayload(artifact: Pick<WildzAdmittedArtifact, "payloadBytes" | "mimeType">) {
+  const document = await readWildzPortableOwnershipDocument(artifact.payloadBytes);
+  if (!document) return {bytes: artifact.payloadBytes, mimeType: artifact.mimeType};
+  return readWildzPortableCardMedia(document);
+}
+
+export function readWildzPortableCardMedia(document: Awaited<ReturnType<typeof parseReceizPortableAssetDocument>>) {
+  // Creature-bearer, resource and settlement packages have dedicated admission ports.
+  if (document.payload.mimeType !== "image/png") throw Error("wildz_restore_schema_unsupported");
+  const bytes = receizBase64UrlDecode(document.payload.bytesBase64Url);
+  if (!isWildzPng(bytes)) throw Error("wildz_restore_schema_unsupported");
+  return {bytes, mimeType: document.payload.mimeType};
 }
 
 export async function sha256WildzArtifactBytes(bytes: Uint8Array) {
@@ -138,6 +170,8 @@ export function wildzOwnershipWitnessFromOpened(opened: ReceizOpenedArtifact): W
     namespace,
     genesisOwnerReceizId,
     previousOwnerReceizId,
+    ...(typeof latest.sourceArtifactSha256 === "string" && /^[a-f0-9]{64}$/.test(latest.sourceArtifactSha256)
+      && nonEmptyField(latest.priorHeadReference) ? { previousArtifactSha256: latest.sourceArtifactSha256, priorHeadReference: String(latest.priorHeadReference) } : {}),
     ownerReceizId,
     headReference,
     historyDigestSha256,

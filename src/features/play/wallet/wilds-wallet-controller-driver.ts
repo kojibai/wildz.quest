@@ -279,7 +279,7 @@ export function createWildsWalletControllerDriver(input: {
         const response = await boundedJson("/api/wilds/wallet/transfer/preview", {
           method: "POST",
           body: JSON.stringify({
-            ...(transfer.recipientLocator ? { recipientLocator: transfer.recipientLocator } : { recipientUsername: transfer.recipientUsername }),
+            ...(transfer.recipientLocator ? { recipientLocator: transfer.recipientLocator, expectedRecipientUsername: transfer.recipientUsername } : { recipientUsername: transfer.recipientUsername }),
             amountPhiMicro: transfer.amountPhiMicro,
             rail: transfer.rail,
             operationNonce: transfer.operationNonce
@@ -295,6 +295,7 @@ export function createWildsWalletControllerDriver(input: {
         const message = code === "wilds_wallet_transfer_insufficient_value" ? "Your available PHI is lower than this amount. Edit the amount and try again."
           : code === "receiz_wallet_phi_scope_required" ? "This Receiz session cannot send PHI yet. Reconnect your Receiz ID and retry."
           : code === "wilds_wallet_receive_locator_expired" ? "This receiving QR has expired. Ask for a new QR or enter the recipient’s username."
+          : code === "wilds_wallet_receive_recipient_mismatch" ? "The QR username differs from its sealed recipient. Scan a new QR or enter the recipient’s username."
           : undefined;
         if (runtime.isCurrentTransfer(request.id) && !request.controller.signal.aborted) publish({ type: "transfer-stage-failed", requestId: request.id, message });
       } finally {

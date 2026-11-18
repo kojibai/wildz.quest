@@ -11,7 +11,7 @@ async function digest(bytes: Uint8Array) {
   return Buffer.from(await crypto.subtle.digest("SHA-256", bytes.slice().buffer)).toString("hex");
 }
 
-async function sealed(bytes: Uint8Array, ownerReceizId: string): Promise<ReceizSealedArtifact> {
+async function sealed(bytes: Uint8Array, ownerReceizId: string, priorSha?: string, priorHead = "claim-former.receiz.id"): Promise<ReceizSealedArtifact> {
   const payloadSha256 = await digest(payload);
   const claimId = `claim-${ownerReceizId}`;
   const ownershipWitness = ownerReceizId === "keeper.receiz.id" ? {
@@ -21,7 +21,7 @@ async function sealed(bytes: Uint8Array, ownerReceizId: string): Promise<ReceizS
     headReference: claimId,
     ownerReceizId,
     namespace: `receiz.native-proof:${payloadSha256}`,
-    priorHeadReference: "claim-former.receiz.id",
+    priorHeadReference: priorHead,
     genesisOwnerReceizId: "former.receiz.id",
     historyDigestSha256: "c".repeat(64),
     appendCount: 1,
@@ -39,8 +39,8 @@ async function sealed(bytes: Uint8Array, ownerReceizId: string): Promise<ReceizS
         index: 1,
         fromOwnerReceizId: "former.receiz.id",
         toOwnerReceizId: ownerReceizId,
-        priorHeadReference: "claim-former.receiz.id",
-        sourceArtifactSha256: "a".repeat(64),
+        priorHeadReference: priorHead,
+        sourceArtifactSha256: priorSha ?? await digest(originalBytes),
         headReference: claimId,
         historyDigestSha256: "c".repeat(64)
       }
@@ -103,7 +103,7 @@ async function opened(value: ReceizSealedArtifact): Promise<ReceizOpenedArtifact
 }
 
 test("bearer ownership submits only the SDK-opened sealed artifact and reopens the claimed result", async () => {
-  const original = await sealed(originalBytes, "bearer");
+  const original = await sealed(originalBytes, "former.receiz.id");
   const claimed = await sealed(claimedBytes, "keeper.receiz.id");
   let claimInput: ReceizOpenedArtifact["sealedArtifact"] | null = null;
   const result = await claimWildzBearerArtifact(original.artifact, original.filename, {
@@ -139,8 +139,59 @@ test("bearer ownership submits only the SDK-opened sealed artifact and reopens t
   assert.deepEqual(result.artifactBytes, claimedBytes);
 });
 
+test("an otherwise verified response must append the exact opened predecessor bytes and head", async () => {
+  const original = await sealed(originalBytes, "former.receiz.id");
+  for (const [priorSha, priorHead] of [["f".repeat(64), original.continuity.claimId], [original.artifactSha256, "another-head"]]) {
+    const claimed = await sealed(claimedBytes, "keeper.receiz.id", priorSha, priorHead);
+    await assert.rejects(claimWildzBearerArtifact(original.artifact, original.filename, {
+      artifacts: {
+        async verifyAndOpen(file) { return opened(file.size === originalBytes.byteLength ? original : claimed); },
+        async download(artifact) { return {ok: true, filename: artifact.filename, mimeType: artifact.mimeType, size: artifact.artifact.size, artifactSha256: artifact.artifactSha256}; }
+      },
+      ownership: {claimBearerAsset: async () => claimed}
+    }), /wildz_bearer_claim_binding_mismatch/);
+  }
+});
+
+test("the SDK ownership append changes the document while preserving the exact carried card", async () => {
+  const { appendReceizPortableAssetOwnership, serializeReceizPortableAssetDocument } = await import("@receiz/sdk");
+  const { prepareWildsPortableDocumentV128 } = await import("../src/lib/receiz/wilds-portable-document-v128");
+  const { readWildzArtifactCardPayload } = await import("../src/lib/receiz/wildz-artifact-custody");
+  const { extractVerifiedWildzCards } = await import("../src/lib/receiz/wildz-cross-platform-cards");
+  const { sealCollectedCard } = await import("../src/features/play/portable-card");
+  const { embedPortableCardInPng } = await import("../src/features/play/card-export");
+  const card = sealCollectedCard({formId: "mintcub-1", ownerReceizId: "former", encounterId: "generic-claim", capturedAt: "2026-08-16T12:00:00.000Z"});
+  const png = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));
+  const media = embedPortableCardInPng(png, card);
+  const prior = await sealed(originalBytes, "former.receiz.id");
+  const next = await sealed(claimedBytes, "keeper.receiz.id");
+  const document = await prepareWildsPortableDocumentV128({assetType: "proof_object", payload: {bytes: media, mimeType: "image/png"},
+    ownership: {ownerReceizId: prior.continuity.ownerReceizId, custody: "bearer", proofRef: "genesis"},
+    provenance: {root: "wildz:generic-test", appends: []}, settlement: {state: "none"}});
+  const appended = await appendReceizPortableAssetOwnership(document, {ownerReceizId: next.continuity.ownerReceizId,
+    sourceArtifactSha256: prior.artifactSha256, priorHeadReference: prior.continuity.claimId});
+  const before = serializeReceizPortableAssetDocument(document), after = serializeReceizPortableAssetDocument(appended);
+  const source = {...prior, payloadSha256: await digest(before)};
+  const accepted = {...next, payloadSha256: await digest(after)};
+  const result = await claimWildzBearerArtifact(source.artifact, source.filename, {
+    artifacts: {
+      async verifyAndOpen(file) {
+        const [artifact, content] = file.size === originalBytes.byteLength ? [source, before] as const : [accepted, after] as const;
+        const openedArtifact = await opened(artifact);
+        return {...openedArtifact, verifiedPayload: {...openedArtifact.verifiedPayload, bytes: content, sha256: artifact.payloadSha256}};
+      },
+      async download(artifact) { return {ok: true, filename: artifact.filename, mimeType: artifact.mimeType, size: artifact.artifact.size, artifactSha256: artifact.artifactSha256}; }
+    }, ownership: {claimBearerAsset: async () => accepted}
+  });
+  assert.notEqual(result.payloadSha256, source.payloadSha256);
+  assert.deepEqual(result.payloadBytes, after);
+  const content = await readWildzArtifactCardPayload(result);
+  assert.deepEqual(content, {bytes: media, mimeType: "image/png"});
+  assert.deepEqual(extractVerifiedWildzCards({pngBasis: null, verifiedPortableSnapshot: null, restoredVaultFiles: [], proofObjectPayload: content}).assets, [card]);
+});
+
 test("bearer claim rejects a claimed artifact with a different verified payload", async () => {
-  const original = await sealed(originalBytes, "bearer");
+  const original = await sealed(originalBytes, "former.receiz.id");
   const claimed = await sealed(claimedBytes, "keeper.receiz.id");
   await assert.rejects(claimWildzBearerArtifact(original.artifact, original.filename, {
     artifacts: {
@@ -177,7 +228,7 @@ test("bearer claim rejects a claimed artifact with a different verified payload"
 });
 
 test("bearer claim rejects a server-shaped result without the verified witnessed Kai ownership append", async () => {
-  const original = await sealed(originalBytes, "bearer");
+  const original = await sealed(originalBytes, "former.receiz.id");
   const claimed = await sealed(claimedBytes, "keeper.receiz.id");
   const unwitnessed = {
     ...claimed,
@@ -205,7 +256,7 @@ test("bearer claim rejects a server-shaped result without the verified witnessed
 });
 
 test("bearer claim rejects an ownership projection that is absent from the signed native seal", async () => {
-  const original = await sealed(originalBytes, "bearer");
+  const original = await sealed(originalBytes, "former.receiz.id");
   const claimed = await sealed(claimedBytes, "keeper.receiz.id");
   const projectedOnly = {
     ...claimed,

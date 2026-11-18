@@ -1,4 +1,4 @@
-import { parseWildzPlayerCoordinate } from "./wildz-player-coordinate";
+import { parseWildzPlayerCoordinate, sameWildzPlayerCoordinate } from "./wildz-player-coordinate";
 import {
   RECEIZ_PHI_RESERVE_OIDC_SCOPES,
   RECEIZ_PHI_SETTLEMENT_OIDC_SCOPES
@@ -162,6 +162,12 @@ export function normalizeWildsWalletPublicUsername(value: unknown) {
   const coordinate = parseWildzPlayerCoordinate(value);
   if (!coordinate) throw new Error("wilds_wallet_username_invalid");
   return coordinate.actorId;
+}
+
+export function assertWildsWalletReceiveRecipient(expected: string | undefined, sealed: string | undefined) {
+  if (expected !== undefined && (!sealed || !sameWildzPlayerCoordinate(expected, sealed))) {
+    throw new Error("wilds_wallet_receive_recipient_mismatch");
+  }
 }
 
 export function normalizeWildsWalletCursor(value: unknown) {

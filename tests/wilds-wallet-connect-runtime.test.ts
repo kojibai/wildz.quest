@@ -87,6 +87,19 @@ async function fixture(options: { amountPhiMicro?: string; amountUsdCents?: stri
   return { authority, session, create, command, consent, calls, committed, originals, debitCount: () => debitCount, loseReply: () => { lostReply = true; }, hideChat: () => { chatUnavailable = true; }, corruptMember: () => { corruptMember = true; },insufficient:()=>{insufficient=true;},clearInsufficient:()=>{insufficient=false;},endlessPages:()=>{endlessPages=true;},setKai:(value:number)=>{now=value;} };
 }
 
+test("Connect compares the reviewed QR recipient with the sealed receiving username before opening a conversation", async () => {
+  const f = await fixture(), peerAuthority = { ...f.authority, ownerReceizId: PEER, actorId: "bob", profileHandle: "bob.receiz.id" };
+  const receiver = f.create({ ...f.session, userId: PEER, profileHandle: peerAuthority.profileHandle });
+  const { locator } = await receiver.receive(peerAuthority, null);
+  const { recipientUsername, ...payment } = f.command;
+  const reviewed = { ...payment, recipientLocator: locator, expectedRecipientUsername: "different" };
+  await assert.rejects(f.create().preview(f.authority, reviewed), /wilds_wallet_receive_recipient_mismatch/);
+  assert.equal(f.calls.length, 0);
+  const staged = await f.create().preview(f.authority, { ...reviewed, expectedRecipientUsername: recipientUsername });
+  assert.equal(staged.status, "staged");
+  assert.equal(f.debitCount(), 0);
+});
+
 test("released SDK Connect Send resolves real members and moves exact micro-Phi once across a lost reply and runtime reconstruction", async () => {
   const f = await fixture();
   const staged = await f.create().preview(f.authority, f.command);

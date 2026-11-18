@@ -104,6 +104,10 @@ const nextConfig = {
         source: "/:path*",
         headers: securityHeaders
       },
+      ...["/", "/market", "/test-fixtures/wallet"].map(source => ({
+        source,
+        headers: [{ key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" }]
+      })),
       {
         source: "/sw.js",
         headers: [

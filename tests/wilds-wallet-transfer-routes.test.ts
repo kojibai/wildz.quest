@@ -148,6 +148,7 @@ describe("Wilds wallet V123 transfer routes", () => {
     const live = runtime({
       preview: async (_authority, input) => {
         previewCalls += 1;
+        assert.equal(input.expectedRecipientUsername, "friend_2");
         return {
           status: "staged", rail: input.rail, amountPhiMicro: input.amountPhiMicro,
           quotedUsdCents: "1", attempt: ATTEMPT, expiresAtKai: 1_000
@@ -164,7 +165,7 @@ describe("Wilds wallet V123 transfer routes", () => {
     assert.equal(previewCalls, 0);
 
     const locator = await routes.transferPreview(request("/api/wilds/wallet/transfer/preview", "POST", {
-      recipientLocator: `wildz:receive:${ATTEMPT}`, amountPhiMicro: "25", rail: "settlement",
+      recipientLocator: `wildz:receive:${ATTEMPT}`, expectedRecipientUsername: "@Friend_2", amountPhiMicro: "25", rail: "settlement",
       operationNonce: "8c64cb0e-6958-41cb-b16d-1fe9f1b96f30"
     }));
     assert.equal(locator.status, 200);
@@ -297,6 +298,9 @@ describe("Wilds wallet V123 transfer routes", () => {
     assert.doesNotMatch(receive.locator, /subject|private-destination|222222/);
 
     const command = { recipientLocator: receive.locator, amountPhiMicro: "25", rail: "settlement" as const, operationNonce: "8c64cb0e-6958-41cb-b16d-1fe9f1b96f30" };
+    const reviewed = { ...command, expectedRecipientUsername: "different" };
+    await assert.rejects(second.preview(ACTOR, reviewed), /wilds_wallet_receive_recipient_mismatch/);
+    assert.equal(stages, 0);
     const staged = await second.preview(ACTOR, command) as { status: string; attempt: string };
     assert.equal(staged.status, "staged");
     const duplicate = await first.preview(ACTOR, command) as { status: string };

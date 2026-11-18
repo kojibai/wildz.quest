@@ -4,7 +4,7 @@ import { RECEIZ_SDK_VERSION, createReceizProofAuthorityChallenge, readReceizIden
 import type { ReceizCommerceAdapter } from "./adapter";
 import type { WildsWalletReadAuthority } from "./wilds-wallet-route-authority";
 import type { WildsWalletTransferRouteRuntime } from "./wilds-wallet-route-handlers";
-import { normalizeWildsWalletPublicUsername } from "./wilds-wallet-projections";
+import { assertWildsWalletReceiveRecipient, normalizeWildsWalletPublicUsername } from "./wilds-wallet-projections";
 import { wildsWalletTransferConsentStatementDigest } from "./wilds-wallet-transfer-consent";
 import { createWildzReceizChatClient, type WildzReceizChatSession } from "./wildz-receiz-chat-session";
 import { receizOAuthSecret } from "./oauth-state";
@@ -165,6 +165,7 @@ export function createWildsWalletConnectTransferRuntime(input: { session: WildzR
           if (locator.schema !== "wildz.wallet.connect-receive.v1" || typeof locator.username !== "string" || !Number.isSafeInteger(locator.expiresAtKai) || Number(locator.expiresAtKai) <= currentKai()) throw new Error("expired");
           recipientUsername = locator.username;
         } catch { throw new Error("wilds_wallet_receive_locator_invalid"); }
+        assertWildsWalletReceiveRecipient(command.expectedRecipientUsername, recipientUsername);
       }
       if (!recipientUsername || !MICRO.test(command.amountPhiMicro) || !/^[A-Za-z0-9_-]{8,128}$/.test(command.operationNonce)) throw new Error("wilds_wallet_transfer_request_invalid");
       const username = normalizeWildsWalletPublicUsername(recipientUsername);

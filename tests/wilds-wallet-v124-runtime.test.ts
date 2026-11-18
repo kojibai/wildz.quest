@@ -134,6 +134,15 @@ async function staged(runtime: ReturnType<typeof fixture>["runtime"]) {
 }
 
 describe("Wilds durable V124 Phi runtime", () => {
+  it("binds a QR review to its recipient before requesting execution sources", async () => {
+    const f = fixture();
+    const { locator } = await f.runtime.receive(AUTHORITY, null) as { locator: string };
+    const reviewed = { recipientLocator: locator, expectedRecipientUsername: "different", amountPhiMicro: "1", rail: "settlement" as const, operationNonce: "wallet-qr-reviewed" };
+    await assert.rejects(f.runtime.preview(AUTHORITY, reviewed), /wilds_wallet_receive_recipient_mismatch/);
+    assert.equal(f.metrics().sourcePreparations, 0);
+    const matching = await f.runtime.preview(AUTHORITY, { ...reviewed, expectedRecipientUsername: "kai_01" });
+    assert.equal((matching as { status: string }).status, "staged");
+  });
   it("the installed SDK rejects a custodied plan-only handle before dispatch", () => {
     const sdkEntry = createRequire(import.meta.url).resolve("@receiz/sdk");
     const source = readFileSync(join(dirname(sdkEntry), "v124Execution.js"), "utf8");

@@ -7,6 +7,7 @@ import {
 import JSZip from "jszip";
 import { embedPortableVaultInPng } from "../src/features/play/card-export";
 import { createWildsPlayerVault } from "../src/features/play/wilds-player-vault";
+import { revealWildsExplorationAt, wildsExplorationContainsWorld } from "../src/features/play/wilds-exploration-atlas";
 import {
   sealCollectedCard,
   type PortableCardAsset
@@ -608,6 +609,10 @@ test("an older queued database save cannot rewind a later committed Kai ledger",
  const history = (uPulse: number) => [{ id: "local:travel", kind: "activity" as const, title: "Travel", detail: "Moved", uPulse, authority: "local" as const }];
  const newer = { ...initialPlayState, player: { x: 90, z: 10 }, actionHistory: history(200) };
  await saveWildzRestoredPlayState({ database, session, playState: newer });
- const result = await saveWildzRestoredPlayState({ database, session, playState: { ...initialPlayState, player: { x: 1, z: 2 }, actionHistory: history(100) } });
+ const distant = { x: 82_000, z: 7_000 };
+ const result = await saveWildzRestoredPlayState({ database, session, playState: { ...initialPlayState, player: { x: 1, z: 2 },
+   explorationAtlas: revealWildsExplorationAt(initialPlayState.explorationAtlas, distant), actionHistory: history(100) } });
  assert.deepEqual(result.player, newer.player);
+ const reopened = await loadWildzRestoredPlayState({ database, session });
+ assert.ok(reopened && wildsExplorationContainsWorld(reopened.explorationAtlas, distant));
 });

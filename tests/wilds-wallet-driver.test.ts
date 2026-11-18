@@ -294,7 +294,8 @@ test("a scanned receiving QR stages against its sealed locator and keeps its pro
   assert.equal(driver.state.transfer.amountPhiMicro, "2500000");
   driver.reviewTransferAmount("settlement", "3000000", "nonce-coordinate");
   await driver.stageTransfer();
-  assert.deepEqual(bodies, [{ recipientLocator: "wildz:receive:v1.aaa.bbb.ccc", amountPhiMicro: "3000000", rail: "settlement", operationNonce: "nonce-coordinate" }]);
+  assert.deepEqual(bodies, [{ recipientLocator: "wildz:receive:v1.aaa.bbb.ccc", expectedRecipientUsername: "friend", amountPhiMicro: "3000000", rail: "settlement", operationNonce: "nonce-coordinate" }]);
+  assert.equal(driver.state.transfer.phase, "authorize");
 });
 
 test("driver converts malformed execution success to unknown and cancellation cannot publish a late commit", async () => {

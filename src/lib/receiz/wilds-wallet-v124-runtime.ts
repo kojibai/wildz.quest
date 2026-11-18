@@ -27,6 +27,7 @@ import { parseWildzPlayerCoordinate, sameWildzPlayerCoordinate } from "./wildz-p
 import { WILDZ_RECEIZ_APPLICATION_ID } from "./wildz-application";
 import { WILDZ_V124_VALUE_OPERATIONS, qualifyWildzV124Operations } from "./v124-runtime-policy";
 import { wildsWalletTransferConsentStatementDigest } from "./wilds-wallet-transfer-consent";
+import { assertWildsWalletReceiveRecipient } from "./wilds-wallet-projections";
 import type {
   WildsWalletStagedTransferProjection,
   WildsWalletTransferPreviewCommand,
@@ -317,6 +318,7 @@ export function createWildsWalletV124TransferRuntime(input: Readonly<{
           throw new Error("wilds_wallet_receive_locator_expired");
         }
         recipientUsername = item.recipientUsername;
+        assertWildsWalletReceiveRecipient(command.expectedRecipientUsername, recipientUsername);
       }
       if (!recipientUsername) throw new Error("wilds_wallet_transfer_request_invalid");
       const rail = input.createAdapter(authority.accessToken);
