@@ -1,0 +1,26 @@
+diff --git a/dist/identity.js b/dist/identity.js
+index 51e3b82df4db477459ec830b15eb18e4c483de63..e13bf14e56f38b5657bd9357f74876be52356d4f 100644
+--- a/dist/identity.js
++++ b/dist/identity.js
+@@ -892,8 +892,8 @@ export async function verifyReceizIdentityPortableStateProof(keyFileInput) {
+     const digest = bytesToHex(new Uint8Array(await getSubtle().digest("SHA-256", toStrictArrayBuffer(utf8(canonical)))));
+     if (digest !== digestSha256Hex)
+         return "invalid";
+-    const parentVerified = await verifyReceizIdentityLoginProof({
+-        keyFile,
++    const parentVerified = await verifyReceizIdentityPublicKeyProjectionSignature({
++        keyId: keyFile.keyId, alg: keyFile.alg, publicKeyRawB64u: keyFile.crypto.publicKeyRawB64u,
+         challengeB64Url: receizBase64UrlEncode(utf8(canonical)),
+         signatureB64Url: signatureB64u,
+     });
+@@ -901,8 +901,8 @@ export async function verifyReceizIdentityPortableStateProof(keyFileInput) {
+         return "invalid";
+     if (envelope.segmented) {
+         for (const segment of envelope.segmented.segments) {
+-            const verified = await verifyReceizIdentityLoginProof({
+-                keyFile,
++            const verified = await verifyReceizIdentityPublicKeyProjectionSignature({
++                keyId: keyFile.keyId, alg: keyFile.alg, publicKeyRawB64u: keyFile.crypto.publicKeyRawB64u,
+                 challengeB64Url: receizBase64UrlEncode(receizPortableSegmentSignatureBytes(segment)),
+                 signatureB64Url: segment.signatureB64u,
+             });

@@ -31,7 +31,7 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   assert.doesNotMatch(exporter, /\.wildz-card\.png/);
   assert.match(adapter, /downloadWildzIdentityPlayerVault/);
   assert.match(adapter, /withKeyFile/);
-  assert.match(binding, /appendWildzIdentitySealAuthority/);
+  assert.match(binding, /withWildzPngPayloadChunk\(bytes, RECEIZ_IDENTITY_RECORD_KEY_CHUNK_KEY, serializeReceizIdentityArtifact\(keyFile\)\)/);
   assert.match(binding, /createWildzIdentityBinding/);
   assert.match(binding, /appendWildzIdentityBindingTrailer/);
   const profile = readFileSync("src/features/profile/WildzProfileSheet.tsx", "utf8");
@@ -39,8 +39,9 @@ test("Card Vault export seals the complete live V3 player payload, not cards alo
   assert.doesNotMatch(inventory, /aria-label="Save Receiz ID Card"/);
   assert.match(profile, /aria-label="Upload Identity Seal or Record"/);
   assert.match(profile, /aria-label="Save Identity Seal"/);
-  assert.match(profile, /full Wildz account continuity/);
-  assert.match(profile, /Anyone who has it can authenticate this account/);
+  const handoff = readFileSync("src/features/profile/use-identity-seal-download.ts", "utf8");
+  assert.match(handoff, /full Wildz account continuity/);
+  assert.match(handoff, /Anyone who has it can authenticate this account/);
   assert.match(profile, /aria-busy=\{identitySealSaving\}/);
   assert.match(inventory, /wilds-action-feedback/);
 });

@@ -31,6 +31,7 @@ export function createWorkerHarness(options: {
   cacheNames?: string[];
   fetch?: (request: RequestLike) => Promise<Response>;
   release?: string;
+  shellAssets?: string;
   clients?: Array<{ url: string; postMessage(data: unknown): void; focus(): Promise<void>; navigate(url: string): Promise<void> }>;
 } = {}) {
   const listeners = new Map<string, WorkerListener>();
@@ -85,7 +86,7 @@ export function createWorkerHarness(options: {
   const release = options.release ?? "test-release";
   const self = {
     location: {
-      href: `https://wildz.quest/sw.js?release=${encodeURIComponent(release)}`,
+      href: `https://wildz.quest/sw.js?release=${encodeURIComponent(release)}${options.shellAssets ? `&shellAssets=${encodeURIComponent(options.shellAssets)}` : ""}`,
       origin: "https://wildz.quest"
     },
     registration: {

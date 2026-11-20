@@ -6,7 +6,8 @@ import { sealWildzCardLocally, type WildzCardSealResult } from "./seal-card";
 type Sealer = ReturnType<typeof createReceizOfflineSealer>;
 let worker: Worker | undefined;
 let sequence = 0;
-const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
+let retireWhenIdle = false;
+const pending = new Map<number, { command: "ready" | "enroll" | "seal"; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
 function request(command: "ready" | "enroll" | "seal", input?: Parameters<Sealer["seal"]>[0]): Promise<unknown> {
   if (typeof window === "undefined" || !window.indexedDB) return Promise.reject(new Error("wildz_local_signer_storage_unavailable"));
   if (!worker) {
@@ -17,6 +18,12 @@ function request(command: "ready" | "enroll" | "seal", input?: Parameters<Sealer
       const entry = pending.get(event.data.id);
       if (!entry) return;
       pending.delete(event.data.id); clearTimeout(entry.timer);
+      if (entry.command === "seal") retireWhenIdle = true;
+      if (retireWhenIdle && pending.size === 0) {
+        activeWorker.terminate();
+        worker = undefined;
+        retireWhenIdle = false;
+      }
       if (event.data.error) entry.reject(new Error(event.data.error)); else entry.resolve(event.data.result);
     };
     worker.onerror = (event) => { if (worker === activeWorker) reset(new Error(`wildz_local_seal_worker_failed${event.message ? `: ${event.message}` : ""}`)); };
@@ -25,13 +32,13 @@ function request(command: "ready" | "enroll" | "seal", input?: Parameters<Sealer
   return new Promise((resolve, reject) => {
     const id = ++sequence;
     const timer = setTimeout(() => reset(new Error("wildz_local_seal_timeout")), 120_000);
-    pending.set(id, { resolve, reject, timer });
+    pending.set(id, { command, resolve, reject, timer });
     try { worker!.postMessage({ id, command, ...(input ? { input } : {}) }); }
     catch (error) { reset(error instanceof Error ? error : new Error("wildz_local_seal_worker_failed")); }
   });
 }
 function reset(error: Error) {
-  worker?.terminate(); worker = undefined;
+  worker?.terminate(); worker = undefined; retireWhenIdle = false;
   for (const entry of pending.values()) { clearTimeout(entry.timer); entry.reject(error); }
   pending.clear();
 }

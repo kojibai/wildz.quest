@@ -273,3 +273,31 @@ test("creation surfaces remain available offline after first use without caching
   await worker.dispatchFetch({...request,url:"https://wildz.quest/materials/creation/private-object.json"});
   assert.equal(await worker.readCached(SHELL_CACHE,"/materials/creation/private-object.json"),undefined);
 });
+
+test("installation caches lazy map and worker assets before offline readiness", async () => {
+  let offline = false;
+  const worker = createWorkerHarness({ release: RELEASE, shellAssets: "/_next/static/test-build/wildz-shell-assets.json", fetch: async request => {
+    if (offline) throw new Error("offline");
+    const path = new URL(request.url).pathname;
+    if (path.endsWith("wildz-shell-assets.json")) return Response.json({ assets: ["/_next/static/chunks/map.js", "/_next/static/chunks/map-worker.js"] });
+    if (path.startsWith("/_next/")) return new Response(path, { headers: { "content-type": "text/javascript" } });
+    return new Response("<html>shell</html>", { headers: { "content-type": "text/html" } });
+  } });
+  await worker.dispatchExtendable("install");
+  offline = true;
+  for (const asset of ["map.js", "map-worker.js"]) {
+    const { response } = await worker.dispatchFetch({ method: "GET", mode: "cors", url: `https://wildz.quest/_next/static/chunks/${asset}?dpl=opened-deployment` });
+    assert.equal(await response?.text(), `/_next/static/chunks/${asset}`);
+  }
+});
+
+test("an unavailable lazy source chunk prevents installing an incomplete offline shell", async () => {
+  const worker = createWorkerHarness({ release: RELEASE, shellAssets: "/_next/static/test-build/wildz-shell-assets.json", fetch: async request => {
+    const path = new URL(request.url).pathname;
+    if (path.endsWith("wildz-shell-assets.json")) return Response.json({ assets: ["/_next/static/chunks/map.js"] });
+    if (path.startsWith("/_next/")) return new Response("missing", { status: 404 });
+    return new Response("<html>shell</html>", { headers: { "content-type": "text/html" } });
+  } });
+  await assert.rejects(worker.dispatchExtendable("install"), /wildz_shell_asset_unavailable/);
+  assert.equal(await worker.readCached(SHELL_CACHE, "/"), undefined);
+});

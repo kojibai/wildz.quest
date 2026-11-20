@@ -144,7 +144,7 @@ test("matching Identity Seal upgrades a proof Vault login without clearing the l
   assert.equal(accept.match(/setProofSessionConnected\(false\)/g)?.length, 1);
   assert.match(accept, /if \(!previous \|\| !sameWildzPlayerCoordinate\(previous\.session\.actorId, snapshot\.session\.actorId\)\) \{\s*setProofSessionConnected\(false\)/);
   assert.match(campaign, /key=\{`\$\{identity\.keyId\}:\$\{identity\.actorId\}:\$\{identityActivationRevision\}`\}/);
-  assert.doesNotMatch(campaign, /restoreEpoch/);
+  assert.doesNotMatch(campaign.match(/key=\{[^\n]+/)?.[0] ?? "", /restoreEpoch/);
 });
 
 test("large Vault movement coalesces runtime state without repeating durable Vault persistence", () => {

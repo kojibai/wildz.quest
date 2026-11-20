@@ -90,6 +90,9 @@
   "pnpm": {
     "overrides": {
       "postcss": ">=8.5.10"
+    },
+    "patchedDependencies": {
+      "@receiz/sdk@129.5.0": "patches/@receiz__sdk@129.5.0.patch"
     }
   }
 }

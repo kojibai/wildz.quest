@@ -111,9 +111,8 @@ export function normalizeWildsPlayerVaultInput(input: PlayerVaultInput): Normali
       ...(visual ? { visual } : {})
     },
     personalEvents: [...events.values()]
-      .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt) || left.eventId.localeCompare(right.eventId))
-      .slice(-2_048),
-    receipts: [...receipts.values()].sort((left, right) => left.eventId.localeCompare(right.eventId)).slice(-2_048)
+      .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt) || left.eventId.localeCompare(right.eventId)),
+    receipts: [...receipts.values()].sort((left, right) => left.eventId.localeCompare(right.eventId))
   };
 }
 

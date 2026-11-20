@@ -141,7 +141,29 @@ async function installPublicShell() {
     return { pathname, response, html };
   }));
   await cacheShellBuildAssets(cache, shellDocuments.map(document => document.html).join("\n"));
+  await cacheLazyShellAssets(cache);
   await Promise.all(shellDocuments.map(({ pathname, response }) => cache.put(pathname, response)));
+}
+
+async function cacheLazyShellAssets(cache) {
+  const path = new URL(self.location.href).searchParams.get("shellAssets");
+  if (!path) return;
+  if (!/^\/_next\/static\/[a-zA-Z0-9_-]+\/wildz-shell-assets\.json$/.test(path)) throw new Error("wildz_shell_manifest_invalid");
+  const response = await fetch(new Request(new URL(path, self.location.origin), { cache: "no-store", credentials: "omit" }));
+  if (!isBaseCacheable(response)) throw new Error("wildz_shell_manifest_unavailable");
+  const manifest = await response.json();
+  if (!Array.isArray(manifest.assets) || manifest.assets.some(path => typeof path !== "string" || !/^\/_next\/static\/[a-zA-Z0-9_./\[\]-]+\.(?:js|css)$/.test(path) || path.includes("..")))
+    throw new Error("wildz_shell_manifest_invalid");
+  const remaining = [...new Set(manifest.assets)];
+  await Promise.all(Array.from({ length: Math.min(4, remaining.length) }, async () => {
+    while (remaining.length) {
+      const path = remaining.pop();
+      if (await cache.match(path)) continue;
+      const asset = await fetch(new Request(new URL(path, self.location.origin), { cache: "reload", credentials: "omit" }));
+      if (!isBaseCacheable(asset)) throw new Error("wildz_shell_asset_unavailable");
+      await cache.put(path, asset);
+    }
+  }));
 }
 
 async function activateCurrentCaches() {
@@ -164,11 +186,12 @@ async function cacheShellBuildAssets(cache, html) {
   const assets = [...html.matchAll(/(?:src|href)=["'](\/_next\/static\/[^"']+)["']/g)]
     .map((match) => new URL(match[1], self.location.origin).href);
   await Promise.all([...new Set(assets)].map(async (assetUrl) => {
-    if (await cache.match(assetUrl)) return;
+    const cacheKey = new URL(assetUrl).pathname;
+    if (await cache.match(cacheKey)) return;
     const assetRequest = new Request(assetUrl, { cache: "reload", credentials: "omit" });
     const asset = await fetch(assetRequest);
     if (!isBaseCacheable(asset)) throw new Error("wildz_shell_asset_unavailable");
-    await cache.put(assetRequest, asset);
+    await cache.put(cacheKey, asset);
   }));
 }
 
@@ -182,7 +205,7 @@ async function refreshShellDocument(cache, cacheKey, request) {
 
 async function shellCacheFirst(request, url, event) {
   const cache = await caches.open(SHELL_CACHE);
-  const cacheKey = url.pathname === "/" ? "/" : request;
+  const cacheKey = url.pathname === "/" || url.pathname.startsWith("/_next/static/") ? url.pathname : request;
   const cached = await cache.match(cacheKey);
   if (request.mode === "navigate") {
     if (cached) {

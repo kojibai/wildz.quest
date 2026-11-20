@@ -1,6 +1,6 @@
 import type {WildzGameImageKind} from '../wildz-game-image-export';
 import {readCreationImage,verifyCreationImageAssets} from '../../../features/play/creation/image';
-import { readReceizIdentityArtifact } from "@receiz/sdk";
+import { sha256ReceizBytes, readReceizIdentityArtifact } from "@receiz/sdk";
 import type { createReceizOfflineSealer } from "@receiz/sdk/offline";
 import { requireWildzIdentityBindingFromEnvelope } from "../wildz-identity-binding";
 import { readWildsMapFromPng } from "../../../features/play/wilds-map-image";
@@ -8,7 +8,7 @@ import { requireVerifiedWildzPng } from "../wildz-proof-object-export";
 import { hasWildzCanonicalPngProof, splitWildzPngEnvelope } from "../wildz-png-envelope";
 import { sameWildzPlayerCoordinate } from "../wildz-player-coordinate";
 import { packWildzCardSealPayload } from "../wildz-card-seal-payload";
-import { openWildzSealedCard, verifyWildzSealedCard } from "../wildz-sealed-card";
+import { openWildzSealedCard } from "../wildz-sealed-card";
 
 type SdkSeal = ReturnType<typeof createReceizOfflineSealer>["seal"];
 export type WildzCardSealResult = Pick<Awaited<ReturnType<SdkSeal>>, "artifactBytes" | "filename" | "mimeType">;
@@ -45,8 +45,16 @@ export async function sealWildzCardLocally(input: {
     if (!input.mapOwner || !sameWildzPlayerCoordinate(playerId, input.mapOwner))
       throw new Error("wildz_proof_object_owner_mismatch");
   }
-  const result = await input.sealer.seal({ bytes: await packWildzCardSealPayload(input.payload),
+  const packed = await packWildzCardSealPayload(input.payload);
+  const expectedDigest = await sha256ReceizBytes(packed);
+  const result = await input.sealer.seal({ bytes: packed,
     filename: input.filename, mimeType: "image/png" });
-  await verifyWildzSealedCard(result.artifactBytes, input.payload);
-  return { bytes: result.artifactBytes.slice(), filename: result.filename, mimeType: result.mimeType };
+  const opened = await openWildzSealedCard({ bytes: result.artifactBytes, mimeType: result.mimeType });
+  if (opened.payloadSha256 !== expectedDigest || opened.payloadBytes.length !== input.payload.length
+    || !opened.payloadBytes.every((byte, index) => byte === input.payload[index]))
+    throw new Error("wildz_card_payload_binding_invalid");
+  const bytes = result.artifactBytes.buffer instanceof ArrayBuffer
+    ? new Uint8Array(result.artifactBytes.buffer, result.artifactBytes.byteOffset, result.artifactBytes.byteLength)
+    : new Uint8Array(result.artifactBytes);
+  return { bytes, filename: result.filename, mimeType: result.mimeType };
 }

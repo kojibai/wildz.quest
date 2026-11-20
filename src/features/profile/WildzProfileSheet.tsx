@@ -1,6 +1,6 @@
 "use client";
 import { friendlyWildzRestoreError } from "../identity/wildz-restore";
-import { identitySaveErrorMessage } from "./identity-save-error";
+import { useIdentitySealDownload } from "./use-identity-seal-download";
 
 import { canonicalWildzProfilePath, type PublicWildzProfile } from "@/features/profile/public-profile";
 import NextLink from "next/link";
@@ -48,7 +48,7 @@ async function profileImageFromFile(file: File) {
   }
 }
 
-export const WildzProfileSheet = memo(function WildzProfileSheet({ profile, vaultAssets, initialSeed, marketService, bodyState, active = true, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile, publishing = false, publicationMessage, publicationFailure, onRetryPublication }: {
+export const WildzProfileSheet = memo(function WildzProfileSheet({ profile, vaultAssets, initialSeed, marketService, bodyState, active = true, publicationStatus = "published", shareEnabled = true, editable = false, signingAvailable = true, identitySaveScope, onAuthenticateIdentitySeal, onSaveIdentitySeal, onSaveProfile, publishing = false, publicationMessage, publicationFailure, onRetryPublication }: {
   profile: PublicWildzProfile;
   initialSeed?: WildzProfilePageSeed;
   marketService?: WildzMarketServiceV128 | null;
@@ -64,7 +64,8 @@ export const WildzProfileSheet = memo(function WildzProfileSheet({ profile, vaul
   editable?: boolean;
   signingAvailable?: boolean;
   onAuthenticateIdentitySeal?: (file: File) => Promise<void>;
-  onSaveIdentitySeal?: () => Promise<void>;
+  identitySaveScope?: string;
+  onSaveIdentitySeal?: () => Promise<File>;
   onSaveProfile?: (input: { username: string; displayName: string; avatarImageUrl: string | null }) => Promise<void>;
 }) {
   const body = useWildsBodyReadout(active ? bodyState : undefined);
@@ -77,7 +78,8 @@ export const WildzProfileSheet = memo(function WildzProfileSheet({ profile, vaul
   const [draftDisplayName, setDraftDisplayName] = useState(profile.displayName);
   const [draftAvatar, setDraftAvatar] = useState(profile.avatarImageUrl);
   const [editMessage, setEditMessage] = useState("");
-  const [identitySealSaving, setIdentitySealSaving] = useState(false);
+  const sealDownload = useIdentitySealDownload(active && editable && signingAvailable, identitySaveScope ?? profile.username, onSaveIdentitySeal);
+  const identitySealSaving = sealDownload.busy;
   const [identityAuthenticating, setIdentityAuthenticating] = useState(false);
   const [identityMessage, setIdentityMessage] = useState("");
   const identityInputRef = useRef<HTMLInputElement>(null);
@@ -230,20 +232,7 @@ export const WildzProfileSheet = memo(function WildzProfileSheet({ profile, vaul
         aria-label="Save Identity Seal"
         data-state={identitySealSaving ? "working" : "idle"}
         disabled={identitySealSaving || identityAuthenticating || !signingAvailable || !onSaveIdentitySeal}
-        onClick={async () => {
-          if (!onSaveIdentitySeal) return;
-          if (!window.confirm("This Identity Seal stores this Receiz ID and full Wildz account continuity. Anyone who has it can authenticate this account. Save it now?")) return;
-          setIdentitySealSaving(true);
-          setIdentityMessage("Saving your full Receiz ID continuity seal…");
-          try {
-            await onSaveIdentitySeal();
-            setIdentityMessage("Identity Seal saved with full account continuity.");
-          } catch (cause) {
-            setIdentityMessage(identitySaveErrorMessage(cause));
-          } finally {
-            setIdentitySealSaving(false);
-          }
-        }}
+        onClick={() => { setIdentityMessage(""); void sealDownload.save(); }}
         title="Save Identity Seal"
         type="button"
       ><Download aria-hidden="true" size={18} /></button>
@@ -272,7 +261,13 @@ export const WildzProfileSheet = memo(function WildzProfileSheet({ profile, vaul
         type="file"
       />
     </section> : null}
-    <p className="wildz-profile-action-status" aria-live="polite" role="status">{identityMessage || (shareResult
+    {active && editable && sealDownload.prepared ? <div className="wildz-profile-seal-download">
+      {sealDownload.prepared.canShare ? <button type="button" disabled={identitySealSaving}
+        onClick={() => { if (sealDownload.prepared) void sealDownload.openFiles(sealDownload.prepared); }}>Save to Files…</button> : null}
+      <a href={sealDownload.prepared.url} download={sealDownload.prepared.file.name} target="_blank" rel="noopener noreferrer"
+        onClick={sealDownload.downloadRequested}>Download Identity Seal</a>
+    </div> : null}
+    <p className="wildz-profile-action-status" aria-live="polite" role="status">{identityMessage || sealDownload.message || (shareResult
       ? `${shareResult.message}${!shareEnabled && (shareResult.status === "shared" || shareResult.status === "copied") ? " Public profile publication is still syncing." : ""}`
       : "")}</p>
     <div className="wildz-profile-stats"><span><b>{profile.discoveries}</b> discoveries</span><span><b>{profile.record.wins}</b> wins</span><span><b>{profile.reputation}</b> reputation</span></div>

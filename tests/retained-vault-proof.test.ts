@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { canonicalPortableCardJson, sealCollectedCard } from "../src/features/play/portable-card";
 import { initialPlayState } from "../src/features/play/game-state";
 import { createWildsPlayerVault } from "../src/features/play/wilds-player-vault";
-import { createRetainedProofJson, freezeProofValue } from "../src/features/play/retained-proof-json";
+import { createRetainedProofJson, freezeProofValue, encodeProofJson } from "../src/features/play/retained-proof-json";
 import { createRetainedPortableVaultWriter, embedPortableVaultInPng, withPreparedPortableVaultPng, readWildzPlayerVaultAppendFromPng } from "../src/features/play/card-export";
 import { createWildzIdentityBoundPreparedVault } from "../src/lib/receiz/wildz-identity-vault-binding";
 import { createReceizIdentityKeyFile } from "@receiz/sdk";
@@ -60,4 +60,32 @@ test("only writer-owned exact bytes can use prepared signing and custody is sing
   assert.equal((await requireWildzIdentityBindingFromEnvelope(bytes)).keyId, keyFile.keyId);
   assert.throws(() => createWildzIdentityBoundPreparedVault({ keyFile, prepared }), /custody_missing/);
   assert.throws(() => createWildzIdentityBoundPreparedVault({ keyFile, prepared: { kind: "wildz.prepared-vault-png" } }), /custody_missing/);
+});
+
+test("large retained player history preserves the verified player and exact canonical PNG", () => {
+  const input = inputFor([card("large-atlas")]);
+  input.playState.explorationAtlas = { version: 1, rows: Array.from({ length: 6000 }, (_, z) => ({ z, ranges: [{ minX: -11, maxX: 35 }] })), siteKeys: [] };
+  const player = createWildsPlayerVault(input);
+  const canonical = embedPortableVaultInPng(png, player.playState.inventory, player);
+  const { prepared } = createRetainedPortableVaultWriter().prepare(png, player.playState.inventory, player);
+  const written = withPreparedPortableVaultPng(prepared, contents => contents.bytes);
+  assert.deepEqual(written, canonical);
+  assert.deepEqual(readWildzPlayerVaultAppendFromPng(written).player, JSON.parse(canonicalPortableCardJson(player)));
+});
+
+test("bounded UTF-8 encoding preserves Unicode across batch boundaries", () => {
+  const text = "x".repeat(65535) + "😀" + "é漢字".repeat(30000) + "\ud800";
+  assert.deepEqual(encodeProofJson(text), new TextEncoder().encode(text));
+});
+
+test("complete player event and receipt histories survive export beyond 2048 entries", () => {
+  const input = inputFor([card("history")]);
+  const events = Array.from({ length: 4096 }, (_, index) => ({ eventId: `history-${index}`, kind: "harvest", occurredAt: new Date(1700000000000 + index * 1000).toISOString() }));
+  const receipts = events.map(event => ({ eventId: event.eventId, digest: `sha256:${"a".repeat(64)}` }));
+  const player = createWildsPlayerVault({ ...input, personalEvents: events, receipts });
+  const bytes = embedPortableVaultInPng(png, player.playState.inventory, player);
+  const restored = readWildzPlayerVaultAppendFromPng(bytes).player;
+  assert.equal(restored.personalEvents.length, events.length);
+  assert.equal(restored.receipts.length, receipts.length);
+  assert.deepEqual(new Set(restored.personalEvents.map(event => event.eventId)), new Set(events.map(event => event.eventId)));
 });

@@ -7,6 +7,11 @@ settings:
 overrides:
   postcss: '>=8.5.10'
 
+patchedDependencies:
+  '@receiz/sdk@129.5.0':
+    hash: 46ea76c824dbb67b7ad01914c8cb5d09b435a7fc5f67c1380153caca1ab58944
+    path: patches/@receiz__sdk@129.5.0.patch
+
 importers:
 
   .:
@@ -22,7 +27,7 @@ importers:
         version: 9.6.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(three@0.182.0)
       '@receiz/sdk':
         specifier: 129.5.0
-        version: 129.5.0(react@19.2.7)
+        version: 129.5.0(patch_hash=46ea76c824dbb67b7ad01914c8cb5d09b435a7fc5f67c1380153caca1ab58944)(react@19.2.7)
       fflate:
         specifier: 0.8.3
         version: 0.8.3
@@ -3019,11 +3024,11 @@ snapshots:
   '@receiz/mcp-server@129.5.0(react@19.2.7)':
     dependencies:
       '@receiz/ai-skills': 129.5.0
-      '@receiz/sdk': 129.5.0(react@19.2.7)
+      '@receiz/sdk': 129.5.0(patch_hash=46ea76c824dbb67b7ad01914c8cb5d09b435a7fc5f67c1380153caca1ab58944)(react@19.2.7)
     transitivePeerDependencies:
       - react
 
-  '@receiz/sdk@129.5.0(react@19.2.7)':
+  '@receiz/sdk@129.5.0(patch_hash=46ea76c824dbb67b7ad01914c8cb5d09b435a7fc5f67c1380153caca1ab58944)(react@19.2.7)':
     dependencies:
       '@noble/hashes': 2.3.0
       '@receiz/ai-skills': 129.5.0

@@ -96,8 +96,11 @@ export function PwaController() {
 
     const handleUpdateFound = () => watchWorker(registration?.installing ?? null);
     const register = () => {
-      const release = process.env.NEXT_PUBLIC_WILDZ_SW_RELEASE ?? "v11.0.0-r1";
-      const workerUrl = `/sw.js?release=${encodeURIComponent(release)}`;
+      const manifest = process.env.NEXT_PUBLIC_WILDZ_SHELL_ASSET_MANIFEST;
+      const version = process.env.NEXT_PUBLIC_WILDZ_SW_RELEASE ?? "v11.0.0-r1";
+      const release = manifest ? `${version}-${manifest.split("/")[3]}` : version;
+      const workerUrl = `/sw.js?release=${encodeURIComponent(release)}`
+        + (manifest ? `&shellAssets=${encodeURIComponent(manifest)}` : "");
       void navigator.serviceWorker.register(workerUrl, {
         scope: "/",
         updateViaCache: "none"

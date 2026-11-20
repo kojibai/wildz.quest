@@ -31,7 +31,7 @@ if (wildzDeploymentId) {
 `;
 }
 
-export function workerDeploymentPlugin(webpack, deploymentId) {
+export function workerDeploymentPlugin(webpack, deploymentId, buildId) {
   const name = 'WildzWorkerDeploymentPlugin';
   class DeploymentRuntime extends webpack.RuntimeModule {
     constructor() { super('wildz worker deployment', webpack.RuntimeModule.STAGE_ATTACH); }
@@ -40,6 +40,14 @@ export function workerDeploymentPlugin(webpack, deploymentId) {
   return {
     apply(compiler) {
       compiler.hooks.thisCompilation.tap(name, compilation => {
+        if (buildId) {
+          compilation.hooks.processAssets.tap({ name, stage: webpack.Compilation.PROCESS_ASSETS_STAGE_REPORT }, () => {
+            const assets = compilation.getAssets().map(asset => asset.name)
+              .filter(asset => /^static\/.+\.(?:js|css)$/.test(asset)).sort();
+            compilation.emitAsset(`static/${buildId}/wildz-shell-assets.json`,
+              new webpack.sources.RawSource(JSON.stringify({ assets: assets.map(asset => `/_next/${asset}`) })));
+          });
+        }
         // Apply after Next encodes chunk filenames, at the actual script URL
         // boundary. Filename queries would otherwise become %3Fdpl%3D.
         compilation.hooks.runtimeRequirementInTree.for(webpack.RuntimeGlobals.createScriptUrl).tap(name, chunk => {

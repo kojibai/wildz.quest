@@ -911,27 +911,15 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
     setOverlay({ kind: "profile", username: canonicalHandle });
   };
 
-  const saveIdentityCard = async () => {
+  const saveIdentitySeal = async () => {
     const current = continuityRef.current;
     if (!current) throw new Error("wildz_identity_missing");
-    if (current.session.localAuthority !== "verified") throw new Error("wildz_identity_card_authority_required");
+    if (current.session.localAuthority !== "verified") throw new Error("wildz_identity_seal_authority_required");
     const artifact = combinedVaultCoordinator.current!.peek(current) ?? await prepareCombinedVaultForSave(current);
-    if (continuityRef.current?.session.keyId !== current.session.keyId) throw new Error("wildz_identity_changed");
-    downloadBlob(artifact.blob ?? new Blob([artifact.bytes.slice().buffer], { type: artifact.mimeType }), artifact.filename);
-  };
-
-  const saveIdentitySeal = async () => {
-    emitWildsPlaytestEvent("identity-save", "start");
-    try {
-      const current = continuityRef.current;
-      if (!current) throw new Error("wildz_identity_missing");
-      if (current.session.localAuthority !== "verified") throw new Error("wildz_identity_seal_authority_required");
-      await saveIdentityCard();
-      emitWildsPlaytestEvent("identity-save", "success");
-    } catch (error) {
-      emitWildsPlaytestEvent("identity-save", "failure");
-      throw error;
-    }
+    const live = continuityRef.current;
+    if (!live || live.session.keyId !== current.session.keyId || live.session.actorId !== current.session.actorId
+      || live.restoreEpoch !== current.restoreEpoch) throw new Error("wildz_identity_changed");
+    return new File([artifact.blob ?? artifact.bytes.slice().buffer], artifact.filename, { type: artifact.mimeType });
   };
 
   const [combinedVaultPreparing, setCombinedVaultPreparing] = useState(false);
@@ -1507,6 +1495,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
             editable={viewingOwnProfile}
             signingAvailable={identity?.localAuthority === "verified"}
             onAuthenticateIdentitySeal={activateIdentitySeal}
+            identitySaveScope={JSON.stringify([identity?.keyId, identity?.actorId, identityActivationRevision, continuity?.restoreEpoch])}
             onSaveIdentitySeal={saveIdentitySeal}
             onSaveProfile={saveProfileIdentity}
           /> : <div className="wildz-shell-overlay-placeholder" role="status">

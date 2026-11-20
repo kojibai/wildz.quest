@@ -11,7 +11,7 @@ test('production value worker keeps its SDK dependencies in its own runtime rath
  const configured={optimization,plugins:[],resolve:{}};
  // The existing worker deployment plugin only constructs RuntimeModule after
  // apply; this call just inspects the real Next optimization configuration.
- config.webpack(configured,{isServer:false,webpack:{NormalModuleReplacementPlugin:class {},RuntimeModule:class {}},config:{}});
+ config.webpack(configured,{isServer:false,webpack:{DefinePlugin:class {},NormalModuleReplacementPlugin:class {},RuntimeModule:class {}},config:{}});
  const split=configured.optimization.splitChunks;
  const chunks=split.chunks as (chunk:ReturnType<typeof make>)=>boolean;
  assert.equal(chunks(make('wildz-market-value')),false);

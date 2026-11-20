@@ -59,10 +59,10 @@ test("profile separates saving an Identity Seal from uploading one for authority
   assert.match(sheet, /aria-label="Save Identity Seal"/);
   assert.match(sheet, /aria-label="Upload Identity Seal or Record"/);
   assert.match(sheet, /This Identity Seal now owns the current Vault/);
-  assert.match(sheet, /await onSaveIdentitySeal\(\)/);
+  assert.match(sheet, /useIdentitySealDownload\([^;]+onSaveIdentitySeal\)/);
   assert.doesNotMatch(sheet, /aria-label="Save Identity Seal"[\s\S]{0,500}identityInputRef\.current\?\.click\(\)/);
   assert.match(sheet, /aria-label="Upload Identity Seal or Record"[\s\S]{0,500}identityInputRef\.current\?\.click\(\)/);
-  assert.match(sheet, /aria-label="Save Identity Seal"[\s\S]{0,900}await onSaveIdentitySeal\(\)/);
+  assert.match(sheet, /aria-label="Save Identity Seal"[\s\S]{0,900}sealDownload\.save\(\)/);
   assert.match(css, /\.wildz-profile-action-rail\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*44px\)/s);
   assert.match(shell, /onSaveIdentitySeal=\{saveIdentitySeal\}/);
   assert.match(adapter, /createWildzIdentityPlayerCard/);

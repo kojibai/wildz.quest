@@ -73,10 +73,13 @@ const nextConfig = {
     ]
   },
   reactStrictMode: true,
-  webpack(config, { isServer, webpack, config: nextOptions }) {
+  webpack(config, { isServer, webpack, buildId, config: nextOptions }) {
     if (!isServer) {
       isolateMarketValueWorker(config.optimization?.splitChunks);
-      config.plugins.push(workerDeploymentPlugin(webpack, nextOptions.deploymentId));
+      config.plugins.push(new webpack.DefinePlugin({
+        "process.env.NEXT_PUBLIC_WILDZ_SHELL_ASSET_MANIFEST": JSON.stringify(`/_next/static/${buildId}/wildz-shell-assets.json`)
+      }));
+      config.plugins.push(workerDeploymentPlugin(webpack, nextOptions.deploymentId, buildId));
       // SDK v119 exposes its Node-only compilers through @receiz/sdk/compiler.
       // Keep those unused compiler built-ins outside client bundles until the
       // package publishes a dedicated browser export condition.

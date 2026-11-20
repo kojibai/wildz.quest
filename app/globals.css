@@ -1115,6 +1115,9 @@ body > .wilds-popover-layer > .wilds-popover-surface.is-dragging { transform: tr
 .wildz-profile-action-rail button[data-state="error"] { border-color: rgba(255,151,157,.5); color: #ffd9dc; background: rgba(211,82,92,.12); }
 .wildz-profile-action-rail button[data-state="working"] svg { animation: wildz-profile-spinner .8s linear infinite; }
 .wildz-profile-proof-actions { display: contents; }
+.wildz-profile-seal-download { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.wildz-profile-seal-download a, .wildz-profile-seal-download button { color: inherit; font: inherit; text-decoration: underline; text-underline-offset: .2em; }
+.wildz-profile-seal-download button { border: 0; background: transparent; padding: .5rem 0; cursor: pointer; }
 .wildz-profile-action-status { min-height: 18px; margin: -4px 0 0; color: #9cbaa9; font-size: 11px; }
 @keyframes wildz-profile-spinner { to { transform: rotate(360deg); } }
 .wildz-profile-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
