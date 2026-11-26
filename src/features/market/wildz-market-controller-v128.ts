@@ -37,7 +37,7 @@ export type WildzMarketServiceInputV128=Readonly<{
  /** Optional public valuation proof publication after an explicit seller action.
   * Its outcome grants no payment/asset authority and cannot gate a purchase. */
  publishCardValue?(asset:WildsWalletAssetSendAsset,sourceDigest?:string):Promise<void>;
- qualifySelection(asset:WildsWalletAssetSendAsset):Promise<WildzMarketSelectionV128>;
+ qualifySelection(asset:WildsWalletAssetSendAsset,options?:{allowPrompt?:boolean}):Promise<WildzMarketSelectionV128>;
  readSelections:WildzMarketReadSelectionsV128;
  funding?:WildzMarketFundingPortV128;
  staged:Omit<WildsWalletStagedTradeAdapterInput,"keyId"|"ownerHandle"|"currentIdentity"|"phi"|"marketExecution">;
@@ -362,7 +362,7 @@ export function createWildzMarketControllerV128(input:WildzMarketServiceInputV12
   if(!attempt){await makeListRoom();record=load();attempt={attemptId:nativeAttemptId(listingId),listingId,asset:listing.selection.asset,priceUsdCents:String(listing.priceUsdCents),selection:listing.selection,published:true};save({...record,lists:[...record.lists,attempt]});}
   if(!same(attempt.asset,listing.selection.asset)||attempt.priceUsdCents!==String(listing.priceUsdCents)||!same(attempt.selection,listing.selection))throw Error("The original public listing terms changed. Keep its exact continuation.");
   if(!attempt.nativeSelection){
-   const nativeSelection=await input.qualifySelection(attempt.asset);current();validateWildzMarketSelectionV128(nativeSelection);
+   const nativeSelection=await input.qualifySelection(attempt.asset,{allowPrompt:true});current();validateWildzMarketSelectionV128(nativeSelection);
    if(!same(nativeSelection.asset,attempt.asset))throw Error("The native source differs from this advertised asset.");
    attempt={...attempt,nativeSelection};record=load();save({...record,lists:record.lists.map(item=>item.listingId===listingId?attempt!:item)});
   }

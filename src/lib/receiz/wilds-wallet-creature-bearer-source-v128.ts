@@ -158,7 +158,7 @@ export function createWildsWalletCreatureBearerProducerV128(input: Readonly<{
   sdk: ReceizClient; applicationId: string; keyId: string; ownerHandle: string;
   currentIdentity(): Readonly<{ keyId: string; ownerHandle: string }>;
   card(assetId: string): PortableCardAsset;
-  prepareCard(card: PortableCardAsset): Promise<WildzPreparedIdentityOwnedCard>;
+  prepareCard(card: PortableCardAsset, options?: {allowPrompt?: boolean}): Promise<WildzPreparedIdentityOwnedCard>;
   exchange: Pick<ReturnType<typeof createWildsResourcePackageExchangeV128>, "reserveCardOrigin">;
   database?: WildzContinuityDatabase;
 }>) {
@@ -190,7 +190,7 @@ export function createWildsWalletCreatureBearerProducerV128(input: Readonly<{
     await readWildsWalletCreatureProjectionV128({ source: opened, projectionOriginal: source.projectionOriginal, artifacts: input.sdk.artifacts }); assertCurrent();
     return retainIndex(source, card.id);
   }
-  async function prepareAsset(asset: WildsWalletAssetSendAsset): Promise<WildsWalletBearerGiftSource> {
+  async function prepareAsset(asset: WildsWalletAssetSendAsset, options?: {allowPrompt?: boolean}): Promise<WildsWalletBearerGiftSource> {
       assertCurrent(); if (asset.kind !== "creature") throw Error("Choose an owned creature for this native source.");
       const assetId = asset.assetId, key = sourceKey(input.ownerHandle, input.keyId, assetId);
       const retained = await database.read<{artifactSha256:string;projectionArtifactSha256:string}>("meta", key); assertCurrent();
@@ -212,7 +212,7 @@ export function createWildsWalletCreatureBearerProducerV128(input: Readonly<{
         || !(same(card, current) || isVerifiedWildzCardDescendant(card, current)))) throw Error("The current creature is not a descendant of its frozen native birth.");
       // Birth and safe payload are saved in one transaction before any native
       // seal. An existing birth therefore resumes without re-signing an ancestor.
-      const prepared = frozen ? undefined : await input.prepareCard(card); assertCurrent();
+      const prepared = frozen ? undefined : await input.prepareCard(card, options); assertCurrent();
       const sourceOriginal = await prepareSafeWildsWalletHeldCardSourceV128(input.sdk, card, prepared, { ...input, database, retainBirth: true, assertCurrent }); assertCurrent();
       const payload = await buildWildsWalletCreatureBearerPayloadV128({ card, sourceOriginal });
       const reservation = await input.exchange.reserveCardOrigin({ attemptId: `card-origin:${assetId}`, assetId, card, sourceOriginal, payloadSha256: payload.payloadSha256, provenanceRoot: payload.provenanceRoot }); assertCurrent();

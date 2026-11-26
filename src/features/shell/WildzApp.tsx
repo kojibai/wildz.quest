@@ -1422,7 +1422,7 @@ export function WildzApp({ initialOverlay = null, marketPresentation = "popover"
           playerDisplayName={ownerDisplayName ?? `@${ownerUsername}`}
           shellOverlayOwner={shellOverlayOwner}
           onPlayStateChange={(playState, playerContinuity) => persistPlayState(playState, playerContinuity, continuity)}
-          onPrepareCard={(asset, player, options) => prepareWildzIdentityOwnedCard(identity, asset, player, { allowPrompt: false, speculative: options?.speculative === true })}
+          onPrepareCard={(asset, player, options) => prepareWildzIdentityOwnedCard(identity, asset, player, { allowPrompt: options?.allowPrompt === true, speculative: options?.speculative === true })}
           onExportCard={(asset, player, prepared) => prepared && matchesPreparedWildzIdentityOwnedCard(prepared, identity, asset)
             ? savePreparedWildzIdentityOwnedCard(prepared)
             : downloadWildzIdentityOwnedCard(identity, asset, player(asset))}

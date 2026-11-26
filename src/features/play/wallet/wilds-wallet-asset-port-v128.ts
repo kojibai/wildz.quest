@@ -88,10 +88,10 @@ export function createWildsWalletAssetPortV128(input: WildsWalletAssetPortInputV
       assertCurrent();
       const source=await (await loadPorts()).creature.qualifyValueProof(asset);assertCurrent();return source;
     },
-    qualifyListing: async (asset: WildsWalletAssetSendAsset, summary?: string) => {
+    qualifyListing: async (asset: WildsWalletAssetSendAsset, summary?: string, options?: {allowPrompt?:boolean}) => {
       assertCurrent();
       await input.flushGameplay(); assertCurrent();
-      if (asset.kind === "creature") return (await loadPorts()).creature.qualifyListing(asset, summary);
+      if (asset.kind === "creature") return (await loadPorts()).creature.qualifyListing(asset, summary, options);
       const { qualifyWildzMarketResourceSelectionV128 } = await import("../../../lib/receiz/wildz-market-resource-selection-v128");
       const runtime = await openRuntime(); assertCurrent();
       const selection = await qualifyWildzMarketResourceSelectionV128({runtime, asset, summary: summary?.trim() || "Resource package",

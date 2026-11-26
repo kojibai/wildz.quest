@@ -427,7 +427,7 @@ export function PlayCampaign({
   onWorldReady?: () => void;
   onWorldInitialized?: () => void;
   worldVisible?: boolean;
-  onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload | Parameters<typeof createWildsPlayerVault>[0], options?: { speculative?: boolean }) => Promise<WildzPreparedIdentityOwnedCard>;
+  onPrepareCard: (asset: PortableCardAsset, player: WildsPlayerVaultPayload | Parameters<typeof createWildsPlayerVault>[0], options?: { speculative?: boolean; allowPrompt?: boolean }) => Promise<WildzPreparedIdentityOwnedCard>;
   onExportCard: (asset: PortableCardAsset, player: (asset?: PortableCardAsset) => WildsPlayerVaultPayload, prepared?: WildzPreparedIdentityOwnedCard) => Promise<unknown>;
   onExportVault: () => Promise<unknown>;
   onPrepareVault?: () => Promise<unknown>;
@@ -1184,10 +1184,10 @@ export function PlayCampaign({
           || ["suspended", "revoked"].includes(card.status)) throw Error("This exact creature is unavailable to send.");
         return card;
       },
-      prepareCard: card => {
+      prepareCard: (card, options) => {
         const live = walletSourceLive.current;
         if (!live.prepareVault) throw Error("The exact player Vault is unavailable.");
-        return live.onPrepareCard(card, live.prepareVault(card));
+        return live.onPrepareCard(card, live.prepareVault(card), options);
       },
       readMessages: async () => (await readTradeConversations()).flatMap(conversation => conversation.messages)
         .filter(message => !message.deletedAt && !message.editedAt)
@@ -1407,8 +1407,8 @@ export function PlayCampaign({
         import("../market/wildz-market-service-v128"), import("../../lib/receiz/wildz-market-source-browser-v128"), import("../../lib/receiz/wildz-market-public-read-v128"), import("../../lib/receiz/wildz-market-publication-browser-v128"), import("../market/wildz-market-funding-browser-v128"), import("../market/wildz-market-community-service"), import("../market/wildz-market-card-preparation"), import("../market/wildz-market-value-browser-v129")
       ]);
       currentIdentity();
-      const qualifySelection = (asset: WildsWalletAssetSendRequest["asset"]) => walletAssetPort.qualifyListing(asset,
-        marketReadSelectionsRef.current().find(selection => JSON.stringify(selection.asset) === JSON.stringify(asset))?.label);
+      const qualifySelection = (asset: WildsWalletAssetSendRequest["asset"], options?: {allowPrompt?: boolean}) => walletAssetPort.qualifyListing(asset,
+        marketReadSelectionsRef.current().find(selection => JSON.stringify(selection.asset) === JSON.stringify(asset))?.label, options);
       const readSource = createWildzMarketPublicReadSourceV128();
       const base = createWildzMarketServiceV128({keyId, ownerHandle, currentIdentity,
         readSelections: () => marketReadSelectionsRef.current(), qualifySelection,

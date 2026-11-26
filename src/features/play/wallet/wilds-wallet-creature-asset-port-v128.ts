@@ -21,7 +21,7 @@ export type WildsWalletCreatureAssetPortInputV128 = Readonly<{
   currentIdentity(): Readonly<{keyId:string;ownerHandle:string}>;
   openRuntime(): Promise<WildsWalletCreatureRuntimeV128>;
   card(assetId: string): PortableCardAsset;
-  prepareCard(card: PortableCardAsset): Promise<WildzPreparedIdentityOwnedCard>;
+  prepareCard(card: PortableCardAsset, options?: {allowPrompt?: boolean}): Promise<WildzPreparedIdentityOwnedCard>;
   readMessages: WildsWalletBearerGiftControllerInput["readMessages"];
   publish: WildsWalletBearerGiftControllerInput["publish"];
   restoreAccepted?(leg: WildsWalletBearerGiftLeg, source: WildsWalletBearerGiftSource, runtime: WildsWalletCreatureRuntimeV128): Promise<void>;
@@ -63,9 +63,9 @@ export function createWildsWalletCreatureAssetPortV128(input: WildsWalletCreatur
       if(input.onAcceptedOutgoing) await input.onAcceptedOutgoing(leg,source,runtime); current();
     },
   });
-  async function qualifyValueProof(asset: WildsWalletAssetSendAsset, summary?: string) {
+  async function qualifyValueProof(asset: WildsWalletAssetSendAsset, summary?: string, options?: {allowPrompt?: boolean}) {
       if (asset.kind !== "creature") throw Error("Choose an owned creature for this listing.");
-      const {runtime,producer}=await open(), source=await producer.prepareAsset(asset); current();
+      const {runtime,producer}=await open(), source=await producer.prepareAsset(asset,options); current();
       const opened=await readWildsWalletCreatureBearerV128(source.original,source.originProof as WildsResourceSourceProofV128,runtime.sdk,runtime.applicationId);
       const projection=await readWildsWalletCreatureProjectionV128({source:opened,projectionOriginal:source.projectionOriginal,accepted:opened.derived.appendCount>0,artifacts:runtime.sdk.artifacts}); current();
       if(opened.derived.ownerReceizId!==input.ownerHandle || projection.card.id!==asset.assetId) throw Error("This exact listing is no longer held by this Explorer.");
@@ -77,5 +77,5 @@ export function createWildsWalletCreatureAssetPortV128(input: WildsWalletCreatur
       return {selection,card:projection.card,projectionOriginal:source.projectionOriginal};
   }
   return {...controller,qualifyValueProof,
-    qualifyListing:async(asset:WildsWalletAssetSendAsset,summary?:string)=>(await qualifyValueProof(asset,summary)).selection};
+    qualifyListing:async(asset:WildsWalletAssetSendAsset,summary?:string,options?:{allowPrompt?:boolean})=>(await qualifyValueProof(asset,summary,options)).selection};
 }
