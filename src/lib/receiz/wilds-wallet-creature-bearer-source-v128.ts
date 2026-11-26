@@ -133,7 +133,7 @@ export async function readWildsWalletCreaturePayloadV128(original: ReceizPortabl
 export async function readWildsWalletCreatureBearerV128(original: ReceizPortableSealedArtifactV124, originProof: WildsResourceSourceProofV128, sdk: ReceizClient, applicationId: string) {
   const opened = await readWildsWalletCreaturePayloadV128(original, sdk);
   const { payload, card, sourceOriginal } = opened;
-  const origin = await verifyWildsResourceCardOriginProofV128(sdk, originProof, { applicationId, assetId: card.id, payloadSha256: payload.payloadSha256, provenanceRoot: payload.provenanceRoot });
+  const origin = await verifyWildsResourceCardOriginProofV128(sdk, originProof, { applicationId, assetId: card.id, payloadSha256: payload.payloadSha256, provenanceRoot: payload.provenanceRoot, original: sourceOriginal });
   if (!same(origin.card, card) || !same(origin.sourceOriginal, sourceOriginal) || origin.ownerReceizId !== opened.derived.genesisOwnerReceizId) throw Error("The native creature genesis reservation does not bind this exact Original.");
   return { ...opened, origin };
 }
@@ -218,7 +218,7 @@ export function createWildsWalletCreatureBearerProducerV128(input: Readonly<{
       const sourceOriginal = await prepareSafeWildsWalletHeldCardSourceV128(input.sdk, card, prepared, { ...input, database, retainBirth: true, assertCurrent }); assertCurrent();
       const payload = await buildWildsWalletCreatureBearerPayloadV128({ card, sourceOriginal });
       const reservation = await input.exchange.reserveCardOrigin({ attemptId: `card-origin:${assetId}`, assetId, card, sourceOriginal, payloadSha256: payload.payloadSha256, provenanceRoot: payload.provenanceRoot }); assertCurrent();
-      await verifyWildsResourceCardOriginProofV128(input.sdk, reservation.originProof, { applicationId: input.applicationId, assetId, payloadSha256: payload.payloadSha256, provenanceRoot: payload.provenanceRoot }); assertCurrent();
+      await verifyWildsResourceCardOriginProofV128(input.sdk, reservation.originProof, { applicationId: input.applicationId, assetId, payloadSha256: payload.payloadSha256, provenanceRoot: payload.provenanceRoot, original: sourceOriginal }); assertCurrent();
       const portable = await prepareWildsPortableDocumentV128({ assetType: "proof_object", payload: { bytes: payload.bytes, mimeType: "application/vnd.wildz.creature-bearer.v128+json" }, ownership: { ownerReceizId: input.ownerHandle, custody: "bearer", proofRef: "genesis" }, provenance: { root: payload.provenanceRoot, appends: [] }, settlement: { state: "none" } });
       const sealed = await input.sdk.assets.createProofObject({ assetType: "proof_object", payload: { bytes: serializeReceizPortableAssetDocument(portable), mimeType: "application/vnd.receiz.portable-asset.v1+json" } }, { idempotencyKey: `wildz:creature-bearer:${payload.payloadSha256}`, filename: `wildz-creature-${payload.payloadSha256}.receizbundle` }); assertCurrent();
       return projectCurrent(await transportReceizSealedArtifactV124(sealed), reservation.originProof, current);

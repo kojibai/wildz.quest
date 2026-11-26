@@ -1,7 +1,6 @@
 import { canonicalizeReceizV122, receizBase64UrlEncode, type ReceizClient } from "@receiz/sdk";
 import type { WildsWorldEvent } from "../../features/play/wilds-world-event";
 import { initialWildsWorldProjection, type WildsWorldProjection } from "../../features/play/wilds-world-state";
-import { decodeWildsResourceEventV128 } from "./wilds-resource-event-codec-v128";
 import { reduceWildsOpenedResourceEventV128 } from "./wilds-resource-exchange-v128";
 import { initialWildsResourceJournalV128, replayWildsResourceJournalOwnerV128, WILDS_RESOURCE_DOMAIN_V128,
   WILDS_RESOURCE_GENESIS_HEAD_V128, WILDS_RESOURCE_LAW_V128, WILDS_RESOURCE_NAMESPACE_V128, WILDS_RESOURCE_REDUCER_DIGEST_V128,
@@ -39,11 +38,11 @@ export function createWildsAtlasResourceProjection() {
           || replay.registryDigest !== WILDS_RESOURCE_REGISTRY_DIGEST_V128 || replay.reducerDigest !== WILDS_RESOURCE_REDUCER_DIGEST_V128
           || replay.namespace.name !== WILDS_RESOURCE_NAMESPACE_V128 || replay.namespace.head !== WILDS_RESOURCE_REGISTRY_DIGEST_V128
           || replay.namespace.exactBytesB64u !== resourceLawBytes) throw Error("wilds_atlas_resource_source_invalid");
-        const event = await decodeWildsResourceEventV128(readWildsAtlasReplayJson(addition.exactEventBytesB64u)) as WildsResourceJournalEventV128;
+        const event = readWildsAtlasReplayJson(addition.exactEventBytesB64u);
         const next = await reduceWildsOpenedResourceEventV128(sdk, state, events, { event, sealKai: String(source.artifactKaiPulse),
           sourceOwner: source.sourceAuthority.ownerReceizId, sourceKeyId: source.authoringEvidence.identity.keyId, previousHead: head });
         state = next.state; head = replay.head; count++;
-        events.push({ event, appendId: addition.appendId, head, kaiUPulse: source.journalAppends[0]!.acceptedAtKaiUPulse, sealKai: next.sealKai });
+        events.push({ event: next.event, appendId: addition.appendId, head, kaiUPulse: source.journalAppends[0]!.acceptedAtKaiUPulse, sealKai: next.sealKai });
         states.set(head, state);
       }
       if (owners.size && [...owners].every(([owner, prior]) => state.traces[owner] === prior.trace)

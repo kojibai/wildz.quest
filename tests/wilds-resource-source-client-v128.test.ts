@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createReceizIdentityKeyFile, createReceizProofAuthorityChallenge, deriveReceizPortableOwnershipContinuity, deriveReceizSubjectIdV122, digestReceizCanonicalV122, parseReceizPortableAssetDocument, receizBase64UrlDecode, receizKaiNow, serializeReceizIdentityArtifact, sha256ReceizBytes, signReceizIdentityLoginProof, type ReceizClient } from "@receiz/sdk";
+import { createReceizIdentityKeyFile, createReceizProofAuthorityChallenge, deriveReceizPortableOwnershipContinuity, deriveReceizSubjectIdV122, digestReceizCanonicalV122, parseReceizPortableAssetDocument, receizBase64UrlDecode, receizBase64UrlEncode, receizKaiNow, serializeReceizIdentityArtifact, sha256ReceizBytes, signReceizIdentityLoginProof, type ReceizClient } from "@receiz/sdk";
 import { createWildsResourceSourceClientV128, createWildsResourceSourceRecoveryStoreV128, openWildsResourceSourceAuthorityV128 } from "../src/lib/receiz/wilds-resource-source-client-v128";
 import type { WildzContinuityDatabase } from "../src/lib/storage/wildz-indexed-db";
 import { prepareWildsResourceSourcePageV128 } from "../src/lib/receiz/wilds-resource-source-v128";
@@ -10,6 +10,9 @@ import {createWildsResourcePackageExchangeV128} from '../src/lib/receiz/wilds-re
 import type {WildsClearancePickupProposalV128} from '../src/lib/receiz/wilds-clearance-admission-v128';
 import {paidClearanceTrace} from './support/clearance-source-fixture';
 import {decodeWildsResourceEventV128} from '../src/lib/receiz/wilds-resource-event-codec-v128';
+import { prepareWildsCardOriginReference, readWildsResourceReplayEvent } from '../src/lib/receiz/wilds-resource-card-origin-transport-v128';
+import { locateWildzMarketSourceOriginalV128 } from '../src/lib/receiz/wildz-market-source-original-locator-v128';
+import type { WildsResourceJournalEventV128 } from '../src/lib/receiz/wilds-resource-journal-v128';
 
 function database(fail = false): WildzContinuityDatabase {
   const records = new Map<string, unknown>();
@@ -52,6 +55,28 @@ test("lost seal response retries frozen exact source bytes and the same native i
   assert.equal(fixture.sealedInputs[0]!.idempotencyKey, fixture.sealedInputs[1]!.idempotencyKey);
   assert.deepEqual(fixture.sealedInputs[0]!.bytes, fixture.sealedInputs[1]!.bytes);
   assert.equal(new TextDecoder().decode(fixture.sealedInputs[0]!.bytes).includes(fixture.authority.keyFile.crypto.privateKeyPkcs8B64u!), false);
+});
+
+test("a large card origin stays beneath the seal limit and reopens with the byte-exact held Original during an outage", async () => {
+  const {page,authority}=await createFixture();
+  const payload=new Uint8Array(827_517).fill(127);
+  const sourceOriginal={schema:"receiz.sealed-artifact-bytes.v124" as const,filename:"creature.receizbundle", mimeType:"application/octet-stream",
+    exactBytesB64u:receizBase64UrlEncode(payload),artifactSha256:await sha256ReceizBytes(payload),payloadSha256:"b".repeat(64)};
+  const event={schema:"wildz.resource-command.v128",kind:"card-origin",attemptId:"card-origin:large",ownerReceizId:authority.ownerReceizId,
+    assetId:"large",card:{id:"large"},sourceOriginal,payloadSha256:"c".repeat(64),provenanceRoot:"wildz:creature:large"} as Extract<WildsResourceJournalEventV128,{kind:"card-origin"}>;
+  const initial=await prepareWildsResourceSourcePageV128({authority,page:{...page,event}});
+  assert.ok(initial.candidate.proofObject.payload.bytes.byteLength>4_500_000);
+  const pages=new Map<string,unknown>();
+  const reference=await locateWildzMarketSourceOriginalV128(sourceOriginal,async (value,ref)=>{pages.set(ref.digest,value);});
+  const transport=await prepareWildsCardOriginReference(event,reference);
+  const compact=await prepareWildsResourceSourcePageV128({authority,page:{...page,event:transport}});
+  assert.ok(compact.candidate.proofObject.payload.bytes.byteLength<40_000);
+  const coldSdk={publicStore:{restoreLatest:async()=>{throw Error("archive offline");}}} as unknown as ReceizClient;
+  assert.deepEqual(await readWildsResourceReplayEvent(coldSdk,transport,{original:sourceOriginal}),event);
+  const archiveSdk={publicStore:{restoreLatest:async({url}:{url:string})=>({storeStateRecord:{schema:"wildz.resource-source-page-locator.v128",page:pages.get(url.split("/").at(-1)!)}})}} as unknown as ReceizClient;
+  assert.deepEqual(await readWildsResourceReplayEvent(archiveSdk,transport,{custody:null}),event);
+  await assert.rejects(readWildsResourceReplayEvent(archiveSdk,{...transport,exactEventDigest:"0".repeat(64)},{custody:null}),/origin_event_digest/);
+  await assert.rejects(readWildsResourceReplayEvent(coldSdk,transport,{custody:null}),/archive offline/);
 });
 
 test('lost encoded-event seal reply keeps the identical candidate and raw paid trace across client recreation',async()=>{

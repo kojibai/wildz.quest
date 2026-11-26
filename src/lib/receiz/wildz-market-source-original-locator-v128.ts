@@ -3,6 +3,7 @@ import {canonicalPortableCardJson,sha256PortableBasis} from '../../features/play
 
 export const WILDZ_MARKET_SOURCE_BYTES_PART_V128=192*1024;
 export const WILDZ_MARKET_SOURCE_ORIGINAL_TEXT_BYTES_V128=8*1024*1024;
+const CONCURRENT_PARTS=4;
 export type WildzMarketSourceBytesPageV128=Readonly<{schema:'wildz.market-source-bytes-page.v128';part:string}>;
 export type WildzMarketSourceBytesReferenceV128=Readonly<{digest:string}>;
 export type WildzMarketSourceOriginalReferenceV128=Readonly<{
@@ -38,24 +39,34 @@ async function assertOriginal(source:ReceizPortableSealedArtifactV124){
  metadata(source);const bytes=receizBase64UrlDecode(source.exactBytesB64u);
  if(receizBase64UrlEncode(bytes)!==source.exactBytesB64u||await sha256ReceizBytes(bytes)!==source.artifactSha256)fail('original_digest');
 }
+async function transferParts<Part,Result>(parts:readonly Part[],transfer:(part:Part,index:number)=>Promise<Result>){
+ const result:Result[]=[];
+ for(let start=0;start<parts.length;start+=CONCURRENT_PARTS){
+  result.push(...await Promise.all(parts.slice(start,start+CONCURRENT_PARTS).map((part,index)=>transfer(part,start+index))));
+ }
+ return result;
+}
 /** Content locators carry no authority. Reconstruct the exact native Original,
  * then its consumer must independently SDK-open it and replay all predecessors. */
 export async function locateWildzMarketSourceOriginalV128(source:ReceizPortableSealedArtifactV124,publish:(page:WildzMarketSourceBytesPageV128,reference:WildzMarketSourceBytesReferenceV128)=>Promise<void>):Promise<WildzMarketSourceOriginalReferenceV128>{
- await assertOriginal(source);const chunks:WildzMarketSourceBytesReferenceV128[]=[];
- for(let offset=0;offset<source.exactBytesB64u.length;offset+=WILDZ_MARKET_SOURCE_BYTES_PART_V128){
-  const page:WildzMarketSourceBytesPageV128={schema:'wildz.market-source-bytes-page.v128',part:source.exactBytesB64u.slice(offset,offset+WILDZ_MARKET_SOURCE_BYTES_PART_V128)};
-  const reference=describeWildzMarketSourceBytesPageV128(page);await publish(page,reference);chunks.push(reference);
- }
+ await assertOriginal(source);
+ const pages=Array.from({length:Math.ceil(source.exactBytesB64u.length/WILDZ_MARKET_SOURCE_BYTES_PART_V128)},(_,index):WildzMarketSourceBytesPageV128=>{
+  const offset=index*WILDZ_MARKET_SOURCE_BYTES_PART_V128;
+  return {schema:'wildz.market-source-bytes-page.v128',part:source.exactBytesB64u.slice(offset,offset+WILDZ_MARKET_SOURCE_BYTES_PART_V128)};
+ });
+ const chunks=await transferParts(pages,async page=>{
+  const reference=describeWildzMarketSourceBytesPageV128(page);await publish(page,reference);return reference;
+ });
  return {schema:'wildz.market-source-original-reference.v128',artifactSha256:source.artifactSha256,payloadSha256:source.payloadSha256,filename:source.filename,mimeType:source.mimeType,exactBytesB64uLength:source.exactBytesB64u.length,chunks};
 }
 export async function restoreWildzMarketSourceOriginalV128(value:unknown,read:(reference:WildzMarketSourceBytesReferenceV128)=>Promise<unknown>):Promise<ReceizPortableSealedArtifactV124>{
- const reference=value as WildzMarketSourceOriginalReferenceV128;assertWildzMarketSourceOriginalReferenceV128(reference);const parts:string[]=[];
- for(let index=0;index<reference.chunks.length;index++){
-  const chunk=reference.chunks[index]!,page=await read(chunk) as WildzMarketSourceBytesPageV128;
+ const reference=value as WildzMarketSourceOriginalReferenceV128;assertWildzMarketSourceOriginalReferenceV128(reference);
+ const parts=await transferParts(reference.chunks,async (chunk,index)=>{
+  const page=await read(chunk) as WildzMarketSourceBytesPageV128;
   if(describeWildzMarketSourceBytesPageV128(page).digest!==chunk.digest)fail('bytes_page_digest');
   if(page.part.length!==Math.min(WILDZ_MARKET_SOURCE_BYTES_PART_V128,reference.exactBytesB64uLength-index*WILDZ_MARKET_SOURCE_BYTES_PART_V128))fail('original_length');
-  parts.push(page.part);
- }
+  return page.part;
+ });
  const source:ReceizPortableSealedArtifactV124={schema:'receiz.sealed-artifact-bytes.v124',artifactSha256:reference.artifactSha256,payloadSha256:reference.payloadSha256,filename:reference.filename,mimeType:reference.mimeType,exactBytesB64u:parts.join('')};
  await assertOriginal(source);return source;
 }

@@ -80,14 +80,17 @@ export async function* iterateWildsResourceSourceOriginalsV128(proof:WildsResour
  // the caller before native opening; no lifetime event-count cap is imposed.
  for(const source of proof.sourceArtifacts)yield source;
 }
+export async function readWildsResourceSourceArchivePageV128(sdk:ReceizClient,reference:WildzMarketSourceBytesReferenceV128){
+ const located=await sdk.publicStore.restoreLatest({url:`${WILDS_RESOURCE_SOURCE_URL_V128}/pages/${reference.digest}`,tenantHost:'wildz.quest'});
+ const row=located.storeStateRecord;if(row?.schema!=='wildz.resource-source-page-locator.v128'||!row.page)fail('bytes_page_missing');return row.page;
+}
 export async function restoreWildsResourceSourceReferenceV128(sdk:ReceizClient,value:unknown,sourceUrl=WILDS_RESOURCE_SOURCE_URL_V128):Promise<WildsResourceSourceProofV128>{
  if(sourceUrl!==WILDS_RESOURCE_SOURCE_URL_V128)fail('locator_invalid');
  const proof=value as WildsResourceSourceReferenceV128;
  if(!fields(proof,'archivePages,custodyArtifact,schema,sourceArtifacts')||proof.schema!=='wildz.resource-source-reference.v128'
   ||!Array.isArray(proof.archivePages)||proof.archivePages.length>1||!Array.isArray(proof.sourceArtifacts)||!proof.sourceArtifacts.length||proof.sourceArtifacts.length>WILDS_RESOURCE_SOURCE_TAIL_COUNT_V128||size(proof)>PAGE_BYTES)fail('source_reference_invalid');
  proof.archivePages.forEach(assertReference);
- const read=async(reference:WildzMarketSourceBytesReferenceV128)=>{const located=await sdk.publicStore.restoreLatest({url:`${sourceUrl}/pages/${reference.digest}`,tenantHost:new URL(sourceUrl).host});
-  const row=located.storeStateRecord;if(row?.schema!=='wildz.resource-source-page-locator.v128'||!row.page)fail('bytes_page_missing');return row.page;};
+ const read=(reference:WildzMarketSourceBytesReferenceV128)=>readWildsResourceSourceArchivePageV128(sdk,reference);
  const custodyArtifact=await restoreWildzMarketSourceOriginalV128(proof.custodyArtifact,read),sourceArtifacts:ReceizPortableSealedArtifactV124[]=[];let total=0;
  for(const reference of proof.sourceArtifacts){total+=reference.exactBytesB64uLength;if(total>TAIL_BYTES)fail('source_reference_invalid');sourceArtifacts.push(await restoreWildzMarketSourceOriginalV128(reference,read));}
  return {schema:'wildz.resource-source-proof.v128',custodyArtifact,archivePages:proof.archivePages,sourceArtifacts};
@@ -118,19 +121,22 @@ export function createWildsResourceSourceArchiveLocatorV128(input:Readonly<{sdk:
   const restored=await input.sdk.publicStore.restoreLatest({url:sourceUrl,tenantHost:url.host});
   if(canonicalizeReceizV122(restored.storeStateRecord)!==canonicalizeReceizV122(storeStateRecord))fail('locator_readback_unconfirmed');
  };
- const retainedPages=new Set<string>();
- const publishPage=async(page:unknown,digest:string)=>{
-  if(retainedPages.has(digest))return;
-  const pageUrl=`${url.toString()}/pages/${digest}`,record={schema:'wildz.resource-source-page-locator.v128',page};
-  const existing=await input.sdk.publicStore.restoreLatest({url:pageUrl,tenantHost:url.host});
-  if(canonicalizeReceizV122(existing.storeStateRecord)!==canonicalizeReceizV122(record)){
-   try{await publish(pageUrl,record,`wildz:resource-archive:${digest}`);}
-   catch(cause){
-    const restored=await input.sdk.publicStore.restoreLatest({url:pageUrl,tenantHost:url.host});
-    if(canonicalizeReceizV122(restored.storeStateRecord)!==canonicalizeReceizV122(record))throw cause;
+ const retainedPages=new Map<string,Promise<void>>();
+ const publishPage=(page:unknown,digest:string)=>{
+  const held=retainedPages.get(digest);if(held)return held;
+  const pending=(async()=>{
+   const pageUrl=`${url.toString()}/pages/${digest}`,record={schema:'wildz.resource-source-page-locator.v128',page};
+   const exactRecord=canonicalizeReceizV122(record);
+   const existing=await input.sdk.publicStore.restoreLatest({url:pageUrl,tenantHost:url.host});
+   if(canonicalizeReceizV122(existing.storeStateRecord)!==exactRecord){
+    try{await publish(pageUrl,record,`wildz:resource-archive:${digest}`);}
+    catch(cause){
+     const restored=await input.sdk.publicStore.restoreLatest({url:pageUrl,tenantHost:url.host});
+     if(canonicalizeReceizV122(restored.storeStateRecord)!==exactRecord)throw cause;
+    }
    }
-  }
-  retainedPages.add(digest);
+  })().catch(cause=>{retainedPages.delete(digest);throw cause;});
+  retainedPages.set(digest,pending);return pending;
  };
  const publishBytes:PublishBytes=(page,reference)=>publishPage(page,reference.digest);
  const compact=(proof:WildsResourceSourceProofV128)=>compactWildsResourceSourceProofV128(proof,(page,reference)=>publishPage(page,reference.digest),publishBytes);
@@ -140,6 +146,7 @@ export function createWildsResourceSourceArchiveLocatorV128(input:Readonly<{sdk:
   return {schema:'wildz.resource-source-reference.v128',custodyArtifact,archivePages:tail.archivePages??[],sourceArtifacts};
  };
  return {read:admit=>readWildsResourceLocatedProofV128(input.sdk,url.toString(),admit),compact,reference,
+  archiveOriginal:source=>locateWildzMarketSourceOriginalV128(source,publishBytes),
   async publish(proof,coordinate){
    const artifactSha256=proof.custodyArtifact.artifactSha256;
    await publishWildzOwnedSourceV128({sdk:input.sdk,kind:'resource',owner:input.authority.ownerReceizId,artifactSha256,coordinate,
