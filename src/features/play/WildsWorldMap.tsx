@@ -6,14 +6,13 @@ import { GripHorizontal } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Icons } from "@/components/icons";
 import { regionForPosition, type WildsPresence } from "./multiplayer-core";
+import type { WildsLiveAtlasPresence } from "./use-wilds-multiplayer";
 import { landmarkApproachPoint, WILDS_FLAGSHIP_LANDMARKS, type WildsLandmarkId } from "./wilds-landmarks";
 import {
   filterWildsAtlasPresence,
   projectWildsAtlas,
   projectWildsAtlasPresence,
   type WildsAtlasLandmark,
-  type WildsAtlasExactPlayer,
-  type WildsAtlasPlayerCluster,
   type WildsAtlasZoom
 } from "./wilds-world-atlas";
 import { wildsExplorationContainsWorld, type WildsExplorationAtlas } from "./wilds-exploration-atlas";
@@ -51,7 +50,7 @@ function WildsWorldMapView({
   onClearDestination,
   onTrackDestination,
   crewMapSource,
-  guestId,
+  atlasPresence,
   currentPosition,
   explorationAtlas,
   onImportMap,
@@ -79,7 +78,7 @@ function WildsWorldMapView({
   onClearDestination?: () => void;
   onTrackDestination: (destination: AtlasDestination) => void;
   crewMapSource?: WildsCrewMapSource;
-  guestId: string;
+  atlasPresence: WildsLiveAtlasPresence | null;
   currentPosition: { x: number; z: number };
   explorationAtlas: WildsExplorationAtlas;
   onImportMap: (atlas: WildsExplorationAtlas) => void;
@@ -122,11 +121,6 @@ function WildsWorldMapView({
   const [recenterRequest, setRecenterRequest] = useState(0);
   const [fitRequest, setFitRequest] = useState(0);
   const [atlasReady, setAtlasReady] = useState(false);
-  const [atlasPresence, setAtlasPresence] = useState<{
-    loaded: boolean;
-    players: WildsAtlasExactPlayer[];
-    clusters: WildsAtlasPlayerCluster[];
-  }>({ loaded: false, players: [], clusters: [] });
   const headingRef = useRef<HTMLHeadingElement>(null);
   const inspectorRef = useRef<HTMLElement>(null);
   const buildBoxOffset = useRef({ x: 0, y: 0 });
@@ -168,8 +162,6 @@ function WildsWorldMapView({
   closeRef.current = onClose;
   const refreshWorldRef = useRef(onRefreshWorld);
   refreshWorldRef.current = onRefreshWorld;
-  const refreshInFlight = useRef(false);
-  const refreshGeneration = useRef(0);
   const atlasOrigin = useRef((() => {
     const region = regionForPosition(currentPosition);
     return { x: region.x + 0.5, z: region.z + 0.5 };
@@ -213,7 +205,7 @@ function WildsWorldMapView({
     visibleRegions: staticProjection.territory ? undefined : staticProjection.nodes
   }), [currentPosition, explorationAtlas, remotePlayers, staticProjection.nodes, staticProjection.territory]);
   const projection = useMemo(() => {
-    const presence = atlasPresence.loaded
+    const presence = atlasPresence
       ? filterWildsAtlasPresence({ exactPlayers: atlasPresence.players, playerClusters: atlasPresence.clusters }, staticProjection.territory ?? staticProjection.nodes)
       : localPresence;
     return {
@@ -256,43 +248,6 @@ function WildsWorldMapView({
     window.addEventListener("focus", refresh);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, [open]);
-
-  useEffect(() => {
-    if (!open || !guestId) return;
-    let active = true;
-    const generation = ++refreshGeneration.current;
-    const refresh = async () => {
-      if (refreshInFlight.current) return;
-      refreshInFlight.current = true;
-      const params = new URLSearchParams({
-        x: String(currentPosition.x),
-        z: String(currentPosition.z),
-        guestId
-      });
-      try {
-        const response = await fetch(`/api/wilds/atlas?${params.toString()}`, { cache: "no-store" });
-        const result = await response.json().catch(() => null) as {
-          ok?: boolean;
-          players?: WildsAtlasExactPlayer[];
-          clusters?: WildsAtlasPlayerCluster[];
-        } | null;
-        if (active && generation === refreshGeneration.current && response.ok && result?.ok) {
-          setAtlasPresence({ loaded: true, players: result.players ?? [], clusters: result.clusters ?? [] });
-        }
-      } catch {
-        // The local room projection remains available while global atlas presence reconnects.
-      } finally {
-        refreshInFlight.current = false;
-      }
-    };
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 1_000);
-    return () => {
-      active = false;
-      refreshGeneration.current += 1;
-      window.clearInterval(timer);
-    };
-  }, [currentPosition.x, currentPosition.z, guestId, open]);
 
   const inspectPoint = (label: string, position: AtlasPosition) => {
     if (riftInFlight.current || !wildsExplorationContainsWorld(explorationAtlas, position)) return;

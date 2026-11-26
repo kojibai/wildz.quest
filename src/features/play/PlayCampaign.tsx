@@ -1453,7 +1453,7 @@ export function PlayCampaign({
     const warm = () => {
       if (cancelled || document.visibilityState !== 'visible') return;
       void import('../market/wildz-market-warmup').then(({getWildzMarketWarmup}) => {
-        if (!cancelled) return getWildzMarketWarmup(lazyMarket.service).ready();
+        if (!cancelled) return getWildzMarketWarmup(lazyMarket.service).prepareFirst();
       }).catch(() => { /* Opening Market can retry the same read. */ });
     };
     if ('requestIdleCallback' in window) {
@@ -4534,7 +4534,7 @@ export function PlayCampaign({
           ...current,
           explorationAtlas: mergeWildsMapDiscovery(current.explorationAtlas, atlas)
         }))}
-        guestId={multiplayer.guestId}
+        atlasPresence={multiplayer.atlasPresence}
         missionProgress={state.missionProgress}
         onClose={() => {
           releasePlayModalOwner("map");

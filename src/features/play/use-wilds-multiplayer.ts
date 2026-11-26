@@ -6,6 +6,7 @@ import type { WildsRoamingPresenceUpload } from "./wilds-roaming-presence";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createInviteRoom, expirePresence, roomKeyForPosition, type WildsPresence } from "./multiplayer-core";
 import type { WildsMultiplayerSnapshot } from "./multiplayer-ledger";
+import type { WildsAtlasPlayerCluster } from "./wilds-world-atlas";
 import type { PvpIntent } from "./pvp-battle-engine";
 import type { PortableCardAsset } from "./portable-card";
 import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
@@ -20,6 +21,12 @@ import {
 const GUEST_KEY = "receiz:wilds:multiplayer-guest:v1";
 const WILDS_MULTIPLAYER_HEARTBEAT_MS = 2_500;
 const WILDS_GLOBAL_PRESENCE_REFRESH_MS = 1_000;
+const EMPTY_GLOBAL_PLAYERS: WildsPresence[] = [];
+
+export type WildsLiveAtlasPresence = {
+  players: WildsPresence[];
+  clusters: WildsAtlasPlayerCluster[];
+};
 
 export function sameWildsMultiplayerPresence(left: WildsPresence[], right: WildsPresence[]) {
   if (left.length !== right.length) return false;
@@ -27,6 +34,8 @@ export function sameWildsMultiplayerPresence(left: WildsPresence[], right: Wilds
     const candidate = right[index];
     return Boolean(candidate
       && player.playerId === candidate.playerId
+      && player.handle === candidate.handle
+      && player.style === candidate.style
       && player.x === candidate.x
       && player.z === candidate.z
       && player.status === candidate.status
@@ -110,7 +119,7 @@ export function useWildsMultiplayer(input: {
   const [guestId, setGuestId] = useState("");
   const [roomOverride, setRoomOverride] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<WildsMultiplayerSnapshot | null>(null);
-  const [globalPlayers, setGlobalPlayers] = useState<WildsPresence[]>([]);
+  const [atlasPresence, setAtlasPresence] = useState<WildsLiveAtlasPresence | null>(null);
   const [selfId, setSelfId] = useState("");
   const [mode, setMode] = useState<"connecting" | "receiz_live" | "local_practice" | "reconnecting">("connecting");
   const [error, setError] = useState("");
@@ -263,11 +272,12 @@ export function useWildsMultiplayer(input: {
     return () => window.removeEventListener("online", resume);
   }, [heartbeat, refresh]);
 
-  const refreshGlobalPresence = useCallback(async () => {
+  const refreshGlobalPresence = useCallback(async (signal: AbortSignal) => {
     if (!latest.current.enabled || document.visibilityState !== "visible" || !guestId) return;
-    setGlobalPlayers(players => {
-      const live = expirePresence(players);
-      return live.length === players.length ? players : live;
+    setAtlasPresence(previous => {
+      if (!previous) return previous;
+      const players = expirePresence(previous.players);
+      return players.length === previous.players.length ? previous : { ...previous, players };
     });
     if (!shouldAttemptWildsNetwork()) return;
     const current = latest.current;
@@ -277,10 +287,19 @@ export function useWildsMultiplayer(input: {
         z: String(current.position.z),
         guestId
       });
-      const result = await jsonRequest<{ players: WildsPresence[] }>(`/api/wilds/atlas?${params.toString()}`, { cache: "no-store" });
-      const players = result.players ?? [];
+      const result = await jsonRequest<WildsLiveAtlasPresence>(`/api/wilds/atlas?${params.toString()}`, { cache: "no-store", signal });
+      if (signal.aborted) return;
+      const { players = [], clusters = [] } = result;
       startTransition(() => {
-        setGlobalPlayers((currentPlayers) => sameWildsMultiplayerPresence(currentPlayers, players) ? currentPlayers : players);
+        setAtlasPresence(previous => {
+          if (signal.aborted) return previous;
+          const sameClusters = previous?.clusters.length === clusters.length && clusters.every((cluster, index) => {
+            const prior = previous.clusters[index];
+            return prior?.id === cluster.id && prior.count === cluster.count;
+          });
+          return previous && sameClusters && sameWildsMultiplayerPresence(previous.players, players)
+            ? previous : { players, clusters };
+        });
       });
     } catch {
       // Retain the last short-lived atlas projection until the next heartbeat.
@@ -290,17 +309,18 @@ export function useWildsMultiplayer(input: {
 
   useEffect(() => {
     if (!input.enabled || !pageVisible) return;
-    let stopped = false;
+    const controller = new AbortController();
+    const { signal } = controller;
     let timer: number | null = null;
     const tickPresence = () => {
-      if (stopped) return;
-      void refreshGlobalPresence().finally(() => {
-        if (!stopped) timer = window.setTimeout(tickPresence, WILDS_GLOBAL_PRESENCE_REFRESH_MS);
+      if (signal.aborted) return;
+      void refreshGlobalPresence(signal).finally(() => {
+        if (!signal.aborted) timer = window.setTimeout(tickPresence, WILDS_GLOBAL_PRESENCE_REFRESH_MS);
       });
     };
     tickPresence();
     return () => {
-      stopped = true;
+      controller.abort();
       if (timer !== null) window.clearTimeout(timer);
     };
   }, [input.enabled, pageVisible, refreshGlobalPresence]);
@@ -340,6 +360,7 @@ export function useWildsMultiplayer(input: {
     return url.toString();
   }, [guestId, input.activeCard, input.position, roomKey, selfId]);
 
+  const globalPlayers = atlasPresence?.players ?? EMPTY_GLOBAL_PLAYERS;
   const remotePlayers = useMemo(() => {
     const newestByPlayer = new Map<string, WildsPresence>();
     const roomPlayers = input.surfaceOpen ? snapshot?.players ?? [] : [];
@@ -365,6 +386,7 @@ export function useWildsMultiplayer(input: {
     mode,
     error,
     snapshot,
+    atlasPresence,
     remotePlayers,
     selectedPlayer,
     selectedPlayerId,

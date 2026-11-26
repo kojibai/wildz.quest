@@ -109,6 +109,7 @@ export function createWildsWalletControllerDriver(input: {
     const identityKey = state.identityKey;
     const authorityGeneration = state.authorityGeneration;
     const observationAtStart = observationRevision;
+    const hasCurrentTransport = state.status === "verified" && state.balanceBasis === "current" && !state.transportAuthorityRequired;
     publish({ type: "refresh-start", requestId: request.id });
     const operation = (async () => {
       const cleanups: Array<() => void> = [];
@@ -127,11 +128,13 @@ export function createWildsWalletControllerDriver(input: {
             cleanups.push(cleanup);
           });
         };
-        const details = Promise.allSettled([
+        const readDetails = () => Promise.allSettled([
           read("/api/wilds/wallet/capabilities"),
           read("/api/wilds/wallet/ledger")
         ]);
-        const summary = await read("/api/wilds/wallet/summary");
+        const summaryRead = read("/api/wilds/wallet/summary");
+        const parallelDetails = hasCurrentTransport ? readDetails() : null;
+        const summary = await summaryRead;
         if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted || observationRevision !== observationAtStart) return;
         let response = admitWildsWalletReadResponse({ summary, capabilities: projectWildsWalletCapabilities(), ledger: null });
         const publishResponse = (pendingDetails: boolean) => {
@@ -142,7 +145,8 @@ export function createWildsWalletControllerDriver(input: {
         };
         publishResponse(true);
         observe("live");
-        const [capabilities, ledger] = await details;
+        if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted || observationRevision !== observationAtStart) return;
+        const [capabilities, ledger] = await (parallelDetails ?? readDetails());
         if (!runtime.isCurrentRefresh(request.id) || request.controller.signal.aborted || observationRevision !== observationAtStart) return;
         // Optional endpoint failures must not hide a successfully admitted balance.
         if (capabilities.status === "fulfilled") {

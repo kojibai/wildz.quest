@@ -77,3 +77,23 @@ test('a changed current first screen is complete before a warmed Market is revea
  await warm.ready();snapshot={...snapshot,collection:[next]};await warm.ready();
  assert.equal(preparer.peek([next]).size,1);assert.equal(preparer.peek([next]).get(`${next.assetId}:${next.proofDigest}:changed_keeper`)?.card.asset,next.asset);
 });
+
+test('background warming only prepares the first screen until Market opens',async()=>{
+ const cards=Array.from({length:30},(_,i)=>{
+  const asset=sealCollectedCard({formId:'mintcub-1',ownerReceizId:'idle_market.receiz.id',encounterId:`idle-market:${i}`,capturedAt:'2026-10-10T12:00:00.000Z'});
+  return {assetId:asset.id,title:asset.manifest.name,proofDigest:asset.proof.digest,ownerHandle:'idle_market.receiz.id',claimKaiUPulse:null,claimHead:null,asset};
+ });
+ let reads=0,decodes=0;
+ const snapshot:WildzMarketSnapshotV128={status:'ready',message:'',listings:[],purchases:[],sellables:[],collection:cards};
+ const service={snapshot:()=>snapshot,read:async()=>{reads++;return snapshot;}} as unknown as WildzMarketServiceV128;
+ const preparer=createWildzMarketCardPreparer({decodeImage:async()=>{decodes++;}});
+ const warm=createWildzMarketWarmup(service,preparer);
+ await warm.prepareFirst();
+ for(let i=0;i<8;i++)await new Promise<void>(resolve=>setImmediate(resolve));
+ assert.equal(reads,1);assert.equal(decodes,6);
+ assert.equal(preparer.peek(cards.slice(6)).size,0);
+ await warm.ready();
+ for(let i=0;i<12;i++)await new Promise<void>(resolve=>setImmediate(resolve));
+ assert.equal(reads,1);
+ assert.equal(preparer.peek(cards.slice(6)).size,24);
+});

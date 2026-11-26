@@ -108,8 +108,13 @@ export function useWildsPresentation({
 
   useEffect(() => {
     if (!enabled || audioReady || audioSettings.muted) return;
-    const unlock = () => { void unlockAudio(); };
-    window.addEventListener("pointerdown", unlock, { once: true });
+    const unlock = (event: PointerEvent) => {
+      // Opening or using the Atlas should not construct the game's audio context.
+      if (event.target instanceof Element && event.target.closest(".wildz-minimap, .wilds-world-map")) return;
+      window.removeEventListener("pointerdown", unlock);
+      void unlockAudio();
+    };
+    window.addEventListener("pointerdown", unlock);
     return () => window.removeEventListener("pointerdown", unlock);
   }, [audioReady, audioSettings.muted, enabled, unlockAudio]);
 

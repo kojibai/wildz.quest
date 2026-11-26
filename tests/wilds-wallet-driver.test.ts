@@ -568,3 +568,29 @@ test("an explicit source cannot inherit a pending unspecified source with the sa
   driver.setAuthority("keeper", "same-key", "same-key"); release(); await old;
   assert.equal(driver.state.sourceAuthorityVerified, false); assert.equal(driver.state.sourceKey, "same-key"); driver.dispose();
 });
+
+test("a cold wallet refuses optional transport reads until its summary is admitted", async () => {
+  const paths: string[] = [];
+  let authorized = false;
+  const driver = createWildsWalletControllerDriver({
+    identityKey: "cold-keeper",
+    authorityGeneration: "cold-session",
+    cache: createWildsWalletSessionCache(4),
+    publish() {},
+    async fetcher(path) {
+      paths.push(path);
+      if (!authorized) return { ok: false, status: 401, json: async () => ({ error: "receiz_wallet_read_scope_required" }) };
+      const part = path.endsWith("summary") ? response().summary : path.endsWith("capabilities") ? response().capabilities : response().ledger;
+      return { ok: true, status: 200, json: async () => part };
+    }
+  });
+  await driver.refresh();
+  assert.deepEqual(paths, ["/api/wilds/wallet/summary"]);
+  assert.equal(driver.state.status, "authority-required");
+  authorized = true;
+  paths.length = 0;
+  await driver.refresh();
+  assert.deepEqual(paths, ["/api/wilds/wallet/summary", "/api/wilds/wallet/capabilities", "/api/wilds/wallet/ledger"]);
+  assert.equal(driver.state.summary?.admittedPhiMicro, "1");
+  assert.equal(driver.state.ledger?.entries.length, 0);
+});

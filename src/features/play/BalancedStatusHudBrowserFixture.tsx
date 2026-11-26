@@ -73,6 +73,7 @@ export function BalancedStatusHudBrowserFixture() {
     selfId: "fixture-self",
     mode: "receiz_live" as const,
     error: "",
+    atlasPresence: null,
     snapshot: challenge ? {
       schema: "receiz.wilds_multiplayer_room.v1" as const,
       roomKey: "wilds:fixture:0:0",

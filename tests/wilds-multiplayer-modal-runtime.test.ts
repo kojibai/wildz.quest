@@ -37,6 +37,7 @@ function controller(): WildsMultiplayerController {
     mode: "receiz_live",
     error: "",
     snapshot: null,
+    atlasPresence: null,
     remotePlayers: [remotePlayer],
     selectedPlayer: remotePlayer,
     selectedPlayerId: remotePlayer.playerId,

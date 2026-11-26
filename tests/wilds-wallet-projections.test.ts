@@ -105,7 +105,9 @@ describe("Wilds wallet projections", () => {
   it("bounds server-owned cursors", () => {
     assert.equal(normalizeWildsWalletCursor(null), null);
     assert.equal(normalizeWildsWalletCursor("aB_9-xy"), "aB_9-xy");
-    for (const invalid of ["cursor=forged", "x".repeat(257), "with space"]) {
+    const combinedSourceCursor = "aB_9-xy".repeat(120);
+    assert.equal(normalizeWildsWalletCursor(combinedSourceCursor), combinedSourceCursor);
+    for (const invalid of ["cursor=forged", "x".repeat(2_049), "with space"]) {
       assert.throws(() => normalizeWildsWalletCursor(invalid), /wilds_wallet_cursor_invalid/);
     }
   });
@@ -184,7 +186,10 @@ describe("Wilds wallet projections", () => {
     }, "kai_01");
 
     assert.equal(page("2026-08-21T12:00:00.000Z").entries[0]?.createdAt, "2026-08-21T12:00:00.000Z");
-    for (const invalid of ["0", "2026-08-21T12:00:00Z", "2026-08-21 12:00:00.000Z", "x".repeat(65)]) {
+    assert.equal(page("2026-08-21T12:00:00.123456+00:00").entries[0]?.createdAt, "2026-08-21T12:00:00.123Z");
+    assert.equal(page("2026-08-21T12:00:00.1+00:00").entries[0]?.createdAt, "2026-08-21T12:00:00.100Z");
+    assert.equal(page("2026-08-21T12:00:00+00:00").entries[0]?.createdAt, "2026-08-21T12:00:00.000Z");
+    for (const invalid of ["0", "2026-08-21T12:00:00Z", "2026-08-21 12:00:00.000Z", "2026-02-30T12:00:00.000000+00:00", "2026-08-21T12:00:00.123456+05:00", "x".repeat(65)]) {
       assert.throws(() => page(invalid), /wilds_wallet_ledger_invalid/);
     }
   });

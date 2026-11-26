@@ -33,21 +33,24 @@ export function createWildzMarketWarmup(service:WildzMarketServiceV128,preparer=
   aheadController?.abort();aheadController=new AbortController();aheadIdentity=identity;
   const operation=preparer.prepare(cards,aheadController.signal).catch(()=>undefined).finally(()=>{if(ahead===operation)ahead=null;});ahead=operation;
  };
- const ready=(generation=cancellation):Promise<void>=>{
+ const prepareFirst=(generation=cancellation):Promise<void>=>{
   if(generation!==cancellation)return Promise.reject(new DOMException('Market entry was cancelled.','AbortError'));
-  if(pending)return controller?.signal.aborted?pending.catch(()=>undefined).then(()=>ready(generation)):pending;
+  if(pending)return controller?.signal.aborted?pending.catch(()=>undefined).then(()=>prepareFirst(generation)):pending;
   const held=loaded?service.snapshot():null;
-  if(held&&preparer.peek(browseCards(held)).size===browseCards(held).length){update();prefetch(held,generation);return Promise.resolve();}
+  const heldCards=held?browseCards(held):null;
+  if(heldCards&&preparer.peek(heldCards).size===heldCards.length){preparer.pin(heldCards);return Promise.resolve();}
   controller=new AbortController();const signal=controller.signal;
   const operation=(async()=>{
    const snapshot=held??await service.read();signal.throwIfAborted();
-   const cards=browseCards(snapshot);preparer.pin(cards);await preparer.prepare(cards,signal);
+   const cards=heldCards??browseCards(snapshot);preparer.pin(cards);await preparer.prepare(cards,signal);
    loaded=true;
-   prefetch(snapshot,generation);
   })().finally(()=>{if(pending===operation)pending=null;});
   pending=operation;return operation;
  };
- return {preparer,update,cancel(){cancellation++;controller?.abort();aheadController?.abort();},ready};
+ const ready=(generation=cancellation)=>prepareFirst(generation).then(()=>{
+  if(generation===cancellation)prefetch(service.snapshot(),generation);
+ });
+ return {preparer,update,cancel(){cancellation++;controller?.abort();aheadController?.abort();},prepareFirst,ready};
 }
 export function getWildzMarketWarmup(service:WildzMarketServiceV128){
  let session=sessions.get(service);if(!session){session=createWildzMarketWarmup(service);sessions.set(service,session);}return session;

@@ -183,8 +183,6 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(canvas, /qualityProfile\.dpr/);
     assert.match(canvas, /instancedMesh/);
     assert.doesNotMatch(canvas, /function AtlasBackdrop/);
-    assert.match(map, /refreshInFlight/);
-    assert.match(map, /refreshGeneration/);
     assert.match(map, /const staticProjection = useMemo/);
     assert.match(map, /players:\s*\[\]/);
     assert.match(map, /aria-label="Center map on your current location"/);
@@ -938,6 +936,30 @@ describe("Receiz Wilds rendering contract", () => {
     const worldControls = campaign.slice(campaign.indexOf("<WildzWorldControls"));
     assert.doesNotMatch(worldControls, /<WildsAudioSettings/);
   });
+});
+
+it("shares one live presence read between the Atlas and the multiplayer roster", async () => {
+  const map = await readFile("src/features/play/WildsWorldMap.tsx", "utf8");
+  const campaign = await readFile("src/features/play/PlayCampaign.tsx", "utf8");
+  const multiplayer = await readFile("src/features/play/use-wilds-multiplayer.ts", "utf8");
+
+  assert.doesNotMatch(map, /\/api\/wilds\/atlas/);
+  assert.match(campaign, /atlasPresence=\{multiplayer\.atlasPresence\}/);
+  assert.match(map, /filterWildsAtlasPresence\(\{ exactPlayers: atlasPresence\.players, playerClusters: atlasPresence\.clusters \}/);
+  assert.equal(multiplayer.match(/\/api\/wilds\/atlas/g)?.length, 1);
+  assert.match(multiplayer, /if \(signal\.aborted\) return;/);
+  assert.match(multiplayer, /controller\.abort\(\)/);
+});
+
+it("keeps a cold audio context off Atlas gestures without consuming the next gameplay gesture", async () => {
+  const hook = await readFile("src/features/play/use-wilds-presentation.ts", "utf8");
+  const trigger = await readFile("src/features/play/WildzMinimap.tsx", "utf8");
+  const map = await readFile("src/features/play/WildsWorldMap.tsx", "utf8");
+
+  assert.match(trigger, /className="wildz-minimap"/);
+  assert.match(map, /className=\{`wilds-world-map/);
+  assert.match(hook, /event\.target\.closest\("\.wildz-minimap, \.wilds-world-map"\)\) return;\s*window\.removeEventListener\("pointerdown", unlock\);\s*void unlockAudio\(\);/);
+  assert.match(hook, /window\.addEventListener\("pointerdown", unlock\);/);
 });
 
 it("Atlas Build opens on the held view and keeps detailed placement terrain bounded", async () => {

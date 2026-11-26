@@ -5,7 +5,8 @@ import {
 } from "./oauth-scopes";
 import { RECEIZ_SDK_VERSION } from "@receiz/sdk";
 
-const MAX_CURSOR_LENGTH = 256;
+// The public feed can retain independent sealed positions for its native and legacy sources.
+const MAX_CURSOR_LENGTH = 2_048;
 const MAX_LEDGER_ENTRIES = 50;
 const MAX_PROFILE_MARK_LENGTH = 12;
 
@@ -97,12 +98,17 @@ function stringField(record: Record<string, unknown>, keys: readonly string[]) {
 }
 
 function normalizeCreatedAt(value: unknown) {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
-    throw new Error("wilds_wallet_ledger_invalid");
-  }
-  const instant = new Date(value);
-  if (Number.isNaN(instant.valueOf()) || instant.toISOString() !== value) throw new Error("wilds_wallet_ledger_invalid");
-  return instant.toISOString();
+  if (typeof value !== "string") throw new Error("wilds_wallet_ledger_invalid");
+  const utcTime = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{3})Z|(?:\.(\d{1,6}))?\+00:00)$/.exec(value);
+  if (!utcTime) throw new Error("wilds_wallet_ledger_invalid");
+
+  // The Receiz ledger may carry PostgreSQL microseconds. Only this display
+  // timestamp is normalized. Ordering and continuation use the source fields.
+  const milliseconds = (utcTime[2] ?? utcTime[3] ?? "").slice(0, 3).padEnd(3, "0");
+  const normalized = `${utcTime[1]}.${milliseconds}Z`;
+  const instant = new Date(normalized);
+  if (Number.isNaN(instant.valueOf()) || instant.toISOString() !== normalized) throw new Error("wilds_wallet_ledger_invalid");
+  return normalized;
 }
 
 function normalizePulse(value: unknown) {
