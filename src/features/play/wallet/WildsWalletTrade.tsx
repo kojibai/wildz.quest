@@ -76,8 +76,8 @@ export function WildsWalletTrade({ publicUsername, cards = [], nourishment, mate
     try {
       if (!publicUsername) throw Error("Sign in with your Receiz ID to propose a trade.");
       if (restored.error) throw Error(restored.error);
-      const amount = phi.trim() ? parseWildsPhiInput(phi) : "0";
-      const requested = requestedPhi.trim() ? parseWildsPhiInput(requestedPhi) : "0";
+      const amount = phi.trim() ? parseWildsPhiInput(phi, { allowZero: true }) : "0";
+      const requested = requestedPhi.trim() ? parseWildsPhiInput(requestedPhi, { allowZero: true }) : "0";
       if (amount === null || requested === null) throw Error("Enter an exact PHI amount with up to six decimal places.");
       const draft = createWildsWalletTradeDraft({ attemptId: `wallet:trade:${crypto.randomUUID()}`, recipient, selfHandle: publicUsername,
         phiMicro: amount, requestedPhiMicro: requested, requestNote, selections: chosen });

@@ -547,3 +547,13 @@ test("expired read authorization preserves the current amount while renewing, wi
   assert.equal(state.summary?.admittedPhiMicro, "42");
   assert.equal(state.transportAuthorityRequired, false);
 });
+
+
+test("asset-only counteroffers round-trip formatted zero PHI while Send still requires positive value", async () => {
+  const { formatWildsPhiExact, parseWildsPhiInput } = await import("../src/features/play/wallet/wilds-wallet-format");
+  const carriedAmount = formatWildsPhiExact("0");
+  assert.equal(parseWildsPhiInput(carriedAmount, { allowZero: true }), "0");
+  assert.equal(parseWildsPhiInput(".000000", { allowZero: true }), "0");
+  assert.equal(parseWildsPhiInput(carriedAmount), null);
+  assert.equal(parseWildsPhiInput("0.0000001", { allowZero: true }), null);
+});

@@ -16,13 +16,13 @@ export function formatWildsPhiCompact(microPhi: string) {
   return `${whole.slice(0, headLength)}${decimal && decimal !== "0" ? `.${decimal}` : ""}${suffixes[tier]}`;
 }
 
-export function parseWildsPhiInput(value: string) {
+export function parseWildsPhiInput(value: string, options?: Readonly<{ allowZero?: boolean }>) {
   const trimmed = value.trim();
   const normalized = trimmed.startsWith(".") ? `0${trimmed}` : trimmed;
   if (!/^(?:0|[1-9][0-9]{0,23})(?:\.[0-9]{1,6})?$/.test(normalized)) return null;
   const [whole, fraction = ""] = normalized.split(".");
   const micro = `${whole}${fraction.padEnd(6, "0")}`.replace(/^0+(?=\d)/, "");
-  return micro === "0" ? null : micro;
+  return micro === "0" && !options?.allowZero ? null : micro;
 }
 
 export function formatWildsUsdCents(cents: string) {
