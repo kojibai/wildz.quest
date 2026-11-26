@@ -885,6 +885,7 @@ export function PlayCampaign({
   const standaloneMessengerHandle = walletReadIdentityKey ? walletTradeOwnerHandle : null;
   const messenger = useWildsMessenger({
     guestId: multiplayer.guestId,
+    authorizeWalletRead: walletReadAuthorization?.authorize,
     selfId: marketOnly ? marketMessengerPrincipal ?? standaloneMessengerHandle ?? "" : multiplayer.selfId,
     selfHandle: marketOnly ? standaloneMessengerHandle ?? "Explorer" : messengerSelfHandle,
     livePeers: multiplayer.remotePlayers.filter((entry) => !entry.practice).map((entry) => ({ id: entry.playerId, handle: entry.handle }))

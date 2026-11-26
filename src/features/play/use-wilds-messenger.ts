@@ -25,7 +25,7 @@ import type {
 } from "@/lib/receiz/wilds-card-transfer";
 import { resourceOfferMessage } from './wilds-resource-messaging';
 import { formatWildsPhiExact } from "./wallet/wilds-wallet-format";
-import { assertWildsPrivateMessagePublished, wildsMessageRequestFailure } from "./wilds-messenger-delivery";
+import { assertWildsPrivateMessagePublished, retryWildsWalletMessageAfterAuthorityRefusal, wildsMessageRequestFailure } from "./wilds-messenger-delivery";
 import { validateWildsWalletTradeMessage, wildsWalletTradeMessageId, type WildsWalletTradeMessage } from "./wallet/wilds-wallet-trade-messaging";
 import { admitWildsWalletStagedTradeMessage, wildsWalletStagedTradeMessageId } from "./wallet/wilds-wallet-staged-trade-messaging";
 import type { WildsWalletStagedTradeMessage } from "./wallet/wilds-wallet-staged-trade-types";
@@ -98,6 +98,7 @@ export function useWildsMessenger(input: {
   guestId: string;
   selfId: string;
   selfHandle: string;
+  authorizeWalletRead?: () => Promise<boolean>;
   livePeers: readonly WildsMessengerParticipant[];
 }) {
   const [messageAlert, setMessageAlert] = useState<{ peer: WildsMessengerParticipant; body: string } | null>(null);
@@ -408,24 +409,33 @@ export function useWildsMessenger(input: {
     }
   }, [input.guestId, input.selfHandle, input.selfId, selectedPeer]);
 
+  const { authorizeWalletRead, selfId: walletMessageActor } = input;
+  const requestWalletThread = useCallback((request: RequestInit) => {
+    const dispatch = () => messengerRequest<{ conversation: WildsConversation; publication?: unknown }>("/api/wilds/messages/thread", request);
+    return retryWildsWalletMessageAfterAuthorityRefusal(dispatch, async () => {
+      if (!authorizeWalletRead || !walletMessageActor || hydratedActorRef.current !== walletMessageActor) return false;
+      return await authorizeWalletRead() && hydratedActorRef.current === walletMessageActor;
+    });
+  }, [authorizeWalletRead, walletMessageActor]);
+
   const sendResourceClaim = useCallback(async (peer: WildsMessengerParticipant, claimProof: string) => {
     if (!input.selfId) throw Error('Sign in to send resource cards.');
     const context = resourceOfferMessage(claimProof);
-    const result = await messengerRequest<{ conversation: WildsConversation; publication?: unknown }>('/api/wilds/messages/thread', {
+    const result = await requestWalletThread({
       method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ action: 'resource-offer', guestId: input.guestId, peer, message: context.title, clientMessageId: context.claimId, context })
     });
     rememberPeer(peer);
     setConversations(current => admitConversationState(current, result.conversation));
     assertWildsPrivateMessagePublished(result.publication);
-  }, [input.guestId, input.selfId, rememberPeer]);
+  }, [input.guestId, input.selfId, rememberPeer, requestWalletThread]);
 
   const sendTradePackage = useCallback(async (context: WildsWalletTradeMessage) => {
     if (!input.selfId || input.selfId.startsWith("guest:")) throw Error("Sign in to propose a trade.");
     const actor = input.selfId;
     const peer = {id: context.draft.recipientHandle, handle: context.draft.recipientHandle};
     const admitted = validateWildsWalletTradeMessage(context, input.selfHandle, peer.handle);
-    const result = await messengerRequest<{conversation: WildsConversation; publication?: unknown}>("/api/wilds/messages/thread", {
+    const result = await requestWalletThread({
       method: "POST", credentials: "same-origin", headers: {"content-type": "application/json"},
       body: JSON.stringify({action: "trade-package", guestId: input.guestId, peer,
         message: admitted.stage === "counteroffer" ? "Trade counteroffer — review the package in Wallet." : "Trade offer — review the package in Wallet.",
@@ -435,13 +445,13 @@ export function useWildsMessenger(input: {
     if (hydratedActorRef.current !== actor) throw Error("The signed-in Explorer changed. Reopen the wallet.");
     rememberPeer(peer); setConversations(current => admitConversationState(current, result.conversation));
     return admitted.draft.attemptId;
-  }, [input.guestId, input.selfHandle, input.selfId, rememberPeer]);
+  }, [input.guestId, input.selfHandle, input.selfId, rememberPeer, requestWalletThread]);
 
   const sendMarketOffer=useCallback(async(context:WildzMarketOfferMessage,peerHandle:string)=>{
     if(!input.selfId||input.selfId.startsWith('guest:'))throw Error('Sign in to send an offer.');
     const actor=input.selfId,peer={id:peerHandle,handle:peerHandle};
     const admitted=admitWildzMarketOfferMessage(context,input.selfHandle,peerHandle);
-    const result=await messengerRequest<{conversation:WildsConversation;publication?:unknown}>('/api/wilds/messages/thread',{
+    const result=await requestWalletThread({
       method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({action:'market-offer',guestId:input.guestId,peer,
         message:admitted.kind==='market-offer'?`New offer for ${admitted.offer.title}. Review it in Market.`:admitted.outcome==='accepted'?`Your offer for ${admitted.offer.title} was accepted. Review the purchase in Market.`:`Offer for ${admitted.offer.title} ${admitted.outcome}.`,
         clientMessageId:wildzMarketOfferMessageId(admitted),context:admitted})
@@ -449,14 +459,14 @@ export function useWildsMessenger(input: {
     if(hydratedActorRef.current!==actor)throw Error('The signed-in Explorer changed. Reopen Market.');
     rememberPeer(peer);setConversations(current=>admitConversationState(current,result.conversation));
     assertWildsPrivateMessagePublished(result.publication);
-  },[input.guestId,input.selfHandle,input.selfId,rememberPeer]);
+  },[input.guestId,input.selfHandle,input.selfId,rememberPeer, requestWalletThread]);
 
   const sendStagedTrade = useCallback(async (context: WildsWalletStagedTradeMessage, peerHandle: string) => {
     if (!input.selfId || input.selfId.startsWith("guest:")) throw Error("Sign in to approve a trade.");
     const actor = input.selfId;
     const peer = {id: peerHandle, handle: peerHandle};
     const admitted = admitWildsWalletStagedTradeMessage(context, input.selfHandle, peerHandle);
-    const result = await messengerRequest<{conversation: WildsConversation; publication?: unknown}>("/api/wilds/messages/thread", {
+    const result = await requestWalletThread({
       method: "POST", credentials: "same-origin", headers: {"content-type": "application/json"},
       body: JSON.stringify({action: "trade-staged", guestId: input.guestId, peer,
         message: admitted.kind === "trade-staged-approval" ? "Trade agreement approved. Review the exact stages in Wallet." : "Trade stage update. Check the original agreement in Wallet.",
@@ -465,7 +475,7 @@ export function useWildsMessenger(input: {
     assertWildsPrivateMessagePublished(result.publication);
     if (hydratedActorRef.current !== actor) throw Error("The signed-in Explorer changed. Reopen the wallet.");
     rememberPeer(peer); setConversations(current => admitConversationState(current, result.conversation));
-  }, [input.guestId, input.selfHandle, input.selfId, rememberPeer]);
+  }, [input.guestId, input.selfHandle, input.selfId, rememberPeer, requestWalletThread]);
 
   const readTradeConversations = useCallback(async () => {
     const fresh = await refreshInbox(true);
@@ -482,21 +492,21 @@ export function useWildsMessenger(input: {
     if(!input.selfId||input.selfId.startsWith('guest:'))throw Error('Sign in to send this gift.');
     const actor=input.selfId,peer={id:peerHandle,handle:peerHandle};
     const admitted=admitWildsWalletBearerGiftMessage(context,input.selfHandle,peerHandle);
-    const result=await messengerRequest<{conversation:WildsConversation;publication?:unknown}>('/api/wilds/messages/thread',{
+    const result=await requestWalletThread({
       method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({action:'trade-bearer',guestId:input.guestId,peer,
         message:admitted.kind==='trade-bearer-source'?'Your agreed gift is ready to receive in Wallet.':'Your agreed gift was received. Check the saved trade in Wallet.',
         clientMessageId:wildsWalletBearerGiftMessageId(admitted),context:admitted})});
     assertWildsPrivateMessagePublished(result.publication);
     if(hydratedActorRef.current!==actor)throw Error('The signed-in Explorer changed. Reopen the wallet.');
     rememberPeer(peer);setConversations(current=>admitConversationState(current,result.conversation));return true;
-  },[input.selfId,input.selfHandle,input.guestId,rememberPeer]);
+  },[input.selfId,input.selfHandle,input.guestId,rememberPeer, requestWalletThread]);
 
 
   const sendResourceSource = useCallback(async (context: WildsWalletResourceSourceMessageV128, peerHandle: string) => {
     if (!input.selfId || input.selfId.startsWith("guest:")) throw Error("Sign in to send this package.");
     const actor = input.selfId, peer = {id: peerHandle, handle: peerHandle};
     const admitted = admitWildsWalletResourceSourceMessageV128(context, input.selfHandle, peerHandle);
-    const result = await messengerRequest<{conversation: WildsConversation; publication?: unknown}>("/api/wilds/messages/thread", {
+    const result = await requestWalletThread({
       method: "POST", credentials: "same-origin", headers: {"content-type": "application/json"},
       body: JSON.stringify({action: "trade-resource-source", guestId: input.guestId, peer,
         message: admitted.kind === "trade-resource-source" ? "Your agreed package is ready to receive in Wallet." : "Your agreed package was received. Check the saved trade in Wallet.",
@@ -505,7 +515,7 @@ export function useWildsMessenger(input: {
     assertWildsPrivateMessagePublished(result.publication);
     if (hydratedActorRef.current !== actor) throw Error("The signed-in Explorer changed. Reopen the wallet.");
     rememberPeer(peer); setConversations(current => admitConversationState(current, result.conversation)); return true;
-  }, [input.selfId, input.selfHandle, input.guestId, rememberPeer]);
+  }, [input.selfId, input.selfHandle, input.guestId, rememberPeer, requestWalletThread]);
 
   const recordPhiTransfer = useCallback(async (
     peer: WildsMessengerParticipant,

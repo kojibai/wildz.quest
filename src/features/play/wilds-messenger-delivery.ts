@@ -17,3 +17,19 @@ export function assertWildsPrivateMessagePublished(value: unknown) {
   const result = value && typeof value === "object" ? value as { published?: unknown; mode?: unknown } : null;
   if (result?.published !== true || result.mode !== "receiz_synced") throw Error("wilds_private_delivery_pending");
 }
+
+
+// The protected thread actions reject these codes before appending a message.
+export async function retryWildsWalletMessageAfterAuthorityRefusal<T>(
+  dispatch: () => Promise<T>,
+  renew: () => Promise<boolean>,
+): Promise<T> {
+  try {
+    return await dispatch();
+  } catch (cause) {
+    const code = cause instanceof Error ? cause.message : "";
+    if (code !== "receiz_wallet_authority_required" && code !== "wilds_wallet_bearer_identity_required") throw cause;
+    if (!await renew()) throw cause;
+    return dispatch();
+  }
+}
