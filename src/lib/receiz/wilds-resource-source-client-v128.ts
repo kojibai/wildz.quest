@@ -126,14 +126,19 @@ export function createWildsResourceSourceClientV128(input: Readonly<{
     let retained = await input.recoveryStore.read(ownerReceizId, request.attemptId);
     if (retained && (retained.schema !== "wildz.resource-source-attempt.v128" || retained.ownerReceizId !== ownerReceizId
       || retained.attemptId !== request.attemptId || retained.requestDigest !== requestDigest)) return conflict();
+    let prepared: Prepared | undefined;
     if (!retained) {
-      const prepared = await prepareWildsResourceSourcePageV128({ authority: input.authority, page });
-      retained = await input.recoveryStore.reserve({ schema: "wildz.resource-source-attempt.v128", ownerReceizId,
+      const fresh = await prepareWildsResourceSourcePageV128({ authority: input.authority, page });
+      const reservation: SourceAttempt = { schema: "wildz.resource-source-attempt.v128", ownerReceizId,
         attemptId: request.attemptId, requestDigest, idempotencyKey: `wildz:resource-source:${requestDigest}`,
-        preparation: { ...prepared, appendIndex: [...prepared.appendIndex] },
-        predecessorArtifact: page.predecessor?.artifact ?? null, sourceArtifact: null });
+        preparation: { ...fresh, appendIndex: [...fresh.appendIndex] },
+        predecessorArtifact: page.predecessor?.artifact ?? null, sourceArtifact: null };
+      retained = await input.recoveryStore.reserve(reservation);
+      // Reuse the same signed preparation after our reservation commits.
+      // A reopened or concurrently reserved preparation still needs validation.
+      if (retained === reservation) prepared = fresh;
     }
-    const prepared = await revalidatePreparation(retained, page, input.authority.grant.applicationId);
+    prepared ??= await revalidatePreparation(retained, page, input.authority.grant.applicationId);
     try {
       if (!retained.sourceArtifact) {
         const sealed = await input.sdk.assets.createProofObject(prepared.candidate.proofObject, {
