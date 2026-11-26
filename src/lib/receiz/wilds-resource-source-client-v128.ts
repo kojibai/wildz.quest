@@ -232,12 +232,14 @@ export async function openWildsResourceSourceAuthorityV128(input: Readonly<{
   if (!admitted.ok) throw Error(`wilds_resource_source_actor_${admitted.code}`);
   const actorSubject = await input.sdk.subjects.state(admitted.subjectId);
   if (actorSubject.ownerReceizId !== ownerReceizId || actorSubject.admittedProofDigest !== sealedActor.artifactSha256) throw Error("wilds_resource_source_actor_binding_invalid");
+  // The new carrier holds the exact admitted Subject State. Its own portable
+  // ownership starts at genesis because this seal does not append ownership.
   const subjectCandidate = await prepareReceizSubjectSourceProofObjectCandidateV124({ subjectState: actorSubject, portable: {
-    ownership: { ownerReceizId, custody: "current", proofRef: actorSubject.admittedProofDigest },
+    ownership: { ownerReceizId, custody: "current", proofRef: "genesis" },
     provenance: { root: `profile:${username}`, appends: [] }, settlement: { state: "none" },
   } });
   const sealedSubject = await input.sdk.assets.createProofObject(subjectCandidate.proofObject,
-    { idempotencyKey: `wildz:resource-actor-source:${actorSubject.stateDigest}`, filename: `wildz-resource-subject-${actorSubject.stateDigest}.receizbundle` });
+    { idempotencyKey: `wildz:resource-actor-source:${actorSubject.stateDigest}:${subjectCandidate.portableAssetDigest}`, filename: `wildz-resource-subject-${actorSubject.stateDigest}.receizbundle` });
   const subjectSourceArtifact = await transportReceizSealedArtifactV124(sealedSubject);
   await input.sdk.sources.publishSealedSourceV124({ applicationId: input.grant.applicationId, authoritySessionHandle: null, sourceArtifact: subjectSourceArtifact });
   const signedSessionChallenge = await createWildsResourceSessionChallengeV129(input);

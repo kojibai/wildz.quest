@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createReceizIdentityKeyFile, createReceizProofAuthorityChallenge, receizBase64UrlDecode, receizKaiNow, serializeReceizIdentityArtifact, sha256ReceizBytes, signReceizIdentityLoginProof, type ReceizClient } from "@receiz/sdk";
+import { createReceizIdentityKeyFile, createReceizProofAuthorityChallenge, deriveReceizPortableOwnershipContinuity, deriveReceizSubjectIdV122, digestReceizCanonicalV122, parseReceizPortableAssetDocument, receizBase64UrlDecode, receizKaiNow, serializeReceizIdentityArtifact, sha256ReceizBytes, signReceizIdentityLoginProof, type ReceizClient } from "@receiz/sdk";
 import { createWildsResourceSourceClientV128, createWildsResourceSourceRecoveryStoreV128, openWildsResourceSourceAuthorityV128 } from "../src/lib/receiz/wilds-resource-source-client-v128";
 import type { WildzContinuityDatabase } from "../src/lib/storage/wildz-indexed-db";
 import { prepareWildsResourceSourcePageV128 } from "../src/lib/receiz/wilds-resource-source-v128";
@@ -141,6 +141,47 @@ test("matching public identity and device consent reach the genuine SDK actor se
   const fixture = await bootstrapFixture();
   await assert.rejects(openWildsResourceSourceAuthorityV128(fixture.input), /bootstrap seal sentinel/);
   assert.equal(fixture.writes(), 1);
+});
+
+test("the actor Subject Source carries exact admitted state under an admissible portable ownership genesis", async () => {
+  const { input } = await bootstrapFixture();
+  const originalDigest = "1".repeat(64);
+  const fields = {
+    subjectId: await deriveReceizSubjectIdV122(originalDigest), proofObjectId: "document:actor-proof",
+    admittedProofDigest: originalDigest, immutableProofVersion: originalDigest,
+    ownerReceizId: "alice.receiz.id", ownerProofDigest: "3".repeat(64), genesisHead: "4".repeat(64),
+    registryDigest: "5".repeat(64), reducerDigest: "6".repeat(64),
+  };
+  const receipt = { schema: "receiz.subject.admission-receipt.v122", ...fields, kai: receizKaiNow().pulse,
+    idempotencyIdentityDigest: "7".repeat(64), authority: { receiptIsProofAuthority: false, strongerTruth: "sealed-receiz-proof-object" } };
+  const basis = { schema: "receiz.subject.state.v122", ...fields, subjectType: "document", opaqueNamespaces: [], head: fields.genesisHead,
+    ownershipHead: "8".repeat(64), admissionReceipt: { ...receipt, receiptDigest: await digestReceizCanonicalV122(receipt) },
+    causalParents: [], accessKeyHead: null, replay: { appendCursor: fields.genesisHead, eventCursor: "0" },
+    authority: { stateIsProofAuthority: false, strongerTruth: "sealed-receiz-proof-object" } };
+  const state = { ...basis, stateDigest: await digestReceizCanonicalV122(basis) };
+  const attempts: { key: string; bytes: Uint8Array }[] = [];
+  const sdk = {
+    assets: { async createProofObject(candidate: { payload: { bytes: Uint8Array } }, options: { idempotencyKey: string }) {
+      if (options.idempotencyKey.startsWith("wildz:resource-actor-source:")) {
+        const portable = await parseReceizPortableAssetDocument(JSON.parse(new TextDecoder().decode(candidate.payload.bytes)));
+        const ownership = await deriveReceizPortableOwnershipContinuity(portable);
+        assert.equal(ownership.ownerReceizId, fields.ownerReceizId);
+        const carrier = JSON.parse(new TextDecoder().decode(receizBase64UrlDecode(portable.payload.bytesBase64Url)));
+        const exactState = JSON.parse(new TextDecoder().decode(receizBase64UrlDecode(carrier.exactSubjectStateBytesB64u)));
+        assert.deepEqual(exactState, state);
+        const candidateDigest = await digestReceizCanonicalV122(portable);
+        assert.equal(options.idempotencyKey, `wildz:resource-actor-source:${state.stateDigest}:${candidateDigest}`);
+        attempts.push({ key: options.idempotencyKey, bytes: candidate.payload.bytes });
+        throw Error("Subject Source seal sentinel");
+      }
+      return { artifact: new Blob([new Uint8Array([1])]), artifactSha256: originalDigest };
+    } },
+    subjects: { admit: async () => ({ ok: true, subjectId: state.subjectId }), state: async () => state },
+  } as unknown as ReceizClient;
+  await assert.rejects(openWildsResourceSourceAuthorityV128({ ...input, sdk }), /Subject Source seal sentinel/);
+  await assert.rejects(openWildsResourceSourceAuthorityV128({ ...input, sdk }), /Subject Source seal sentinel/);
+  assert.equal(attempts.length, 2);
+  assert.deepEqual(attempts[0], attempts[1]);
 });
 
 async function bootstrapFixture() {
