@@ -2,6 +2,8 @@ import { messagePushPeers } from "@/lib/receiz/wilds-message-push";
 import { NextRequest, NextResponse } from "next/server";
 import { wildsConversationSummary } from "@/features/play/wilds-messenger-core";
 import { hydrateWildsConversation, hydrateWildsMessengerInbox } from "@/lib/receiz/wilds-messenger-server";
+import { hydrateWildzPrivateTrades } from "@/lib/receiz/wilds-private-trade-messenger";
+import { getWildsConversationsForActor } from "@/features/play/wilds-messenger-ledger";
 import { resolveWildsMultiplayerActor } from "@/lib/receiz/wilds-multiplayer-server";
 
 function parsePeers(value: string | null) {
@@ -22,9 +24,11 @@ export async function GET(request: NextRequest) {
     const peers = [...parsePeers(request.nextUrl.searchParams.get("peers")), ...await messagePushPeers(actor.playerId).catch(() => [])];
     const [published, explicit] = await Promise.all([
       hydrateWildsMessengerInbox(actor),
-      Promise.all(peers.map((peer) => hydrateWildsConversation(request, actor, peer)))
+      Promise.all(peers.map((peer) => hydrateWildsConversation(request, actor, peer))),
+      hydrateWildzPrivateTrades(request).catch(() => undefined),
     ]);
-    const byId = new Map([...published, ...explicit].map((conversation) => [conversation.id, conversation]));
+    const current = getWildsConversationsForActor(actor.playerId);
+    const byId = new Map([...published, ...explicit, ...current].map((conversation) => [conversation.id, conversation]));
     const summaries = [...byId.values()]
       .filter((conversation) => conversation.messages.length > 0)
       .map((conversation) => wildsConversationSummary(conversation, actor.playerId))

@@ -38,6 +38,7 @@ export type WildsDirectMessage = {
   deletedAt: string | null;
   replyToId: string | null;
   reactions: WildsDirectMessageReaction[];
+  nativeOriginal?: { messageId: string; receiptDigest: string };
   context?: WildzMarketOfferMessage | WildsWalletResourceSourceMessageV128 | WildsResourceOfferMessage | WildsWalletTradeMessage | WildsWalletStagedTradeMessage | WildsWalletBearerGiftMessage | {
     kind: "group-invite";
     roomId: string;
@@ -145,7 +146,10 @@ export function mergeWildsConversations(left: WildsConversation, right: WildsCon
   const revisionAt=(value:WildsDirectMessage)=>Math.max(Date.parse(value.createdAt),Date.parse(value.editedAt??value.createdAt),Date.parse(value.deletedAt??value.createdAt));
   for (const message of [...left.messages, ...right.messages]) {
     const current = byId.get(message.id);
-    if (!current || revisionAt(message)>=revisionAt(current)) byId.set(message.id, message);
+    if (!current || (message.nativeOriginal && !current.nativeOriginal)
+      || (Boolean(message.nativeOriginal) === Boolean(current.nativeOriginal) && revisionAt(message) >= revisionAt(current))) {
+      byId.set(message.id, message);
+    }
   }
   const readThrough: Record<string, string> = {};
   for (const actorId of new Set([...Object.keys(left.readThrough), ...Object.keys(right.readThrough)])) {

@@ -37,7 +37,7 @@ export function retainWildzReceizChatSession(input: { response: Response; baseUr
   return token.length <= 3800 ? token : null;
 }
 
-export function readWildzReceizChatSession(request: NextRequest, expected: { ownerReceizId: string; profileHandle: string; keyId: string }, secret = receizOAuthSecret()): WildzReceizChatSession {
+export function readWildzReceizChatSessionForIdentity(request: NextRequest, expected: { profileHandle: string; keyId: string }, secret = receizOAuthSecret()): WildzReceizChatSession {
   const token = request.cookies.get(WILDZ_RECEIZ_CHAT_SESSION_COOKIE)?.value;
   if (!token) throw new Error("receiz_wallet_connect_session_required");
   try {
@@ -48,12 +48,18 @@ export function readWildzReceizChatSession(request: NextRequest, expected: { own
     decipher.setAAD(Buffer.from(PURPOSE)); decipher.setAuthTag(Buffer.from(tag, "base64url"));
     const payload = JSON.parse(Buffer.concat([decipher.update(Buffer.from(bytes, "base64url")), decipher.final()]).toString("utf8")) as WildzReceizChatSession;
     if (payload.schema !== PURPOSE || payload.origin !== new URL(process.env.RECEIZ_BASE_URL || "https://receiz.com").origin
-      || payload.userId !== expected.ownerReceizId || payload.keyId !== expected.keyId
+      || !UUID.test(payload.userId) || payload.keyId !== expected.keyId
       || normalizeWildsWalletPublicUsername(payload.profileHandle) !== normalizeWildsWalletPublicUsername(expected.profileHandle)
       || typeof payload.cookie !== "string" || !/^[A-Za-z0-9._~-]{1,2200}$/.test(payload.cookie)
       || !Number.isSafeInteger(payload.issuedAt) || payload.issuedAt > Date.now() + 30_000 || Date.now() - payload.issuedAt >= MAX_AGE * 1000) throw new Error("binding");
     return Object.freeze(payload);
   } catch { throw new Error("receiz_wallet_connect_session_binding_invalid"); }
+}
+
+export function readWildzReceizChatSession(request: NextRequest, expected: { ownerReceizId: string; profileHandle: string; keyId: string }, secret = receizOAuthSecret()): WildzReceizChatSession {
+  const session = readWildzReceizChatSessionForIdentity(request, expected, secret);
+  if (session.userId !== expected.ownerReceizId) throw new Error("receiz_wallet_connect_session_binding_invalid");
+  return session;
 }
 
 /** The public SDK request port is limited to the two existing cookie-authenticated chat routes. */

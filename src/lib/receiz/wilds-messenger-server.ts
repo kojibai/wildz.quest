@@ -18,6 +18,7 @@ import {
 import { hostContextFromHost } from "@/lib/hosting/host-context";
 import { platform } from "@/lib/platform";
 import { createReceizCommerceAdapter } from "./adapter";
+import { isWildzPrivateTradeMessage } from "./wilds-private-trade-messenger";
 import type { WildsMultiplayerActor } from "./wilds-multiplayer-server";
 
 type WildsMessengerAdapterFactory = typeof createReceizCommerceAdapter;
@@ -57,11 +58,18 @@ async function withDeadline<T>(work: Promise<T>) {
   }
 }
 
+function publicConversationProjection(conversation: WildsConversation): WildsConversation {
+  return {
+    ...conversation,
+    messages: conversation.messages.filter(message => !message.nativeOriginal && !isWildzPrivateTradeMessage(message.context)),
+  };
+}
+
 function findConversation(value: unknown): WildsConversation | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  if (record.schema === "receiz.wilds_conversation.v1" && typeof record.id === "string") {
-    return record as WildsConversation;
+  if (record.schema === "receiz.wilds_conversation.v1" && typeof record.id === "string" && Array.isArray(record.messages)) {
+    return publicConversationProjection(record as WildsConversation);
   }
   for (const key of ["state", "data", "record", "appState", "result"]) {
     const found = findConversation(record[key]);
@@ -152,6 +160,7 @@ export async function publishWildsConversation(
   const peer = conversation.participants.find((participant) => participant.id !== actor.playerId);
   if (!peer) throw new Error("wilds_message_participant_required");
   const sourceUrl = wildsConversationSourceUrl(request, actor.playerId, peer.id);
+  const publicProjection = publicConversationProjection(conversation);
   const hostContext = hostContextFromHost(new URL(sourceUrl).host);
   const tenantHost = hostContext.tenantHost ?? hostContext.host ?? platform.domain;
   try {
@@ -166,8 +175,8 @@ export async function publishWildsConversation(
       projectionState: "published",
       visibility: "private",
       platform: platform.productName,
-      state: conversation as unknown as JsonObject,
-      data: conversation as unknown as JsonObject
+      state: publicProjection as unknown as JsonObject,
+      data: publicProjection as unknown as JsonObject
     }, { idempotencyKey: `${conversation.id}:${conversation.revision}` }));
     return { published: Boolean(result?.ok), mode: result?.ok ? "receiz_synced" as const : "sync_pending" as const };
   } catch {

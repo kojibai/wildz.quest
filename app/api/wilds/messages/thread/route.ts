@@ -19,7 +19,7 @@ import { sameWildzPlayerCoordinate } from '@/lib/receiz/wildz-player-coordinate'
 import { createReceizCommerceAdapter } from '@/lib/receiz/adapter';
 import { validateWildsWalletTradeMessage, wildsWalletTradeMessageId } from "@/features/play/wallet/wilds-wallet-trade-messaging";
 import { admitWildsWalletStagedTradeMessage, wildsWalletStagedTradeMessageId } from "@/features/play/wallet/wilds-wallet-staged-trade-messaging";
-import { canonicalPortableCardJson } from "@/features/play/portable-card";
+import { sendWildzPrivateTrade } from "@/lib/receiz/wilds-private-trade-messenger";
 import {admitWildsWalletBearerGiftMessage,wildsWalletBearerGiftMessageId} from '@/features/play/wallet/wilds-wallet-bearer-gift-messaging';
 
 function peerFrom(value: unknown) {
@@ -72,11 +72,10 @@ export async function POST(request: NextRequest) {
     const actor = await resolveWildsMultiplayerActor(request, body.guestId);
     const self = { id: actor.playerId, handle: actor.handle };
     const peer = peerFrom(body.peer);
-    await hydrateWildsConversation(request, actor, peer);
     const action = body.action;
     let marketOfferContext;
     if(action==='market-offer'){
-      if(!actor.accessToken||actor.practice)throw Error('receiz_wallet_authority_required');
+      if(actor.practice)throw Error('receiz_wallet_authority_required');
       marketOfferContext=admitWildzMarketOfferMessage(body.context,actor.handle,peer.handle);
       if(body.clientMessageId!==wildzMarketOfferMessageId(marketOfferContext))throw Error('wildz_market_offer_invalid');
     }
@@ -85,22 +84,22 @@ export async function POST(request: NextRequest) {
     let bearerGiftContext;
     let resourceSourceContext;
     if (action === "trade-resource-source") {
-      if (!actor.accessToken || actor.practice) throw Error("receiz_wallet_authority_required");
+      if (actor.practice) throw Error("receiz_wallet_authority_required");
       resourceSourceContext = admitWildsWalletResourceSourceMessageV128(body.context, actor.handle, peer.handle);
       if (body.clientMessageId !== wildsWalletResourceSourceMessageIdV128(resourceSourceContext)) throw Error("wilds_wallet_resource_message_invalid");
     }
     if(action==='trade-bearer'){
-      if(!actor.accessToken||actor.practice)throw Error('wilds_wallet_bearer_identity_required');
+      if(actor.practice)throw Error('wilds_wallet_bearer_identity_required');
       bearerGiftContext=admitWildsWalletBearerGiftMessage(body.context,self.handle,peer.handle);
       if(body.clientMessageId!==wildsWalletBearerGiftMessageId(bearerGiftContext))throw Error('wilds_wallet_bearer_message_invalid');
     }
     if (action === "trade-staged") {
-      if (!actor.accessToken || actor.practice) throw Error("receiz_wallet_authority_required");
+      if (actor.practice) throw Error("receiz_wallet_authority_required");
       stagedTradeContext = admitWildsWalletStagedTradeMessage(body.context, actor.handle, peer.handle);
       if (body.clientMessageId !== wildsWalletStagedTradeMessageId(stagedTradeContext)) throw Error("wilds_wallet_trade_message_invalid");
     }
     if (action === "trade-package") {
-      if (!actor.accessToken || actor.practice) throw Error("receiz_wallet_authority_required");
+      if (actor.practice) throw Error("receiz_wallet_authority_required");
       tradeContext = validateWildsWalletTradeMessage(body.context, actor.handle, peer.handle);
       if (body.clientMessageId !== wildsWalletTradeMessageId(actor.handle, tradeContext)) throw Error("wilds_wallet_trade_message_invalid");
     }
@@ -116,22 +115,34 @@ export async function POST(request: NextRequest) {
       const inspection = await rail.inspectBearerTransferInstrument(claim.carrier.offer.instrument);
       if (!inspection.valid || !inspection.offlineVerified || inspection.instrument.artifactDigest !== claim.carrier.offer.instrument.artifactDigest) throw Error('wilds_message_resource_claim_invalid');
     }
-    const conversation = action === "market-offer" || action === "send" || action === "phi-transfer" || action === "resource-offer" || action === "trade-package" || action === "trade-staged" || action === "trade-bearer" || action === "trade-resource-source"
+    const privateContext = tradeContext ?? stagedTradeContext ?? bearerGiftContext
+      ?? resourceSourceContext ?? marketOfferContext ?? resourceContext;
+    if (privateContext) {
+      const { conversation, message } = await sendWildzPrivateTrade(request, {
+        sender: self, recipient: peer, body: String(body.message ?? ""),
+        clientMessageId: String(body.clientMessageId ?? ""), context: privateContext,
+      });
+      return NextResponse.json({
+        ok: true, conversation, summary: wildsConversationSummary(conversation, message.senderId),
+        publication: { published: true, mode: "receiz_synced" },
+      }, { headers: { "cache-control": "private, no-store" } });
+    }
+
+    await hydrateWildsConversation(request, actor, peer);
+    const conversation = action === "send" || action === "phi-transfer"
       ? appendWildsDirectMessage({
           sender: self,
           recipient: peer,
           body: String(body.message ?? ""),
           clientMessageId: String(body.clientMessageId ?? ""),
           replyToId: typeof body.replyToId === "string" ? body.replyToId : null,
-          ...(action === "phi-transfer" ? { context: phiTransferContext(body.context) } : resourceContext ? { context: resourceContext } : resourceSourceContext ? {context:resourceSourceContext} : bearerGiftContext ? {context:bearerGiftContext} : stagedTradeContext ? {context: stagedTradeContext} : tradeContext ? {context: tradeContext} : marketOfferContext ? {context: marketOfferContext} : {})
+          ...(action === "phi-transfer" ? { context: phiTransferContext(body.context) } : {})
         }).conversation
       : action === "read"
         ? markWildsConversationRead({ left: self, right: peer, actorId: actor.playerId, through: typeof body.through === "string" ? body.through : undefined })
         : action === "react"
           ? reactToWildsDirectMessage({ left: self, right: peer, actorId: actor.playerId, messageId: String(body.messageId ?? ""), emoji: String(body.emoji ?? "") })
           : (() => { throw new Error("wilds_message_action_invalid"); })();
-    if (tradeContext && !conversation.messages.some(message => message.clientMessageId === body.clientMessageId
-      && canonicalPortableCardJson(message.context) === canonicalPortableCardJson(tradeContext))) throw Error("wilds_wallet_trade_attempt_conflict");
     const publication = await publishWildsConversation(request, actor, conversation);
     return NextResponse.json({ ok: true, conversation, summary: wildsConversationSummary(conversation, actor.playerId), publication }, { headers: { "cache-control": "private, no-store" } });
   } catch (cause) {

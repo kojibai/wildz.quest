@@ -107,12 +107,15 @@ export function appendWildsDirectMessage(input: {
   replyToId?: string | null;
   context?: WildsDirectMessage["context"];
   now?: string;
+  preview?: true;
+  nativeOriginal?: WildsDirectMessage["nativeOriginal"];
 }) {
   const now = input.now ?? new Date().toISOString();
   const sender = normalizeWildsMessengerParticipant(input.sender);
   const recipient = normalizeWildsMessengerParticipant(input.recipient);
   const conversation = getWildsConversation(sender, recipient, now);
-  const clientMessageId = input.clientMessageId.trim().slice(0, 160);
+  const maxClientMessageIdLength = input.context ? 640 : 160;
+  const clientMessageId = input.clientMessageId.trim().slice(0, maxClientMessageIdLength);
   if (!clientMessageId) throw new Error("wilds_client_message_id_required");
   const body = sanitizeWildsDirectMessage(input.body);
   const context = input.context?.kind === 'market-offer' || input.context?.kind === 'market-offer-response'
@@ -139,6 +142,7 @@ export function appendWildsDirectMessage(input: {
     if (context.stage === "counteroffer" && !conversation.messages.some(message => !message.deletedAt && !message.editedAt
       && message.senderId === recipient.id && message.recipientId === sender.id
       && sameWildzPlayerCoordinate(message.senderHandle, recipient.handle)
+      && (!(input.preview || input.nativeOriginal) || Boolean(message.nativeOriginal))
       && message.context?.kind === "trade-package" && message.context.stage === "offer"
       && canonicalPortableCardJson(message.context.draft) === canonicalPortableCardJson(context.inReplyTo?.draft))) {
       throw Error("wilds_wallet_trade_original_offer_required");
@@ -149,6 +153,7 @@ export function appendWildsDirectMessage(input: {
     if(clientMessageId!==wildzMarketOfferMessageId(context))throw Error('wildz_market_offer_invalid');
     if(context.kind==='market-offer-response'){
       const original=conversation.messages.find(message=>!message.deletedAt&&!message.editedAt&&message.context?.kind==='market-offer'
+        && (!(input.preview || input.nativeOriginal) || Boolean(message.nativeOriginal))
         &&canonicalPortableCardJson(message.context.offer)===canonicalPortableCardJson(context.offer));
       if(!original)throw Error('wildz_market_original_offer_required');
       const prior=conversation.messages.find(message=>message.context?.kind==='market-offer-response'&&message.context.offer.offerId===context.offer.offerId);
@@ -205,15 +210,22 @@ export function appendWildsDirectMessage(input: {
   ));
   if (existing) {
     if (existing.recipientId !== recipient.id || existing.body !== body
-      || JSON.stringify(existing.context ?? null) !== JSON.stringify(context ?? null)) {
+      || canonicalPortableCardJson(existing.context ?? null) !== canonicalPortableCardJson(context ?? null)) {
       throw new Error("wilds_message_idempotency_conflict");
     }
-    return { message: existing, conversation };
+    if (input.nativeOriginal && existing.nativeOriginal
+      && canonicalPortableCardJson(input.nativeOriginal) !== canonicalPortableCardJson(existing.nativeOriginal)) {
+      throw Error("wilds_message_native_original_conflict");
+    }
+    if (!input.nativeOriginal || existing.nativeOriginal) return { message: existing, conversation };
+    const admitted = { ...existing, createdAt: now, nativeOriginal: input.nativeOriginal };
+    const next = { ...conversation, messages: conversation.messages.map(message => message.id === existing.id ? admitted : message) };
+    return { message: admitted, conversation: save(next, now) };
   }
   const recent = conversation.messages.filter((message) => (
     message.senderId === sender.id && Date.parse(now) - Date.parse(message.createdAt) <= 10_000
   ));
-  if (recent.length >= 8) throw new Error("wilds_message_rate_limited");
+  if (!input.nativeOriginal && recent.length >= 8) throw new Error("wilds_message_rate_limited");
   const replyToId = input.replyToId && conversation.messages.some((message) => message.id === input.replyToId)
     ? input.replyToId
     : null;
@@ -233,9 +245,11 @@ export function appendWildsDirectMessage(input: {
     replyToId,
     reactions: [],
     ...(context ? { context } : {}),
+    ...(input.nativeOriginal ? { nativeOriginal: input.nativeOriginal } : {}),
     authority: { source: "receiz-id-proof-object", projection: "sync-only" }
   };
-  return { message, conversation: save({ ...conversation, messages: [...conversation.messages, message] }, now) };
+  const next = { ...conversation, messages: [...conversation.messages, message] };
+  return { message, conversation: input.preview ? next : save(next, now) };
 }
 
 function normalizeGroupMembers(owner: WildsMessengerParticipant, members: readonly WildsMessengerParticipant[]) {
