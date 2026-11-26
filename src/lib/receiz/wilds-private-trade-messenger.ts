@@ -78,7 +78,7 @@ function readOriginal(value: unknown, thread: DirectThread) {
     context: carrier.context as WildsDirectMessage["context"],
     now: original.createdAt,
     nativeOriginal: { messageId: original.messageId, receiptDigest: original.receiptDigest },
-    nativeConversationId: thread.conversationId,
+    nativeThread: thread,
   };
 }
 
@@ -136,7 +136,7 @@ export async function hydrateWildzPrivateTrades(request: NextRequest) {
         appendWildsDirectMessage(message);
       } catch (cause) {
         if (!missingOriginal(cause)) continue;
-        await recoverOriginalOffer(port, message.nativeConversationId, message.context);
+        await recoverOriginalOffer(port, message.nativeThread.conversationId, message.context);
         try { appendWildsDirectMessage(message); } catch { /* No exact original offer was admitted. */ }
       }
     }
@@ -162,12 +162,22 @@ export async function sendWildzPrivateTrade(request: NextRequest, input: {
   const port = connection(request);
   const recipient = parseWildzPlayerCoordinate(input.recipient.handle);
   if (!recipient || !sameWildzPlayerCoordinate(input.sender.handle, port.session.profileHandle)) return unavailable();
-  const envelope = asObject(await port.client.request("/api/chat/conversations", {
-    method: "POST", bearerToken: null, body: { kind: "dm", participantUsernames: [recipient.actorId] },
-  }));
-  const conversation = asObject(envelope?.conversation);
-  if (envelope?.ok !== true || conversation?.kind !== "dm") return unavailable();
-  const thread = directThread(conversation, port.session.userId, port.session.profileHandle, recipient.profileHandle);
+  const originalId = originalOfferId(input.context);
+  const inbox = originalId ? await nativeMessages(port).catch(() => null) : null;
+  const original = inbox?.results.find(message => message.clientMessageId === originalId
+    && sameWildzPlayerCoordinate(message.nativeThread.peer.handle, recipient.profileHandle));
+  let thread: DirectThread;
+  if (original) {
+    appendWildsDirectMessage(original);
+    thread = original.nativeThread;
+  } else {
+    const envelope = asObject(await port.client.request("/api/chat/conversations", {
+      method: "POST", bearerToken: null, body: { kind: "dm", participantUsernames: [recipient.actorId] },
+    }));
+    const conversation = asObject(envelope?.conversation);
+    if (envelope?.ok !== true || conversation?.kind !== "dm") return unavailable();
+    thread = directThread(conversation, port.session.userId, port.session.profileHandle, recipient.profileHandle);
+  }
   const normalized = {
     ...input,
     sender: { id: thread.viewer.handle, handle: thread.viewer.handle },

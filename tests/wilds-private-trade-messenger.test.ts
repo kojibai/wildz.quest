@@ -57,6 +57,7 @@ test("two separate players reopen the same private Trade offer and counteroffer 
     operations.push(url.pathname);
     if (url.pathname === "/api/chat/conversations" && !url.search) {
       assert.equal(init.method, "POST");
+      if (viewer === buyer) return Response.json({ ok: false, error: "chat_unknown_error" }, { status: 500 });
       return Response.json({ ok: true, conversation });
     }
     assert.equal(url.searchParams.get("appMessage"), "wildz-trade");
