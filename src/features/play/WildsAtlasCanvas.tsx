@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentRef, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
+import { Move } from "lucide-react";
 import { Html, MapControls, Sparkles } from "@react-three/drei";
 import * as THREE from "three";
 import {WildsGraphicsLifecycle} from "../pwa/WildsGraphicsLifecycle";
@@ -22,6 +23,10 @@ import {
   type WildsAtlasRenderTile
 } from "./wilds-atlas-render-tiles";
 import { atlasCameraFrame, atlasCameraOpeningFrame, atlasCameraOpeningLimits, preserveWildsAtlasCameraLimits, rebaseWildsAtlasCameraPose, resolveWildsAtlasCameraPose, translateWildsAtlasCamera, wildsAtlasCameraFar, wildsAtlasRotateSpeed, wildsAtlasTwistDelta } from "./wilds-atlas-camera";
+import { useCreationRenderMaterials, WildsCreationDraftMesh, WildsCreationRenderPages } from "./creation/WildsCreationPreview";
+import type { CreationPoint } from "./creation/types";
+import type { WildsAtlasBuildPreview } from "./WildsAtlasBuilder";
+import { selectWildsAtlasBuildingMeshes, type WildsAtlasBuildingMesh, type WildsAtlasBuildingSource } from "./wilds-atlas-building-meshes";
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 const GOLDEN_ANGLE = Math.PI * 2 / (PHI * PHI);
@@ -36,7 +41,7 @@ function atlasTerrainHeightScale(regionUnit: number) {
   return Math.max(.018, Math.min(.072, regionUnit / ATLAS_REFERENCE_REGION_UNIT * .072));
 }
 
-function atlasTerrainHeight(worldX: number, worldZ: number, regionUnit: number) {
+export function atlasTerrainHeight(worldX: number, worldZ: number, regionUnit: number) {
   return sampleWildsTerrain(worldX, worldZ).elevation * atlasTerrainHeightScale(regionUnit);
 }
 
@@ -59,13 +64,18 @@ export function WildsAtlasCanvas({
   selectedDrop,
   recenterRequest,
   recenterPosition,
+  detailRecenter = false,
   northRequest,
   fitRequest,
   reducedMotion,
   active = true,
+  buildingPreview,
+  onDropBuild,
+  creationPhysical,
+  renderMapLayer,
   onReady = () => {},
-  onSelect,
-  onDrop
+  onSelectLandmark,
+  onSelectTerrain
 }: {
   projection: WildsAtlasProjection;
   crewMarkers?: readonly WildsCrewMapMarker[];
@@ -75,24 +85,34 @@ export function WildsAtlasCanvas({
   selectedDrop: { x: number; z: number } | null;
   recenterRequest: number;
   recenterPosition?: { x: number; z: number };
+  detailRecenter?: boolean;
   northRequest: number;
   fitRequest: number;
   reducedMotion: boolean;
   active?: boolean;
+  buildingPreview?: WildsAtlasBuildPreview | null;
+  onDropBuild?: (position: { x: number; z: number }) => void;
+  creationPhysical?: WildsAtlasBuildingSource;
+  renderMapLayer?: (projection: WildsAtlasProjection) => ReactNode;
   onReady?: () => void;
-  onSelect: (landmarkId: string) => void;
-  onDrop: (position: { x: number; z: number }) => void;
+  onSelectLandmark: (landmarkId: string) => void;
+  onSelectTerrain: (position: { x: number; z: number }) => void;
 }) {
   const [renderCenterRegion, setRenderCenterRegion] = useState(() => ({
     x: Math.floor(currentPosition.x / WILDS_REGION_SIZE) + .5,
     z: Math.floor(currentPosition.z / WILDS_REGION_SIZE) + .5
   }));
   const projection = useMemo(() => ({ ...sourceProjection, centerRegion: renderCenterRegion }), [sourceProjection, renderCenterRegion]);
-  // A pinch or drag must never also trigger a terrain jump on release.
+  // A pinch or drag must never also select a destination on release.
   const gesture = useRef({ pointers: new Map<number, { x: number; y: number }>(), moved: false });
   const acceptTap = () => !gesture.current.moved;
   const atlasSparkleCount = reducedMotion ? 12 : Math.round(38 * qualityProfile.particles);
   const atlasSpan = wildsAtlasProjectedSpan(projection.territory ?? projection.nodes, projection.regionUnit);
+  const { gridCenterRegion, worldAdditions } = sourceProjection;
+  const detailX = selectedDrop && detailRecenter ? Math.floor(selectedDrop.x / WILDS_REGION_SIZE) : gridCenterRegion.x;
+  const detailZ = selectedDrop && detailRecenter ? Math.floor(selectedDrop.z / WILDS_REGION_SIZE) : gridCenterRegion.z;
+  const buildingMeshes = useMemo(() => selectWildsAtlasBuildingMeshes({ gridCenterRegion: { x: detailX, z: detailZ }, worldAdditions }, creationPhysical), [detailX, detailZ, worldAdditions, creationPhysical]);
+  const renderedBuildingIds = useMemo(() => new Set(buildingMeshes.map(building => building.id)), [buildingMeshes]);
   const viewBounds = useMemo(
     () => {
       const bounds = wildsAtlasMapBounds(wildsAtlasProjectedBounds(projection.territory ?? projection.nodes), projection.worldAdditions);
@@ -101,7 +121,7 @@ export function WildsAtlasCanvas({
     [projection.bounds, projection.nodes, projection.territory, projection.worldAdditions]
   );
   return (
-    <div aria-hidden="true" className="wilds-atlas-canvas"
+    <div className="wilds-atlas-canvas"
       onPointerDownCapture={event => {
         const state = gesture.current;
         if (state.pointers.size === 0) state.moved = false;
@@ -137,18 +157,21 @@ export function WildsAtlasCanvas({
         <directionalLight color="#fff2a8" intensity={2.35} position={[4, 10, 3]} />
         <pointLight color="#71e8c3" intensity={24} position={[-5, 3, 2]} distance={16} />
         <pointLight color="#ff72bf" intensity={13} position={[6, 2, -5]} distance={13} />
-        <ContinuousWorldSurface onDrop={position => { if (acceptTap()) onDrop(position); }} projection={projection} />
-        <AtlasTerrainDetails projection={projection} qualityProfile={qualityProfile} />
-        <MapRoutes projection={projection} />
+        <ContinuousWorldSurface onSelectTerrain={position => { if (acceptTap()) onSelectTerrain(position); }} projection={projection} />
+        <AtlasTerrainDetails projection={projection} qualityProfile={qualityProfile} localDetail={detailRecenter} placingBuild={Boolean(onDropBuild)} />
+        {renderMapLayer?.(projection)}
+        {detailRecenter ? <MapRoutes projection={projection} compact /> : <MapRoutes projection={projection} />}
         <RegionNames projection={projection} />
-        <LandmarkBeacons projection={projection} selectedId={selectedId} onSelect={id => { if (acceptTap()) onSelect(id); }} />
-        <DropPin position={selectedDrop} projection={projection} />
+        {!detailRecenter ? <LandmarkBeacons projection={projection} selectedId={selectedId} onSelect={(id, keyboard) => { if (keyboard || acceptTap()) onSelectLandmark(id); }} /> : null}
+        {buildingPreview ? <AtlasBuildingPreview preview={buildingPreview} projection={projection} onDropBuild={onDropBuild} />
+          : <DropPin position={selectedDrop} projection={projection} compact={detailRecenter} onDropBuild={onDropBuild} />}
         <CrewLights projection={projection} markers={crewMarkers} reducedMotion={reducedMotion} />
         <ExactPlayerLights projection={projection} />
         <PresenceLights projection={projection} />
         <TrainerLights projection={projection} />
-        <WorldAdditionMarkers projection={projection} />
-        <CurrentPositionBeam position={currentPosition} projection={projection} />
+        <WorldAdditionMarkers projection={projection} renderedBuildingIds={renderedBuildingIds} />
+        {buildingMeshes.length ? <AtlasAdmittedBuildings buildings={buildingMeshes} projection={projection} /> : null}
+        <CurrentPositionBeam position={currentPosition} projection={projection} compact={detailRecenter} />
         <AtlasReadySignal onReady={onReady} />
         <Sparkles
           key={`wilds-atlas-sparkles-${atlasSparkleCount}`}
@@ -163,6 +186,7 @@ export function WildsAtlasCanvas({
           bounds={viewBounds}
           centerRegion={projection.centerRegion}
           currentPosition={currentPosition}
+          detailRecenter={detailRecenter}
           fitRequest={fitRequest}
           recenterPosition={recenterPosition}
           recenterRequest={recenterRequest}
@@ -173,6 +197,108 @@ export function WildsAtlasCanvas({
       </Canvas>
     </div>
   );
+}
+
+function AtlasBuildingPreview({ preview, projection, onDropBuild }: {
+  preview: WildsAtlasBuildPreview;
+  projection: WildsAtlasProjection;
+  onDropBuild?: (position: { x: number; z: number }) => void;
+}) {
+  const frame = useRef<THREE.Group>(null);
+  return <AtlasBuildingFrame position={preview.pose.position} projection={projection} name="atlas-build-preview" frame={frame}>
+    <WildsCreationDraftMesh geometry={preview.geometry} pose={preview.pose} viewer={preview.pose.position} />
+    {onDropBuild ? <AtlasBuildDragHandle frame={frame} projection={projection} position={preview.pose.position} drop={onDropBuild} /> : null}
+  </AtlasBuildingFrame>;
+}
+
+function AtlasAdmittedBuildings({ buildings, projection }: { buildings: readonly WildsAtlasBuildingMesh[]; projection: WildsAtlasProjection }) {
+  const library = useCreationRenderMaterials();
+  return <>{buildings.map(({ id, pose, chunks }) => <AtlasBuildingFrame key={id} position={pose.position} projection={projection} name={`atlas-built-mesh-${id}`}>
+    <group position={[-pose.position.x, -pose.position.y, -pose.position.z]}>
+      <WildsCreationRenderPages chunks={chunks} library={library} />
+    </group>
+  </AtlasBuildingFrame>)}</>;
+}
+
+function AtlasBuildDragHandle({ frame, projection, position, drop }: {
+  frame: { readonly current: THREE.Group | null };
+  projection: WildsAtlasProjection;
+  position: { x: number; z: number };
+  drop: (position: { x: number; z: number }) => void;
+}) {
+  const { camera, scene, gl, invalidate } = useThree();
+  const raycaster = useMemo(() => new THREE.Raycaster(), []);
+  const pointer = useMemo(() => new THREE.Vector2(), []);
+  const drag = useRef<{ id: number; screenX: number; screenY: number; origin: THREE.Vector3; dx: number; dz: number } | null>(null);
+  const point = (event: ReactPointerEvent) => {
+    const terrain = scene.getObjectByName("continuous-world-map");
+    if (!terrain) return null;
+    const bounds = gl.domElement.getBoundingClientRect();
+    pointer.set(2 * (event.clientX - bounds.left) / bounds.width - 1, 1 - 2 * (event.clientY - bounds.top) / bounds.height);
+    raycaster.setFromCamera(pointer, camera);
+    return raycaster.intersectObject(terrain, true)[0]?.point ?? null;
+  };
+  const target = (event: ReactPointerEvent) => {
+    const hit = point(event), start = drag.current;
+    if (!hit || !start) return null;
+    const { centerRegion, regionUnit } = projection;
+    const next = {
+      x: Number(atlasWorldCoordinate(hit.x + start.dx, centerRegion.x, regionUnit).toFixed(2)),
+      z: Number(atlasWorldCoordinate(hit.z + start.dz, centerRegion.z, regionUnit).toFixed(2)),
+    };
+    return wildsAtlasContainsWorld(projection.territory ?? projection.nodes, next) ? next : null;
+  };
+  const reset = () => {
+    const start = drag.current;
+    drag.current = null;
+    if (!start || !frame.current) return;
+    frame.current.position.copy(start.origin);
+    invalidate();
+  };
+
+  return <Html center wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[3, 2]}>
+    <button type="button" className="wilds-atlas-build-handle" aria-label="Drag build placement" title="Drag build placement"
+      onPointerDown={event => {
+        if (!event.isPrimary || event.button !== 0 || !frame.current) return;
+        const hit = point(event);
+        const origin = frame.current.position.clone();
+        drag.current = { id: event.pointerId, origin, screenX: event.clientX, screenY: event.clientY, dx: hit ? origin.x - hit.x : 0, dz: hit ? origin.z - hit.z : 0 };
+        event.currentTarget.setPointerCapture(event.pointerId);
+        event.stopPropagation();
+      }}
+      onPointerMove={event => {
+        if (event.pointerId !== drag.current?.id || !frame.current) return;
+        const next = target(event);
+        if (!next) return;
+        const { centerRegion, regionUnit } = projection;
+        frame.current.position.set(atlasLocalCoordinate(next.x, centerRegion.x, regionUnit),
+          atlasTerrainHeight(next.x, next.z, regionUnit) + .015, atlasLocalCoordinate(next.z, centerRegion.z, regionUnit));
+        invalidate();
+      }}
+      onPointerUp={event => {
+        const start = drag.current;
+        if (!start || start.id !== event.pointerId) return;
+        const next = Math.hypot(event.clientX - start.screenX, event.clientY - start.screenY) > ATLAS_CLICK_DRAG_THRESHOLD ? target(event) : null;
+        reset();
+        if (next && (next.x !== position.x || next.z !== position.z)) drop(next);
+      }}
+      onLostPointerCapture={reset} onPointerCancel={reset}
+      tabIndex={-1}><Move size={17} aria-hidden="true" /></button>
+  </Html>;
+}
+
+function AtlasBuildingFrame({ position, projection, name, children, frame }: {
+  position: CreationPoint; projection: WildsAtlasProjection; name: string; children: ReactNode;
+  frame?: { readonly current: THREE.Group | null };
+}) {
+  const { x, z } = position;
+  const { centerRegion, regionUnit } = projection;
+  const worldScale = regionUnit / WILDS_REGION_SIZE;
+  const terrainY = atlasTerrainHeight(x, z, regionUnit);
+  return <group ref={frame} position={[atlasLocalCoordinate(x, centerRegion.x, regionUnit), terrainY + .01, atlasLocalCoordinate(z, centerRegion.z, regionUnit)]}
+    scale={[worldScale, worldScale, worldScale]} name={name}>
+    {children}
+  </group>;
 }
 
 function AtlasReadySignal({ onReady }: { onReady: () => void }) {
@@ -189,6 +315,7 @@ function AtlasCameraRig({
   bounds,
   centerRegion,
   currentPosition,
+  detailRecenter,
   fitRequest,
   recenterRequest,
   recenterPosition,
@@ -199,6 +326,7 @@ function AtlasCameraRig({
   bounds: WildsAtlasProjection["bounds"];
   centerRegion: WildsAtlasProjection["centerRegion"];
   currentPosition: { x: number; z: number };
+  detailRecenter: boolean;
   fitRequest: number;
   recenterRequest: number;
   recenterPosition?: { x: number; z: number };
@@ -315,13 +443,20 @@ function AtlasCameraRig({
       target: [controls.current.target.x, controls.current.target.y, controls.current.target.z],
       nextTarget
     });
-    const floating = rebaseWildsAtlasCameraPose({ centerRegion, current: translated, regionUnit, threshold: 96 });
+    let desired = translated;
+    if (detailRecenter) {
+      const target = new THREE.Vector3(...translated.target);
+      const offset = new THREE.Vector3(...translated.position).sub(target);
+      const detailDistance = THREE.MathUtils.clamp(regionUnit, limits.current.minDistance, limits.current.maxDistance);
+      if (offset.length() > detailDistance) desired = { ...translated, position: offset.setLength(detailDistance).add(target).toArray() };
+    }
+    const floating = rebaseWildsAtlasCameraPose({ centerRegion, current: desired, regionUnit, threshold: 96 });
     camera.position.set(...floating.position);
     controls.current.target.set(...floating.target);
     if (floating.rebased) onRenderCenterRegionChange({ ...floating.centerRegion });
     controls.current.update();
     invalidate();
-  }, [camera, centerRegion, currentPosition.x, currentPosition.z, invalidate, onRenderCenterRegionChange, recenterRequest, recenterPosition, regionUnit]);
+  }, [camera, centerRegion, currentPosition.x, currentPosition.z, detailRecenter, invalidate, onRenderCenterRegionChange, recenterRequest, recenterPosition, regionUnit]);
   useLayoutEffect(() => {
     const orbit = controls.current;
     if (!orbit || lastNorthRequest.current === northRequest) return;
@@ -401,7 +536,7 @@ function TrainerLights({ projection }: { projection: WildsAtlasProjection }) {
   })}</group>;
 }
 
-function WorldAdditionMarkers({ projection }: { projection: WildsAtlasProjection }) {
+function WorldAdditionMarkers({ projection, renderedBuildingIds }: { projection: WildsAtlasProjection; renderedBuildingIds: ReadonlySet<string> }) {
   return <group name="atlas-player-world-additions">{projection.worldAdditions.map((addition) => {
     const x = atlasLocalCoordinate(addition.position.x, projection.centerRegion.x, projection.regionUnit);
     const z = atlasLocalCoordinate(addition.position.z, projection.centerRegion.z, projection.regionUnit);
@@ -419,7 +554,7 @@ function WorldAdditionMarkers({ projection }: { projection: WildsAtlasProjection
       </mesh> : addition.blueprint === "trail-shelter" ? <group position={[0, .13, 0]}>
         <mesh scale={[.25, .18, .22]}><boxGeometry /><meshStandardMaterial color={complete ? "#8bbf99" : "#755f45"} emissive={accent} emissiveIntensity={complete ? .28 : .18} wireframe={!complete} /></mesh>
         <mesh position={[0, .2, 0]} rotation={[0, Math.PI / 4, 0]} scale={[.22, .16, .22]}><coneGeometry args={[1, 1, 4]} /><meshStandardMaterial color={complete ? "#d8c486" : "#8a7449"} emissive={accent} emissiveIntensity={.2} wireframe={!complete} /></mesh>
-      </group> : <mesh position={[0, .16, 0]} scale={addition.blueprint === "steward-workbench" ? [.34, .12, .2] : [.22, .22, .22]}>
+      </group> : renderedBuildingIds.has(addition.id) ? null : <mesh position={[0, .16, 0]} scale={addition.blueprint === "steward-workbench" ? [.34, .12, .2] : [.22, .22, .22]}>
         <boxGeometry />
         <meshStandardMaterial color={complete ? "#74b9a5" : "#8a7449"} emissive={accent} emissiveIntensity={complete ? .4 : .2} wireframe={!complete} />
       </mesh>}
@@ -430,7 +565,7 @@ function WorldAdditionMarkers({ projection }: { projection: WildsAtlasProjection
   })}</group>;
 }
 
-function ContinuousWorldSurface({ projection, onDrop }: { projection: WildsAtlasProjection; onDrop: (position: { x: number; z: number }) => void }) {
+function ContinuousWorldSurface({ projection, onSelectTerrain }: { projection: WildsAtlasProjection; onSelectTerrain: (position: { x: number; z: number }) => void }) {
   const tiles = useMemo(() => buildWildsAtlasRenderTiles(projection.territory ?? projection.nodes, {
     maxTiles: ATLAS_MAX_TERRAIN_TILES,
     maxVertices: ATLAS_MAX_TERRAIN_VERTICES
@@ -444,7 +579,7 @@ function ContinuousWorldSurface({ projection, onDrop }: { projection: WildsAtlas
       z: Number(atlasWorldCoordinate(event.point.z, projection.centerRegion.z, projection.regionUnit).toFixed(2))
     };
     if (!wildsAtlasContainsWorld(projection.territory ?? projection.nodes, destination)) return;
-    onDrop(destination);
+    onSelectTerrain(destination);
   };
   return <group name="continuous-world-map">{tiles.map((tile, index) => tile.renderMode === "instanced-cells"
     ? <AtlasInstancedCellFallback handleClick={handleClick} key={`fallback:${index}`} nodesByRegion={nodesByRegion} projection={projection} tile={tile} />
@@ -576,7 +711,7 @@ function AtlasInstancedCellFallback({
   </instancedMesh>;
 }
 
-function AtlasTerrainDetails({ projection, qualityProfile }: { projection: WildsAtlasProjection; qualityProfile: WildsQualityProfile }) {
+function AtlasTerrainDetails({ projection, qualityProfile, localDetail, placingBuild }: { projection: WildsAtlasProjection; qualityProfile: WildsQualityProfile; localDetail: boolean; placingBuild: boolean }) {
   const trunks = useRef<THREE.InstancedMesh>(null);
   const crowns = useRef<THREE.InstancedMesh>(null);
   const understory = useRef<THREE.InstancedMesh>(null);
@@ -584,9 +719,13 @@ function AtlasTerrainDetails({ projection, qualityProfile }: { projection: Wilds
   const perNode = qualityProfile.tier === "low" ? 2 : qualityProfile.tier === "medium" ? 3 : 4;
   const sampledNodes = useMemo(() => {
     const maximumNodes = Math.max(1, Math.floor(ATLAS_MAX_DETAIL_INSTANCES / perNode));
-    if (projection.nodes.length <= maximumNodes) return projection.nodes;
-    return Array.from({ length: maximumNodes }, (_, index) => projection.nodes[Math.floor(index * projection.nodes.length / maximumNodes)]!);
-  }, [perNode, projection.nodes]);
+    const visible = localDetail ? projection.nodes.filter(node =>
+      Math.abs(node.regionX - projection.gridCenterRegion.x) <= 1
+      && Math.abs(node.regionZ - projection.gridCenterRegion.z) <= 1
+    ) : projection.nodes;
+    if (visible.length <= maximumNodes) return visible;
+    return Array.from({ length: maximumNodes }, (_, index) => visible[Math.floor(index * visible.length / maximumNodes)]!);
+  }, [localDetail, perNode, projection.gridCenterRegion, projection.nodes]);
   const samples = useMemo(() => sampledNodes.flatMap((node, nodeIndex) => Array.from({ length: perNode }, (_, index) => {
     const seed = Math.sin((node.regionX * 97.1 + node.regionZ * 131.7 + index * 41.3)) * 43758.5453;
     const unit = seed - Math.floor(seed);
@@ -613,7 +752,8 @@ function AtlasTerrainDetails({ projection, qualityProfile }: { projection: Wilds
     const matrix = new THREE.Matrix4();
     const quaternion = new THREE.Quaternion();
     samples.forEach((sample, index) => {
-      const treeScale = sample.visible && !sample.rock ? sample.scale : 0;
+      // World-scale canopy silhouettes would hide the draft at placement zoom.
+      const treeScale = sample.visible && !sample.rock ? Math.min(sample.scale, placingBuild ? .042 : Infinity) : 0;
       const rockScale = sample.visible && sample.rock ? sample.scale * 1.8 : 0;
       quaternion.setFromEuler(new THREE.Euler(0, index * GOLDEN_ANGLE, 0));
       matrix.compose(new THREE.Vector3(sample.x, sample.height + treeScale * 1.34, sample.z), quaternion, new THREE.Vector3(treeScale * .42, treeScale * 2.7, treeScale * .42));
@@ -631,7 +771,8 @@ function AtlasTerrainDetails({ projection, qualityProfile }: { projection: Wilds
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
-  }, [samples]);
+  }, [placingBuild, samples]);
+  if (samples.length === 0) return null;
   return <group name="atlas-instanced-terrain-detail">
     <instancedMesh args={[undefined, undefined, samples.length]} ref={trunks}><cylinderGeometry args={[1, 1.34, 1, 7]} /><meshStandardMaterial color="#493527" roughness={1} /></instancedMesh>
     <instancedMesh args={[undefined, undefined, samples.length]} ref={crowns}><icosahedronGeometry args={[.88, 1]} /><meshStandardMaterial color="#326f43" emissive="#173d25" emissiveIntensity={.28} roughness={.9} /></instancedMesh>
@@ -640,30 +781,35 @@ function AtlasTerrainDetails({ projection, qualityProfile }: { projection: Wilds
   </group>;
 }
 
-function MapRoutes({ projection }: { projection: WildsAtlasProjection }) {
+function MapRoutes({ projection, compact = false }: { projection: WildsAtlasProjection; compact?: boolean }) {
   const routes = useMemo(() => WILDS_MAJOR_ROUTES.flatMap((route) => (
     clipWildsAtlasRouteSegments(route.points, projection.territory ?? projection.nodes).map((segment) => new THREE.CatmullRomCurve3(
       segment.map((point) => {
       const x = atlasLocalCoordinate(point.x, projection.centerRegion.x, projection.regionUnit);
       const z = atlasLocalCoordinate(point.z, projection.centerRegion.z, projection.regionUnit);
-      return new THREE.Vector3(x, atlasTerrainHeight(point.x, point.z, projection.regionUnit) + .045, z);
+      return new THREE.Vector3(x, atlasTerrainHeight(point.x, point.z, projection.regionUnit) + (compact ? .019 : .045), z);
     })
     ))
-  )).slice(0, ATLAS_MAX_ROUTE_SEGMENTS), [projection.centerRegion.x, projection.centerRegion.z, projection.nodes, projection.territory, projection.regionUnit]);
+  )).slice(0, ATLAS_MAX_ROUTE_SEGMENTS), [compact, projection.centerRegion.x, projection.centerRegion.z, projection.nodes, projection.territory, projection.regionUnit]);
   return <group name="atlas-routes">{routes.map((route, index) => <group key={index}>
-    <mesh><tubeGeometry args={[route, 32, index ? .052 : .072, 7, false]} /><meshStandardMaterial color="#263a31" roughness={.98} /></mesh>
-    <mesh><tubeGeometry args={[route, 32, index ? .026 : .036, 7, false]} /><meshStandardMaterial color={index ? "#a3c7b3" : "#e8d69a"} emissive={index ? "#285e51" : "#695f39"} emissiveIntensity={0.2} roughness={0.78} /></mesh>
+    {compact ? null : <mesh><tubeGeometry args={[route, 32, index ? .052 : .072, 7, false]} /><meshStandardMaterial color="#263a31" roughness={.98} /></mesh>}
+    <mesh><tubeGeometry args={[route, 32, compact ? .012 : index ? .026 : .036, 7, false]} /><meshStandardMaterial color={index ? "#a3c7b3" : "#e8d69a"} emissive={index ? "#285e51" : "#695f39"} emissiveIntensity={0.2} roughness={0.78} /></mesh>
   </group>)}</group>;
 }
 
-function DropPin({ position, projection }: { position: { x: number; z: number } | null; projection: WildsAtlasProjection }) {
+function DropPin({ position, projection, compact, onDropBuild }: {
+  position: { x: number; z: number } | null; projection: WildsAtlasProjection; compact: boolean;
+  onDropBuild?: (position: { x: number; z: number }) => void;
+}) {
+  const frame = useRef<THREE.Group>(null);
   if (!position) return null;
   const x = atlasLocalCoordinate(position.x, projection.centerRegion.x, projection.regionUnit);
   const z = atlasLocalCoordinate(position.z, projection.centerRegion.z, projection.regionUnit);
-  return <group name="atlas-drop-pin" position={[x, atlasTerrainHeight(position.x, position.z, projection.regionUnit) + .18, z]}>
+  return <group ref={frame} name="atlas-drop-pin" position={[x, atlasTerrainHeight(position.x, position.z, projection.regionUnit) + (compact ? .015 : .18), z]} scale={compact ? .18 : 1}>
     <mesh position={[0, .24, 0]}><sphereGeometry args={[.16, 16, 12]} /><meshStandardMaterial color="#fff3a0" emissive="#f7c948" emissiveIntensity={2.2} depthTest={false} /></mesh>
     <mesh position={[0, .06, 0]}><cylinderGeometry args={[.035, .055, .32, 10]} /><meshStandardMaterial color="#f7d25b" roughness={.44} /></mesh>
     <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[.38, .03, 8, 32]} /><meshBasicMaterial color="#fff3a0" /></mesh>
+    {onDropBuild ? <AtlasBuildDragHandle frame={frame} projection={projection} position={position} drop={onDropBuild} /> : null}
   </group>;
 }
 
@@ -674,7 +820,7 @@ function LandmarkBeacons({
 }: {
   projection: WildsAtlasProjection;
   selectedId: string | null;
-  onSelect: (landmarkId: string) => void;
+  onSelect: (landmarkId: string, keyboard?: boolean) => void;
 }) {
   return projection.landmarks.map((landmark, landmarkIndex) => {
     const x = atlasLocalCoordinate(landmark.position.x, projection.centerRegion.x, projection.regionUnit);
@@ -710,30 +856,20 @@ function LandmarkBeacons({
           <torusGeometry args={[active ? 0.48 : 0.4, 0.025, 8, 30]} />
           <meshBasicMaterial color={landmark.accent} transparent opacity={active ? 0.92 : 0.5} />
         </mesh>
-        <Html center position={[Math.cos(landmarkIndex * GOLDEN_ANGLE) * .22, 0.86 + (landmarkIndex % 2) * .11, Math.sin(landmarkIndex * GOLDEN_ANGLE) * .22]} wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[2, 1]}>
-          <div
+        <Html center position={[Math.cos(landmarkIndex * GOLDEN_ANGLE) * .22, 0.86 + (landmarkIndex % 2) * .11, Math.sin(landmarkIndex * GOLDEN_ANGLE) * .22]} wrapperClass="wilds-atlas-interactive-label" zIndexRange={[2, 1]}>
+          <button
+            type="button"
+            aria-label={`Inspect ${landmark.name}`}
+            aria-pressed={active}
             className={`wilds-atlas-map-label${active ? " is-active" : ""}`}
-            style={{
-              alignItems: "center",
-              backdropFilter: "blur(12px)",
-              background: active ? "linear-gradient(135deg, #f7d25b, #71e8c3)" : "rgba(4, 23, 29, .84)",
-              border: `1px solid ${active ? "#f9e58e" : "rgba(131, 235, 207, .24)"}`,
-              borderRadius: 999,
-              boxShadow: "0 8px 24px rgba(0, 0, 0, .32)",
-              color: active ? "#071a1e" : "#eafff8",
-              display: "flex",
-              fontSize: 8,
-              fontWeight: 900,
-              gap: 6,
-              minHeight: 28,
-              padding: "0 9px",
-              pointerEvents: "none",
-              whiteSpace: "nowrap"
+            onClick={event => {
+              event.stopPropagation();
+              onSelect(landmark.id, event.detail === 0);
             }}
           >
             <span style={{ background: landmark.accent, borderRadius: "50%", height: 6, width: 6 }} />
             {landmark.name}
-          </div>
+          </button>
         </Html>
       </group>
     );
@@ -820,9 +956,13 @@ function ExactPlayerLights({ projection }: { projection: WildsAtlasProjection })
   </group>;
 }
 
-function CurrentPositionBeam({ position, projection }: { position: { x: number; z: number }; projection: WildsAtlasProjection }) {
+function CurrentPositionBeam({ position, projection, compact }: { position: { x: number; z: number }; projection: WildsAtlasProjection; compact: boolean }) {
   const x = atlasLocalCoordinate(position.x, projection.centerRegion.x, projection.regionUnit);
   const z = atlasLocalCoordinate(position.z, projection.centerRegion.z, projection.regionUnit);
+  if (compact) return <mesh name="atlas-current-position" position={[x, atlasTerrainHeight(position.x, position.z, projection.regionUnit) + .035, z]}>
+    <sphereGeometry args={[.033, 12, 8]} />
+    <meshBasicMaterial color="#cdffe2" />
+  </mesh>;
   return (
     <group name="atlas-current-position" position={[x, atlasTerrainHeight(position.x, position.z, projection.regionUnit) + .12, z]}>
       <Html center position={[0, 1.9, 0]} wrapperClass="wilds-atlas-pass-through-label" zIndexRange={[3, 2]}>

@@ -9,7 +9,8 @@ import {locateWildzMarketSourceOriginalV128,restoreWildzMarketSourceOriginalV128
 
 export const WILDS_RESOURCE_SOURCE_TAIL_COUNT_V128=32;
 const PAGE_BYTES=192*1024,TAIL_BYTES=8*1024*1024;
-export const WILDS_RESOURCE_SOURCE_URL_V128='https://wildz.quest/receiz/resource-source-v128';
+export {WILDS_RESOURCE_SOURCE_URL_V128} from './wildz-owned-source-locator-v128';
+import {WILDS_RESOURCE_SOURCE_URL_V128,readWildzOwnedSourceV128,publishWildzOwnedSourceV128,type WildzSourceCoordinateV128} from './wildz-owned-source-locator-v128';
 export type WildsResourceSourceArchivePageV128=Readonly<{
  schema:'wildz.resource-source-page.v128';predecessorPage:WildzMarketSourceArchiveReferenceV128|null;
  sourceArtifacts:readonly WildzMarketSourceOriginalReferenceV128[];
@@ -91,17 +92,25 @@ export async function restoreWildsResourceSourceReferenceV128(sdk:ReceizClient,v
  for(const reference of proof.sourceArtifacts){total+=reference.exactBytesB64uLength;if(total>TAIL_BYTES)fail('source_reference_invalid');sourceArtifacts.push(await restoreWildzMarketSourceOriginalV128(reference,read));}
  return {schema:'wildz.resource-source-proof.v128',custodyArtifact,archivePages:proof.archivePages,sourceArtifacts};
 }
-export async function readWildsResourceLocatedProofV128(sdk:ReceizClient,sourceUrl=WILDS_RESOURCE_SOURCE_URL_V128){
+export async function readWildsResourceLocatedProofV128(sdk:ReceizClient,sourceUrl=WILDS_RESOURCE_SOURCE_URL_V128,
+ admit?:(proof:WildsResourceSourceProofV128,coordinate?:WildzSourceCoordinateV128)=>Promise<void>){
  if(sourceUrl!==WILDS_RESOURCE_SOURCE_URL_V128)fail('locator_invalid');
- const result=await sdk.publicStore.restoreLatest({url:sourceUrl,tenantHost:new URL(sourceUrl).host}),row=result.storeStateRecord;
- if(!row)return null;if(row.schema!=='wildz.resource-source-locator.v128'||!row.proof)fail('locator_invalid');
- const proof=row.proof as unknown as WildsResourceSourceProofV128;
- return proof.schema==='wildz.resource-source-proof.v128'?proof:restoreWildsResourceSourceReferenceV128(sdk,proof,sourceUrl);
+ return readWildzOwnedSourceV128(sdk,'resource',async(url,located)=>{
+  const result=await sdk.publicStore.restoreLatest({url,tenantHost:'wildz.quest'}),row=result.storeStateRecord;
+  if(!row)return null;
+  if((located&&(result.record?.externalCreatorId!==located.owner||result.record.sourceUrl!==url))
+   ||row.schema!=='wildz.resource-source-locator.v128'||!row.proof)fail('locator_invalid');
+  const reference=row.proof as unknown as WildsResourceSourceProofV128;
+  if(located&&reference.custodyArtifact?.artifactSha256!==located.pointer.artifactSha256)fail('locator_invalid');
+  const proof=reference.schema==='wildz.resource-source-proof.v128'?reference:await restoreWildsResourceSourceReferenceV128(sdk,reference,sourceUrl);
+  await admit?.(proof,located?.pointer);
+  return proof;
+ });
 }
 export function createWildsResourceSourceArchiveLocatorV128(input:Readonly<{sdk:ReceizClient;authority:WildsResourceSourceAuthorV128;sourceUrl:string}>):WildsResourceSourceLocatorV128{
  const url=new URL(input.sourceUrl);if(url.toString()!==WILDS_RESOURCE_SOURCE_URL_V128)fail('locator_invalid');
- const publish=async(sourceUrl:string,storeStateRecord:Record<string,unknown>,idempotencyKey:string)=>{
-  const signed=await input.sdk.publicStore.signPublish({tenantHost:url.host,merchantReceizId:input.authority.ownerReceizId,sourceUrl,namespace:WILDS_RESOURCE_NAMESPACE_V128,
+ const publish=async(sourceUrl:string,storeStateRecord:Record<string,unknown>,idempotencyKey:string,namespace=WILDS_RESOURCE_NAMESPACE_V128)=>{
+  const signed=await input.sdk.publicStore.signPublish({tenantHost:url.host,merchantReceizId:input.authority.ownerReceizId,sourceUrl,namespace,
    title:'Wildz resource source Originals',platform:'Wildz',projectionState:'published',storeStateRecord:JSON.parse(canonicalizeReceizV122(storeStateRecord)),keyFile:input.authority.keyFile,
    ...(input.authority.passphrase===undefined?{}:{passphrase:input.authority.passphrase})});
   if(new TextEncoder().encode(JSON.stringify({path:'/api/public-proof/registry/feed',query:'',method:'POST',body:signed})).length>2_000_000)fail('locator_request_too_large');
@@ -109,13 +118,33 @@ export function createWildsResourceSourceArchiveLocatorV128(input:Readonly<{sdk:
   const restored=await input.sdk.publicStore.restoreLatest({url:sourceUrl,tenantHost:url.host});
   if(canonicalizeReceizV122(restored.storeStateRecord)!==canonicalizeReceizV122(storeStateRecord))fail('locator_readback_unconfirmed');
  };
- const publishBytes:PublishBytes=(page,reference)=>publish(`${url.toString()}/pages/${reference.digest}`,{schema:'wildz.resource-source-page-locator.v128',page},`wildz:resource-archive:${reference.digest}`);
- const compact=(proof:WildsResourceSourceProofV128)=>compactWildsResourceSourceProofV128(proof,(page,reference)=>publish(`${url.toString()}/pages/${reference.digest}`,{schema:'wildz.resource-source-page-locator.v128',page},`wildz:resource-archive:${reference.digest}`),publishBytes);
+ const retainedPages=new Set<string>();
+ const publishPage=async(page:unknown,digest:string)=>{
+  if(retainedPages.has(digest))return;
+  const pageUrl=`${url.toString()}/pages/${digest}`,record={schema:'wildz.resource-source-page-locator.v128',page};
+  const existing=await input.sdk.publicStore.restoreLatest({url:pageUrl,tenantHost:url.host});
+  if(canonicalizeReceizV122(existing.storeStateRecord)!==canonicalizeReceizV122(record)){
+   try{await publish(pageUrl,record,`wildz:resource-archive:${digest}`);}
+   catch(cause){
+    const restored=await input.sdk.publicStore.restoreLatest({url:pageUrl,tenantHost:url.host});
+    if(canonicalizeReceizV122(restored.storeStateRecord)!==canonicalizeReceizV122(record))throw cause;
+   }
+  }
+  retainedPages.add(digest);
+ };
+ const publishBytes:PublishBytes=(page,reference)=>publishPage(page,reference.digest);
+ const compact=(proof:WildsResourceSourceProofV128)=>compactWildsResourceSourceProofV128(proof,(page,reference)=>publishPage(page,reference.digest),publishBytes);
  const reference=async(proof:WildsResourceSourceProofV128):Promise<WildsResourceSourceReferenceV128>=>{
   const tail=await compact(proof),custodyArtifact=await locateWildzMarketSourceOriginalV128(tail.custodyArtifact,publishBytes),sourceArtifacts:WildzMarketSourceOriginalReferenceV128[]=[];
   for(const source of tail.sourceArtifacts)sourceArtifacts.push(await locateWildzMarketSourceOriginalV128(source,publishBytes));
   return {schema:'wildz.resource-source-reference.v128',custodyArtifact,archivePages:tail.archivePages??[],sourceArtifacts};
  };
- return {read:()=>readWildsResourceLocatedProofV128(input.sdk,url.toString()),compact,reference,
-  async publish(proof){const located=await reference(proof);await publish(url.toString(),{schema:'wildz.resource-source-locator.v128',proof:located},`wildz:resource-locator:${proof.custodyArtifact.artifactSha256}`);}};
+ return {read:admit=>readWildsResourceLocatedProofV128(input.sdk,url.toString(),admit),compact,reference,
+  async publish(proof,coordinate){
+   const artifactSha256=proof.custodyArtifact.artifactSha256;
+   await publishWildzOwnedSourceV128({sdk:input.sdk,kind:'resource',owner:input.authority.ownerReceizId,artifactSha256,coordinate,
+    publishOriginal:async sourceUrl=>publish(sourceUrl,{schema:'wildz.resource-source-locator.v128',proof:await reference(proof)},`wildz:resource-original:${artifactSha256}`),
+    publishPointer:(sourceUrl,pointer,namespace)=>publish(sourceUrl,pointer,`wildz:resource-publisher:${artifactSha256}`,namespace)
+   });
+  }};
 }

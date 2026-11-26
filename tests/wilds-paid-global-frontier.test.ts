@@ -14,7 +14,9 @@ import {canonicalPortableCardJson} from '../src/features/play/portable-card';
 import {createMemoryWildzContinuityDatabase} from './support/memory-wildz-continuity-database';
 const source=readFileSync('src/lib/receiz/wilds-resource-exchange-v128.ts','utf8');
 const body=source.slice(source.indexOf(' async function append('),source.indexOf(' async function readUseOutcome('));
-const code=ts.transpileModule(body,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
+// Exercise the same locator selection that the production append now calls.
+const locate=source.slice(source.indexOf(' let admittedLocator:'),source.indexOf(' async function current('));
+const code=ts.transpileModule(locate+body,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
 const first=paidClearanceTrace();
 for(const mode of ['overlap','adjacent','same-owner-overlap','legacy-site-overlap','legacy-site-adjacent','established-legacy-site-overlap'] as const)test(`actual common append rejects paid overlap before publisher prepare: ${mode}`,async()=>{
  const f=await first,owner='alice.receiz.id',paid={schema:'wildz.resource-command.v128',kind:'replay',attemptId:'global:first',ownerReceizId:owner,gameplayOwnerId:'explorer',commands:f.commands} as const;

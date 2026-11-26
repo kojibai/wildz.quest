@@ -26,7 +26,13 @@ test('unknown reservation observation is strictly read-only',async()=>{const f=a
 test('market locator transports a large exact Original within real SDK signed-request bounds',async()=>{
  const f=await fixture(),requests:Array<Record<string,unknown>>=[],records=new Map<string,unknown>();
  const sdk=createReceizClient({applicationId:'wildz',fetchImpl:async(url,init)=>{
-  if((init?.method??'GET')==='GET')return new Response(JSON.stringify({ok:true,record:records.get(new URL(String(url)).searchParams.get('url')!)}),{status:200,headers:{'content-type':'application/json'}});
+  if((init?.method??'GET')==='GET'){
+   const target=new URL(String(url));
+   if(target.pathname.startsWith('/api/public-proof/namespace/'))return Response.json({
+    ok:true,records:[...records.values()].filter(row=>(row as {namespace?:string}).namespace===target.pathname.split('/').at(-1))
+   });
+   return Response.json({ok:true,record:records.get(target.searchParams.get('url')!)??null});
+  }
   const text=String(init?.body);if(new TextEncoder().encode(text).length>2*1024*1024)throw Error('published host 2MiB request bound');
   const request=JSON.parse(text);requests.push(request);const record=request.feed.records[0];records.set(record.sourceUrl,record);
   return new Response('{}',{status:200,headers:{'content-type':'application/json'}});
@@ -35,11 +41,47 @@ test('market locator transports a large exact Original within real SDK signed-re
   exactBytesB64u:receizBase64UrlEncode(bytes),artifactSha256:await sha256ReceizBytes(bytes),payloadSha256:'a'.repeat(64),filename:'large-custody.receizbundle',mimeType:'application/vnd.receiz.bundle+json'};
  const proof:WildzMarketSourceProofV128={schema:'wildz.market-source-proof.v128',custodyArtifact:original,archivePages:[],sourceArtifacts:[{...original,exactBytesB64u:'eA',artifactSha256:'b'.repeat(64)}]};
  const locator=f.m.createWildzMarketPublicStoreLocatorV128({sdk,authority:f.author,sourceUrl:'https://wildz.quest/receiz/market-source-v128'});
- await locator.publish(proof);
+ await locator.publish(proof,{head:"c".repeat(64),cursor:1});
  assert.ok(requests.length>2,'large Original must use bounded immutable pages before its locator');
  const rows=requests.map(value=>value.storeStateRecord as Record<string,unknown>);
- assert.equal(rows.at(-1)?.schema,'wildz.market-source-locator.v128');
- assert.equal((rows.at(-1)?.proof as {custodyArtifact:{exactBytesB64u?:string}}).custodyArtifact.exactBytesB64u,undefined);
+ assert.equal(rows.at(-1)?.schema,'wildz.market-source-publisher.v128');
+ assert.equal(rows.at(-2)?.schema,'wildz.market-source-locator.v128');
+ assert.equal((rows.at(-2)?.proof as {custodyArtifact:{exactBytesB64u?:string}}).custodyArtifact.exactBytesB64u,undefined);
  const cold=f.m.createWildzMarketPublicStoreLocatorV128({sdk,authority:f.author,sourceUrl:'https://wildz.quest/receiz/market-source-v128'});
  assert.deepEqual(await cold.read(),proof,'cold transport must reconstruct the identical enclosing Original before source admission');
+});
+
+test('two identity-signed Market publishers advance separate locator addresses under Receiz ownership', async () => {
+ const alice=await fixture(), {keyFile}=await createReceizIdentityKeyFile({owner:{uid:'market_other',username:'bobby'}});
+ const records=new Map<string,Record<string,unknown>>();
+ const sdk=createReceizClient({applicationId:'wildz',fetchImpl:async(url,init)=>{
+  const path=new URL(String(url));
+  if((init?.method??'GET')==='GET'){
+   if(path.pathname.startsWith('/api/public-proof/namespace/')){
+    const namespace=decodeURIComponent(path.pathname.split('/').at(-1)!);
+    return Response.json({ok:true,records:[...records.values()].filter(row=>row.namespace===namespace)});
+   }
+   return Response.json({ok:true,record:records.get(path.searchParams.get('url')!)??null});
+  }
+  const request=JSON.parse(String(init?.body)), record=request.feed.records[0];
+  const prior=records.get(record.sourceUrl);
+  if(prior&&prior.externalCreatorId!==record.externalCreatorId)return Response.json({error:'unauthorized'},{status:403});
+  records.set(record.sourceUrl,record);
+  return Response.json({ok:true});
+ }});
+ const sourceUrl='https://wildz.quest/receiz/market-source-v128';
+ const seller=alice.m.createWildzMarketPublicStoreLocatorV128({sdk,authority:alice.author,sourceUrl});
+ const buyer=alice.m.createWildzMarketPublicStoreLocatorV128({sdk,authority:{...alice.author,keyFile,ownerReceizId:'bobby.receiz.id'},sourceUrl});
+ async function work(value:number){
+  const bytes=new Uint8Array(1).fill(value), sha=await sha256ReceizBytes(bytes);
+  const original={schema:'receiz.sealed-artifact-bytes.v124' as const,exactBytesB64u:receizBase64UrlEncode(bytes),artifactSha256:sha,payloadSha256:sha,filename:'market.receizbundle',mimeType:'application/vnd.receiz.bundle+json'};
+  return {proof:{schema:'wildz.market-source-proof.v128' as const,custodyArtifact:original,archivePages:[],sourceArtifacts:[original]},coordinate:{head:sha,cursor:value}};
+ }
+ const first=await work(1), second=await work(2);
+ const publish=(locator:typeof seller, update:typeof first)=>locator.publish(update.proof,update.coordinate);
+ await publish(seller,first);
+ await publish(buyer,second);
+ assert.deepEqual(await seller.read(),second.proof);
+ assert.deepEqual(await buyer.read(),second.proof);
+ assert.equal(records.has(sourceUrl),false,'the legacy locator is read-only');
 });

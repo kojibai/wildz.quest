@@ -1,4 +1,5 @@
 import { projectWildsBiome, type WildsBiomeTile } from "./wilds-biome";
+import { sameWildzPlayerCoordinate } from "../../lib/receiz/wildz-player-coordinate";
 import {
   expirePresence,
   presenceDistance,
@@ -53,6 +54,7 @@ export type WildsAtlasWorldAddition = {
   blueprint: WildsConstructionSiteV1["blueprint"] | WildsStructureV1["blueprint"] | "custom-building";
   name?: string;
   pieceCount?: number;
+  creationHead?: string;
   phase: "construction" | "complete";
   ownerReceizId: string;
   position: { x: number; y: number; z: number };
@@ -108,6 +110,7 @@ export type WildsAtlasInput = {
   worldMastery: number;
   discoveredLandmarkIds: readonly (WildsLandmarkId | string)[];
   selfId: string;
+  viewerOwnerId?: string;
   players: WildsPresence[];
   explorationAtlas: WildsExplorationAtlas;
   dynamicSites?: readonly WildsWorldSiteProjection[];
@@ -276,7 +279,11 @@ export function projectWildsAtlas(input: WildsAtlasInput): WildsAtlasProjection 
       .filter(finiteBuildingPosition)
       .map(structure => ({ id: structure.structureId, blueprint: structure.blueprint, phase: "complete" as const,
         ownerReceizId: structure.ownerReceizId, position: { ...structure.position }, progress: 1 }))
-  ].sort((left, right) => left.id.localeCompare(right.id));
+  ].filter(addition => input.viewerOwnerId === undefined
+    || addition.ownerReceizId === input.viewerOwnerId
+    || sameWildzPlayerCoordinate(addition.ownerReceizId, input.viewerOwnerId)
+    || wildsExplorationContainsWorld(input.explorationAtlas, addition.position)
+  ).sort((left, right) => left.id.localeCompare(right.id));
   return {
     centerRegion,
     gridCenterRegion,

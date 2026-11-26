@@ -13517,6 +13517,166 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
 .wilds-atlas-canvas > div { width: 100%; height: 100%; min-height: 0; }
 .wilds-atlas-canvas canvas { display: block; touch-action: none; }
 .wilds-atlas-pass-through-label { pointer-events: none; }
+.wilds-atlas-interactive-label { pointer-events: none; }
+.wilds-atlas-index, .wilds-atlas-inspector {
+  position: absolute;
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 4;
+  color: #eafff8;
+  border: 1px solid rgb(131 235 207 / 30%);
+  background: #10292ef5;
+  box-shadow: 0 14px 36px rgb(0 0 0 / 38%);
+  backdrop-filter: blur(16px);
+}
+.wilds-atlas-index {
+  bottom: max(61px, calc(env(safe-area-inset-bottom) + 47px));
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 850;
+}
+.wilds-atlas-index[aria-expanded="true"] { border-color: #91dbbe; }
+.wilds-atlas-inspector {
+  top: max(152px, calc(env(safe-area-inset-top) + 142px));
+  bottom: max(113px, calc(env(safe-area-inset-bottom) + 99px));
+  display: flex;
+  width: min(352px, calc(100% - 28px));
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+}
+.wilds-atlas-inspector.is-atlas-build-box {
+  top: auto;
+  width: min(294px, calc(100% - 20px));
+  height: auto;
+  max-height: min(220px, 46dvh);
+  border-radius: 12px;
+}
+.wilds-atlas-inspector.is-atlas-build-box .wilds-atlas-inspector-bar { padding-block: 0; }
+.wilds-atlas-build-grip {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  margin: 0;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  font-size: 13px;
+}
+.wilds-atlas-build-grip:active { cursor: grabbing; }
+.wilds-atlas-inspector .wilds-atlas-build-body { padding: 8px; }
+.wilds-atlas-inspector .wilds-atlas-build-body p { margin-bottom: 0; }
+.wilds-atlas-build-handle {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  color: #0e2b27;
+  border: 1px solid #fff0a3;
+  border-radius: 50%;
+  background: #f7d25be8;
+  touch-action: none;
+  cursor: grab;
+}
+.wilds-atlas-build-handle:active { cursor: grabbing; }
+.wilds-atlas-inspector[hidden] { display: none; }
+.wilds-atlas-inspector-bar, .wilds-atlas-directory-tabs, .wilds-atlas-inspector-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgb(131 235 207 / 16%);
+}
+.wilds-atlas-inspector button {
+  min-height: 44px;
+  color: #dffdf4;
+  border: 1px solid rgb(131 235 207 / 20%);
+  border-radius: 10px;
+  background: #18363a;
+  font-size: 12px;
+  font-weight: 750;
+}
+.wilds-atlas-inspector button:hover, .wilds-atlas-index:hover { border-color: #91dbbe; }
+.wilds-atlas-inspector button:focus-visible, .wilds-atlas-index:focus-visible, .wilds-atlas-map-label:focus-visible, .wilds-atlas-inspector a:focus-visible { outline: 2px solid #f7d25b; outline-offset: 2px; }
+.wilds-atlas-inspector-bar button { min-width: 44px; padding-inline: 9px; border-color: transparent; background: transparent; }
+.wilds-atlas-directory-tabs { padding-top: 0; border-bottom: 0; }
+.wilds-atlas-directory-tabs button { flex: 1; padding: 0 5px; text-transform: capitalize; }
+.wilds-atlas-directory-tabs button[aria-pressed="true"], .wilds-atlas-directory-list button[aria-pressed="true"] { border-color: #91dbbe; background: #214e48; }
+.wilds-atlas-inspector-scroll { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 14px 16px 18px; }
+.wilds-atlas-inspector-scroll h3 { margin: 0 0 7px; color: #f0fff5; font-size: 23px; line-height: 1.1; overflow-wrap: anywhere; }
+.wilds-atlas-inspector-scroll h4 { margin: 16px 0 7px; color: #e2f6eb; font-size: 13px; }
+.wilds-atlas-inspector-scroll p, .wilds-atlas-inspector-scroll li { color: #c4dfd9; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.wilds-atlas-inspector-scroll p { margin: 0 0 8px; }
+.wilds-atlas-inspector-scroll p:empty { display: none; }
+.wilds-atlas-inspector-scroll .wilds-atlas-inspector-kicker { color: #a4edc9; font-size: 10px; font-weight: 850; text-transform: uppercase; letter-spacing: .1em; }
+.wilds-atlas-inspector-coordinates { font-variant-numeric: tabular-nums; }
+.wilds-atlas-inspector-actions { flex-wrap: wrap; padding: 9px 12px; border-top: 1px solid rgb(131 235 207 / 16%); border-bottom: 0; }
+.wilds-atlas-inspector-actions button { flex: 1; padding: 0 7px; }
+.wilds-atlas-inspector-actions .wilds-atlas-rift-action { color: #0c2924; background: linear-gradient(135deg, #f5db79, #8deccd); }
+.wilds-atlas-inspector-actions .wilds-atlas-rift-error { flex: 1 0 100%; margin: 0; color: #ffd8aa; font-size: 12px; }
+.wilds-atlas-directory-list { display: grid; gap: 5px; margin: 0 0 10px; padding: 0; list-style: none; }
+.wilds-atlas-directory-list button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 9px; text-align: left; }
+.wilds-atlas-directory-list button svg { flex: 0 0 auto; color: #99ddc3; }
+.wilds-atlas-directory-list button strong, .wilds-atlas-directory-list button small { display: block; }
+.wilds-atlas-directory-list button small { margin-top: 2px; color: #b8d8d1; font-size: 11px; font-weight: 500; }
+.wilds-atlas-inspector-scroll .wilds-atlas-resident { margin: 6px 9px 8px; }
+.wilds-atlas-settlement-rank { text-transform: capitalize; }
+.wilds-atlas-charter { padding: 8px 10px; border: 1px solid rgb(131 235 207 / 20%); border-radius: 10px; }
+.wilds-atlas-charter h4 { margin-top: 2px; }
+.wilds-atlas-charter summary { min-height: 32px; padding-block: 6px; color: #dbf2e7; cursor: pointer; }
+.wilds-atlas-inspector a { display: inline-flex; min-height: 44px; align-items: center; color: #a4edc9; font-size: 12px; text-decoration: underline; }
+.wilds-atlas-world-tools { display: flex; align-items: center; gap: 3px; pointer-events: auto; }
+.wilds-atlas-world-tools button {
+  padding: 0 11px;
+  color: #dffdf4;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 800;
+}
+.wilds-atlas-world-tools button[aria-pressed="true"] { color: #071a1e; background: linear-gradient(135deg, #e6dc8b, #82e7bf); }
+.wilds-atlas-world-tools button:focus-visible { outline: 2px solid #f7d25b; outline-offset: 2px; }
+.wilds-atlas-civic form { display: grid; gap: 10px; margin-block: 12px; }
+.wilds-atlas-civic label { display: grid; gap: 4px; color: #c4dfd9; font-size: 12px; font-weight: 700; }
+.wilds-atlas-civic input:not([type="checkbox"]), .wilds-atlas-civic textarea, .wilds-atlas-civic select {
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px;
+  color: #eafff8;
+  border: 1px solid rgb(131 235 207 / 30%);
+  border-radius: 9px;
+  background: #082025;
+  font: inherit;
+}
+.wilds-atlas-civic label.wilds-atlas-civic-consent { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.wilds-atlas-civic :is(input, select, textarea):focus-visible { outline: 2px solid #e6dc8b; outline-offset: 2px; }
+.wilds-atlas-civic :is(button, input)[disabled] { opacity: .58; }
+.wilds-atlas-civic button { min-width: 44px; padding-inline: 9px; }
+.wilds-atlas-civic-subtabs, .wilds-atlas-civic-vote { display: flex; flex-wrap: wrap; gap: 6px; margin-block: 12px; }
+.wilds-atlas-civic-subtabs button[aria-pressed="true"] { border-color: #91dbbe; background: #214e48; }
+.wilds-atlas-civic .wilds-atlas-rift-action { color: #092820; background: #95e9c4; }
+.wilds-atlas-territory-key { border-left: 3px solid #f7d875; padding-left: 8px; }
+.wilds-atlas-city-label small { padding: 1px 4px; border-radius: 6px; background: rgb(131 235 207 / 17%); font: inherit; }
+.wilds-atlas-city-label .wilds-atlas-open-vote { color: #f7d875; background: currentColor; }
+.wilds-atlas-civic .wilds-city-grid { display: grid; grid-template-columns: repeat(3, minmax(44px, 1fr)); gap: 5px; }
+.wilds-city-grid button[aria-pressed="true"] { color: #092820; background: #95e9c4; }
+@media (max-width: 760px) {
+  .wilds-atlas-index { right: 10px; }
+  .wilds-atlas-inspector { top: auto; right: 10px; bottom: max(110px, calc(env(safe-area-inset-bottom) + 95px)); height: min(47dvh, 430px); width: min(328px, calc(100% - 20px)); }
+  .wilds-atlas-inspector.is-atlas-build-box { max-height: min(186px, 40dvh); }
+
+  .wilds-atlas-controls .wilds-atlas-world-tools { position: absolute; top: calc(100% + 5px); left: 0; right: 0; justify-content: start; padding: 2px; border-radius: 12px; background: rgb(5 20 27 / 88%); }
+}
 .wilds-atlas-zoom { position: absolute; top: max(100px, calc(env(safe-area-inset-top) + 100px)); left: max(12px, env(safe-area-inset-left)); z-index: 3; display: flex; gap: 4px; padding: 4px; border: 1px solid rgb(131 235 207 / 18%); border-radius: 999px; background: rgb(5 20 27 / 72%); box-shadow: 0 12px 36px rgb(0 0 0 / 24%); backdrop-filter: blur(15px); }
 .wilds-atlas-zoom button { min-height: 36px; padding: 0 11px; color: #86a8b2; border: 0; border-radius: 10px; background: transparent; font-size: 9px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 .wilds-atlas-zoom button[aria-pressed="true"] { color: #071a1e; background: linear-gradient(145deg, #f7d25b, #6fe6bd); }
@@ -13556,6 +13716,7 @@ body.wilds-command-open { background: #09110d !important; color-scheme: dark; }
   white-space: nowrap;
   backdrop-filter: blur(12px);
   transform: translateY(-2px);
+  pointer-events: auto;
 }
 .wilds-atlas-map-label > span { width: 6px; height: 6px; border-radius: 50%; box-shadow: 0 0 12px currentColor; }
 .wilds-atlas-map-label.is-active { color: #071a1e; border-color: #f9e58e; background: linear-gradient(135deg, #f7d25b, #71e8c3); transform: translateY(-4px) scale(1.06); }

@@ -144,11 +144,14 @@ describe("Receiz Wilds rendering contract", () => {
     assert.doesNotMatch(atmosphere, /presentation\.cameraSubmersionAllowed/);
   });
 
-  it("keeps the atlas unobstructed and makes the map itself the travel control", async () => {
+  it("keeps map selection and explicit Rift travel on separate controls", async () => {
     const map = await readFile("src/features/play/WildsWorldMap.tsx", "utf8");
 
-    assert.match(map, /onDrop=\{\(position\) => void onRift\(position\)\}/);
-    assert.match(map, /onSelect=\{\(landmarkId\) => \{[\s\S]*?void onRift\(landmarkApproachPoint\(landmark\)\)/);
+    assert.match(map, /onSelectTerrain=\{inspectTerrain\}/);
+    assert.match(map, /onSelectLandmark=\{inspectLandmark\}/);
+    assert.match(map, /onClick=\{confirmRift\}[\s\S]*?Rift/);
+    assert.equal(map.match(/\bonRift\(/g)?.length, 1);
+    assert.match(map, /await onRift\(destination\)/);
     assert.doesNotMatch(map, /wilds-atlas-destinations/);
     assert.doesNotMatch(map, /wilds-atlas-fallback/);
     assert.doesNotMatch(map, /wilds-atlas-destination-card/);
@@ -163,7 +166,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(map, /role="dialog"/);
     assert.match(map, /aria-modal="true"/);
     assert.match(map, /aria-label="Close world map"/);
-    assert.match(map, /landmarkApproachPoint\(landmark\)/);
+    assert.match(map, /landmarkApproachPoint\(selection\.landmark\)/);
     assert.doesNotMatch(map, /wilds-atlas-destinations/);
     assert.match(map, /createPortal/);
     assert.match(map, /document\.body/);
@@ -201,7 +204,7 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(css, /@media \(max-width: 760px\)[\s\S]*?\.wilds-world-map-header h2\s*\{[^}]*white-space:\s*normal/s);
   });
 
-  it("keeps Google Earth gestures connected across live atlas refreshes", async () => {
+  it("keeps map gestures connected across live atlas refreshes", async () => {
     const canvas = await readFile("src/features/play/WildsAtlasCanvas.tsx", "utf8");
     const css = await readFile("app/globals.css", "utf8");
     const cameraRig = canvas.slice(canvas.indexOf("function AtlasCameraRig"), canvas.indexOf("function TrainerLights"));
@@ -214,7 +217,8 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(cameraRig, /touches=\{\{ ONE: THREE\.TOUCH\.PAN, TWO: THREE\.TOUCH\.DOLLY_PAN \}\}/);
     assert.match(cameraRig, /Apply the exact finger angle/);
     assert.doesNotMatch(cameraRig, /minAzimuthAngle|maxAzimuthAngle/);
-    assert.equal(passThroughLabels.length, htmlLabels.length);
+    assert.equal(passThroughLabels.length + 1, htmlLabels.length);
+    assert.match(canvas, /wrapperClass="wilds-atlas-interactive-label"/);
     assert.match(css, /\.wilds-atlas-pass-through-label\s*\{[^}]*pointer-events:\s*none/);
   });
 
@@ -228,12 +232,12 @@ describe("Receiz Wilds rendering contract", () => {
     assert.match(canvas, /surface === "deep-water"/);
     assert.match(canvas, /MapRoutes projection=\{projection\}/);
     assert.doesNotMatch(canvas, /OrganicWorldSurface|organic-world-island|islandRadius|AtlasWaters|geographicTopography/);
-    assert.match(canvas, /onDrop/);
+    assert.match(canvas, /onSelectTerrain/);
     assert.match(canvas, /DropPin/);
     assert.match(canvas, /ExactPlayerLights/);
     assert.match(canvas, /atlas-live-players/);
     assert.doesNotMatch(canvas, /gridHelper/);
-    assert.match(map, /onDrop=\{\(position\) => void onRift\(position\)\}/);
+    assert.match(map, /onSelectTerrain=\{inspectTerrain\}/);
   });
 
   it("shares stable named geography between the atlas and walkable world", async () => {
@@ -934,4 +938,15 @@ describe("Receiz Wilds rendering contract", () => {
     const worldControls = campaign.slice(campaign.indexOf("<WildzWorldControls"));
     assert.doesNotMatch(worldControls, /<WildsAudioSettings/);
   });
+});
+
+it("Atlas Build opens on the held view and keeps detailed placement terrain bounded", async () => {
+  const map = await readFile("src/features/play/WildsWorldMap.tsx", "utf8");
+  const canvas = await readFile("src/features/play/WildsAtlasCanvas.tsx", "utf8");
+  const build = map.slice(map.indexOf("const openBuilder"), map.indexOf("const destination", map.indexOf("const openBuilder")));
+  assert.doesNotMatch(build, /focusDistrict\(currentPosition\)/);
+  assert.match(map, /detailRecenter=\{Boolean\(builder\?\.active && builder\.position\)/);
+  assert.match(canvas, /localDetail \? projection\.nodes\.filter/);
+  assert.match(canvas, /Math\.abs\(node\.regionX - projection\.gridCenterRegion\.x\) <= 1/);
+  assert.match(canvas, /Math\.abs\(node\.regionZ - projection\.gridCenterRegion\.z\) <= 1/);
 });

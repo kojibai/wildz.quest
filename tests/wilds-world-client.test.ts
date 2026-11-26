@@ -52,6 +52,8 @@ describe("Wilds world client contract", () => {
   it("keeps material harvest network work out of the visible action path", () => {
     assert.equal(shouldSynchronizeWildsWorldCommandAfterPaint({ type: "resource.material.harvest" } as never), true);
     assert.equal(shouldSynchronizeWildsWorldCommandAfterPaint({ type: "team.create" } as never), false);
+    assert.equal(shouldSynchronizeWildsWorldCommandAfterPaint({ type: "city.found" }), true);
+    assert.equal(shouldSynchronizeWildsWorldCommandAfterPaint({ type: "clan.join" }), true);
     for (const type of ["construction.project.create", "construction.component.place", "construction.component.deposit", "construction.component.work"]) assert.equal(shouldSynchronizeWildsWorldCommandAfterPaint({ type } as never), true);
     const source = readFileSync("src/features/play/use-wilds-world.ts", "utf8");
     assert.match(source, /scheduleWildsWorldBackgroundSync/);

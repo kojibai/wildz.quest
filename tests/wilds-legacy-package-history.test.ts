@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import ts from "typescript";
 import { assertWildsLegacyResourceAdmission, WILDS_LEGACY_PACKAGE_HISTORY_MESSAGE } from "../src/features/play/wilds-legacy-package-history";
+import { isWildsCivicCommand } from "../src/features/play/wilds-civic-command";
 
 function mountLegacyClaim(kind: "bearer-material" | "bearer-resource", packaged: boolean, conditionalUnavailable = false) {
   const lotId = "lot:already-packaged";
@@ -107,6 +108,7 @@ function mountLegacyWorldAdmission(type: "resource.transfer.admit" | "resource.m
     "@/features/play/wilds-world-service": { WildsWorldService: SourceWorld },
     "@/features/play/wilds-world-record": { findWildsWorldRecord: (value: unknown) => value },
     "@/features/play/wilds-world-authority": { verifyWildsWorldCommandKai: () => ({ uPulse: 1, authority: "world" }), worldCommandRequiresCard: () => false },
+    "@/features/play/wilds-civic-command": { isWildsCivicCommand },
     "@/lib/platform": { platform: { domain: "wildz.quest" } },
     "./wilds-multiplayer-server": { resolveWildsMultiplayerActor: async () => ({ accessToken: "session", practice: false, handle: "legacy-holder.receiz.id", playerId: "legacy-holder", receizActorId: "usr_legacy_holder" }) },
     "./wilds-world-repository": { createReceizWildsWorldRepository: () => ({

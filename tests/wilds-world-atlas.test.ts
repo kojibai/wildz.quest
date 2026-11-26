@@ -311,6 +311,22 @@ describe("Wilds world atlas", () => {
     assert.deepEqual(projection.worldAdditions, []);
     assert.deepEqual(projection.bounds, { minX: -4, maxX: 4, minZ: -4, maxZ: 4, count: 81 });
   });
+
+  it("shows another explorer's build only after charting its location and retains owned builds", () => {
+    const position = { x: 9_000, y: 1, z: 9_000 };
+    const input = {
+      center: { x: 0, z: 0 }, zoom: "world" as const, missionProgress: 0, worldMastery: 0,
+      discoveredLandmarkIds: [], selfId: "self", viewerOwnerId: "explorer.receiz.id", players: [], explorationAtlas,
+      customBuildings: [
+        { id: "held-home", blueprint: "custom-building" as const, phase: "complete" as const, ownerReceizId: "explorer", progress: 1, position },
+        { id: "neighbor-home", blueprint: "custom-building" as const, phase: "complete" as const, ownerReceizId: "neighbor", progress: 1, position },
+        { id: "hidden-bridge", blueprint: "custom-building" as const, phase: "complete" as const, ownerReceizId: "neighbor", progress: 1, position: { x: -9_000, y: 1, z: 0 } }
+      ]
+    };
+    assert.deepEqual(projectWildsAtlas(input).worldAdditions.map(build => build.id), ["held-home"]);
+    const charted = { ...explorationAtlas, rows: [...explorationAtlas.rows, { z: 187, ranges: [{ minX: 187, maxX: 187 }] }] };
+    assert.deepEqual(projectWildsAtlas({ ...input, explorationAtlas: charted }).worldAdditions.map(build => build.id), ["held-home", "neighbor-home"]);
+  });
 });
 
 describe("unbounded compact atlas projection", () => {

@@ -1,6 +1,7 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {RECEIZ_DEFAULT_BASE_URL} from '@receiz/sdk';
 import {isWildsClearancePublicUrlV128} from '@/lib/receiz/wilds-clearance-public-read-v128';
+import {WILDS_RESOURCE_SOURCE_PUBLISHER_PATH_V128} from '@/lib/receiz/wildz-owned-source-locator-v128';
 import {wildzNativeApplicationId} from '@/lib/receiz/wildz-native-application';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -12,9 +13,11 @@ export async function GET(request:NextRequest){
   const params=request.nextUrl.searchParams;
   if(!params.size)return NextResponse.json({applicationId:wildzNativeApplicationId()},{headers});
   const source=params.get('url')??'';
-  if(params.size!==1||!isWildsClearancePublicUrlV128(source))return NextResponse.json({error:'wilds_clearance_public_path_invalid'},{status:400,headers});
+  const directory=params.size===1&&params.get('directory')==='1';
+  if(!directory&&(params.size!==1||!isWildsClearancePublicUrlV128(source)))return NextResponse.json({error:'wilds_clearance_public_path_invalid'},{status:400,headers});
   const origin=new URL(process.env.RECEIZ_BASE_URL||RECEIZ_DEFAULT_BASE_URL).origin;
-  const url=new URL('/api/public-proof/by-url',origin);url.searchParams.set('url',source);
+  const url=new URL(directory?WILDS_RESOURCE_SOURCE_PUBLISHER_PATH_V128:'/api/public-proof/by-url',origin);
+  if(!directory)url.searchParams.set('url',source);
   const upstream=await fetch(url,{method:'GET',headers:{accept:'application/json'},cache:'no-store',redirect:'error',signal:request.signal});
   // Published byte pages and locator records already have strict SDK limits;
   // bound transport before constructing the response body as well.

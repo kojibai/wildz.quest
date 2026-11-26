@@ -76,6 +76,41 @@ export const RULE_DETAILS = {
     blocked: "Stale revisions, missing consent, conflicts, premature deadlines and unsupported actions are rejected. Community participation places are not physical shelter or title to land.",
     example: "A member requests a participation place. If capacity is full, the request waits in recorded order until a place becomes available."
   },
+  "city.voluntary-improvement-stewardship": {
+    title: "Found a city around a real improvement", summary: "Adopt a charter and mark connected ground to steward.",
+    requirements: "The founder binds their admitted first structure and its recorded materials or work to a connected site. Ground, public paths, protected landmarks and existing city boundaries are checked.",
+    success: "The named city, its first resident and the exact stewardship footprint enter the world history.",
+    blocked: "An unfunded draft, an unrelated structure, a conflicting boundary or protected land cannot establish a city.",
+    example: "Complete a trail shelter with recorded material lots, then found a city around it from the atlas."
+  },
+  "city.voluntary-residency": {
+    title: "Request city residency", summary: "Apply to join a city under its recorded charter.",
+    requirements: "The explorer adopts the exact charter and requests their own residency at the current city head.",
+    success: "A pending request is recorded for the city's founding resident to review.",
+    blocked: "Stale city heads, duplicate applications and an unaccepted charter are rejected.",
+    example: "Inspect a city and request residency from its People view."
+  },
+  "city.admitted-applicant": {
+    title: "Accept a resident", summary: "Approve an explorer who already requested residency.",
+    requirements: "The current founding resident records approval for an exact pending application.",
+    success: "Accepting the applicant adds their admitted membership and updates the resident count.",
+    blocked: "A player cannot be enrolled without their own recorded application.",
+    example: "Accept an application to let the new resident participate in future votes."
+  },
+  "city.voluntary-exit": {
+    title: "Leave city residency", summary: "Release your membership by your own decision.",
+    requirements: "The current resident requests their own exit at the exact city head.",
+    success: "The resident leaves and their prior participation remains in history. An open vote with a changed electorate closes.",
+    blocked: "An explorer cannot withdraw another person's membership through this action.",
+    example: "Leave one city before beginning a new chapter elsewhere."
+  },
+  "city.maintenance-priorities": {
+    title: "Set a city maintenance priority", summary: "Current residents resolve a bounded proposal by unanimous approval.",
+    requirements: "A resident opens a proposal and the current resident electorate is recorded. Each eligible member may cast one ballot at the exact city head.",
+    success: "The result and ballots remain in city history. Unanimously accepted priorities become the current maintenance plan.",
+    blocked: "Late or repeat ballots and stale heads are rejected. A vote cannot spend materials or change construction, land access or ownership.",
+    example: "Record a priority to repair the public trail, then do the work using the construction rules."
+  },
   "commons.plan": {
     title: "Start a shared project", summary: "Give a construction project a defined plan and permissions.",
     requirements: "Submit a valid project definition as an identified player. The construction rules validate the project before it enters the world.",

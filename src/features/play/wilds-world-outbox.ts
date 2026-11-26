@@ -11,12 +11,14 @@ import {
 import type { WildzVaultCardMembershipProof } from "@/lib/receiz/wildz-vault-card-admission";
 import { createWildzContinuityDatabase, type WildzContinuityTransaction } from "@/lib/storage/wildz-indexed-db";
 import { canonicalPortableCardJson, sha256PortableBasis, type PortableCardAsset } from "./portable-card";
+import { preservesWildsCivicHistory, wildsCivicEventKind } from "./wilds-city";
+import { isWildsCivicCommand } from "./wilds-civic-command";
 import { WildsWorldService, type WildsWorldCommand } from "./wilds-world-service";
 import { checkpointWildsWorld, reduceWildsWorldEvent, replayWildsWorld, type WildsWorldCheckpoint, type WildsWorldProjection } from "./wilds-world-state";
 
-import type { WildsWorldEvent } from "./wilds-world-event";
+import { compareWildsWorldEvents, type WildsWorldEvent } from "./wilds-world-event";
 import { constructionProofDigest, verifyWildsConstructionProject, verifyWildsConstructionChunk } from "./wilds-construction-project";
-import { isWildsEdgeImmediateConstructionCommand } from "./wilds-world-authority";
+import { isWildsEdgeAdmittedCommand } from "./wilds-world-authority";
 import { creationWorldEventMatches, isWorldCreationSuccessor, type WildsCreationBuildCommand } from './creation/world-source';
 
 export type WildsWorldAdmittedSource = { anchorId: string; checkpoint?: WildsWorldCheckpoint; events: WildsWorldEvent[] };
@@ -68,6 +70,7 @@ function defaultStorage(actorId: string, transaction?: WildzContinuityTransactio
     // transaction. No other realm can change it before this write commits.
     const before = readInTransaction ? readSnapshot : await tx.get<ReceizOfflineProofQueueSnapshot>("meta", key);
     assertWildsCreationOutboxContinuity(before, snapshot);
+    assertWildsCivicOutboxContinuity(before, snapshot);
     const previousIds = new Set([...(before?.pending ?? []), ...(before?.settled ?? [])].map(item => item.id));
     for (const item of [...snapshot.pending, ...snapshot.settled]) {
       const entry = item.payload.entry as WildsWorldOutboxEntry | undefined;
@@ -113,6 +116,21 @@ export function assertWildsCreationOutboxContinuity(before: ReceizOfflineProofQu
       const existing = spent.get(resource.id);
       if (existing && existing !== entry.command.commandId) throw Error("creation_world_durable_material_conflict");
       spent.set(resource.id, entry.command.commandId);
+    }
+  }
+}
+
+function assertWildsCivicOutboxContinuity(before: ReceizOfflineProofQueueSnapshot | null, next: ReceizOfflineProofQueueSnapshot) {
+  const sources = (snapshot: ReceizOfflineProofQueueSnapshot | null) =>
+    [...(snapshot?.settled ?? []), ...(snapshot?.pending ?? [])].flatMap(row => {
+      const entry = row.payload.entry as WildsWorldOutboxEntry | undefined;
+      return entry?.command && isWildsCivicCommand(entry.command) ? [[row.id, entry] as const] : [];
+    });
+  const retained = new Map(sources(next));
+  for (const [id, entry] of sources(before)) {
+    const successor = retained.get(id);
+    if (!successor || (successor !== entry && constructionProofDigest(successor) !== constructionProofDigest(entry))) {
+      throw new Error("wilds_civic_durable_source_changed");
     }
   }
 }
@@ -177,17 +195,19 @@ export async function persistWildsWorldCommandDurably(entry: WildsWorldOutboxEnt
 
 async function persistUnlocked(entry: WildsWorldOutboxEntry, storage: ReceizOfflineProofQueueStorage) {
   const queue = await createReceizOfflineProofQueue({ ownerId: entry.actorId, storage });
+  const snapshot = queue.snapshot();
+  const rows = [...snapshot.pending, ...snapshot.settled];
   if (isCreationBuild(entry.command)) {
-    const snapshot = queue.snapshot();
     const selectedIds = new Set(entry.command.resources.map(resource => resource.id));
-    for (const item of [...snapshot.pending, ...snapshot.settled]) {
+    for (const item of rows) {
       const candidate = item.payload.entry as WildsWorldOutboxEntry | undefined;
       if (candidate && isCreationBuild(candidate.command) && candidate.command.commandId !== entry.command.commandId
         && candidate.command.resources.some(resource => selectedIds.has(resource.id))) throw Error("creation_world_durable_material_conflict");
     }
   }
-  const previous = [...queue.snapshot().pending, ...queue.snapshot().settled].find((item) => item.id === entry.command.commandId);
+  const previous = rows.find((item) => item.id === entry.command.commandId);
   if (previous && constructionProofDigest(previous.payload.entry) !== constructionProofDigest(entry)) throw new Error("wilds_world_outbox_command_conflict");
+  if (!previous && isWildsCivicCommand(entry.command)) assertFreshWildsCivicSource(entry, rows);
   queue.enqueue({
     id: entry.command.commandId,
     kind: "wilds.world.command",
@@ -196,6 +216,36 @@ async function persistUnlocked(entry: WildsWorldOutboxEntry, storage: ReceizOffl
     createdAt: entry.queuedAt
   });
   await queue.flush();
+}
+
+/** The SDK queue transaction also guards the held civic head across tabs.
+ * A prepared sibling cannot be appended after another tab durably advanced it. */
+function assertFreshWildsCivicSource(entry: WildsWorldOutboxEntry, rows: ReceizOfflineProofQueueSnapshot["pending"]) {
+  const source = entry.admittedSource;
+  if (!source || source.events.length !== 1) throw new Error("wilds_world_admitted_source_required");
+  const links = new Map<string, { event: WildsWorldEvent; checkpoint?: WildsWorldCheckpoint }>();
+  let latest: WildsWorldEvent | undefined;
+  for (const row of rows) {
+    const retained = row.payload.entry as WildsWorldOutboxEntry | undefined;
+    const admitted = retained?.admittedSource;
+    const event = admitted?.events[0];
+    if (!retained || !admitted || !event) continue;
+    links.set(event.eventId, { event, checkpoint: admitted.checkpoint });
+    if (isWildsCivicCommand(retained.command) && (!latest || compareWildsWorldEvents(latest, event) < 0)) latest = event;
+  }
+  if (!latest) return;
+  let checkpoint = source.checkpoint;
+  let parentId = source.events[0]!.previousEventId;
+  while (!checkpoint && parentId) {
+    if (parentId === latest.eventId) return;
+    const parent = links.get(parentId);
+    if (!parent) break;
+    links.delete(parentId);
+    checkpoint = parent.checkpoint;
+    parentId = parent.event.previousEventId;
+  }
+  const receipt = checkpoint?.projection.constitutionalCommandReceipts?.[latest.causeId];
+  if (receipt?.eventIds[0] !== latest.eventId) throw new Error("wilds_civic_durable_source_conflict");
 }
 
 export async function acknowledgeWildsWorldCommand(actorId: string, commandId: string, storage?: ReceizOfflineProofQueueStorage) {
@@ -246,9 +296,18 @@ export function verifyWildsWorldAdmittedSource(entry: WildsWorldOutboxEntry, con
   const source = entry.admittedSource;
   if (!source || source.events.length !== 1) throw new Error("wilds_world_admitted_source_required");
   const event = source.events[0]!;
-  const expectedKinds: Record<string, string> = { "creation.construct": "creation.constructed", "creation.evolve": "creation.evolved", "creation.action":"creation.acted", "construction.component.maintain": "construction.component_maintained", "construction.project.create": "construction.project_created", "construction.component.place": "construction.component_placed", "construction.burrow.dig": "construction.burrow_dug", "construction.component.adjust": "construction.component_adjusted", "construction.component.deposit": "construction.material_contributed", "construction.component.work": "construction.work_contributed" };
-  if (event.kind !== expectedKinds[entry.command.type]) throw new Error("wilds_world_admitted_source_kind_mismatch");
-  if (event.actorId !== entry.actorId || event.causeId !== entry.command.commandId || (event.payload as { commandDigest?: unknown } | null)?.commandDigest !== constructionProofDigest(entry.command)) throw new Error("wilds_world_admitted_source_mismatch");
+  const constructionKinds: Record<string, string> = { "creation.construct": "creation.constructed", "creation.evolve": "creation.evolved", "creation.action":"creation.acted", "construction.component.maintain": "construction.component_maintained", "construction.project.create": "construction.project_created", "construction.component.place": "construction.component_placed", "construction.burrow.dig": "construction.burrow_dug", "construction.component.adjust": "construction.component_adjusted", "construction.component.deposit": "construction.material_contributed", "construction.component.work": "construction.work_contributed" };
+  const command = entry.command;
+  const civic = isWildsCivicCommand(command);
+  const expectedKind = civic ? wildsCivicEventKind(command) : constructionKinds[command.type];
+  if (event.kind !== expectedKind) throw new Error("wilds_world_admitted_source_kind_mismatch");
+  if (event.actorId !== entry.actorId || event.causeId !== entry.command.commandId) throw new Error("wilds_world_admitted_source_mismatch");
+  if (civic) {
+    const payload = event.payload as { command?: unknown } | null;
+    if (!payload?.command || canonicalPortableCardJson(payload.command) !== canonicalPortableCardJson(entry.command)) throw new Error("wilds_world_admitted_source_mismatch");
+  } else if ((event.payload as { commandDigest?: unknown } | null)?.commandDigest !== constructionProofDigest(entry.command)) {
+    throw new Error("wilds_world_admitted_source_mismatch");
+  }
   const base = source.checkpoint ? replayWildsWorld([], source.checkpoint) : context;
   if (!base) throw new Error("wilds_world_source_anchor_missing");
   return reduceWildsWorldEvent(base, event);
@@ -262,7 +321,7 @@ export function prepareWildsWorldOutboxEntry(base: WildsWorldProjection, entry: 
   const world = WildsWorldService.fromLocalProjection(base);
   const result = world.execute(entry.command, { actorId: entry.actorId, canonical: true, pulse: entry.queuedAt, occurredAt: entry.queuedAt, card: entry.card });
   return {
-    entry: isWildsEdgeImmediateConstructionCommand(entry.command) && result.events.length
+    entry: isWildsEdgeAdmittedCommand(entry.command) && result.events.length
       ? { ...entry, admittedSource: { anchorId: anchorId ?? entry.command.commandId, ...(anchorId ? {} : { checkpoint: checkpointWildsWorld(base) }), events: result.events } }
       : entry,
     projection: result.projection, events: result.events, constitution: result.constitution
@@ -361,6 +420,7 @@ export async function reconcileWildsWorldOutboxProjection(input: {
 const historyProofCache = createWildsExactProofCache();
 
 export function preserveWildsConstructionHistory(current: WildsWorldProjection, candidate: WildsWorldProjection) {
+  if (!preservesWildsCivicHistory(current, candidate)) return current;
   const same = (left: unknown, right: unknown) => canonicalPortableCardJson(left ?? null) === canonicalPortableCardJson(right ?? null);
   for (const [id, source] of Object.entries(current.creations ?? {})) {
     const next = candidate.creations?.[id];
@@ -425,7 +485,7 @@ export function createWildsWorldEdgeAdmissionQueue(input: {
     adopt(candidate: WildsWorldProjection) {
       if (!activeAdmissions) {
         const accepted = preserveWildsConstructionHistory(projection, candidate);
-        if (accepted.cursor?.eventId !== projection.cursor?.eventId) anchorId = null;
+        if (accepted !== projection) anchorId = null;
         projection = accepted;
       }
       return projection;

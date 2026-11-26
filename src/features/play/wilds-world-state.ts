@@ -8,6 +8,7 @@ import { projectWildsConstructionWeather, resolveWildsMaintenance, type WildsMai
 import { resolveWorldCreationBuild, type WildsCreationSourceRecord } from "./creation/world-source";
 import type { WildsWorldEvent } from "./wilds-world-event";
 import { transitionCommunity, type CommunityRequest, type WildsCommunity } from "./wilds-community";
+import { reduceWildsCivicEvent, type WildsCity, type WildsClan } from "./wilds-city";
 import { settleWildsConstructionWork, WILDS_CONSTRUCTION_WORK_REWARD_POLICY } from "./wilds-construction-work-reward";
 import { createWildsBurrow, verifyWildsBurrow, type WildsBurrowV1 } from "./wilds-burrow";
 import { previewWildsConstructionAdjustment, type WildsConstructionPlacementRequest } from "./wilds-construction-placement";
@@ -162,6 +163,8 @@ export type WildsWorldProjection = {
   creations?: Record<string, WildsCreationSourceRecord>;
   creationEvents?: Record<string, WildsWorldEvent>;
   communities?: Record<string, WildsCommunity>;
+  cities?: Record<string, WildsCity>;
+  clans?: Record<string, WildsClan>;
   constitutionalCommandReceipts?: Record<string, { digest: string; actorId: string; type: string; eventIds: string[] }>;
   constitutionalClaims?: Record<string, { id: string; claimant: string; subject: string; proposition: string; status: "ALLEGED"; sourceEventId: string }>;
   schema: "receiz.wilds_world_projection.v3";
@@ -873,6 +876,9 @@ export function reduceWildsWorldEvent(state: WildsWorldProjection, event: Compat
       }
       return appendEvent(state, event, { teams: { ...state.teams, [team.id]: team } });
     }
+    case "city.transitioned":
+    case "clan.transitioned":
+      return appendEvent(state, event, reduceWildsCivicEvent(state, event, payload));
     case "community.transitioned": {
       const request = payload.request as CommunityRequest;
       const previous = request && Object.hasOwn(state.communities ?? {}, request.communityId) ? state.communities?.[request.communityId] : undefined;

@@ -3,6 +3,8 @@ import type { WildsResourcePackageCommand } from "./wilds-resource-package-world
 import { projectWildsConstructionWeather, resolveWildsMaintenance, type WildsMaintenanceCommand } from "./wilds-construction-weather";
 import { resolveWorldCreationBuild, type WildsCreationBuildCommand } from "./creation/world-source";
 import type { CommunityRequest } from "./wilds-community";
+import { wildsCivicEventKind, type WildsCityCommand } from "./wilds-city";
+import { isWildsCivicCommand } from "./wilds-civic-command";
 import { settleWildsConstructionWork } from "./wilds-construction-work-reward";
 import { createWildsBurrow, type WildsBurrowRequest } from "./wilds-burrow";
 import { settleWildsBuild, verifyWildsBuildSettlement } from "./wilds-steward-build-settlement";
@@ -90,6 +92,7 @@ import type { WildsBlueprintPlacement } from "./wilds-world-construction";
 import {resolveWildsClearancePickupV128,type WildsClearanceCommandV128} from '../../lib/receiz/wilds-clearance-admission-v128';
 
 export type WildsWorldCommand = (
+  | WildsCityCommand
   | WildsClearanceCommandV128
   | WildsResourcePackageCommand
   | WildsCreationBuildCommand
@@ -525,7 +528,7 @@ export class WildsWorldService {
       if (command.type.startsWith("construction.component.") || command.type === "construction.project.create") throw new Error("wilds_construction_command_conflict");
       return { events: [], projection: this.projection };
     }
-    const commandKai = command.kai ? verifyWildsWorldCommandKai(command) : null;
+    const commandKai = command.kai || isWildsCivicCommand(command) ? verifyWildsWorldCommandKai(command) : null;
     const kaiOccurredAt = commandKai ? kaiUPulseToISOString(commandKai.uPulse) : null;
     authority = {
       ...authority,
@@ -533,6 +536,10 @@ export class WildsWorldService {
       card: verifyWildsWorldCommandCard({ command, card: authority.card })
     };
     const events: WildsWorldEvent[] = [];
+    if (isWildsCivicCommand(command)) {
+      events.push(this.append(wildsCivicEventKind(command), { command: structuredClone(command) }, authority, command.commandId));
+      return { events, projection: this.projection };
+    }
     if (command.type === "community.transition") {
       events.push(this.append("community.transitioned", { request: command.request }, authority, command.commandId));
       return { events, projection: this.projection };

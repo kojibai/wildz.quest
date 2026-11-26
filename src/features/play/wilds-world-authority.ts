@@ -1,6 +1,7 @@
 import { verifyAnyWildsCard, type PortableCardAsset } from "./portable-card";
 import type { WildsWorldCommand } from "./wilds-world-service";
 import { verifyKaiTemporalRoot, type KaiTemporalRoot } from "./kai-temporal-root";
+import { isWildsCivicCommand } from "./wilds-civic-command";
 
 export type KaiRootedWildsWorldCommand = WildsWorldCommand & { kai: KaiTemporalRoot };
 
@@ -43,4 +44,8 @@ export function verifyWildsWorldCommandCard(input: {
 
 export function isWildsEdgeImmediateConstructionCommand(command: Pick<WildsWorldCommand, "type">) {
   return command.type === "creation.construct" || command.type === "creation.evolve" || command.type === "creation.action" || command.type === "construction.burrow.dig" || command.type === "construction.project.create" || command.type.startsWith("construction.component.");
+}
+
+export function isWildsEdgeAdmittedCommand(command: Pick<WildsWorldCommand, "type">) {
+  return isWildsCivicCommand(command) || isWildsEdgeImmediateConstructionCommand(command);
 }

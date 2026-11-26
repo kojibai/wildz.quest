@@ -17,7 +17,7 @@ export function createCreationWorkerClient(factory?:()=>CreationWorkerPort) {
    return new Promise(resolve=>{const timer=setTimeout(()=>{failed=true;stop('Creation took too long. Try a smaller page.');},15000);pending.set(requestId,{resolve:result=>resolve(result as T),timer});try {worker!.postMessage(message);}catch{failed=true;stop('Creation worker could not accept this draft.');}});
  };
  return {
-  compile(requestId:string,definition:CreationDefinition,context:CreationCompileContext){return request<CreationCompileResult>(requestId,{requestId,definition,context});},
+  compile(requestId:string,definition:CreationDefinition,context:CreationCompileContext,includeDraftGeometry=false){return request<CreationCompileResult>(requestId,{requestId,definition,context,includeDraftGeometry});},
   phase(requestId:string,definition:CreationDefinition,context:CreationCompileContext,mode:'automatic'|'manual'){return request<CreationPhaseResult>(requestId,{requestId,definition,context,kind:'phase',mode});},
   cancel(requestId:string){settle(requestId,blocked('Creation request cancelled.'));if(!pending.size){worker?.terminate();worker=null;}},
   close(){closed=true;stop('Creation worker closed.');},

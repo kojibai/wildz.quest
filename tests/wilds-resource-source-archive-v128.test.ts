@@ -10,14 +10,17 @@ test('resource locator sends a large enclosing Original within actual SDK signed
  const {keyFile}=await createReceizIdentityKeyFile({owner:{uid:'resource_archive_test',username:'alice'}}),requests:Array<Record<string,unknown>>=[],records=new Map<string,unknown>();
  const sdk=createWildsWalletSourceSdkClientV128({applicationId:'wildz',fetcher:async(_url,init)=>{
   const text=String(init?.body);assert.ok(new TextEncoder().encode(text).length<=2_000_000,'actual signed same-origin wrapper exceeds production bound');
-  const wire=JSON.parse(text);if(wire.method==='GET')return Response.json({ok:true,record:records.get(new URLSearchParams(wire.query).get('url')!)});
+  const wire=JSON.parse(text);
+  if(wire.method==='GET')return Response.json(wire.path.includes('/namespace/')
+   ? {ok:true,records:[...records.values()].filter(row=>(row as {namespace:string}).namespace===wire.path.split('/').at(-1))}
+   : {ok:true,record:records.get(new URLSearchParams(wire.query).get('url')!)??null});
   const value=wire.body;requests.push(value);const record=value.feed.records[0];records.set(record.sourceUrl,record);return Response.json({});
  }});
  const authority={keyFile,ownerReceizId:'alice.receiz.id'} as WildsResourceSourceAuthorV128;
  const proof:WildsResourceSourceProofV128={schema:'wildz.resource-source-proof.v128',custodyArtifact:await original(new Uint8Array(600_000).map((_,i)=>i%251)),sourceArtifacts:[await original(new TextEncoder().encode('diagnostic source Original'))]};
  const locator=createWildsResourcePublicStoreLocatorV128({sdk,authority,sourceUrl:'https://wildz.quest/receiz/resource-source-v128'});
- await locator.publish(proof);assert.ok(requests.length>2);
- assert.equal((requests.at(-1)!.storeStateRecord as {proof:{schema:string}}).proof.schema,'wildz.resource-source-reference.v128');
+ await locator.publish(proof,{head:"a".repeat(64),cursor:1});assert.ok(requests.length>2);
+ assert.equal((requests.at(-2)!.storeStateRecord as {proof:{schema:string}}).proof.schema,'wildz.resource-source-reference.v128');
  assert.deepEqual(await createWildsResourcePublicStoreLocatorV128({sdk,authority,sourceUrl:'https://wildz.quest/receiz/resource-source-v128'}).read(),{...proof,archivePages:[]});
 });
 test('resource archive retains and replays every one of130 diagnostic source events rather than a checkpoint',async()=>{
@@ -50,15 +53,20 @@ test('more than128 source leaves must still reach native root admission and reje
 test('accepted locator reply loss republishes the same exact custody and ancestry bytes across cold recreation',async()=>{
  const {keyFile}=await createReceizIdentityKeyFile({owner:{uid:'resource_archive_reply',username:'alice'}}),records=new Map<string,unknown>(),attempts:string[]=[];let dropped=false;
  const sdk=createReceizClient({applicationId:'wildz',fetchImpl:async(url,init)=>{
-  if((init?.method??'GET')==='GET')return Response.json({ok:true,record:records.get(new URL(String(url)).searchParams.get('url')!)});
+  if((init?.method??'GET')==='GET'){
+   const path=new URL(String(url));
+   return Response.json(path.pathname.includes('/namespace/')
+    ?{ok:true,records:[...records.values()].filter(row=>(row as {namespace:string}).namespace===path.pathname.split('/').at(-1))}
+    :{ok:true,record:records.get(path.searchParams.get('url')!)??null});
+  }
   const value=JSON.parse(String(init?.body)),record=value.feed.records[0];records.set(record.sourceUrl,record);attempts.push(new Headers(init?.headers).get('idempotency-key')??new Headers(init?.headers).get('x-idempotency-key')??'');
-  if(record.sourceUrl==='https://wildz.quest/receiz/resource-source-v128'&&!dropped){dropped=true;throw Error('diagnostic accepted publication reply lost');}return Response.json({});
+  if(record.sourceUrl==='https://wildz.quest/receiz/resource-source-v128/publishers/alice'&&!dropped){dropped=true;throw Error('diagnostic accepted publication reply lost');}return Response.json({});
  }});
  const source=await original(new TextEncoder().encode('immutable diagnostic Original')),proof:WildsResourceSourceProofV128={schema:'wildz.resource-source-proof.v128',custodyArtifact:source,sourceArtifacts:[source]},input={sdk,authority:{keyFile,ownerReceizId:'alice.receiz.id'} as WildsResourceSourceAuthorV128,sourceUrl:'https://wildz.quest/receiz/resource-source-v128'};
- await assert.rejects(createWildsResourcePublicStoreLocatorV128(input).publish(proof),/reply lost/);
+ await assert.rejects(createWildsResourcePublicStoreLocatorV128(input).publish(proof,{head:source.artifactSha256,cursor:1}),/reply lost/);
  const recovered=createWildsResourcePublicStoreLocatorV128(input);assert.deepEqual(await recovered.read(),{...proof,archivePages:[]});
- await recovered.publish(proof);assert.deepEqual(await recovered.read(),{...proof,archivePages:[]});
- assert.equal(attempts.filter(id=>id===`wildz:resource-locator:${source.artifactSha256}`).length,2);
+ await recovered.publish(proof,{head:source.artifactSha256,cursor:1});assert.deepEqual(await recovered.read(),{...proof,archivePages:[]});
+ assert.equal(attempts.filter(id=>id===`wildz:resource-publisher:${source.artifactSha256}`).length,1);
 });
 test('before-CAS byte budgets cover the downstream custody multipart and exact source wrapper',async()=>{
  const m=await archive(),source=await original(new Uint8Array(1_499_700));
@@ -82,4 +90,29 @@ test('archived130-source bytes are reconstructed before the actual released SDK 
  const sdk=createReceizClient({applicationId:'wildz',fetchImpl:async url=>{reads++;const digest=new URL(String(url)).searchParams.get('url')?.split('/').at(-1);return Response.json({ok:true,record:{schema:'receiz.app.public_store_state_projection.v1',state:'published',data:{storeStateRecord:{schema:'wildz.resource-source-page-locator.v128',page:pages.get(digest!)}}}});}});
  await assert.rejects(verifyWildsResourceSourceProofV128(sdk,compact,{applicationId:'wildz'}),/wildz_artifact_verification_failed/);
  assert.ok(reads>compact.archivePages!.length,'replay restored archive and byte pages before native root opening');
+});
+
+test('two SDK identities carry the same resource ancestry through distinct publisher addresses',async()=>{
+ const sellers=await Promise.all(['alice','bobby'].map(async username=>({...(await createReceizIdentityKeyFile({owner:{uid:`resource-${username}`,username}})),ownerReceizId:`${username}.receiz.id`}) as unknown as WildsResourceSourceAuthorV128));
+ const records=new Map<string,{sourceUrl:string;externalCreatorId:string;namespace:string}>();
+ const sdk=createReceizClient({applicationId:'wildz',fetchImpl:async(input,init)=>{
+  const url=new URL(String(input));
+  if(init?.method!=='POST')return Response.json(url.pathname.includes('/namespace/')
+   ?{ok:true,records:[...records.values()].filter(row=>row.namespace===url.pathname.split('/').at(-1))}
+   :{ok:true,record:records.get(url.searchParams.get('url')!)??null});
+  const {feed:{records:[row]}}=JSON.parse(String(init.body));
+  const previous=records.get(row.sourceUrl);
+  if(previous&&previous.externalCreatorId!==row.externalCreatorId)return Response.json({error:'unauthorized'},{status:403});
+  records.set(row.sourceUrl,row);return Response.json({ok:true});
+ }});
+ const sourceUrl='https://wildz.quest/receiz/resource-source-v128';
+ const [seller,buyer]=sellers.map(authority=>createWildsResourcePublicStoreLocatorV128({sdk,authority,sourceUrl}));
+ const ancestry=await Promise.all([1,2].map(value=>original(new Uint8Array(210_000).fill(value))));
+ const first={schema:'wildz.resource-source-proof.v128' as const,custodyArtifact:ancestry[0],sourceArtifacts:ancestry.slice(0,1)};
+ const next={...first,custodyArtifact:ancestry[1],sourceArtifacts:ancestry};
+ const publish=(locator:typeof seller,proof:typeof first,cursor:number)=>locator.publish(proof,{head:proof.custodyArtifact.artifactSha256,cursor});
+ await publish(seller,first,1);
+ await publish(buyer,next,2);
+ assert.deepEqual(await seller.read(),{...next,archivePages:[]});
+ assert.equal(records.has(sourceUrl),false,'the legacy locator is read-only');
 });

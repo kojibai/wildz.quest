@@ -10,6 +10,8 @@ export type WildsWorldEventKind =
   | "creation.evolved"
   | "creation.acted"
   | "community.transitioned"
+  | "city.transitioned"
+  | "clan.transitioned"
   | "site.spawned"
   | "site.phase_changed"
   | "boss.emerged"
@@ -108,6 +110,8 @@ const eventKinds = new Set<WildsWorldEventKind>([
   "creation.evolved",
   "creation.acted",
   "community.transitioned",
+  "city.transitioned",
+  "clan.transitioned",
   "site.spawned",
   "site.phase_changed",
   "boss.emerged",

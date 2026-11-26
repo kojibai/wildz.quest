@@ -2,9 +2,11 @@ import type { WildsWorldCommand, WildsWorldAuthority } from "./wilds-world-servi
 import type { WildsWorldProjection } from "./wilds-world-state";
 import type { WildsWorldEvent } from "./wilds-world-event";
 import { constitutionalDigest, constitutionalPredicate as predicate, deriveConstitutionalDecision, type ConstitutionalDecision } from "./wilds-constitution";
+import { WILDS_CIVIC_COMMAND_LAW } from "./wilds-civic-command";
 
 /** Adding a command requires choosing its bounded source law at compile time. */
 export const WILDS_COMMAND_LAW = {
+  ...WILDS_CIVIC_COMMAND_LAW,
   "construction.clearance.derive": "wildz.building-clearance.v1",
   "construction.clearance.pickup": "wildz.building-clearance.v1",
   "resource.package.create": "sources.reserve",

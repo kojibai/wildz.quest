@@ -5,7 +5,7 @@ import type { WildsMaterialLotV1 } from '../wilds-steward-construction';
 
 /** Same bound as the HTTP endpoint. Oversized evidence remains on this device. */
 export const CREATION_PROPOSAL_BODY_LIMIT=1048576;
-export type CreationProposalEvidence={cards:readonly PortableCardAsset[];cardAdmissions:Readonly<Record<string,unknown>>;lots:readonly WildsMaterialLotV1[];localOnly?:boolean};
+export type CreationProposalEvidence={cards:readonly PortableCardAsset[];cardAdmissions:Readonly<Record<string,unknown>>;lots:readonly WildsMaterialLotV1[];localOnly?:boolean;allowLocalOnUnavailable?:boolean};
 
 /** Select references only: never clone/serialize world geometry or the account's
  * full admission map on the rendering thread. These are proposal hints, never
@@ -21,7 +21,7 @@ export function selectCreationProposalEvidence(request:CreationPlannerRequest,in
   if(lots.length===4096)return {cards:[],cardAdmissions:{},lots:[],localOnly:true};
   seen.add(lot.lotId);lots.push(lot);remaining[lot.kind]=Math.max(0,remaining[lot.kind]-lot.quantity);
  }
- return {cards,cardAdmissions,lots};
+ return {cards,cardAdmissions,lots,...(input.allowLocalOnUnavailable?{allowLocalOnUnavailable:true}:{})};
 }
 
 /** Runs only in the proposal worker. JSON encoding, byte counting, optional
@@ -44,7 +44,7 @@ export async function runCreationProposal(raw:CreationPlannerRequest,evidence:Cr
   const result=await response.json() as CreationPlannerResult;
   if(signal.aborted)return {status:'unavailable',reason:'Request cancelled. Your draft is saved.'};
   if(result.status==='blocked')return {status:'blocked',reason:typeof result.reason==='string'?result.reason.slice(0,4000):'The creation planner refused this request.'};
-  if(!response.ok||result.status!=='proposed')return {status:'unavailable',reason:'The creation planner is unavailable. Your draft is saved.'};
+  if(!response.ok||result.status!=='proposed')return evidence.allowLocalOnUnavailable?local():{status:'unavailable',reason:'The creation planner is unavailable. Your draft is saved.'};
   return planCreation(request,{async propose(){return result.proposal;}},signal);
- }catch{return {status:'unavailable',reason:signal.aborted?'Request cancelled. Your draft is saved.':'The creation planner is unavailable. Your draft is saved.'};}
+ }catch{if(!signal.aborted&&evidence.allowLocalOnUnavailable)return local();return {status:'unavailable',reason:signal.aborted?'Request cancelled. Your draft is saved.':'The creation planner is unavailable. Your draft is saved.'};}
 }

@@ -33,7 +33,7 @@ function project(source: WildsCreationSourceRecord) {
 test("durable prompt creations appear once at their saved pose with a readable kind label", () => {
   const source = creationSource();
   const markers = project(source);
-  assert.deepEqual(markers, [{ id: "creation:home", blueprint: "custom-building", name: "Shelter", pieceCount: 1,
+  assert.deepEqual(markers, [{ id: "creation:home", creationHead: source.instance.head, blueprint: "custom-building", name: "Shelter", pieceCount: 1,
     phase: "complete", progress: 1, ownerReceizId: "builder", position: { x: 9_000, y: 100, z: -9_000 } }]);
   assert.notEqual(markers[0]!.position, source.instance.pose.position, "map data should not alias the durable instance");
 });

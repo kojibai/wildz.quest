@@ -13,7 +13,9 @@ import {admitWildsDiscoveryPhysicalNeighborhood} from '../src/features/play/wild
 import {compileCreation} from '../src/features/play/creation/compiler';
 import type {WildsResourceGameplayCommandV128} from '../src/lib/receiz/wilds-resource-gameplay-v128';
 const source=readFileSync('src/lib/receiz/wilds-resource-exchange-v128.ts','utf8');
-const code=ts.transpileModule(source.slice(source.indexOf(' async function append('),source.indexOf(' async function readUseOutcome(')),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
+// Exercise the same locator selection that the production append now calls.
+const locate=source.slice(source.indexOf(' let admittedLocator:'),source.indexOf(' async function current('));
+const code=ts.transpileModule(locate+source.slice(source.indexOf(' async function append('),source.indexOf(' async function readUseOutcome(')),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
 const event=(owner:string,commands:readonly WildsResourceGameplayCommandV128[],id:string):journal.WildsResourceJournalEventV128=>({schema:'wildz.resource-command.v128',kind:'replay',attemptId:id,ownerReceizId:owner+'.receiz.id',gameplayOwnerId:owner,commands});
 // Actual common append, with only SDK currentness/publication/export controlled.
 // Its successful return must retain the accepted event and publish the locator.

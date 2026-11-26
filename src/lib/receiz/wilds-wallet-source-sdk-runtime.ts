@@ -1,10 +1,11 @@
+import {WILDZ_MARKET_SOURCE_PUBLISHER_PATH_V128,WILDS_RESOURCE_SOURCE_PUBLISHER_PATH_V128,WILDZ_MARKET_SOURCE_PUBLISHER_NAMESPACE_V128,WILDS_RESOURCE_SOURCE_PUBLISHER_NAMESPACE_V128,parseWildzSourcePublisherV128,wildzSourceOwnerUrlsV128,isWildzSourceDigestV128} from './wildz-owned-source-locator-v128';
 import { createReceizClient, ReceizHttpError, readReceizIdentityArtifact, receizBase64UrlDecode, sha256ReceizBytes } from "@receiz/sdk";
 import type { NextRequest } from "next/server";
 import {assertWildsSourceBearerAuthorityV128} from './wilds-source-bearer-authority-v128';
 import { resolveWildsWalletReadAuthority } from "./wilds-wallet-route-authority";
 import { readWildzProofSessionCookie } from "./wildz-proof-session";
 import { readWildzReceizChatSession, type WildzReceizChatSession } from "./wildz-receiz-chat-session";
-import { isWildsWalletSourceSdkPathV128, isWildsWalletMarketSourcePageUrlV128, isWildsWalletResourceSourcePageUrlV128, WILDS_WALLET_RESOURCE_SOURCE_URL_V128, WILDS_WALLET_MARKET_SOURCE_URL_V128, readWildsWalletSourceSdkDiagnosticV128, wildsWalletSourceSealStageV128, wildsWalletSourceFailureCodeV128, type WildsWalletSourceSdkDiagnosticV128 } from "../../features/play/wallet/wilds-wallet-source-sdk-v128";
+import { isWildsWalletSourceSdkPathV128, isWildsWalletMarketSourcePageUrlV128, isWildsWalletResourceSourcePageUrlV128, readWildsWalletSourceSdkDiagnosticV128, wildsWalletSourceSealStageV128, wildsWalletSourceFailureCodeV128, type WildsWalletSourceSdkDiagnosticV128 } from "../../features/play/wallet/wilds-wallet-source-sdk-v128";
 import { describeWildzMarketSourceArchivePageV128, type WildzMarketSourceArchivePageV128 } from "./wildz-market-source-archive-v128";
 import {describeWildzMarketSourceBytesPageV128} from "./wildz-market-source-original-locator-v128";
 import {describeWildsResourceSourceArchivePageV128} from "./wilds-resource-source-archive-v128";
@@ -77,7 +78,7 @@ export async function proxyWildsWalletSourceSdkV128(request: NextRequest,depende
   }
   const nativeExchange = path === "/api/sdk/v1/identity/proof-authority/exchange";
   const nativeSeal = path === "/api/sdk/v1/assets/seal";
-  const publicRead = path === "/api/public-proof/by-url";
+  const publicRead = path === "/api/public-proof/by-url" || path === WILDZ_MARKET_SOURCE_PUBLISHER_PATH_V128 || path === WILDS_RESOURCE_SOURCE_PUBLISHER_PATH_V128;
   const signedPublish = path === "/api/public-proof/registry/feed";
   if (nativeExchange) {
     if (!object(body) || !object(body.artifact) || typeof body.artifact.exactBytesB64u !== "string" || body.artifact.exactBytesB64u.length > 700_000 || body.applicationId !== applicationId || !object(body.challenge) || !object(body.challenge.proof)) throw Error("The exact native device grant request is required.");
@@ -97,15 +98,28 @@ export async function proxyWildsWalletSourceSdkV128(request: NextRequest,depende
     // fixed Wildz source URL, never a user-selected URL/private account export.
     const records = body.feed.records;
     const pageUrl=Array.isArray(records)&&records.length===1&&object(records[0])&&typeof records[0].sourceUrl==="string"&&(isWildsWalletMarketSourcePageUrlV128(records[0].sourceUrl)||isWildsWalletResourceSourcePageUrlV128(records[0].sourceUrl))?records[0].sourceUrl:null;
-    const locator = body.feed.namespace === "wildz.resources.v128"
-      ? { url: pageUrl&&isWildsWalletResourceSourcePageUrlV128(pageUrl)?pageUrl:WILDS_WALLET_RESOURCE_SOURCE_URL_V128, schema: pageUrl&&isWildsWalletResourceSourcePageUrlV128(pageUrl)?"wildz.resource-source-page-locator.v128":"wildz.resource-source-locator.v128" }
-      : body.feed.namespace === "wildz.market.v128" ? { url: pageUrl&&isWildsWalletMarketSourcePageUrlV128(pageUrl)?pageUrl:WILDS_WALLET_MARKET_SOURCE_URL_V128, schema: pageUrl&&isWildsWalletMarketSourcePageUrlV128(pageUrl)?"wildz.market-source-page-locator.v128":"wildz.market-source-locator.v128" } : null;
+    const state=object(body.storeStateRecord)?body.storeStateRecord:null;
+    const namespace=body.feed.namespace;
+    const kind=namespace==="wildz.market.v128"||namespace===WILDZ_MARKET_SOURCE_PUBLISHER_NAMESPACE_V128?"market"
+      :namespace==="wildz.resources.v128"||namespace===WILDS_RESOURCE_SOURCE_PUBLISHER_NAMESPACE_V128?"resource":null;
+    const locator=(()=>{
+     if(!kind||!state)return null;
+     const pointer=parseWildzSourcePublisherV128(kind,state);
+     if(pointer&&(namespace===WILDZ_MARKET_SOURCE_PUBLISHER_NAMESPACE_V128||namespace===WILDS_RESOURCE_SOURCE_PUBLISHER_NAMESPACE_V128))
+      return {url:wildzSourceOwnerUrlsV128(kind,authority.profileHandle,pointer.artifactSha256).publisher,schema:pointer.schema};
+     if(namespace!=="wildz.market.v128"&&namespace!=="wildz.resources.v128")return null;
+     if(pageUrl&&(kind==="market"?isWildsWalletMarketSourcePageUrlV128(pageUrl):isWildsWalletResourceSourcePageUrlV128(pageUrl)))
+      return {url:pageUrl,schema:`wildz.${kind}-source-page-locator.v128`};
+     const custody=object(state.proof)&&object(state.proof.custodyArtifact)?state.proof.custodyArtifact:null;
+     if(!custody||!isWildzSourceDigestV128(custody.artifactSha256))return null;
+     return {url:wildzSourceOwnerUrlsV128(kind,authority.profileHandle,custody.artifactSha256).original,schema:`wildz.${kind}-source-locator.v128`};
+    })();
     if (!locator || body.feed.externalCreatorId !== authority.profileHandle
       || !Array.isArray(records) || records.length !== 1 || !object(records[0])
       || records[0].sourceUrl !== locator.url || records[0].externalCreatorId !== authority.profileHandle
       || records[0].namespace !== body.feed.namespace || !object(body.storeStateRecord)
       || body.storeStateRecord.schema !== locator.schema) throw Error("The fixed source locator is required.");
-    if(pageUrl){
+    if(pageUrl===locator.url){
       assertWildsWalletSourceArchivePageV128(String(body.feed.namespace),pageUrl,body.storeStateRecord.page);
     }
   } else if (!publicRead) {

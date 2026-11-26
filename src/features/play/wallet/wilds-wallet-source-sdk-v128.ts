@@ -1,4 +1,5 @@
 import { createReceizClient } from "@receiz/sdk";
+import {WILDZ_MARKET_SOURCE_URL_V128,WILDS_RESOURCE_SOURCE_URL_V128,WILDZ_MARKET_SOURCE_PUBLISHER_PATH_V128,WILDS_RESOURCE_SOURCE_PUBLISHER_PATH_V128,isWildzMarketSourceOwnerUrlV128,isWildsResourceSourceOwnerUrlV128} from "../../../lib/receiz/wildz-owned-source-locator-v128";
 
 const SOURCE_DIAGNOSTIC_STAGES = ['source-session','source-request','source-grant','native-seal','source-actor-seal','source-subject-seal','creature-original-seal','creature-bearer-seal','creature-projection-seal','replay-segment-seal','source-custody-seal','issued-artifact-verification'] as const;
 export type WildsWalletSourceSdkDiagnosticV128 = Readonly<{stage:typeof SOURCE_DIAGNOSTIC_STAGES[number];status?:number;code:string}>;
@@ -32,13 +33,14 @@ export class WildsWalletSourceSdkErrorV128 extends Error {
   }
 }
 
-export const WILDS_WALLET_RESOURCE_SOURCE_URL_V128 = "https://wildz.quest/receiz/resource-source-v128";
-export const WILDS_WALLET_MARKET_SOURCE_URL_V128 = "https://wildz.quest/receiz/market-source-v128";
+export const WILDS_WALLET_RESOURCE_SOURCE_URL_V128 = WILDS_RESOURCE_SOURCE_URL_V128;
+export const WILDS_WALLET_MARKET_SOURCE_URL_V128 = WILDZ_MARKET_SOURCE_URL_V128;
 export const isWildsWalletMarketSourcePageUrlV128 = (value:string) => /^https:\/\/wildz\.quest\/receiz\/market-source-v128\/pages\/[a-f0-9]{64}$/.test(value);
 export const isWildsWalletResourceSourcePageUrlV128 = (value:string) => /^https:\/\/wildz\.quest\/receiz\/resource-source-v128\/pages\/[a-f0-9]{64}$/.test(value);
 export function isWildsWalletSourceSdkPathV128(path: string, method: string, query: string): boolean {
   const params = new URLSearchParams(query);
-  if (path === "/api/public-proof/by-url" && method === "GET") return params.size === 1 && ([WILDS_WALLET_RESOURCE_SOURCE_URL_V128, WILDS_WALLET_MARKET_SOURCE_URL_V128].includes(params.get("url") ?? "") || isWildsWalletMarketSourcePageUrlV128(params.get("url") ?? "") || isWildsWalletResourceSourcePageUrlV128(params.get("url") ?? ""));
+  if (path === WILDZ_MARKET_SOURCE_PUBLISHER_PATH_V128 || path === WILDS_RESOURCE_SOURCE_PUBLISHER_PATH_V128) return method === "GET" && params.size === 0;
+  if (path === "/api/public-proof/by-url" && method === "GET") return params.size === 1 && ([WILDS_WALLET_RESOURCE_SOURCE_URL_V128, WILDS_WALLET_MARKET_SOURCE_URL_V128].includes(params.get("url") ?? "") || isWildsWalletMarketSourcePageUrlV128(params.get("url") ?? "") || isWildsWalletResourceSourcePageUrlV128(params.get("url") ?? "") || isWildzMarketSourceOwnerUrlV128(params.get("url") ?? "") || isWildsResourceSourceOwnerUrlV128(params.get("url") ?? ""));
   if (params.size > 1 || params.size === 1 && (!params.has("applicationId") || !params.get("applicationId"))) return false;
   if (method === "GET") return /^\/api\/sdk\/v1\/subjects\/receiz(?::|%3A)subject(?::|%3A)[a-f0-9]{64}\/state$/i.test(path);
   return method === "POST" && ["/api/sdk/v1/identity/proof-authority/exchange", "/api/sdk/v1/subjects/admit", "/api/sdk/v1/sources/publish", "/api/sdk/v1/runtime/authority-sessions/open", "/api/sdk/v1/domains/verified-replay", "/api/sdk/v1/assets/seal", "/api/public-proof/registry/feed"].includes(path);

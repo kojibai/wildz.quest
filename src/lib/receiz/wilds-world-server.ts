@@ -9,6 +9,7 @@ import { findWildsWorldRecord, selectWildsWorldSnapshot, type WildsWorldRecord }
 import { canonicalPortableCardJson, sha256PortableBasis } from "@/features/play/portable-card";
 import type { PortableCardAsset } from "@/features/play/portable-card";
 import { verifyWildsWorldCommandKai, worldCommandRequiresCard } from "@/features/play/wilds-world-authority";
+import { isWildsCivicCommand } from "@/features/play/wilds-civic-command";
 import { platform } from "@/lib/platform";
 import { authorizeWildsMultiplayerCard, resolveWildsMultiplayerActor, type WildsMultiplayerActor } from "./wilds-multiplayer-server";
 import { createReceizWildsWorldRepository, type WildsWorldPublication, type WildsWorldRepository } from "./wilds-world-repository";
@@ -342,6 +343,7 @@ export function executeWildsWorldCommand(request: NextRequest, body: unknown, de
   return serializeWildsWorldMutation(async () => {
   const value = body && typeof body === "object" ? body as Record<string, unknown> : {};
   const command = value.command as WildsWorldCommand;
+  if (command && isWildsCivicCommand(command)) throw Error("wilds_civic_exact_source_required");
   if(command?.type?.startsWith("resource.package.market.") && dependencies.resourcePackageMarketCoordinator!==true)throw Error("wilds_resource_package_market_coordinator_required");
   const actor = await resolveWildsMultiplayerActor(request, value.guestId);
   const kai = verifyWildsWorldCommandKai(command);

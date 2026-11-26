@@ -25,25 +25,25 @@ test('an authenticated local Market read never opens a write grant, signs, or en
 
 test('the real Market SDK public reader opens without cookies, tokens or an application grant',async()=>{
  const calls:Array<{url:string;init?:RequestInit}>=[];
- const source=createWildzMarketPublicReadSourceV128(async(url,init)=>{calls.push({url:String(url),init});return Response.json({ok:true,record:null});});
+ const source=createWildzMarketPublicReadSourceV128(async(url,init)=>{calls.push({url:String(url),init});return Response.json(String(url).endsWith('/source')?{ok:true,records:[]}:{ok:true,record:null});});
  assert.deepEqual(await source.load(),{state:initialWildzMarketSourceV128(),head:null,proof:null});
- assert.equal(calls.length,1);assert.equal(calls[0].url,'/api/wilds/market/source?url=https%3A%2F%2Fwildz.quest%2Freceiz%2Fmarket-source-v128');
+ assert.equal(calls.length,2);assert.equal(calls[0].url,'/api/wilds/market/source');assert.equal(calls[1].url,'/api/wilds/market/source?url=https%3A%2F%2Fwildz.quest%2Freceiz%2Fmarket-source-v128');
  assert.equal(calls[0].init?.method,'GET');assert.equal(calls[0].init?.credentials,'omit');
  assert.deepEqual([...new Headers(calls[0].init?.headers)],[]);
  await assert.rejects(source.observe({listingId:'unknown'}),/listing_missing/);
- assert.equal(calls.length,1,'the opened local history is reused for display recovery');
+ assert.equal(calls.length,2,'the opened local history is reused for display recovery');
 });
 
 test('public Market transport cannot open unrelated URLs, SDK write edges, or trust caller-shaped source state',async()=>{
  const client=process.env.RECEIZ_CLIENT_ID;process.env.RECEIZ_CLIENT_ID='rc_PtuBxB_Gbm9OkFeflZiwCz-d';
  let calls=0;
- const fetcher:typeof fetch=async()=>{calls++;return Response.json({ok:true,record:{schema:'receiz.app.public_store_state_projection.v1',state:'published',
+ const fetcher:typeof fetch=async url=>{calls++;if(String(url).endsWith('/source'))return Response.json({ok:true,records:[]});return Response.json({ok:true,record:{schema:'receiz.app.public_store_state_projection.v1',state:'published',
   data:{storeStateRecord:{schema:'wildz.market-source-locator.v128',proof:{schema:'wildz.market-source-proof.v128',sourceArtifacts:[]}}}}});};
  const sdk=createWildzMarketPublicSdkV128(fetcher);
  await assert.rejects(sdk.publicStore.restoreLatest({url:'https://attacker.example/source'}),/public_path_invalid/);
  await assert.rejects(sdk.request('/api/sdk/v1/subjects/admit',{method:'POST',body:{}}),/public_path_invalid/);
  assert.equal(calls,0);
- try{await assert.rejects(createWildzMarketPublicReadSourceV128(fetcher).load(),/source_proof_invalid/);assert.equal(calls,1);}
+ try{await assert.rejects(createWildzMarketPublicReadSourceV128(fetcher).load(),/source_proof_invalid/);assert.equal(calls,2);}
  finally{if(client===undefined)delete process.env.RECEIZ_CLIENT_ID;else process.env.RECEIZ_CLIENT_ID=client;}
 });
 

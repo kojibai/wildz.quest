@@ -40,7 +40,7 @@ const actions: Action[] = [
 const adopt: Action = { id: "adopt", label: "Adopt a community charter", help: "Create a voluntary community under all seven published procedures. You are its first consenting member, with no override over later members. Capacity means community participation places, not a promise of physical shelter.", fields: [["name", "Community name"], ["capacity", "Participation places (1–100)"], ["capacityPlan", "Responsibilities, capacity limits and expansion plan"]] };
 type Pending = { actor: string; command: WildsWorldCommand };
 const pendingKey = "wildz:community:pending:v1";
-export function CommunityConsole() {
+export function CommunityConsole({ initialCharter }: { initialCharter?: string }) {
   const [communities, setCommunities] = useState<Record<string, WildsCommunity>>({});
   const [actor, setActor] = useState<string | null>(null), [selected, setSelected] = useState("");
   const [actionId, setAction] = useState("join"), [status, setStatus] = useState("Loading community records…");
@@ -52,10 +52,19 @@ export function CommunityConsole() {
     const body = await response.json(); if (!response.ok || body.ok !== true) throw new Error(body.error || "Community records are unavailable.");
     setCommunities(body.communities); setActor(body.actor); return body;
   }
-  useEffect(() => { let active = true; void load().then(() => { if (active) setStatus(""); }).catch(e => { if (active) setStatus(e.message); });
+  useEffect(() => { let active = true; void load().then(body => {
+    if (!active) return;
+    if (initialCharter && Object.hasOwn(body.communities, initialCharter)) {
+      const charter: WildsCommunity = body.communities[initialCharter];
+      setSelected(initialCharter);
+      if (body.actor && charter.proposal?.electorate.includes(body.actor) && !charter.proposal.approvals.includes(body.actor)) setAction("ratify");
+      else if (body.actor && Object.hasOwn(charter.members, body.actor)) setAction(Object.hasOwn(charter.allocations, body.actor) ? "check-in" : "request-place");
+    }
+    setStatus("");
+  }).catch(e => { if (active) setStatus(e.message); });
     try { const saved = JSON.parse(localStorage.getItem(pendingKey) || "null"); if (saved?.command?.type === "community.transition") setPending(saved); } catch { /* A malformed recovery entry is not executable. */ }
     return () => { active = false; };
-  }, []);
+  }, [initialCharter]);
   async function send(entry: Pending) {
     if (lock.current) return; lock.current = true; setBusy(true);
     try {

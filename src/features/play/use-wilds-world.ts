@@ -42,7 +42,12 @@ import {
   type WildsStewardToolKind
 } from "./wilds-steward-construction";
 import { sampleWildsTerrain } from "./wilds-terrain-authority";
-import { isWildsEdgeImmediateConstructionCommand, worldCommandRequiresCard } from "./wilds-world-authority";
+import { isWildsEdgeAdmittedCommand, isWildsEdgeImmediateConstructionCommand, worldCommandRequiresCard } from "./wilds-world-authority";
+import type { WildsCityCommand } from "./wilds-city";
+import { mergeWildsAtlasSource, withoutUnqualifiedCivicWorld, type WildsAtlasSourceProjection } from "./wilds-atlas-receiz-projection";
+import { isWildsCivicCommand } from "./wilds-civic-command";
+import { wildzNativeApplicationId } from "@/lib/receiz/wildz-native-application";
+import type { createWildsAtlasSource, WildsAtlasSourceRuntime } from "@/lib/receiz/wilds-atlas-source";
 import { withWildsWorldCommandKai, verifyWildsWorldCommandKai } from "./wilds-world-authority";
 import { deriveKaiKlokMomentFromUPulse } from "./kai-klok-moment";
 import { createKaiTemporalRoot } from "./kai-temporal-root";
@@ -114,7 +119,7 @@ export function parseWildsWorldSnapshotResponse(value: unknown): WildsWorldSnaps
   if (response.ok !== true || !validWildsWorldProjection(projection) || (mode !== "receiz_live" && mode !== "kai_live" && mode !== "local_practice")) {
     throw new Error("wilds_world_snapshot_invalid");
   }
-  return { projection: projection!, mode };
+  return { projection: withoutUnqualifiedCivicWorld(projection!), mode };
 }
 
 export type WildsWorldClientMode = "connecting" | "receiz_live" | "kai_live" | "local_practice" | "receiz_recovery_pending" | "reconnecting";
@@ -142,7 +147,7 @@ export function shouldQueueWildsWorldCommandLocally(input: Readonly<{
 }
 
 export function shouldSynchronizeWildsWorldCommandAfterPaint(command: Pick<WildsWorldCommand, "type">) {
-  return command.type === "resource.material.harvest" || isWildsEdgeImmediateConstructionCommand(command);
+  return command.type === "resource.material.harvest" || isWildsEdgeAdmittedCommand(command);
 }
 
 export function scheduleWildsWorldBackgroundSync(task: () => void) {
@@ -161,7 +166,7 @@ export function parseWildsWorldCommandResponse(value: unknown): { projection: Wi
   if (response.ok !== true || !validWildsWorldProjection(projection) || (mode !== "receiz_live" && mode !== "kai_live" && mode !== "local_practice" && mode !== "receiz_recovery_pending")) {
     throw new Error("wilds_world_command_response_invalid");
   }
-  return { projection: projection!, mode };
+  return { projection: withoutUnqualifiedCivicWorld(projection!), mode };
 }
 
 /** Run the refresh transaction independently of React's presentation state. */
@@ -215,7 +220,7 @@ export async function startWildsWorldClient(input: {
 }) {
   if (input.cancelled()) return;
   if (input.initialProjection && validWildsWorldProjection(input.initialProjection)) {
-    input.publish(input.adopt(input.initialProjection));
+    input.publish(input.adopt(withoutUnqualifiedCivicWorld(input.initialProjection)));
   }
   await input.restore();
   if (input.cancelled()) return;
@@ -226,6 +231,8 @@ export async function startWildsWorldClient(input: {
 export function useWildsWorld(input: {
   onAdmittedCommand?: (entry: WildsWorldOutboxEntry, groveMandate?: WildsCreatureMandateV1) => void | Promise<void>;
   admitResourceSourceCommand?: (entry:WildsWorldOutboxEntry,beforeAdmit?: WildsMaterialAdmissionFence)=>Promise<Readonly<{projection:WildsWorldProjection;events:readonly WildsWorldEvent[];entry?:WildsWorldOutboxEntry;beforeApply?:()=>Promise<void>;afterAdmit?:()=>Promise<void>}>|WildsOrdinaryMaterialAdmission|null>;
+  atlasVisible?: boolean;
+  openAtlasRuntime?: () => Promise<WildsAtlasSourceRuntime>;
   onActivity?: (activity: WildsActivityEntry) => void;
   enabled: boolean;
   networkEnabled: boolean;
@@ -248,12 +255,17 @@ export function useWildsWorld(input: {
   activityListener.current = input.onActivity;
   const commandListener = useRef(input.onAdmittedCommand);commandListener.current=input.onAdmittedCommand;
   const resourceSourceListener=useRef(input.admitResourceSourceCommand);resourceSourceListener.current=input.admitResourceSourceCommand;
+  const atlasRuntime = useRef(input.openAtlasRuntime);
+  atlasRuntime.current = input.openAtlasRuntime;
+  const atlasSource = useRef<{ actorId: string; source?: Promise<ReturnType<typeof createWildsAtlasSource>>; verified?: WildsAtlasSourceProjection }>({ actorId: input.actorId });
+  if (atlasSource.current.actorId !== input.actorId) atlasSource.current = { actorId: input.actorId };
+  const atlasScope = atlasSource.current;
   const resourceSourceWorld=useRef<WildsWorldProjection|null>(null);
   const groveCaptureMandates=useRef(new Map<string,WildsCreatureMandateV1>());
   const ownedWorldAdditions = useRef(input.ownedWorldAdditions);
   ownedWorldAdditions.current = input.ownedWorldAdditions;
   const [snapshot, setSnapshot] = useState<WildsWorldProjection | null>(() => mergeWildsOwnedWorldAdditions(
-    input.initialSnapshot?.projection ?? createWildsSourceAuthorityProjection(),
+    input.initialSnapshot ? withoutUnqualifiedCivicWorld(input.initialSnapshot.projection) : createWildsSourceAuthorityProjection(),
     input.ownedWorldAdditions ?? { constructionSites: {}, structures: {}, harvestedSources: {}, materialLots: {}, materialCustody: {}, consumedMaterialLots: {}, reservedMaterialLots: {}, storedMaterialLots: {} }
   ));
   const [mode, setMode] = useState<WildsWorldClientMode>(() => input.initialSnapshot?.mode ?? "connecting");
@@ -289,9 +301,51 @@ export function useWildsWorld(input: {
     }) };
   }
   const edgeQueue = edge.current.queue;
-  const adoptSnapshot = useCallback((projection: WildsWorldProjection) => edgeQueue.adopt(
-    resourceSourceWorld.current?mergeQualifiedWildsResourceWorldV128(acceptWildsWorldSnapshot(null, projection, ownedWorldAdditions.current),resourceSourceWorld.current):acceptWildsWorldSnapshot(null, projection, ownedWorldAdditions.current)
-  ), [edgeQueue]);
+  const adoptSnapshot = useCallback((projection: WildsWorldProjection) => {
+    let candidate = acceptWildsWorldSnapshot(null, projection, ownedWorldAdditions.current);
+    if (resourceSourceWorld.current) candidate = mergeQualifiedWildsResourceWorldV128(candidate, resourceSourceWorld.current);
+    if (atlasScope.verified) candidate = mergeWildsAtlasSource(candidate, atlasScope.verified);
+    return edgeQueue.adopt(candidate);
+  }, [atlasScope, edgeQueue]);
+  const getAtlasSource = useCallback(() => {
+    if (!atlasScope.source) {
+      const applicationId = wildzNativeApplicationId();
+      atlasScope.source = Promise.all([import("@/lib/receiz/wilds-atlas-source"), import("@/lib/receiz/wildz-active-identity")])
+        .then(([source, custody]) => source.createWildsAtlasSource({ applicationId, database: custody.defaultContinuityDatabase }));
+    }
+    return atlasScope.source;
+  }, [atlasScope]);
+  const adoptAtlasSource = useCallback((verified: WildsAtlasSourceProjection) => {
+    if (!clientActive.current || atlasSource.current !== atlasScope || atlasScope.verified === verified) return;
+    atlasScope.verified = verified;
+    const projection = adoptSnapshot(edgeQueue.current());
+    setSnapshot(current => acceptWildsWorldSnapshot(current, projection));
+  }, [adoptSnapshot, atlasScope, edgeQueue]);
+  const refreshAtlas = useCallback(async (cancelled: () => boolean = () => false) => {
+    if (!input.enabled || !input.atlasVisible) return;
+    try {
+      const source = await getAtlasSource();
+      const held = await source.restore();
+      if (!cancelled()) adoptAtlasSource(held);
+      if (!cancelled() && input.networkEnabled && shouldAttemptWildsNetwork() && atlasRuntime.current) {
+        const verified = await source.refresh(await atlasRuntime.current());
+        if (!cancelled()) adoptAtlasSource(verified);
+      }
+    } catch { /* Held play and the Atlas stay available during transport outages. */ }
+  }, [adoptAtlasSource, getAtlasSource, input.atlasVisible, input.enabled, input.networkEnabled]);
+  useEffect(() => {
+    if (!input.enabled || !input.atlasVisible) return;
+    let active = true;
+    const onOnline = () => { void refreshAtlas(() => !active); };
+    onOnline();
+    window.addEventListener("online", onOnline);
+    return () => {
+      active = false;
+      window.removeEventListener("online", onOnline);
+    };
+  }, [input.atlasVisible, input.enabled, refreshAtlas]);
+  const refreshAtlasOnFocus = useRef(refreshAtlas);
+  refreshAtlasOnFocus.current = refreshAtlas;
   const adoptApplicationResourceWorld=useCallback((qualifiedSource:WildsWorldProjection,events:readonly WildsWorldEvent[]=[])=>{
     const projection=mergeQualifiedWildsResourceWorldV128(edgeQueue.current(),qualifiedSource);
     resourceSourceWorld.current=qualifiedSource;edgeQueue.adopt(projection);canonicalSnapshot.current=projection;
@@ -341,6 +395,16 @@ export function useWildsWorld(input: {
   }, []);
 
   const sendEntry = useCallback(async (entry: WildsWorldOutboxEntry) => {
+    const isCivic = isWildsCivicCommand(entry.command);
+    const anchoredInAtlas = Boolean(entry.admittedSource?.checkpoint?.projection.cities || entry.admittedSource?.checkpoint?.projection.clans);
+    if (isCivic || anchoredInAtlas && isWildsEdgeImmediateConstructionCommand(entry.command)) {
+      const open = atlasRuntime.current;
+      if (!open) throw Error("wilds_atlas_authority_unavailable");
+      const source = await getAtlasSource();
+      const runtime = await open();
+      adoptAtlasSource(await (isCivic ? source.publish(entry, runtime) : source.observeBuilding(entry, runtime)));
+      return { projection: edgeQueue.current(), mode: "receiz_live" as const, commandId: entry.command.commandId, globallyPublished: true };
+    }
     if (isWildsEdgeImmediateConstructionCommand(entry.command)) return publishWildsConstructionEntry(entry, `${window.location.origin}/api/wilds/world/snapshot`);
     const receizExecution = (entry.command.type === "grove.act"
       || entry.command.type === "resource.material.harvest"
@@ -375,7 +439,7 @@ export function useWildsWorld(input: {
       globallyPublished = true;
     }
     return { ...parseWildsWorldCommandResponse(value), commandId: entry.command.commandId, globallyPublished };
-  }, [authorizeLivingWorld, request]);
+  }, [adoptAtlasSource, authorizeLivingWorld, edgeQueue, getAtlasSource, request]);
 
   const flushOutbox = useCallback(async (base: WildsWorldProjection, initialMode: WildsWorldCommandMode) => {
     if (commandPending.current) {
@@ -388,14 +452,19 @@ export function useWildsWorld(input: {
     let entries: WildsWorldOutboxEntry[] = [];
     try {
       entries = await readWildsWorldOutbox(input.actorId);
-      while (entries.length > 0 && shouldAttemptWildsNetwork()) {
-        const queued = entries[0]!;
+      for (const queued of entries) {
+        if (!shouldAttemptWildsNetwork()) break;
         const entry = prepareWildsWorldOutboxPublication(queued, command => replanQueuedWildsMaterialHarvest({
           projection: canonical, source: command.source, actorId: input.actorId, actorPosition: command.actorPosition,
           kaiUPulse: command.kai?.uPulse ?? command.operation?.kaiUPulse ?? 0, commandId: command.commandId,
           card: queued.card, mandate: command.mandate, kai: command.kai
         }));
-        const parsed = await sendEntry(entry);
+        let parsed;
+        try { parsed = await sendEntry(entry); } catch (error) {
+          if (!isWildsCivicCommand(entry.command)) throw error;
+          // Its exact local event remains queued until qualified distribution can resume.
+          continue;
+        }
         if ("commandId" in parsed && parsed.commandId !== queued.command.commandId) throw new Error("wilds_world_published_head_mismatch");
         canonical = acceptWildsWorldSnapshot(edgeQueue.current(), parsed.projection);
         nextMode = parsed.mode;
@@ -425,7 +494,7 @@ export function useWildsWorld(input: {
   },[edgeQueue,input.enabled,input.networkEnabled]);
   useEffect(()=>{
     void refreshPublicClearance();
-    const resume=()=>{if(document.visibilityState==='visible')void refreshPublicClearance();};
+    const resume=()=>{if(document.visibilityState==='visible'){void refreshPublicClearance();void refreshAtlasOnFocus.current();}};
     const timer=setInterval(resume,30_000);window.addEventListener('focus',resume);
     return()=>{clearInterval(timer);window.removeEventListener('focus',resume);publicClearanceAbort.current?.abort();publicClearanceAbort.current=null;publicClearanceReader.current?.dispose();publicClearanceReader.current=null;};
   },[refreshPublicClearance]);
@@ -533,14 +602,16 @@ export function useWildsWorld(input: {
       groveCaptureMandates.current.delete(saved.command.commandId);
       await sourceAdmitted.afterAdmit?.();setError('');return projection;
     }
-    if (isWildsEdgeImmediateConstructionCommand(rootedCommand)) {
+    if (isWildsEdgeAdmittedCommand(rootedCommand)) {
       try {
         await restoreSession();
         const projection = await edgeQueue.admit(entry,crewAdmission);
         await captureAdmitted();
         setError("");
         scheduleWildsWorldBackgroundSync(() => {
-          if (input.networkEnabled) void refresh();
+          if (!input.networkEnabled) return;
+          if (!isWildsCivicCommand(rootedCommand)) { void refresh(); return; }
+          if (shouldAttemptWildsNetwork()) void flushOutbox(edgeQueue.current(), "receiz_recovery_pending").catch(() => undefined);
         });
         return projection;
       } catch (cause) {
@@ -599,7 +670,7 @@ export function useWildsWorld(input: {
       commandPending.current = false;
       setPendingCommand(null);
     }
-  }, [adoptApplicationResourceWorld,edgeQueue, input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, readKaiUPulse, input.networkEnabled, mode, projectPending, refresh, restoreSession, sendEntry]);
+  }, [flushOutbox, adoptApplicationResourceWorld,edgeQueue, input.activeCard, input.actorId, input.cardAdmission, input.enabled, input.guestId, input.kaiUPulse, readKaiUPulse, input.networkEnabled, mode, projectPending, refresh, restoreSession, sendEntry]);
 
   useEffect(() => {
     const resume = () => {
@@ -695,6 +766,7 @@ export function useWildsWorld(input: {
     mode,
     error,
     pendingCommand,
+    submitCivicCommand: (command: WildsCityCommand) => post(command, null),
     refresh,
     adoptServerWorld,
     adoptApplicationResourceWorld,

@@ -47,6 +47,8 @@ import type {CreationObjectLibraryInput} from "./creation/library-session";
 import type {CreationPhysicalSnapshot} from "./creation/physical-store";
 import type { CreationPreview } from "./creation/preview";
 import { projectActiveCreationContext, type CreationContextSeed } from "./creation/live-context";
+import type { WildsAtlasBuildPreview, WildsAtlasBuildSite } from "./WildsAtlasBuilder";
+import type { CreationSessionProps } from "./creation/CreationSession";
 import { describeWildsPoint } from "./wilds-world-geography";
 import {projectPlayerBreathState, playerBreathReadout} from "./player-breath-energy";
 import type { CreationCompileContext } from "./creation/compiler";
@@ -59,6 +61,10 @@ import {recoverWildsWalletSourceFoodV128,selectWildsWalletSourceLotsV128} from '
 import { hasRecoverableWildsNativeFood, recoverWildsNativeFoodFuel } from './wilds-food-fuel-recovery';
 const WildsResourceExchange=dynamic(()=>import('./WildsResourceExchange').then(module=>module.WildsResourceExchange),{ssr:false});
 const creationPanel=createPrewarmedPanel(()=>import("./creation/CreationSession").then(module=>module.default));
+const WildsAtlasBuilderPanel = dynamic(() => import("./WildsAtlasBuilder").then(module => module.WildsAtlasBuilderPanel), {
+  ssr: false,
+  loading: () => <p role="status">Opening build tools…</p>
+});
 const loadCreationSession=creationPanel.load;
 const CreationSession=creationPanel.Panel;
 import { WildsVisitedSurface } from "./WildsVisitedSurface";
@@ -267,7 +273,7 @@ import { projectWildsStructureSupports, wildsStructureSupportAt } from "@/featur
 import { admitWildsDiscoveryPhysicalNeighborhood, wildsDiscoverySiteRegionForPosition } from "@/features/play/wilds-discovery-sites";
 import { prepareWildsSiteRuntime, wildsSiteRuntimeGroundY, writeWildsSiteRuntimeDiscovery, writeWildsSiteRuntimeEncounter, writeWildsSiteRuntimeLanding, writeWildsSiteRuntimeMovement } from "@/features/play/wilds-site-runtime";
 import { mergeWildsMapDiscovery } from "@/features/play/wilds-map-image";
-import { discoverWildsExplorationSite } from "@/features/play/wilds-exploration-atlas";
+import { discoverWildsExplorationSite, wildsExplorationContainsWorld } from "@/features/play/wilds-exploration-atlas";
 import { initialWildsHarvestedSourceState, projectWildsCreatureWorkFamilies, selectWildsTrailBridgeRotation } from "@/features/play/wilds-steward-construction";
 import { projectWildsResourcePresentationAvailability as projectWildsResourceAvailability, projectWildsResourceRegion, wildsResourceRegionForPosition, type WildsResourceSource } from "@/features/play/wilds-resource-authority";
 import { projectWildsInteractionSurfacePoint } from "@/features/play/wilds-surface-interaction";
@@ -434,7 +440,8 @@ export function PlayCampaign({
   ) => Promise<WildzCommittedArtifactRestore>;
 }) {
   const creationRuntime=useRef<Omit<WorldCreationControllerInput,'project'>|null>(null);
-  const creationCommitContext=useRef<CreationCompileContext|null>(null);
+  const creationCommitContexts=useRef(new Map<string, { surface: "world" | "atlas"; context: CreationCompileContext }>());
+  const atlasCreationContextRef=useRef<{ ownerId: string; context: CreationCompileContext }|null>(null);
   const localCreation=useMemo(()=>{
     const worker=createCreationPhysicalWorkerClient();
     const controller=createWorldCreationController({
@@ -469,6 +476,11 @@ export function PlayCampaign({
   const [creationPreview,setCreationPreview]=useState<CreationPreview|null>(null);
   const creationPoint=useRef<((pose:CreationCompileContext["pose"])=>void)|null>(null);
   const [creationContext,setCreationContext]=useState<CreationContextSeed|null>(null);
+  const [atlasBuildOpen, setAtlasBuildOpen] = useState(false);
+  const [atlasBuildMoving, setAtlasBuildMoving] = useState(false);
+  const [atlasBuildPlacement, setAtlasBuildPlacement] = useState<{ ownerId: string; site: WildsAtlasBuildSite; past: readonly WildsAtlasBuildSite[] } | null>(null);
+  const [atlasBuildPreview, setAtlasBuildPreview] = useState<WildsAtlasBuildPreview | null>(null);
+  const atlasBuildCommitting = useRef(false);
   const [state, setState] = useState(() => initialState);
   const [receivedCrewCustody, setReceivedCrewCustody] = useState<{keyId: string; owner: string; token: WildzCrewCustody} | null>(null);
   const crewCustody = useMemo(() => mergeWildzCrewCustody(ownerReceizId,
@@ -1096,7 +1108,14 @@ export function PlayCampaign({
   const clearanceConstructionRef=useRef<((entry:WildsWorldOutboxEntry)=>Promise<void>)|null>(null);
   const resourceGameplayCapture=useWildsResourceGameplayCapture({enabled:networkEnabled,automatic:!marketOnly,ownerHandle:walletTradeOwnerHandle,gameplayOwnerId:ownerReceizId,state,captureScope:JSON.stringify([walletReadIdentityKey,walletIdentityKey,walletObservationEpoch??"legacy"]),onConstructionCaptured:entry=>clearanceConstructionRef.current?.(entry)??Promise.resolve()});
   const admitResourceSourceCommandRef = useRef<NonNullable<Parameters<typeof useWildsWorld>[0]["admitResourceSourceCommand"]>>(async () => null);
+  const walletAssetPortRuntimeRef = useRef<ReturnType<typeof createWildsWalletAssetPortV128>["openRuntime"] | null>(null);
   const livingWorld = useWildsWorld({
+    atlasVisible: mapOpen,
+    openAtlasRuntime: () => {
+      const open = walletAssetPortRuntimeRef.current;
+      if (!open) return Promise.reject(Error("wilds_atlas_authority_unavailable"));
+      return open();
+    },
     admitResourceSourceCommand: (entry, beforeAdmit) => admitResourceSourceCommandRef.current(entry, beforeAdmit),
     readKaiUPulse: readActionKaiUPulse,
     onAdmittedCommand:resourceGameplayCapture.captureWorld,
@@ -1146,7 +1165,6 @@ export function PlayCampaign({
     flushGameplay: resourceGameplayCapture.flush, crewCustody });
   walletSourceLive.current = { ...walletSourceLive.current, state, ownerReceizId, onPrepareCard, readActionKaiUPulse,
     flushGameplay: resourceGameplayCapture.flush, crewCustody };
-  const walletAssetPortRuntimeRef = useRef<ReturnType<typeof createWildsWalletAssetPortV128>["openRuntime"] | null>(null);
   const livingWorldSourceAdoptionRef = useRef(livingWorld.adoptApplicationResourceWorld);
   livingWorldSourceAdoptionRef.current = livingWorld.adoptApplicationResourceWorld;
   const walletAssetPort = useMemo(() => {
@@ -1391,11 +1409,12 @@ export function PlayCampaign({
       currentIdentity();
       const qualifySelection = (asset: WildsWalletAssetSendRequest["asset"]) => walletAssetPort.qualifyListing(asset,
         marketReadSelectionsRef.current().find(selection => JSON.stringify(selection.asset) === JSON.stringify(asset))?.label);
+      const readSource = createWildzMarketPublicReadSourceV128();
       const base = createWildzMarketServiceV128({keyId, ownerHandle, currentIdentity,
         readSelections: () => marketReadSelectionsRef.current(), qualifySelection,
         funding:createWildzMarketFundingBrowserV128({keyId,ownerHandle,currentIdentity}),
         activatePublicListings:true,
-        openReadSource: async () => createWildzMarketPublicReadSourceV128(),
+        openReadSource: async () => readSource,
         publication:{open:async()=>openWildzMarketPublicationBrowserV128({keyId,ownerHandle,currentIdentity}),
           selection:async asset=>{currentIdentity();return selectWildzMarketAdvertisementV128(asset,marketReadSelectionsRef.current(),ownerHandle);}},
         openSource: async ({verifyTransition}) => openWildzMarketSourceBrowserV128({resourceRuntime: await walletAssetPort.openRuntime(),
@@ -1651,6 +1670,9 @@ export function PlayCampaign({
   // commands still qualify their exact custody in admitResourceSourceCommand.
   const currentCreationWorldSource = useCallback(() => readApplicationCreationWorld() ?? readBaselineCreationWorld(),
   [readApplicationCreationWorld, readBaselineCreationWorld]);
+  const atlasWorldReader = useRef(currentCreationWorldSource);
+  atlasWorldReader.current = currentCreationWorldSource;
+  const readAtlasWorldSource = useCallback(() => atlasWorldReader.current(), []);
   const creationWorldSnapshot=livingWorld.snapshot;
   const liveCreationContext = useMemo(() => {
     // World refreshes must not hash a full checkpoint or rebuild compiler
@@ -1667,7 +1689,14 @@ export function PlayCampaign({
     world:currentCreationWorldSource,
     crew:()=>({cards:crewCards,conditions:state.adventureConditions}),
     position:()=>({x:state.player.x,y:verticalTraversalRef.current.layer==='ground'?state.siteSpace.position.y:verticalTraversalRef.current.worldY,z:state.player.z}),
-    compileContext:plan=>liveCreationContext&&creationCommitContext.current?{...liveCreationContext,...(creationCommitContext.current.evolution?{evolution:creationCommitContext.current.evolution}:{}),pose:plan.pose,budget:creationCommitContext.current.budget,techniques:creationCommitContext.current.techniques}:null,
+    compileContext:plan=>{
+      const requested = creationCommitContexts.current.get(plan.digest);
+      const atlas = atlasCreationContextRef.current;
+      const live = requested?.surface === "atlas" ? atlas?.ownerId === ownerReceizId ? atlas.context : null : liveCreationContext;
+      if (!requested || !live) return null;
+      const { evolution, budget, techniques } = requested.context;
+      return { ...live, ...(evolution ? { evolution } : {}), pose: plan.pose, budget, techniques };
+    },
     admit:livingWorld.admitCreation
   };
   const [restoredCreationSource,setRestoredCreationSource]=useState<{controller:CreationController;sources:WildsWorldProjection['creations'];spaceId:string}|null>(null);
@@ -2302,6 +2331,76 @@ export function PlayCampaign({
     timber: availableMaterialLots.filter((lot) => lot.kind === "timber").length,
     stone: availableMaterialLots.filter((lot) => lot.kind === "stone").length
   }), [availableMaterialLots]);
+  const atlasPlacement = atlasBuildPlacement?.ownerId === ownerReceizId ? atlasBuildPlacement : null;
+  const atlasPlanningActive = atlasBuildOpen && (mapOpen || atlasBuildCommitting.current);
+  const atlasBuildSite = atlasPlacement?.site;
+  const atlasBuildRegion = atlasBuildSite ? wildsDiscoverySiteRegionForPosition(atlasBuildSite) : null;
+  const atlasRegionX = atlasBuildRegion?.x, atlasRegionZ = atlasBuildRegion?.z;
+  const atlasSitePhysical = useMemo(() => {
+    if (!atlasPlanningActive || atlasRegionX === undefined || atlasRegionZ === undefined) return undefined;
+    return composeWildsConstructionTerrain(composeWildsInteriorConstruction(composeWildsBurrowPhysical(
+      appendWildsDiscoveryVisualSolids(admitWildsDiscoveryPhysicalNeighborhood(atlasRegionX, atlasRegionZ)), worldGeometry?.burrows), worldGeometry), constructionTerrainPads);
+  }, [atlasPlanningActive, atlasRegionX, atlasRegionZ, worldGeometry, constructionTerrainPads]);
+  const atlasBuildBudget = useMemo(() => availableMaterialLots.reduce<Record<string, number>>((budget, lot) => {
+    budget[lot.kind] = (budget[lot.kind] ?? 0) + lot.quantity;
+    return budget;
+  }, {}), [availableMaterialLots]);
+  const activeAtlasContext = useMemo(() => {
+    if (!atlasPlanningActive || !atlasBuildSite || !atlasSitePhysical) return null;
+    void creationWorldSnapshot;
+    const { x, z, yaw } = atlasBuildSite;
+    const spaceId = "wildz.space.outer.v1";
+    const elevation = sampleWildsConstructionTerrainAt(constructionTerrainPads, x, z, sampleWildsBuildGround(x, z).elevation);
+    return projectActiveCreationContext({ active: true,
+      context: { worldId: "wilds:global:v3", spaceId, pose: { position: wildsBuildGroundPoint({ x, z, y: elevation }, spaceId, elevation), yaw },
+        budget: atlasBuildBudget, techniques: [], quality: qualityProfile.tier === "low" ? "low" : "high" },
+      world: readAtlasWorldSource,
+      physical: { projections: creationPhysical.projections, obstacles: livingPhysicalObstacles, sites: atlasSitePhysical }
+    });
+  }, [atlasPlanningActive, atlasBuildSite, atlasSitePhysical, constructionTerrainPads, atlasBuildBudget, qualityProfile.tier,
+    readAtlasWorldSource, creationWorldSnapshot, creationPhysical.projections, livingPhysicalObstacles]);
+  if (activeAtlasContext) atlasCreationContextRef.current = { ownerId: ownerReceizId, context: activeAtlasContext };
+  else if (!atlasBuildOpen || atlasCreationContextRef.current?.ownerId !== ownerReceizId) atlasCreationContextRef.current = null;
+  const atlasContext = atlasCreationContextRef.current?.context;
+  const closeAtlasBuild = useCallback(() => {
+    if (atlasBuildCommitting.current) return;
+    setAtlasBuildOpen(false);
+    setAtlasBuildMoving(false);
+  }, []);
+  const setAtlasBuildCommitting = useCallback((busy: boolean) => { atlasBuildCommitting.current = busy; }, []);
+  const setAtlasBuildSite = (site: WildsAtlasBuildSite) => {
+    if (atlasBuildCommitting.current || !wildsExplorationContainsWorld(state.explorationAtlas, site)) return;
+    setAtlasBuildMoving(false);
+    setAtlasBuildPlacement(current => {
+      const prior = current?.ownerId === ownerReceizId ? current : null;
+      if (prior && prior.site.x === site.x && prior.site.z === site.z && prior.site.yaw === site.yaw) return current;
+      return { ownerId: ownerReceizId, site, past: prior ? [...prior.past.slice(-31), prior.site] : [] };
+    });
+  };
+  const undoAtlasBuildSite = () => {
+    if (atlasBuildCommitting.current) return;
+    setAtlasBuildMoving(false);
+    setAtlasBuildPlacement(current => {
+      const site = current?.past.at(-1);
+      if (!site || current?.ownerId !== ownerReceizId || !wildsExplorationContainsWorld(state.explorationAtlas, site)) return current;
+      return { ownerId: ownerReceizId, site, past: current.past.slice(0, -1) };
+    });
+  };
+  const commitCreation = useCallback(async (surface: "world" | "atlas", ...[definition, plan, workerIds, selected, context]: Parameters<NonNullable<CreationSessionProps["commit"]>>) => {
+    const pending = creationCommitContexts.current;
+    if (pending.has(plan.digest)) return { status: "rejected" as const, reason: "This build is already in progress.", writes: 0 as const };
+    if (context) pending.set(plan.digest, { surface, context });
+    try { return await creationController.commit(definition, plan, workerIds, selected); }
+    finally { pending.delete(plan.digest); }
+  }, [creationController]);
+  const commitAtlasBuild = useCallback<NonNullable<CreationSessionProps["commit"]>>((...args) => {
+    atlasBuildCommitting.current = true;
+    return commitCreation("atlas", ...args);
+  }, [commitCreation]);
+  const validateAtlasBuild = useCallback<NonNullable<CreationSessionProps["validatePlacement"]>>((plan, definition) => (
+    atlasContext && !suppliedCreationController && state.siteSpace.spaceId === atlasContext.spaceId
+      ? localCreation.controller.validatePlacement(plan, atlasContext, definition) : null
+  ), [atlasContext, suppliedCreationController, state.siteSpace.spaceId, localCreation.controller]);
   const stewardWorkMeters = useMemo(() => projectWildsWorkCapabilityMeters(activeAsset ?? null, activeCondition), [activeAsset, activeCondition]);
   const ownedFunctionalPieces = useMemo(() => Object.values(livingWorld.snapshot?.constructionComponents ?? {})
     .filter(component => sameWildzPlayerCoordinate(component.ownerReceizId, ownerReceizId)), [livingWorld.snapshot?.constructionComponents, ownerReceizId]);
@@ -3598,6 +3697,7 @@ export function PlayCampaign({
       setMapOpen(false);
     } catch (error) {
       showWorldFeedback(error instanceof Error ? error.message : "wilds_rift_failed");
+      throw error;
     }
   };
   const handleCrewModeChange = async (assetId: string, mode: "follow" | "roam") => {
@@ -4302,7 +4402,7 @@ export function PlayCampaign({
                 const url = URL.createObjectURL(new Blob([saved.bytes.slice().buffer as ArrayBuffer], {type: saved.mimeType}));
                 const link = document.createElement('a'); link.href = url; link.download = saved.filename; link.click();
                 window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-              }} objectLibrary={creationLibrary} classes={creationPanelClasses} lots={availableMaterialLots} context={liveCreationContext} commit={async(definition,plan,workerIds,selected,context)=>{creationCommitContext.current=context||null;return creationController.commit(definition,plan,workerIds,selected);}} objects={Object.values(creationPhysical.instances).flatMap(instance=>creationPhysical.definitions[instance.definitionDigest]?[{instance,definition:creationPhysical.definitions[instance.definitionDigest]}]:[])}
+              }} objectLibrary={creationLibrary} classes={creationPanelClasses} lots={availableMaterialLots} context={liveCreationContext} commit={(...args)=>commitCreation("world",...args)} objects={Object.values(creationPhysical.instances).flatMap(instance=>creationPhysical.definitions[instance.definitionDigest]?[{instance,definition:creationPhysical.definitions[instance.definitionDigest]}]:[])}
               cardAdmissions={creationCardAdmissions}
               onMovementInput={dispatchWorldInput} headingRef={cameraHeadingRef} onPlacementModeChange={setCreationPlacing}
               placementRef={creationPoint} onPreview={setCreationPreview} onClose={closeCreation}
@@ -4397,8 +4497,35 @@ export function PlayCampaign({
         </div>
       </div>
       {mapVisited ? <WildsWorldMap
+        viewerOwnerId={ownerReceizId}
+        creationPhysical={creationPhysical}
+        onCivicCommand={walletReadIdentityKey ? livingWorld.submitCivicCommand : undefined}
+        onRefreshWorld={livingWorld.refresh}
+        builder={{
+          active: atlasBuildOpen,
+          position: atlasBuildSite ?? null,
+          preview: atlasBuildPreview,
+          onOpen: () => setAtlasBuildOpen(true), onClose: closeAtlasBuild,
+          onChooseSite: position => {
+            if (!atlasBuildOpen || !atlasBuildPreview || atlasBuildMoving) setAtlasBuildSite({ ...position, yaw: atlasBuildSite?.yaw ?? 0 });
+          },
+          onDropSite: position => setAtlasBuildSite({ ...position, yaw: atlasBuildSite?.yaw ?? 0 }),
+          panel: !atlasBuildOpen ? null : atlasContext && atlasBuildSite ? <WildsAtlasBuilderPanel
+            key={ownerReceizId} ownerId={ownerReceizId} spaceId={atlasContext.spaceId} context={atlasContext}
+            actorPosition={creationRuntime.current.position()} actorSpaceId={state.siteSpace.spaceId}
+            cards={crewCards} conditions={state.adventureConditions} lots={availableMaterialLots} cardAdmissions={creationCardAdmissions}
+            validatePlacement={validateAtlasBuild} recover={suppliedCreationController ? undefined : localCreation.controller.recover}
+            commit={commitAtlasBuild}
+            moving={atlasBuildMoving} onMove={() => setAtlasBuildMoving(value => !value)}
+            onAdjust={setAtlasBuildSite} onUndo={undoAtlasBuildSite} canUndo={Boolean(atlasPlacement?.past.length)}
+            onPreview={setAtlasBuildPreview} onCommitting={setAtlasBuildCommitting}
+            onTrackSite={() => setTrackedDestination({ x: atlasBuildSite.x, z: atlasBuildSite.z, label: "Build site" })}
+          /> : <p>Choose a spot on charted terrain to start.</p>
+        }}
         trackedDestination={trackedDestination}
         onClearDestination={() => setTrackedDestination(null)}
+        onTrackDestination={setTrackedDestination}
+        civic={civic}
         crewMapSource={crewMapSource}
         currentPosition={state.player}
         discoveredLandmarkIds={discoveredLandmarkIds}
@@ -4419,7 +4546,6 @@ export function PlayCampaign({
         reducedMotion={reducedMotion}
         remotePlayers={multiplayer.remotePlayers}
         worldMastery={state.worldMastery}
-        landmarkProgress={landmarkProgress}
         livingWorld={livingWorld.snapshot}
         ecologyKnowledge={state.ecologyKnowledge}
         bossKnowledge={state.bossKnowledge}

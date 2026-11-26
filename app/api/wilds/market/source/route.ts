@@ -1,5 +1,6 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {RECEIZ_DEFAULT_BASE_URL} from '@receiz/sdk';
+import {WILDZ_MARKET_SOURCE_PUBLISHER_PATH_V128} from '@/lib/receiz/wildz-owned-source-locator-v128';
 import {isWildzMarketPublicSourceUrlV128} from '@/lib/receiz/wildz-market-public-read-v128';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
@@ -9,9 +10,11 @@ const headers={'cache-control':'no-store'};
 export async function GET(request:NextRequest){
  try{
   const params=request.nextUrl.searchParams,source=params.get('url')??'';
-  if(params.size!==1||!isWildzMarketPublicSourceUrlV128(source))return NextResponse.json({error:'wildz_market_public_path_invalid'},{status:400,headers});
+  const directory=params.size===0;
+  if(!directory&&(params.size!==1||!isWildzMarketPublicSourceUrlV128(source)))return NextResponse.json({error:'wildz_market_public_path_invalid'},{status:400,headers});
   const origin=new URL(process.env.RECEIZ_BASE_URL||RECEIZ_DEFAULT_BASE_URL).origin;
-  const url=new URL('/api/public-proof/by-url',origin);url.searchParams.set('url',source);
+  const url=new URL(directory?WILDZ_MARKET_SOURCE_PUBLISHER_PATH_V128:'/api/public-proof/by-url',origin);
+  if(!directory)url.searchParams.set('url',source);
   const upstream=await fetch(url,{method:'GET',headers:{accept:'application/json'},cache:'no-store',redirect:'error',signal:request.signal});
   const reader=upstream.body?.getReader(),chunks:Uint8Array[]=[];let bytes=0;
   if(reader)try{for(;;){const next=await reader.read();if(next.done)break;bytes+=next.value.byteLength;if(bytes>2_000_000)throw Error('wildz_market_public_response_too_large');chunks.push(next.value);}}finally{await reader.cancel();}

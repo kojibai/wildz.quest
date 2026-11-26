@@ -1,3 +1,4 @@
+import type {WildzSourceCoordinateV128} from './wildz-owned-source-locator-v128';
 import {assertWildsPaidPlacementFrontierV128} from './wilds-clearance-admission-v128';
 import {rejectUnpreparedWildsMaterialV128} from './wilds-material-publication-fence-v128';
 import {verifyWildsWorldAdmittedSource} from '../../features/play/wilds-world-outbox';
@@ -32,12 +33,13 @@ import {wildsResourceUseSpentMemberIdsV128,wildsResourceUseEffectMemberIdsV128} 
 import {deriveWildsClearanceCommandV128,captureWildsClearanceAdmissionV128,classifyWildsClearanceRecoveryV128,type WildsClearancePickupProposalV128} from './wilds-clearance-admission-v128';
 import {decodeWildsResourceEventV128} from './wilds-resource-event-codec-v128';
 
+type WildsResourceReplayEvent = {event:WildsResourceJournalEventV128;appendId:string;head:string;kaiUPulse:number;sealKai:string};
 export type WildsResourceSourceProofV128=Readonly<{schema:'wildz.resource-source-proof.v128';custodyArtifact:ReceizPortableSealedArtifactV124;sourceArtifacts:readonly ReceizPortableSealedArtifactV124[];archivePages?:readonly WildzMarketSourceArchiveReferenceV128[]}>;
 export type WildsResourceSourceReceiptV128=Readonly<{schema:'wildz.resource-source-receipt.v128';packageId:string;sourceArtifactSha256:string;sourcePayloadSha256:string;acceptedAppendId:string;acceptedHead:string;acceptedKaiUPulse:number;acceptedSealKai:string;ownerReceizId:string;authorizationDigest?:string;proof:WildsResourceSourceProofV128}>;
 export type WildsResourceSourcePackageV128=Readonly<{schema:'wildz.resource-source-package.v128';package:WildsResourcePackageV1;reservationAppendId:string;sourceProof:WildsResourceSourceProofV128}>;
 /** A locator carries exact Originals only. A mutable feed or cached success flag
  * never admits a source. Every read goes through SDK root admission and replay. */
-export type WildsResourceSourceLocatorV128=Readonly<{read():Promise<WildsResourceSourceProofV128|null>;publish(proof:WildsResourceSourceProofV128):Promise<void>;compact?(proof:WildsResourceSourceProofV128):Promise<WildsResourceSourceProofV128>;reference?(proof:WildsResourceSourceProofV128):Promise<WildsResourceSourceReferenceV128>}>;
+export type WildsResourceSourceLocatorV128=Readonly<{read(admit?:(proof:WildsResourceSourceProofV128,coordinate?:WildzSourceCoordinateV128)=>Promise<void>):Promise<WildsResourceSourceProofV128|null>;publish(proof:WildsResourceSourceProofV128,coordinate:WildzSourceCoordinateV128):Promise<void>;compact?(proof:WildsResourceSourceProofV128):Promise<WildsResourceSourceProofV128>;reference?(proof:WildsResourceSourceProofV128):Promise<WildsResourceSourceReferenceV128>}>;
 const MAX_PROOF_BYTES=32*1024*1024;
 const isAncestryPrefix=(historical:readonly string[],current:readonly string[])=>historical.length<=current.length&&historical.every((sha,index)=>sha===current[index]);
 const encoded=(value:unknown)=>new TextEncoder().encode(canonicalizeReceizV122(value));
@@ -72,6 +74,18 @@ export async function verifyWildsResourceGameplayCardV128(sdk:ReceizClient,owner
  if(await matchesWildzOwnedCardExport(payload,{asset:card,keyId,ownerReceizId}))return;
  validateWildsRoamingHandoffCard(payload,card);
 }
+async function restoreResourceCustody(sdk:ReceizClient,applicationId:string,predecessor:WildsResourceSourcePredecessorV128,custodyArtifact:ReceizPortableSealedArtifactV124){
+ const restored=await sdk.domains.restoreVerifiedReplayProofObjectV124({applicationId,domainId:WILDS_RESOURCE_DOMAIN_V128,
+  expectedRegistryDigest:WILDS_RESOURCE_REGISTRY_DIGEST_V128,expectedReducerDigest:WILDS_RESOURCE_REDUCER_DIGEST_V128,
+  expectedHead:predecessor.head.head,expectedCursor:predecessor.head.cursor,
+  expectedNamespace:{name:WILDS_RESOURCE_NAMESPACE_V128,head:WILDS_RESOURCE_REGISTRY_DIGEST_V128,digest:await sha256ReceizBytes(encoded(WILDS_RESOURCE_LAW_V128))},artifact:custodyArtifact});
+ if(restored.sourceArtifactSha256!==predecessor.artifact.artifactSha256)fail('source_custody_mismatch');
+}
+export function assertWildsResourceSourceCoordinateV128(
+ verified:Awaited<ReturnType<typeof verifyWildsResourceSourceProofV128>>,coordinate?:WildzSourceCoordinateV128,
+){
+ if(coordinate&&(verified.predecessor.head.head!==coordinate.head||verified.predecessor.head.cursor!==coordinate.cursor))fail('source_locator_coordinate_mismatch');
+}
 /** First-owner origin requires the exact identity-signed single-card export.
  * The expected key comes from admitted source authorship, never its own trailer. */
 export async function verifyWildsResourceCardOriginSourceV128(sdk:ReceizClient,ownerReceizId:string,keyId:string,card:PortableCardAsset,original:ReceizPortableSealedArtifactV124){
@@ -93,6 +107,27 @@ async function nativePackageWitness(sdk:ReceizClient,artifact:ReceizPortableSeal
  return {genesisOwnerReceizId:opened.admitted.ownerReceizId,artifactSha256:artifact.artifactSha256};
 }
 
+/** The application reducer is shared by both portable custody restore and
+ * native replay discovery. Its caller must open the enclosing Original first. */
+export async function reduceWildsOpenedResourceEventV128(sdk:ReceizClient,state:WildsResourceJournalV128,events:readonly WildsResourceReplayEvent[],input:{
+ event:WildsResourceJournalEventV128;sealKai:unknown;sourceOwner:string;sourceKeyId:string;previousHead:string
+}){
+ const {event,sealKai,sourceOwner,sourceKeyId,previousHead}=input;
+  if(typeof sealKai!=='string'||!/^(?:0|[1-9][0-9]*)$/.test(sealKai))fail('source_seal_kai_required');
+  const sealExclusiveUPulse=(BigInt(sealKai)+1n)*1_000_000n;
+  if((event.kind==='reserve'||event.kind==='replay'||event.kind==='use')&&event.commands.some(command=>BigInt(command.kaiUPulse)>=sealExclusiveUPulse)
+   ||event.kind==='reserve'&&BigInt(event.createdKaiUPulse)>=sealExclusiveUPulse)fail('source_future_command');
+  if(event.kind==='unpack'){
+   const claim=events.find(item=>item.appendId===state.packages[event.packageId]?.claimAppendId);
+   if(!claim||BigInt(event.kaiUPulse)<BigInt(claim.sealKai)*1_000_000n||BigInt(event.kaiUPulse)>=sealExclusiveUPulse)fail('unpack_causal_time_invalid');
+  }
+ const next=await reduceWildsResourceJournalV128(state,event,{ownerReceizId:sourceOwner,expectedNativeHead:previousHead,
+   verifyCard:(card,original)=>verifyWildsResourceGameplayCardV128(sdk,event.ownerReceizId,sourceKeyId,card,original),
+   verifyCardOrigin:(card,original)=>verifyWildsResourceCardOriginSourceV128(sdk,event.ownerReceizId,sourceKeyId,card,original),
+   verifyPackage:(artifact,record)=>nativePackageWitness(sdk,artifact,record)});
+ return {state:next,sealKai};
+}
+
 /** SDK root-admit every exact source and independently execute the declared
  * resource law. The final custody wrapper is restored by the released SDK;
  * authenticated current-domain reading is a separate required live check. */
@@ -101,7 +136,7 @@ export async function verifyWildsResourceSourceProofV128(sdk:ReceizClient,proof:
   ||encoded(proof).length>MAX_PROOF_BYTES)fail('source_proof_invalid');
  let state=initialWildsResourceJournalV128();
  const held:{current:WildsResourceSourcePredecessorV128|null}={current:null};
- const events:Array<{event:WildsResourceJournalEventV128;appendId:string;head:string;kaiUPulse:number;sealKai:string}>=[];
+ const events:WildsResourceReplayEvent[]=[];
  const applicationId=expected.applicationId;if(!applicationId)fail('application_required');
  for await(const source of iterateWildsResourceSourceOriginalsV128(proof,async reference=>{
   const located=await sdk.publicStore.restoreLatest({url:`https://wildz.quest/receiz/resource-source-v128/pages/${reference.digest}`,tenantHost:'wildz.quest'});
@@ -124,33 +159,20 @@ export async function verifyWildsResourceSourceProofV128(sdk:ReceizClient,proof:
   if(await sha256ReceizBytes(candidate.proofObject.payload.bytes)!==source.payloadSha256||!same(candidate.carrier,carrier))fail('source_candidate_binding_invalid');
   const addition=replay.additions[0],event=await decodeWildsResourceEventV128(JSON.parse(new TextDecoder().decode(receizBase64UrlDecode(addition.exactEventBytesB64u)))) as WildsResourceJournalEventV128;
   const sealKai=opened.sealedArtifact.verification.bundle.kaiPulseEternal;
-  if(typeof sealKai!=='string'||!/^(?:0|[1-9][0-9]*)$/.test(sealKai))fail('source_seal_kai_required');
-  const sealExclusiveUPulse=(BigInt(sealKai)+1n)*1_000_000n;
-  if((event.kind==='reserve'||event.kind==='replay'||event.kind==='use')&&event.commands.some(command=>BigInt(command.kaiUPulse)>=sealExclusiveUPulse)
-   ||event.kind==='reserve'&&BigInt(event.createdKaiUPulse)>=sealExclusiveUPulse)fail('source_future_command');
-  if(event.kind==='unpack'){
-   const claim=events.find(item=>item.appendId===state.packages[event.packageId]?.claimAppendId);
-   if(!claim||BigInt(event.kaiUPulse)<BigInt(claim.sealKai)*1_000_000n||BigInt(event.kaiUPulse)>=sealExclusiveUPulse)fail('unpack_causal_time_invalid');
-  }
-  state=await reduceWildsResourceJournalV128(state,event,{ownerReceizId:child.sourceAuthority.ownerReceizId,expectedNativeHead:previous?.head.head??WILDS_RESOURCE_GENESIS_HEAD_V128,
-   verifyCard:(card,original)=>verifyWildsResourceGameplayCardV128(sdk,event.ownerReceizId,child.authoringEvidence.identity.keyId,card,original),
-   verifyCardOrigin:(card,original)=>verifyWildsResourceCardOriginSourceV128(sdk,event.ownerReceizId,child.authoringEvidence.identity.keyId,card,original),
-   verifyPackage:(artifact,record)=>nativePackageWitness(sdk,artifact,record)});
+  const advanced=await reduceWildsOpenedResourceEventV128(sdk,state,events,{event,sealKai,sourceOwner:child.sourceAuthority.ownerReceizId,
+   sourceKeyId:child.authoringEvidence.identity.keyId,previousHead:previous?.head.head??WILDS_RESOURCE_GENESIS_HEAD_V128});
+  state=advanced.state;
   if(replay.namespace.name!==WILDS_RESOURCE_NAMESPACE_V128||replay.namespace.head!==WILDS_RESOURCE_REGISTRY_DIGEST_V128
     ||replay.namespace.exactBytesB64u!==receizBase64UrlEncode(encoded(WILDS_RESOURCE_LAW_V128)))fail('source_reducer_mismatch');
   const appendIndex:Map<string,ReceizDomainReplayAppendIndexValueV124>=new Map(previous?.appendIndex??[]);
   appendIndex.set(addition.appendId,{eventDigest:addition.eventDigest,cursor:addition.cursor,newHead:addition.newHead});
   held.current={artifact:source,head:carrier.head as ReceizDomainReplayProofHeadV124,appendIndex,
     segmentIds:[...(previous?.segmentIds??[]),carrier.head.currentSegment.segmentId],sourceArtifactShas:[...(previous?.sourceArtifactShas??[]),source.artifactSha256]};
-  events.push({event,appendId:addition.appendId,head:addition.newHead,kaiUPulse:child.journalAppends[0]!.acceptedAtKaiUPulse,sealKai});
+  events.push({event,appendId:addition.appendId,head:addition.newHead,kaiUPulse:child.journalAppends[0]!.acceptedAtKaiUPulse,sealKai:advanced.sealKai});
  }
  const predecessor=held.current;if(!predecessor)fail('source_proof_invalid');
  const restorer=expected.historical?createReceizClient({applicationId:expected.applicationId,fetchImpl:async()=>{throw Error('Historical source proof verification cannot request network authority.');}}):sdk;
- const restored=await restorer.domains.restoreVerifiedReplayProofObjectV124({applicationId,domainId:WILDS_RESOURCE_DOMAIN_V128,
-  expectedRegistryDigest:WILDS_RESOURCE_REGISTRY_DIGEST_V128,expectedReducerDigest:WILDS_RESOURCE_REDUCER_DIGEST_V128,
-  expectedHead:predecessor.head.head,expectedCursor:predecessor.head.cursor,
-  expectedNamespace:{name:WILDS_RESOURCE_NAMESPACE_V128,head:WILDS_RESOURCE_REGISTRY_DIGEST_V128,digest:await sha256ReceizBytes(encoded(WILDS_RESOURCE_LAW_V128))},artifact:proof.custodyArtifact});
- if(restored.sourceArtifactSha256!==predecessor.artifact.artifactSha256)fail('source_custody_mismatch');
+ await restoreResourceCustody(restorer,applicationId,predecessor,proof.custodyArtifact);
  return {state,predecessor,events,proof};
 }
 /** Proof must come from actual SDK-restored Originals and the exact shared
@@ -160,14 +182,20 @@ export async function verifyWildsResourceCardOriginProofV128(sdk:ReceizClient,tr
  const admitted=await verifyWildsResourceSourceProofV128(sdk,proof,{applicationId:expected.applicationId,historical:true}),origin=admitted.state.cardOrigins[expected.assetId];
  if(!origin||origin.payloadSha256!==expected.payloadSha256||origin.provenanceRoot!==expected.provenanceRoot)fail('card_origin_mismatch');
  const current=await readWildsSourceReplayAfterV128(sdk,{...replayInput(expected.applicationId,admitted.predecessor.head.head),afterCursor:admitted.predecessor.head.cursor});
- if(current.head!==admitted.predecessor.head.head||current.additions.length){
+ if(current.head!==admitted.predecessor.head.head||current.cursor!==admitted.predecessor.head.cursor){
   const url='https://wildz.quest/receiz/resource-source-v128';
-  const located=await readWildsResourceLocatedProofV128(sdk,url);
-  if(!located)fail('source_locator_outdated');
-  const latest=await verifyWildsResourceSourceProofV128(sdk,located,{applicationId:expected.applicationId});
+  let observed:Awaited<ReturnType<typeof verifyWildsResourceSourceProofV128>>|undefined;
+  const located=await readWildsResourceLocatedProofV128(sdk,url,async(proof,coordinate)=>{
+   const checked=await verifyWildsResourceSourceProofV128(sdk,proof,{applicationId:expected.applicationId,historical:true});
+   assertWildsResourceSourceCoordinateV128(checked,coordinate);
+   observed=checked;
+  });
+  if(!located||!observed)fail('source_locator_outdated');
+  const latest=observed;
+  await restoreResourceCustody(sdk,expected.applicationId,latest.predecessor,located.custodyArtifact);
   if(!isAncestryPrefix(admitted.predecessor.sourceArtifactShas,latest.predecessor.sourceArtifactShas)||!same(origin,latest.state.cardOrigins[expected.assetId]))fail('card_origin_mismatch');
   const actual=await sdk.domains.verifiedReplayV124(replayInput(expected.applicationId,latest.predecessor.head.head));
-  if(actual.head!==latest.predecessor.head.head||actual.additions.length)fail('source_locator_outdated');
+  if(actual.head!==latest.predecessor.head.head||actual.cursor!==latest.predecessor.head.cursor)fail('source_locator_outdated');
  }
  return origin;
 }
@@ -185,10 +213,21 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
  const applicationId=input.authority.grant.applicationId;
  const owner=input.authority.ownerReceizId,publisher=createWildsResourceSourceClientV128({...input,recoveryStore:createWildsResourceSourceRecoveryStoreV128(input.database)});
  const key=(attempt:string)=>JSON.stringify(['wildz.resource-exchange-attempt.v128',owner,attempt]);
+ let admittedLocator:Awaited<ReturnType<typeof verifyWildsResourceSourceProofV128>>|undefined;
+ async function locate(){
+  return input.locator.read(async(proof,coordinate)=>{
+   const checked=admittedLocator&&same(proof,admittedLocator.proof)?admittedLocator
+    :await verifyWildsResourceSourceProofV128(input.sdk,proof,{applicationId,historical:true});
+   assertWildsResourceSourceCoordinateV128(checked,coordinate);
+   admittedLocator=checked.proof===proof?checked:{...checked,proof};
+  });
+ }
  async function current(proof:WildsResourceSourceProofV128|null){
-  const verified=proof?await verifyWildsResourceSourceProofV128(input.sdk,proof,{applicationId}):null;
+  const held=admittedLocator?.proof===proof?admittedLocator:undefined;
+  if(held)await restoreResourceCustody(input.sdk,applicationId,held.predecessor,held.proof.custodyArtifact);
+  const verified=held??(proof?await verifyWildsResourceSourceProofV128(input.sdk,proof,{applicationId}):null);
   if(verified){const latest=await input.sdk.domains.verifiedReplayV124(replayInput(applicationId,verified.predecessor.head.head));
-   if(latest.head!==verified.predecessor.head.head||latest.additions.length)fail('source_locator_outdated');}
+   if(latest.head!==verified.predecessor.head.head||latest.cursor!==verified.predecessor.head.cursor)fail('source_locator_outdated');}
   return verified;
  }
  async function append(event:WildsResourceJournalEventV128,beforeCommit?:()=>Promise<void>,validateState?:(state:WildsResourceJournalV128)=>Promise<void>){
@@ -196,26 +235,29 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
   type Attempt={schema:'wildz.resource-exchange-attempt.v128';event:WildsResourceJournalEventV128;before:WildsResourceSourceProofV128|null;after?:WildsResourceSourceProofV128};
   let retained=await input.database.read<Attempt>('meta',retentionKey);
   if(retained&&(retained.schema!=='wildz.resource-exchange-attempt.v128'||canonicalPortableCardJson(retained.event)!==eventBytes))fail('attempt_conflict');
-  if(!retained){const before=await input.locator.read();await current(before);
+  if(!retained){const before=await locate();await current(before);
    retained=await input.database.transaction(['meta'],'readwrite',async tx=>{const existing=await tx.get<Attempt>('meta',retentionKey);
     if(existing){if(canonicalPortableCardJson(existing.event)!==eventBytes)fail('attempt_conflict');return existing;}
     const value:Attempt={schema:'wildz.resource-exchange-attempt.v128',event,before};await tx.put('meta',value,retentionKey);return value;});}
   if(retained.after){
-   const verified=await verifyWildsResourceSourceProofV128(input.sdk,retained.after,{applicationId,historical:true}),located=await input.locator.read();
+   const verified=await verifyWildsResourceSourceProofV128(input.sdk,retained.after,{applicationId,historical:true}),located=await locate();
    if(located&&located.custodyArtifact.artifactSha256!==retained.after.custodyArtifact.artifactSha256){
-    const latest=await current(located);
-    if(!latest||!latest.events.some(item=>same(item.event,event))
-      ||!isAncestryPrefix(verified.predecessor.sourceArtifactShas,latest.predecessor.sourceArtifactShas))fail('source_locator_conflict');
-    return {...latest,proof:verified.proof};
+    const observed=admittedLocator?.proof===located?admittedLocator:await verifyWildsResourceSourceProofV128(input.sdk,located,{applicationId,historical:true});
+    if(observed.predecessor.head.cursor>=verified.predecessor.head.cursor){
+     if(!observed.events.some(item=>same(item.event,event))
+       ||!isAncestryPrefix(verified.predecessor.sourceArtifactShas,observed.predecessor.sourceArtifactShas))fail('source_locator_conflict');
+     return {...(await current(located))!,proof:verified.proof};
+    }
+    if(!isAncestryPrefix(observed.predecessor.sourceArtifactShas,verified.predecessor.sourceArtifactShas))fail('source_locator_conflict');
    }
    const compact=input.locator.compact?await input.locator.compact(retained.after):retained.after;
    await input.database.transaction(['meta'],'readwrite',tx=>tx.put('meta',{...retained,after:compact},retentionKey));
-   await input.locator.publish(compact);return current(compact).then(value=>value!);
+   await input.locator.publish(compact,verified.predecessor.head);return current(compact).then(value=>value!);
   }
   // A reply may have been lost after accepted publication and before the local
   // custody export was retained. Another lawful publisher can carry that exact
   // source onward; recover the existing event, never reserve its units again.
-  const located=await input.locator.read();
+  const located=await locate();
   if(located&&!same(located,retained.before)){const latest=await current(located);if(latest?.events.some(item=>same(item.event,event)))return latest;}
   const previous=retained.before?await verifyWildsResourceSourceProofV128(input.sdk,retained.before,{applicationId,historical:true}):null;
   const state=await reduceWildsResourceJournalV128(previous?.state??initialWildsResourceJournalV128(),event,{ownerReceizId:owner,expectedNativeHead:previous?.predecessor.head.head??WILDS_RESOURCE_GENESIS_HEAD_V128,
@@ -251,7 +293,7 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
    if(!old||canonicalPortableCardJson(old.event)!==eventBytes)fail('attempt_conflict');await tx.put('meta',{...old,after:proof},retentionKey);});
   const compact=input.locator.compact?await input.locator.compact(proof):proof;
   await input.database.transaction(['meta'],'readwrite',tx=>tx.put('meta',{...retained,after:compact},retentionKey));
-  await input.locator.publish(compact);return current(compact).then(value=>value!);
+  await input.locator.publish(compact,{head:admitted.head,cursor:admitted.cursor});return current(compact).then(value=>value!);
  }
 
  async function readUseOutcome(accepted:NonNullable<Awaited<ReturnType<typeof current>>>,event:Extract<WildsResourceJournalEventV128,{kind:'use'}>){
@@ -290,7 +332,7 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
    const traceDigest=sha256PortableBasis(canonicalPortableCardJson(history.commands)).slice(7);
    // Qualify the exact already captured paid construction before its distinct
    // clearance command. No checkpoint is inserted into old command bytes.
-   const latest=await current(await input.locator.read());
+   const latest=await current(await locate());
    let prefixId=`clearance-prefix:${traceDigest}`;
    const oldPrefix=await input.database.read<{event:WildsResourceJournalEventV128;before:WildsResourceSourceProofV128|null}>('meta',key(prefixId));
    if(oldPrefix&&latest){
@@ -324,7 +366,7 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
    return captureWildsClearanceAdmissionV128(attemptId,async()=>{
     // current() independently opens the enclosing sources AND checks native
     // authenticated domain currentness. A weaker public head cannot reject.
-    const latest=await current(await input.locator.read());
+    const latest=await current(await locate());
     const prior=retained.before?await verifyWildsResourceSourceProofV128(input.sdk,retained.before,{applicationId,historical:true}):null;
     if(retained.event.attemptId!==attemptId||retained.event.ownerReceizId!==owner||!('expectedHead' in last.command)||last.command.expectedHead!==(prior?.predecessor.head.head??WILDS_RESOURCE_GENESIS_HEAD_V128))fail('attempt_conflict');
     const classification=classifyWildsClearanceRecoveryV128({event:retained.event,previous:prior?.predecessor.sourceArtifactShas??[],current:latest?{events:latest.events,sourceArtifactShas:latest.predecessor.sourceArtifactShas}:null});
@@ -332,9 +374,9 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
     return completeClearance(retained.event as Extract<WildsResourceJournalEventV128,{kind:'use'|'replay'}>,beforeCommit);
    });
   },
-  async readCurrent(){return current(await input.locator.read());},
+  async readCurrent(){return current(await locate());},
   async verifyProjection(proof:WildsResourceSourceProofV128){
-   const historical=await verifyWildsResourceSourceProofV128(input.sdk,proof,{applicationId,historical:true}),latest=await current(await input.locator.read());
+   const historical=await verifyWildsResourceSourceProofV128(input.sdk,proof,{applicationId,historical:true}),latest=await current(await locate());
    if(!latest||!isAncestryPrefix(historical.predecessor.sourceArtifactShas,latest.predecessor.sourceArtifactShas))fail('source_not_accepted');
    return {...latest,historical};
   },
@@ -353,7 +395,7 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
    const retained=await input.database.read<{event:WildsResourceJournalEventV128}>('meta',key(request.attemptId));
    if(retained&&(retained.event.kind!=='replay'||retained.event.ownerReceizId!==owner||retained.event.gameplayOwnerId!==input.gameplayOwnerId
      ||wildsResourceGameplayCommandIdV128(retained.event.commands.at(-1)!)!==id))fail('attempt_conflict');
-   const latest=await current(await input.locator.read());
+   const latest=await current(await locate());
    const rejectUnprepared=async()=>{if(latest?.events.some(item=>item.event.ownerReceizId===owner&&[`material-replay:${id}`,`material-use:${id}`].includes(item.event.attemptId)))return false;await beforeReject?.();const rejected=await rejectUnpreparedWildsMaterialV128(input.database,owner,raw);await beforeReject?.();return rejected;};
    // A verified current custody rejection is distinct from failed/offline reads.
    if(latest&&memberIds.some(id=>typeof id==='string'&&(Boolean(latest.state.spentMembers[id])
@@ -431,7 +473,7 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
    return {...accepted,replay};
   },
   async previewGameplay(){
-   const latest=await current(await input.locator.read()),history=await resolveWildsResourceGameplayOriginalsV128({...input,ownerReceizId:owner});
+   const latest=await current(await locate()),history=await resolveWildsResourceGameplayOriginalsV128({...input,ownerReceizId:owner});
    const state=latest?.state??initialWildsResourceJournalV128(),commands=history.commands;
    const replay=await replayWildsResourceJournalOwnerV128(state,owner,input.gameplayOwnerId,commands,(card,original)=>verifyWildsResourceGameplayCardV128(input.sdk,owner,input.authority.keyFile.keyId,card,original));
    return {replay,proof:latest?.proof??null,state};
@@ -462,7 +504,7 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
   async observeUse(attemptId:string){
    const retained=await input.database.read<{event:WildsResourceJournalEventV128}>('meta',key(attemptId));
    if(!retained)return null;if(retained.event.kind!=='use')fail('attempt_conflict');
-   const accepted=await current(await input.locator.read());
+   const accepted=await current(await locate());
    if(!accepted?.events.some(item=>item.event.attemptId===attemptId&&item.event.ownerReceizId===owner))return null;
    return readUseOutcome(accepted,retained.event);
   },
@@ -506,7 +548,7 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
   async verifyOffer(source:ReceizPortableSealedArtifactV124,expected?:WildsWalletStagedTradeResourceSourceHead){
    const {bearer,opened}=await readWildsResourceSourcePackageV128(input.sdk,source);
    const reservation=await verifyWildsResourceSourceProofV128(input.sdk,bearer.sourceProof,{applicationId,historical:true});
-   const latest=await current(await input.locator.read());if(!latest)fail('source_missing');
+   const latest=await current(await locate());if(!latest)fail('source_missing');
    if(!isAncestryPrefix(reservation.predecessor.sourceArtifactShas,latest.predecessor.sourceArtifactShas))fail('source_not_accepted');
    const record=latest.state.packages[bearer.package.packageId];
    if(!record||record.status!=='reserved'||!same(record.package,bearer.package)||opened.admitted.ownerReceizId!==bearer.package.ownerReceizId
@@ -543,7 +585,7 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
    return {package:accepted.state.packages[request.packageId]!.package,proof:accepted.proof,receipt:{schema:'wildz.resource-unpack-receipt.v128' as const,packageId:request.packageId,ownerReceizId:owner,unpackedAppendId:unpack.appendId,unpackedHead:unpack.head,unpackedSealKai:unpack.sealKai}};
   },
   async observe(packageId:string,descriptor:WildsWalletStagedTradeResourceSourceHead){
-   const latest=await current(await input.locator.read());if(!latest)fail('source_missing');
+   const latest=await current(await locate());if(!latest)fail('source_missing');
    const record=latest.state.packages[packageId],offered=latest.events.find(item=>item.appendId===descriptor.custodyAppendId);
    if(!record||descriptor.packageId!==packageId||!offered||offered.head!==descriptor.custodyHead||record.package.head!==descriptor.packageHead
      ||!same(record.package.members.map(member=>member.id).sort(),descriptor.memberIds))fail('receipt_binding_invalid');

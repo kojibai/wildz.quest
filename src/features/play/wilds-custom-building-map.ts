@@ -49,7 +49,7 @@ export function projectWildsCustomBuildingMap(world: Pick<WildsWorldProjection, 
     const instance = source.instance;
     if (instance.spaceId !== "wildz.space.outer.v1" || instance.stage === "planned" || instance.stage === "destroyed" || !finitePosition(instance.pose.position)) return [];
     const complete = instance.stage === "functional" || instance.stage === "finished";
-    return [{ id: instance.instanceId, blueprint: "custom-building", name: creationMapName(source.command.definition),
+    return [{ id: instance.instanceId, creationHead: instance.head, blueprint: "custom-building", name: creationMapName(source.command.definition),
       pieceCount: source.command.definition.nodes.length, phase: complete ? "complete" : "construction", progress: complete ? 1 : 0,
       ownerReceizId: instance.ownerId, position: { ...instance.pose.position } }];
   });

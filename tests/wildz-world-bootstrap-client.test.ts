@@ -43,7 +43,7 @@ test("the admitted bootstrap projection reaches the living HUD instead of being 
   assert.match(hook, /initialProjection:\s*input\.initialSnapshot\?\.projection/);
   assert.match(hook, /adopt:\s*adoptSnapshot/);
   assert.match(hook, /restore:\s*restoreSession/);
-  const publish = hook.indexOf("input.publish(input.adopt(input.initialProjection))");
+  const publish = hook.indexOf("input.publish(input.adopt(withoutUnqualifiedCivicWorld(input.initialProjection)))");
   const restore = hook.indexOf("await input.restore()", publish);
   const durableAdoption = hook.indexOf("input.publish(input.current())", restore);
   assert.ok(publish >= 0 && restore > publish && durableAdoption > restore);

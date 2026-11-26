@@ -1,0 +1,54 @@
+.panel {
+  display: grid;
+  gap: .3rem;
+  color: #ecf8f3;
+}
+.panel p { margin: 0; font-size: .82rem; line-height: 1.4; }
+.panel form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .3rem; }
+.quote { display: grid; gap: .35rem; }
+.panel label, .panel summary, .quote strong { font-size: .78rem; font-weight: 650; }
+.panel textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: .55rem;
+  resize: none;
+  font: inherit;
+  font-size: .83rem;
+  color: inherit;
+  background: #071a20;
+  border: 1px solid #37615c;
+  border-radius: .55rem;
+}
+.panel button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  min-height: 44px;
+  padding: .28rem .4rem;
+  color: #e5f7ec;
+  background: #15332f;
+  border: 1px solid #386356;
+  border-radius: .5rem;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.panel button:disabled { opacity: .5; cursor: default; }
+.panel button:not(:disabled):hover, .panel button[aria-pressed="true"] { background: #215448; }
+.panel button.primary { background: #285646; }
+.panel button.commit:not(:disabled) { color: #10221b; background: #99e4b9; border-color: #99e4b9; }
+.panel details { padding: .28rem .55rem; border: 1px solid #32544e; border-radius: .5rem; }
+.panel summary { cursor: pointer; }
+.crew { display: grid; padding-block: .5rem .125rem; }
+.crew label { display: flex; align-items: center; gap: .35rem; min-height: 1.8rem; }
+.coordinates { display: flex; justify-content: space-between; gap: .55rem; color: #ade4d1; font-variant-numeric: tabular-nums; }
+.quote { background: #0b2528; padding: .55rem .65rem; border-radius: .55rem; }
+.quote span { display: flex; justify-content: space-between; font-size: .8rem; }
+.quote small { color: #b4d6cc; }
+.tools { display: flex; flex-wrap: wrap; gap: .28rem; }
+.tools button { flex: 1 0 auto; }
+
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.tools button.commit { flex: 2 0 auto; }
