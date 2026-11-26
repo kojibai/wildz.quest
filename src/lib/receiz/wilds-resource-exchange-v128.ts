@@ -241,10 +241,16 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
   type Attempt={schema:'wildz.resource-exchange-attempt.v128';event:WildsResourceJournalEventV128;before:WildsResourceSourceProofV128|null;after?:WildsResourceSourceProofV128;originReference?:WildzMarketSourceOriginalReferenceV128};
   let retained=await input.database.read<Attempt>('meta',retentionKey);
   if(retained&&(retained.schema!=='wildz.resource-exchange-attempt.v128'||canonicalPortableCardJson(retained.event)!==eventBytes))fail('attempt_conflict');
-  if(!retained){const before=await locate();await current(before);
+  let admittedBefore:Awaited<ReturnType<typeof current>>|undefined;
+  if(!retained){
+   const before=await locate(),admitted=await current(before);
+   if(event.kind==='card-origin'&&admitted?.events.some(item=>same(item.event,event)))return admitted;
+   const value:Attempt={schema:'wildz.resource-exchange-attempt.v128',event,before};
    retained=await input.database.transaction(['meta'],'readwrite',async tx=>{const existing=await tx.get<Attempt>('meta',retentionKey);
     if(existing){if(canonicalPortableCardJson(existing.event)!==eventBytes)fail('attempt_conflict');return existing;}
-    const value:Attempt={schema:'wildz.resource-exchange-attempt.v128',event,before};await tx.put('meta',value,retentionKey);return value;});}
+    await tx.put('meta',value,retentionKey);return value;});
+   if(retained===value)admittedBefore=admitted;
+  }
   if(retained.after){
    const verified=await verifyWildsResourceSourceProofV128(input.sdk,retained.after,{applicationId,historical:true}),located=await locate();
    if(located&&located.custodyArtifact.artifactSha256!==retained.after.custodyArtifact.artifactSha256){
@@ -263,9 +269,12 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
   // A reply may have been lost after accepted publication and before the local
   // custody export was retained. Another lawful publisher can carry that exact
   // source onward; recover the existing event, never reserve its units again.
-  const located=await locate();
-  if(located&&!same(located,retained.before)){const latest=await current(located);if(latest?.events.some(item=>same(item.event,event)))return latest;}
-  const previous=retained.before?await verifyWildsResourceSourceProofV128(input.sdk,retained.before,{applicationId,historical:true}):null;
+  let previous=admittedBefore;
+  if(previous===undefined){
+   const located=await locate();
+   if(located&&!same(located,retained.before)){const latest=await current(located);if(latest?.events.some(item=>same(item.event,event)))return latest;}
+   previous=retained.before?await verifyWildsResourceSourceProofV128(input.sdk,retained.before,{applicationId,historical:true}):null;
+  }
   const state=await reduceWildsResourceJournalV128(previous?.state??initialWildsResourceJournalV128(),event,{ownerReceizId:owner,expectedNativeHead:previous?.predecessor.head.head??WILDS_RESOURCE_GENESIS_HEAD_V128,
     verifyCard:(card,original)=>verifyWildsResourceGameplayCardV128(input.sdk,owner,input.authority.keyFile.keyId,card,original),
     verifyCardOrigin:(card,original)=>verifyWildsResourceCardOriginSourceV128(input.sdk,owner,input.authority.keyFile.keyId,card,original),

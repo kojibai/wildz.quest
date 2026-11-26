@@ -134,8 +134,17 @@ export async function readWildsWalletCreatureBearerV128(original: ReceizPortable
   const opened = await readWildsWalletCreaturePayloadV128(original, sdk);
   const { payload, card, sourceOriginal } = opened;
   const origin = await verifyWildsResourceCardOriginProofV128(sdk, originProof, { applicationId, assetId: card.id, payloadSha256: payload.payloadSha256, provenanceRoot: payload.provenanceRoot, original: sourceOriginal });
-  if (!same(origin.card, card) || !same(origin.sourceOriginal, sourceOriginal) || origin.ownerReceizId !== opened.derived.genesisOwnerReceizId) throw Error("The native creature genesis reservation does not bind this exact Original.");
+  assertCreatureOrigin(opened, origin);
   return { ...opened, origin };
+}
+
+type OpenedCreature = Awaited<ReturnType<typeof readWildsWalletCreaturePayloadV128>>;
+function assertCreatureOrigin(opened: OpenedCreature, origin: Awaited<ReturnType<typeof verifyWildsResourceCardOriginProofV128>>) {
+  if (origin.assetId !== opened.card.id || origin.payloadSha256 !== opened.payload.payloadSha256
+    || origin.provenanceRoot !== opened.payload.provenanceRoot || !same(origin.card, opened.card)
+    || !same(origin.sourceOriginal, opened.sourceOriginal) || origin.ownerReceizId !== opened.derived.genesisOwnerReceizId) {
+    throw Error("The native creature genesis reservation does not bind this exact Original.");
+  }
 }
 
 export const assertWildsWalletCreatureGiftSelectionV128: WildsWalletBearerSelectionVerifier = async (leg, document) => {
@@ -164,10 +173,13 @@ export function createWildsWalletCreatureBearerProducerV128(input: Readonly<{
 }>) {
   const database = input.database ?? defaultContinuityDatabase, store = createWildsWalletBearerGiftRecoveryStore(database);
   const assertCurrent = () => { const active = input.currentIdentity(); if (active.keyId !== input.keyId || active.ownerHandle !== input.ownerHandle) throw Error("The Explorer changed during native source preparation."); };
-  async function retainSuccessor(source: WildsWalletBearerGiftSource) {
-    assertCurrent(); const opened = await readWildsWalletCreatureBearerV128(source.original, source.originProof as WildsResourceSourceProofV128, input.sdk, input.applicationId); assertCurrent();
+  async function retainAdmittedSuccessor(source: WildsWalletBearerGiftSource, opened: OpenedCreature) {
     await readWildsWalletCreatureProjectionV128({ source: opened, projectionOriginal: source.projectionOriginal, accepted: true, artifacts: input.sdk.artifacts }); assertCurrent();
     return retainIndex(source, opened.card.id);
+  }
+  async function retainSuccessor(source: WildsWalletBearerGiftSource) {
+    assertCurrent(); const opened = await readWildsWalletCreatureBearerV128(source.original, source.originProof as WildsResourceSourceProofV128, input.sdk, input.applicationId); assertCurrent();
+    return retainAdmittedSuccessor(source, opened);
   }
   async function retainIndex(source: WildsWalletBearerGiftSource, assetId: string) {
     await store.retainSource(input.ownerHandle, input.keyId, source);
@@ -179,10 +191,11 @@ export function createWildsWalletCreatureBearerProducerV128(input: Readonly<{
   async function retainCurrent(source: WildsWalletBearerGiftSource) {
     const opened = await readWildsWalletCreatureBearerV128(source.original, source.originProof as WildsResourceSourceProofV128, input.sdk, input.applicationId); assertCurrent();
     if (opened.derived.ownerReceizId !== input.ownerHandle) throw Error("Only this native keeper can retain this creature source.");
-    return retainSuccessor(source);
+    return retainAdmittedSuccessor(source, opened);
   }
-  async function projectCurrent(original: ReceizPortableSealedArtifactV124, originProof: unknown, card: PortableCardAsset): Promise<WildsWalletBearerGiftSource> {
-    const opened = await readWildsWalletCreatureBearerV128(original, originProof as WildsResourceSourceProofV128, input.sdk, input.applicationId); assertCurrent();
+  async function projectCurrent(opened: OpenedCreature, originProof: unknown, card: PortableCardAsset): Promise<WildsWalletBearerGiftSource> {
+    assertCurrent();
+    const { original } = opened;
     if (opened.derived.ownerReceizId !== input.ownerHandle || !(same(opened.card, card) || isVerifiedWildzCardDescendant(opened.card, card))) throw Error("The exact creature history is not a descendant of this owned native source.");
     const bytes = new TextEncoder().encode(canonicalPortableCardJson({ schema: "wildz.creature-projection.v128", sourceArtifactSha256: original.artifactSha256, sourceHeadReference: opened.headReference, card }));
     const sealed = await input.sdk.assets.createProofObject({ assetType: "proof_object", payload: { bytes, mimeType: "application/vnd.wildz.creature-projection.v128+json" } }, { idempotencyKey: `wildz:creature-projection:${await sha256ReceizBytes(bytes)}`, filename: `wildz-creature-projection-${card.id}.receizbundle` }); assertCurrent();
@@ -204,7 +217,7 @@ export function createWildsWalletCreatureBearerProducerV128(input: Readonly<{
         assertCurrent();
         if (same(previous.card, current)) return source;
         if (!isVerifiedWildzCardDescendant(previous.card, current)) throw Error("The latest approved creature history cannot be replaced by an earlier card.");
-        return projectCurrent(source.original, source.originProof, current);
+        return projectCurrent(opened, source.originProof, current);
       }
       const current = structuredClone(input.card(assetId));
       if (current.id !== assetId || !verifyAnyWildsCard(current).ok) throw Error("The exact creature collection selection is invalid.");
@@ -218,10 +231,11 @@ export function createWildsWalletCreatureBearerProducerV128(input: Readonly<{
       const sourceOriginal = await prepareSafeWildsWalletHeldCardSourceV128(input.sdk, card, prepared, { ...input, database, retainBirth: true, assertCurrent }); assertCurrent();
       const payload = await buildWildsWalletCreatureBearerPayloadV128({ card, sourceOriginal });
       const reservation = await input.exchange.reserveCardOrigin({ attemptId: `card-origin:${assetId}`, assetId, card, sourceOriginal, payloadSha256: payload.payloadSha256, provenanceRoot: payload.provenanceRoot }); assertCurrent();
-      await verifyWildsResourceCardOriginProofV128(input.sdk, reservation.originProof, { applicationId: input.applicationId, assetId, payloadSha256: payload.payloadSha256, provenanceRoot: payload.provenanceRoot, original: sourceOriginal }); assertCurrent();
       const portable = await prepareWildsPortableDocumentV128({ assetType: "proof_object", payload: { bytes: payload.bytes, mimeType: "application/vnd.wildz.creature-bearer.v128+json" }, ownership: { ownerReceizId: input.ownerHandle, custody: "bearer", proofRef: "genesis" }, provenance: { root: payload.provenanceRoot, appends: [] }, settlement: { state: "none" } });
       const sealed = await input.sdk.assets.createProofObject({ assetType: "proof_object", payload: { bytes: serializeReceizPortableAssetDocument(portable), mimeType: "application/vnd.receiz.portable-asset.v1+json" } }, { idempotencyKey: `wildz:creature-bearer:${payload.payloadSha256}`, filename: `wildz-creature-${payload.payloadSha256}.receizbundle` }); assertCurrent();
-      return projectCurrent(await transportReceizSealedArtifactV124(sealed), reservation.originProof, current);
+      const opened = await readWildsWalletCreaturePayloadV128(await transportReceizSealedArtifactV124(sealed), input.sdk); assertCurrent();
+      assertCreatureOrigin(opened, reservation.origin);
+      return projectCurrent(opened, reservation.originProof, current);
   }
   return {
     retainCurrent, retainSuccessor, prepareAsset,
