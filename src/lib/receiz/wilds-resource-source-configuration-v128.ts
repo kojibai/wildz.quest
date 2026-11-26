@@ -27,6 +27,7 @@ const defaults:WildsResourceSourceConfigurationDependenciesV128={
 const readGrantFailures=new Set(['receiz_wallet_read_scope_required','receiz_wallet_authority_revoked']);
 const continuationFailures=new Set(['receiz_wallet_authority_required','receiz_wallet_profile_binding_invalid',
  'receiz_wallet_token_binding_invalid','receiz_wallet_connect_session_required','receiz_wallet_connect_session_binding_invalid']);
+const sourceProxyPath='/api/wilds/wallet/source-sdk';
 
 export class WildsResourceSourceConfigurationErrorV128 extends Error {
  constructor(readonly code:string){
@@ -53,7 +54,7 @@ export async function loadWildsResourceSourceConfigurationV128(keyId:string,
  let authorized=false,reconnected=false;
  for(let attempt=0;attempt<3;attempt++){
   let response:Response;
-  try{response=await dependencies.fetcher('/api/wilds/wallet/source-sdk',{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(10_000)});}
+  try{response=await dependencies.fetcher(sourceProxyPath,{credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(10_000)});}
   catch{throw new WildsResourceSourceConfigurationErrorV128('SOURCE_CONNECTION_UNAVAILABLE');}
   const value:unknown=await response.json().catch(()=>null);
   if(response.ok){
@@ -79,4 +80,23 @@ export async function loadWildsResourceSourceConfigurationV128(keyId:string,
   throw new WildsResourceSourceConfigurationErrorV128(code);
  }
  throw new WildsResourceSourceConfigurationErrorV128('SOURCE_CONNECTION_UNAVAILABLE');
+}
+
+/** A source-session refusal precedes upstream dispatch. Renew through the same
+ * Seal and re-send only that exact transport request, including its key. */
+export function createWildsResourceSourceFetchV128(keyId:string,current:Configuration,
+ dependencies:Readonly<{fetcher:typeof fetch;configuration(keyId:string):Promise<Configuration>}>=
+  {fetcher:(...args)=>fetch(...args),configuration:loadWildsResourceSourceConfigurationV128}):typeof fetch{
+ return async (request,init)=>{
+  const response=await dependencies.fetcher(request,init);
+  if(request!==sourceProxyPath||init?.method!=='POST'||response.status!==409
+   ||response.headers.get('x-wildz-source-stage')!=='source-session')return response;
+  const code=walletAuthorizationFailureCode(await response.clone().json().catch(()=>null));
+  if(!readGrantFailures.has(code)&&!continuationFailures.has(code))return response;
+  init.signal?.throwIfAborted();
+  const renewed=await dependencies.configuration(keyId);
+  init.signal?.throwIfAborted();
+  if(renewed.applicationId!==current.applicationId||renewed.baseUrl!==current.baseUrl)throw new WildsResourceSourceConfigurationErrorV128('SOURCE_CONFIGURATION_CHANGED');
+  return dependencies.fetcher(request,init);
+ };
 }

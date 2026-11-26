@@ -10,7 +10,7 @@ import {openWildsResourceSourceAuthorityV128} from './wilds-resource-source-clie
 import {WILDS_RESOURCE_SOURCE_WRITE_SCOPES_V128} from './wilds-resource-source-v128';
 import {createWildsResourcePackageExchangeV128,createWildsResourcePublicStoreLocatorV128} from './wilds-resource-exchange-v128';
 import {WILDS_RESOURCE_DOMAIN_V128,WILDS_RESOURCE_REDUCER_DIGEST_V128} from './wilds-resource-journal-v128';
-import {loadWildsResourceSourceConfigurationV128} from './wilds-resource-source-configuration-v128';
+import {createWildsResourceSourceFetchV128,loadWildsResourceSourceConfigurationV128} from './wilds-resource-source-configuration-v128';
 
 export type WildsResourceExchangeBrowserDependenciesV128=Readonly<{
  configuration(keyId:string):Promise<Readonly<{applicationId:string;baseUrl:string}>>;
@@ -33,6 +33,7 @@ export async function openWildsResourcePackageExchangeBrowserV128(input:Readonly
  resolveOriginal?:(card:PortableCardAsset)=>Promise<ReceizPortableSealedArtifactV124|null>;
 }>,dependencies:WildsResourceExchangeBrowserDependenciesV128=defaults){
  const configuration=await dependencies.configuration(input.keyId);
+ const fetcher=createWildsResourceSourceFetchV128(input.keyId,configuration,{fetcher:(...args)=>fetch(...args),configuration:dependencies.configuration});
  const [keyFile,database]=await Promise.all([dependencies.loadIdentity(input.keyId),dependencies.database()]);
  if(keyFile.keyId!==input.keyId||!keyFile.owner.username)throw Error('wilds_resource_source_identity_mismatch');
  const transport=await createWildzIdentityAuthorizationArtifact(keyFile);
@@ -43,9 +44,9 @@ export async function openWildsResourcePackageExchangeBrowserV128(input:Readonly
   scopes:WILDS_RESOURCE_SOURCE_WRITE_SCOPES_V128,consentStatementDigest:statementDigest,ttlPulses:60});
  const proof=await signReceizIdentityLoginProof({keyFile,challengeB64Url:challenge.challengeB64Url});
  const signedGrantChallenge={...challenge.challenge,proof};
- const initial=dependencies.createSdk(configuration);
+ const initial=dependencies.createSdk({...configuration,fetcher});
  const grant=await initial.identity.exchangeProofAuthority({artifact:transport.artifact,challenge:signedGrantChallenge,applicationId:configuration.applicationId,scopes:WILDS_RESOURCE_SOURCE_WRITE_SCOPES_V128});
- const sdk=dependencies.createSdk({...configuration,accessToken:grant.accessToken});
+ const sdk=dependencies.createSdk({...configuration,accessToken:grant.accessToken,fetcher});
  const opened=await openWildsResourceSourceAuthorityV128({sdk,keyFile,grant,identityArtifact:transport.artifact,signedGrantChallenge});
  const locator=createWildsResourcePublicStoreLocatorV128({sdk,authority:opened.author,sourceUrl:WILDS_WALLET_RESOURCE_SOURCE_URL_V128});
  const exchange=createWildsResourcePackageExchangeV128({sdk,database,authority:opened.author,session:opened.session,gameplayOwnerId:input.gameplayOwnerId,locator,
@@ -54,7 +55,7 @@ export async function openWildsResourcePackageExchangeBrowserV128(input:Readonly
  // stores public source bytes; it never stores an access token or signing key.
  return {openClearanceExchange:async(assertCurrent:()=>void)=>{
    const {createWildsClearanceActionWorkerRuntime}=await import('./wilds-clearance-action-worker-runtime');
-   return createWildsClearanceActionWorkerRuntime({configuration,author:opened.author,session:opened.session,gameplayOwnerId:input.gameplayOwnerId,sdk,assertCurrent,resolveOriginal:input.resolveOriginal});
+   return createWildsClearanceActionWorkerRuntime({configuration,author:opened.author,session:opened.session,gameplayOwnerId:input.gameplayOwnerId,sdk,assertCurrent,resolveOriginal:input.resolveOriginal,fetcher});
   },sdk,exchange,database,sourceAuthor:opened.author,session:opened.session,applicationId:configuration.applicationId,ownerReceizId:opened.author.ownerReceizId,keyId:keyFile.keyId,
   identityArtifactDigest:transport.artifactDigest,consentStatement:canonicalizeReceizV122({statementDigest})};
 }

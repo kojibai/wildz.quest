@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {openWildsResourcePackageExchangeBrowserV128, type WildsResourceExchangeBrowserDependenciesV128} from '../src/lib/receiz/wilds-resource-exchange-browser-v128';
-import {loadWildsResourceSourceConfigurationV128, WildsResourceSourceConfigurationErrorV128} from '../src/lib/receiz/wilds-resource-source-configuration-v128';
+import {createWildsResourceSourceFetchV128, loadWildsResourceSourceConfigurationV128, WildsResourceSourceConfigurationErrorV128} from '../src/lib/receiz/wilds-resource-source-configuration-v128';
 import type {WildsResourceSourceConfigurationDependenciesV128} from '../src/lib/receiz/wilds-resource-source-configuration-v128';
 import {NextRequest} from 'next/server';
 import {wildsWalletSourceSdkConfigV128,proxyWildsWalletSourceSdkV128} from '../src/lib/receiz/wilds-wallet-source-sdk-runtime';
@@ -9,6 +9,7 @@ import type {WildzReceizChatSession} from '../src/lib/receiz/wildz-receiz-chat-s
 import {GET as walletAuthorityChallenge} from '../app/api/auth/wildz/wallet-authority/route';
 import {createReceizClient,createReceizIdentityKeyFile,createReceizProofAuthorityChallenge,receizBase64UrlDecode,verifyReceizIdentityLoginProof} from '@receiz/sdk';
 import {createWildsWalletSourceSdkClientV128} from '../src/features/play/wallet/wilds-wallet-source-sdk-v128';
+import {reopenWildsIssuedAuthoritySession} from '../src/lib/receiz/wilds-authority-session-recovery';
 import type {WildzContinuityDatabase} from '../src/lib/storage/wildz-indexed-db';
 
 const keyId='a'.repeat(64), expected={applicationId:'registered-wildz-client',baseUrl:'https://receiz.example'};
@@ -83,6 +84,50 @@ test('healthy source configuration performs one read with no extra signing, auth
  const f=fixture([Response.json(expected)]);
  assert.deepEqual(await loadWildsResourceSourceConfigurationV128(keyId,f.dependencies),expected);
  assert.deepEqual(f.calls,['configuration']);
+});
+
+test('a source seal retries the exact request once after its same-identity read session expires before dispatch',async()=>{
+ const body=new FormData();body.set('wildzSdkPath','/api/sdk/v1/assets/seal');body.set('file',new File(['exact source'], 'subject.receizbundle'));
+ const init:RequestInit={method:'POST',body,headers:{'x-idempotency-key':'exact-seal'},credentials:'same-origin'};
+ const calls:string[]=[];
+ const fetcher=createWildsResourceSourceFetchV128(keyId,expected,{configuration:async key=>{
+  assert.equal(key,keyId);calls.push('renew');return expected;
+ },fetcher:async (url,request)=>{
+  assert.equal(url,'/api/wilds/wallet/source-sdk');assert.equal(request,init);assert.equal(request.body,body);
+  calls.push('seal');return calls.length===1?Response.json({error:'receiz_wallet_read_scope_required'},{status:409,headers:{'x-wildz-source-stage':'source-session'}}):Response.json({ok:true});
+ }});
+ assert.equal((await fetcher('/api/wilds/wallet/source-sdk',init)).status,200);
+ assert.deepEqual(calls,['seal','renew','seal']);
+});
+
+test('an upstream source failure is held for explicit recovery without replaying its signed request',async()=>{
+ let count=0;
+ const failure=Response.json({error:'receiz_wallet_read_scope_required'},{status:409,headers:{'x-wildz-source-stage':'source-request'}});
+ const fetcher=createWildsResourceSourceFetchV128(keyId,expected,{configuration:async()=>assert.fail('upstream was reached'),fetcher:async()=>{count++;return failure;}});
+ assert.equal(await fetcher('/api/wilds/wallet/source-sdk',{method:'POST',body:'{}'}),failure);
+ assert.equal(count,1);
+});
+
+test('a first-issue clock refusal reopens the same signed session request once',async()=>{
+ const signedRequest={signedChallenge:{nonce:'same-attempt',proof:'same-signature'}};
+ const issuedSession={authoritySessionHandle:'existing-handle'};
+ const attempts:typeof signedRequest[]=[];
+ const runtime={openAuthoritySessionV124:async (request:typeof signedRequest)=>{
+  attempts.push(request);
+  if(attempts.length===1)throw Error('V124_AUTHORITY_SESSION_NOT_YET_ACTIVE');
+  return issuedSession;
+ }};
+ assert.equal(await reopenWildsIssuedAuthoritySession(runtime,signedRequest),issuedSession);
+ assert.equal(attempts.length,2);
+ assert.equal(attempts[0],signedRequest);
+ assert.equal(attempts[1],signedRequest);
+});
+
+test('an expired or invalid session is never reopened through the clock recovery',async()=>{
+ let attempts=0;
+ const runtime={openAuthoritySessionV124:async()=>{attempts++;throw Error('V124_AUTHORITY_SESSION_EXPIRED');}};
+ await assert.rejects(reopenWildsIssuedAuthoritySession(runtime,{}),/V124_AUTHORITY_SESSION_EXPIRED/);
+ assert.equal(attempts,1);
 });
 
 test('missing and revoked read grants renew the same identity once before any source edge',async()=>{

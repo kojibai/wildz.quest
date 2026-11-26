@@ -9,6 +9,7 @@ import {
   type ReceizProofAuthorityV123,
 } from "@receiz/sdk";
 import {assertWildsMaterialPublicationOpenV128} from "./wilds-material-publication-fence-v128";
+import {reopenWildsIssuedAuthoritySession} from "./wilds-authority-session-recovery";
 import type { WildzContinuityDatabase } from "../storage/wildz-indexed-db";
 import {decodeWildsResourceEventV128} from './wilds-resource-event-codec-v128';
 import { prepareWildsPortableDocumentV128 } from "./wilds-portable-document-v128";
@@ -243,7 +244,7 @@ export async function openWildsResourceSourceAuthorityV128(input: Readonly<{
   const subjectSourceArtifact = await transportReceizSealedArtifactV124(sealedSubject);
   await input.sdk.sources.publishSealedSourceV124({ applicationId: input.grant.applicationId, authoritySessionHandle: null, sourceArtifact: subjectSourceArtifact });
   const signedSessionChallenge = await createWildsResourceSessionChallengeV129(input);
-  const session = await input.sdk.runtime.openAuthoritySessionV124({ applicationId: input.grant.applicationId, actorSubjectId: actorSubject.subjectId,
+  const session = await reopenWildsIssuedAuthoritySession(input.sdk.runtime, { applicationId: input.grant.applicationId, actorSubjectId: actorSubject.subjectId,
     subjectSourceArtifact, proofArtifact: input.identityArtifact, signedChallenge: signedSessionChallenge,
     requestedRails: [], requiredNamespaces: [], audience: input.grant.applicationId });
   return { session, subjectSourceArtifact, author: { grant: input.grant, keyFile: input.keyFile,
