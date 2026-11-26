@@ -201,7 +201,9 @@ export function createWildsWalletCreatureBearerProducerV128(input: Readonly<{
         if (opened.card.id !== assetId || opened.derived.ownerReceizId !== input.ownerHandle) throw Error("This retained creature has already moved to another keeper.");
         const current = structuredClone(input.card(assetId));
         const previous = await readWildsWalletCreatureProjectionV128({ source: opened, projectionOriginal: source.projectionOriginal, accepted: opened.derived.appendCount > 0, artifacts: input.sdk.artifacts });
-        if (!(same(previous.card, current) || isVerifiedWildzCardDescendant(previous.card, current))) throw Error("The latest approved creature history cannot be replaced by an earlier card.");
+        assertCurrent();
+        if (same(previous.card, current)) return source;
+        if (!isVerifiedWildzCardDescendant(previous.card, current)) throw Error("The latest approved creature history cannot be replaced by an earlier card.");
         return projectCurrent(source.original, source.originProof, current);
       }
       const current = structuredClone(input.card(assetId));
