@@ -24,3 +24,212 @@ index 51e3b82df4db477459ec830b15eb18e4c483de63..e13bf14e56f38b5657bd9357f74876be
                  challengeB64Url: receizBase64UrlEncode(receizPortableSegmentSignatureBytes(segment)),
                  signatureB64Url: segment.signatureB64u,
              });
+diff --git a/dist/offlineSeal.d.ts b/dist/offlineSeal.d.ts
+index a224937..40668d0 100644
+--- a/dist/offlineSeal.d.ts
++++ b/dist/offlineSeal.d.ts
+@@ -1,3 +1,9 @@
++import type { CreateReceizProofAuthorityChallengeInput, CreatedReceizProofAuthorityChallenge } from "./v124ProofAuthorityChallenge.js";
++import type { ReceizKaiNow } from "./v124Kai.js";
++export type ReceizOfflineReplaySealCapture = Readonly<{
++    kai: ReceizKaiNow;
++    createProofAuthorityChallenge(input: CreateReceizProofAuthorityChallengeInput): CreatedReceizProofAuthorityChallenge;
++}>;
+ export type ReceizOfflineSealCertificate = Readonly<{
+     version: 1;
+     certType: "receiz.device.v1";
+@@ -115,7 +121,37 @@ export declare function createReceizOfflineSealer(options: Readonly<{
+             }>;
+         }>;
+     }>>;
++    sealPreparedReplay(prepare: (capture: ReceizOfflineReplaySealCapture) => Promise<Readonly<{
++        bytes: Uint8Array;
++        filename: string;
++        mimeType?: string;
++    }>>): Promise<Readonly<{
++        artifactBytes: Uint8Array<ArrayBufferLike>;
++        filename: string;
++        mimeType: string;
++        verification: Readonly<{
++            ok: boolean;
++            integrity: Readonly<{
++                ok: boolean;
++                errors: string[];
++            }>;
++            kind: "png" | "pdf" | "heic-box" | "trailer" | "bundle" | "folder_package" | "unknown";
++            errors: string[];
++            warnings: string[];
++            bundle: Readonly<Record<string, unknown>> | null;
++            anchor: Readonly<Record<string, unknown>> | null;
++            package: Readonly<Record<string, unknown>> | null;
++            assetContinuity?: import("./verifier/types.js").ReceizLocalAssetContinuity;
++            carriedAuthorship?: import("./verifier/types.js").CarriedFileAuthorship;
++            denial?: Readonly<{
++                status: "operational-denial";
++                code: import("./verificationLimits.js").ReceizProtocolLimitCode;
++                artifactValidity: "not-evaluated";
++            }>;
++        }>;
++    }>>;
+ }>;
+ /** Browser-origin custody: IndexedDB retains the non-exportable private CryptoKey. */
+ export declare function createReceizIndexedDbSealStore(name?: string): ReceizOfflineSealStore;
++export { readReceizDomainReplaySegmentSourceV124, verifyAndReadReceizDomainReplayProofObjectV124 } from "./v124ReplayProofObject.js";
+ //# sourceMappingURL=offlineSeal.d.ts.map
+\ No newline at end of file
+diff --git a/dist/offlineSeal.js b/dist/offlineSeal.js
+index 870ba7f..6a33f6b 100644
+--- a/dist/offlineSeal.js
++++ b/dist/offlineSeal.js
+@@ -7,6 +7,8 @@ import { verifyReceizSignatureV4 } from "./verifier/signatureV4.js";
+ import { receizCurrentPinnedSignatureV4Roots } from "./verifier/roots.js";
+ import { verifyReceizDocumentBytesCanonical } from "./verifier/canonical.js";
+ import { receizKaiNow } from "./v124Kai.js";
++import { captureOfflineSealKaiUpulse } from "./offlineSealImplementation.js";
++import { createProofAuthorityChallengeAtCapturedKai } from "./v124ProofAuthorityChallenge.js";
+ export function verifyReceizOfflineSealedFile(input) {
+     return verifyReceizDocumentBytesCanonical({ fileBytes: input.bytes, filename: input.filename,
+         ...(input.mimeType ? { mime: input.mimeType } : {}), signatureV4RootPublicKeys: receizCurrentPinnedSignatureV4Roots() });
+@@ -67,9 +69,10 @@ export function createReceizOfflineSealer(options) {
+         await checkEnrollment(state);
+         await options.store.save(state);
+     }
+-    async function sealWithEnrollment(source, state, nativeRecordSeal) {
++    async function sealWithEnrollment(source, state, nativeRecordSeal, capturedKai) {
+         const mime = source.mimeType || "application/octet-stream";
+         const result = await receizeDocumentBytesCore({ fileBytes: source.bytes, filename: source.filename, mime,
++            ...(capturedKai ? { kaiUpulse: String(capturedKai.uPulse) } : {}),
+             ...(nativeRecordSeal ? { options: { nativeRecordSeal } } : {}),
+         }, {
+             signingKey: "receiz-offline-signing-key-v2", verifyOrigin: "https://receiz.com",
+@@ -87,6 +90,33 @@ export function createReceizOfflineSealer(options) {
+             throw new Error("offline_seal_output_verification_failed", { cause: verification });
+         return Object.freeze({ artifactBytes: result.artifactBytes, filename: result.downloadName, mimeType: contentType, verification });
+     }
++    function snapshotSealInput(input) {
++        if (!input || typeof input !== "object" || Object.keys(input).some(key => !["bytes", "filename", "mimeType"].includes(key)))
++            throw new TypeError("offline_seal_input_fields_invalid");
++        if (!(input.bytes instanceof Uint8Array) || !input.bytes.length || typeof input.filename !== "string" || !input.filename.trim())
++            throw new Error("offline_seal_input_invalid");
++        return { bytes: new Uint8Array(input.bytes), filename: input.filename, mimeType: input.mimeType };
++    }
++    async function loadQualifiedEnrollment() {
++        const state = await options.store.load();
++        if (!state)
++            throw new Error("offline_seal_enrollment_required");
++        await checkEnrollment(state);
++        await qualifyResources();
++        return state;
++    }
++    async function readOwner() {
++        const identity = await readReceizIdentityPublicBinding(options.ownerIdentityAdmission);
++        if (!identity.signatureVerified || !identity.artifactOwnerReceizId)
++            throw new TypeError("offline_seal_identity_owner_mismatch");
++        return identity.artifactOwnerReceizId;
++    }
++    async function nativeRecordFor(source, ownerReceizId) {
++        return ownerReceizId === undefined ? undefined : {
++            ownerReceizId,
++            recordId: `record:${await sha256Hex(source.bytes)}`,
++        };
++    }
+     return Object.freeze({
+         /** Explicit one-time network operation. Never called implicitly by seal. */
+         async enroll() {
+@@ -127,28 +157,25 @@ export function createReceizOfflineSealer(options) {
+             return artifact;
+         },
+         async seal(input) {
+-            // Creation coordinates come from the canonical live proof path. A tool
+-            // or JavaScript caller cannot smuggle a temporal override through extras.
+-            if (!input || typeof input !== "object" || Object.keys(input).some(key => !["bytes", "filename", "mimeType"].includes(key))) {
+-                throw new TypeError("offline_seal_input_fields_invalid");
+-            }
+-            if (!(input.bytes instanceof Uint8Array) || !input.bytes.length || typeof input.filename !== "string" || !input.filename.trim())
+-                throw new Error("offline_seal_input_invalid");
+-            const source = { bytes: new Uint8Array(input.bytes), filename: input.filename, mimeType: input.mimeType };
+-            const state = await options.store.load();
+-            if (!state)
+-                throw new Error("offline_seal_enrollment_required");
+-            await checkEnrollment(state);
+-            await qualifyResources();
+-            let nativeRecordSeal;
+-            if (options.ownerIdentityAdmission !== undefined) {
+-                const identity = await readReceizIdentityPublicBinding(options.ownerIdentityAdmission);
+-                if (!identity.signatureVerified || !identity.artifactOwnerReceizId) {
+-                    throw new TypeError("offline_seal_identity_owner_mismatch");
+-                }
+-                nativeRecordSeal = { ownerReceizId: identity.artifactOwnerReceizId, recordId: `record:${await sha256Hex(source.bytes)}` };
+-            }
+-            return sealWithEnrollment(source, state, nativeRecordSeal);
++            const source = snapshotSealInput(input);
++            const state = await loadQualifiedEnrollment();
++            const owner = options.ownerIdentityAdmission === undefined ? undefined : await readOwner();
++            return sealWithEnrollment(source, state, await nativeRecordFor(source, owner));
++        },
++        async sealPreparedReplay(prepare) {
++            if (typeof prepare !== "function" || arguments.length !== 1)
++                throw new TypeError("offline_seal_preparation_required");
++            const state = await loadQualifiedEnrollment();
++            const owner = await readOwner();
++            const uPulse = Number(captureOfflineSealKaiUpulse());
++            if (!Number.isSafeInteger(uPulse) || uPulse < 0)
++                throw new Error("offline_seal_kai_invalid");
++            const kai = Object.freeze({ uPulse, pulse: Math.floor(uPulse / 1_000_000) });
++            const source = snapshotSealInput(await prepare(Object.freeze({
++                kai,
++                createProofAuthorityChallenge: input => createProofAuthorityChallengeAtCapturedKai(input, kai.pulse),
++            })));
++            return sealWithEnrollment(source, state, await nativeRecordFor(source, owner), kai);
+         },
+     });
+ }
+@@ -194,3 +221,4 @@ export function createReceizIndexedDbSealStore(name = "receiz-sdk-offline-seal")
+         },
+     };
+ }
++export { readReceizDomainReplaySegmentSourceV124, verifyAndReadReceizDomainReplayProofObjectV124 } from "./v124ReplayProofObject.js";
+diff --git a/dist/offlineSealImplementation.js b/dist/offlineSealImplementation.js
+index 55e8a96..7c1d230 100644
+--- a/dist/offlineSealImplementation.js
++++ b/dist/offlineSealImplementation.js
+@@ -2984,3 +2984,5 @@ async function gu(e, t) { let o = await fu(e), i = du(o), r = i.toString(), a =
+     throw new Error("groth16_public_signal_mismatch"); let y = { v: "receiz.g16.real.v1", proof: p, publicSignals: d }, g = new TextEncoder().encode(JSON.stringify(y)), E = "g16:".concat(Le(g)), f = (await ge(E)).toLowerCase(); return { zkPoseidonHash: mu(i), groth16Proof: E, groth16ProofDigest: f }; }
+ var Ru = Object.freeze({ scheme: "groth16-poseidon", status: "verified", circuitId: "document_seal_proof", wasmUrl: "/zk/document_seal_proof_js/sigil_proof.wasm", zkeyUrl: "/zk/document_seal_proof_final.zkey", vkeyUrl: "/zk/document_seal_verification_key.json", wasmSha256: "fc72dd17e30f7e9b178eeac08f1deceec8fff5b757481455e465234fbc35e696", zkeySha256: "fc5bc8cce4c43dc163e44bc8a1e52c165b72813a0ccbde7fb1735f3cb01debd4", vkeySha256: "f42919b0ee8bd79394e78bb6c21f2c1023f7ffe432fa5cbd16f50502b81cc89f" });
+ export { Ru as DOCUMENT_SEAL_GROTH16_PROOF_MANIFEST, ps as coerceReceizSignatureV4DeviceCert, gu as generateDocumentSealGroth16ProofWithResources, cs as maybeSignReceizBundleV4, pu as receizeDocumentBytesCore, su as receizedContentType };
++
++export { _a as captureOfflineSealKaiUpulse };
+diff --git a/dist/v124ProofAuthorityChallenge.d.ts b/dist/v124ProofAuthorityChallenge.d.ts
+index 8fc0203..23d6c2e 100644
+--- a/dist/v124ProofAuthorityChallenge.d.ts
++++ b/dist/v124ProofAuthorityChallenge.d.ts
+@@ -12,4 +12,5 @@ export type CreatedReceizProofAuthorityChallenge = Readonly<{
+     challengeB64Url: string;
+ }>;
+ export declare function createReceizProofAuthorityChallenge(input: CreateReceizProofAuthorityChallengeInput): CreatedReceizProofAuthorityChallenge;
++export declare function createProofAuthorityChallengeAtCapturedKai(input: CreateReceizProofAuthorityChallengeInput, issuedAtKai: number): CreatedReceizProofAuthorityChallenge;
+ //# sourceMappingURL=v124ProofAuthorityChallenge.d.ts.map
+\ No newline at end of file
+diff --git a/dist/v124ProofAuthorityChallenge.js b/dist/v124ProofAuthorityChallenge.js
+index e7ef3a8..4559755 100644
+--- a/dist/v124ProofAuthorityChallenge.js
++++ b/dist/v124ProofAuthorityChallenge.js
+@@ -48,6 +48,10 @@ function randomNonce() {
+     return receizBase64UrlEncode(bytes);
+ }
+ export function createReceizProofAuthorityChallenge(input) {
++    return createProofAuthorityChallengeAtCapturedKai(input, receizKaiNow().pulse);
++}
++/** Internal to a live device sealing operation. */
++export function createProofAuthorityChallengeAtCapturedKai(input, issuedAtKai) {
+     const record = challengeInput(input);
+     const applicationId = validateApplicationId(record.applicationId, "V124_PROOF_AUTHORITY_APPLICATION_INVALID");
+     const artifactDigest = digest(record.artifactDigest, "V124_PROOF_AUTHORITY_ARTIFACT_DIGEST_INVALID");
+@@ -60,7 +64,6 @@ export function createReceizProofAuthorityChallenge(input) {
+     const suppliedNonce = Object.prototype.hasOwnProperty.call(record, "nonce")
+         ? nonceBytes(record.nonce)
+         : null;
+-    const issuedAtKai = receizKaiNow().pulse;
+     const expiresAtKai = issuedAtKai + ttlPulses;
+     if (!Number.isSafeInteger(expiresAtKai)) {
+         return fail("V124_PROOF_AUTHORITY_EXPIRY_INVALID");

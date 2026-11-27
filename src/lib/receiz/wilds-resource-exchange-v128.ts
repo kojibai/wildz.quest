@@ -213,6 +213,7 @@ const replayInput=(applicationId:string,afterHead:string|null)=>({applicationId,
 export function createWildsResourcePackageExchangeV128(input:Readonly<{
  sdk:ReceizClient;database:WildzContinuityDatabase;authority:WildsResourceSourceAuthorV128;session:ReceizAuthoritySessionV124;
  gameplayOwnerId:string;locator:WildsResourceSourceLocatorV128;
+ sealPreparedReplay?:Parameters<typeof createWildsResourceSourceClientV128>[0]["sealPreparedReplay"];
  resolveOriginal?:(card:PortableCardAsset)=>Promise<ReceizPortableSealedArtifactV124|null>;
 }>){
  const applicationId=input.authority.grant.applicationId;
@@ -419,8 +420,8 @@ export function createWildsResourcePackageExchangeV128(input:Readonly<{
    return {...latest,historical};
   },
   async verifyCardOriginProof(proof:WildsResourceSourceProofV128|WildsResourceSourceReferenceV128,expected:Readonly<{assetId:string;payloadSha256:string;provenanceRoot:string}>){return verifyWildsResourceCardOriginProofV128(input.sdk,proof,{applicationId,...expected});},
-  async reserveCardOrigin(request:Readonly<Omit<WildsResourceCardOriginV128,'ownerReceizId'>&{attemptId:string}>){
-   const accepted=await append({schema:'wildz.resource-command.v128',kind:'card-origin',ownerReceizId:owner,...request});
+  async reserveCardOrigin(request:Readonly<Omit<WildsResourceCardOriginV128,'ownerReceizId'>&{attemptId:string}>,beforeCommit?:()=>Promise<void>){
+   const accepted=await append({schema:'wildz.resource-command.v128',kind:'card-origin',ownerReceizId:owner,...request},beforeCommit);
    const origin=accepted.state.cardOrigins[request.assetId];if(!origin)fail('card_origin_missing');
    return {origin,originProof:input.locator.reference?await input.locator.reference(accepted.proof):accepted.proof};
   },

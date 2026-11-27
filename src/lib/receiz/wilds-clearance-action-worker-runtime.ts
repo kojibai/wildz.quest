@@ -1,6 +1,7 @@
 import {canonicalizeReceizV122,signReceizIdentityLoginProof,type ReceizAuthoritySessionV124,type ReceizClient} from '@receiz/sdk';
 import type {PortableCardAsset} from '../../features/play/portable-card';
 import {isWildsWalletResourceSourcePageUrlV128,isWildsWalletSourceSdkPathV128,WILDS_WALLET_RESOURCE_SOURCE_URL_V128} from '../../features/play/wallet/wilds-wallet-source-sdk-v128';
+import {isWildsResourceSourceOwnerUrlV128,WILDS_RESOURCE_SOURCE_PUBLISHER_NAMESPACE_V128,WILDS_RESOURCE_SOURCE_PUBLISHER_PATH_V128,wildzSourceOwnerUrlsV128} from './wildz-owned-source-locator-v128';
 import type {WildsResourceSourceAuthorV128} from './wilds-resource-source-v128';
 import type {createWildsResourcePackageExchangeV128} from './wilds-resource-exchange-v128';
 import {createWildsClearanceActionWorkerClient} from './wilds-clearance-action-worker-client';
@@ -25,11 +26,13 @@ export function wildsClearanceWorkerAuthor(author:WildsResourceSourceAuthorV128)
    owner:{uid:key.owner.uid,username:key.owner.username,email:null,displayName:null},attestation:null,portableState:null,
    crypto:{publicKeyRawB64u:key.crypto.publicKeyRawB64u,privateKeyPkcs8CiphertextB64u:'',kdf:{name:'PBKDF2-SHA256',iterations:0,saltB64u:''},cipher:{name:'AES-GCM-256',ivB64u:'',aad:''}}}};
 }
-type Exchange=import('../../features/play/wilds-building-clearance-interaction').WildsClearanceInteractionExchange & Pick<ReturnType<typeof createWildsResourcePackageExchangeV128>,'admitMaterialCommand'> & {previewGameplay:()=>Promise<{replay:{world:Awaited<ReturnType<ReturnType<typeof createWildsResourcePackageExchangeV128>['previewGameplay']>>['replay']['world']}}>};
+type Exchange=import('../../features/play/wilds-building-clearance-interaction').WildsClearanceInteractionExchange & Pick<ReturnType<typeof createWildsResourcePackageExchangeV128>,'admitMaterialCommand'|'reserveCardOrigin'> & {previewGameplay:()=>Promise<{replay:{world:Awaited<ReturnType<ReturnType<typeof createWildsResourcePackageExchangeV128>['previewGameplay']>>['replay']['world']}}>};
 export function createWildsClearanceActionWorkerRuntime(input:WildsClearanceActionWorkerInitial&{
  sdk:ReceizClient;assertCurrent:()=>void;
  resolveOriginal?:NonNullable<Parameters<typeof createWildsResourcePackageExchangeV128>[0]['resolveOriginal']>;
  fetcher?:typeof fetch;
+ assertMarketCurrent?:()=>Promise<void>;
+ marketReplayIdentity?:()=>Promise<Parameters<typeof import("./local-seal/market-replay").openWildzMarketReplaySealer>[0]["identity"]>;
 }){
  const assertCurrent=()=>{input.assertCurrent();};
  const client=createWildsClearanceActionWorkerClient({
@@ -37,6 +40,10 @@ export function createWildsClearanceActionWorkerRuntime(input:WildsClearanceActi
   initialize:()=>{assertCurrent();return {configuration:input.configuration,author:wildsClearanceWorkerAuthor(input.author),session:input.session,gameplayOwnerId:input.gameplayOwnerId} satisfies WildsClearanceActionWorkerInitial;},
   async callback(method,args,signal){
    assertCurrent();
+   if(method==='marketReplayIdentity'){
+    if(!input.marketReplayIdentity)throw Error('wildz_market_replay_identity_required');
+    return input.marketReplayIdentity();
+   }
    if(method==='resolveOriginal'){const card=args[0] as PortableCardAsset;return input.resolveOriginal?input.resolveOriginal(card):null;}
    if(method==='signChallenge'){
     const text=args[0];if(typeof text!=='string'||text.length>16_384)throw Error('wilds_clearance_signing_request_invalid');
@@ -47,18 +54,30 @@ export function createWildsClearanceActionWorkerRuntime(input:WildsClearanceActi
    }
    if(method==='signPublish'){
     const value=args[0] as Parameters<typeof input.sdk.publicStore.signPublish>[0];
-    if(value.tenantHost!=='wildz.quest'||value.merchantReceizId!==input.author.ownerReceizId||value.namespace!=='wildz.resources.v128'
-     ||value.sourceUrl!==WILDS_WALLET_RESOURCE_SOURCE_URL_V128&&!isWildsWalletResourceSourcePageUrlV128(value.sourceUrl??''))throw Error('wilds_clearance_signing_request_invalid');
+    const sourceUrl=value.sourceUrl??'';
+    const ownerUrls=wildzSourceOwnerUrlsV128('resource',input.author.ownerReceizId,'0'.repeat(64));
+    const ownsOriginal=isWildsResourceSourceOwnerUrlV128(sourceUrl)&&sourceUrl.startsWith(ownerUrls.original.slice(0,-64));
+    const resourceSource=value.namespace==='wildz.resources.v128'&&(sourceUrl===WILDS_WALLET_RESOURCE_SOURCE_URL_V128||isWildsWalletResourceSourcePageUrlV128(sourceUrl)||ownsOriginal);
+    const publisher=value.namespace===WILDS_RESOURCE_SOURCE_PUBLISHER_NAMESPACE_V128&&sourceUrl===ownerUrls.publisher;
+    if(value.tenantHost!=='wildz.quest'||value.merchantReceizId!==input.author.ownerReceizId||!resourceSource&&!publisher)throw Error('wilds_clearance_signing_request_invalid');
     return input.sdk.publicStore.signPublish({...value,keyFile:input.author.keyFile,...(input.author.passphrase===undefined?{}:{passphrase:input.author.passphrase})});
    }
-   if(method!=='fetch'||args[0]!=='/api/wilds/wallet/source-sdk')throw Error('wilds_clearance_callback_invalid');
+   if(method!=='fetch')throw Error('wilds_clearance_callback_invalid');
    const wire=args[1] as {headers:[string,string][];text?:string|null;form?:[string,string|File][]};
    const headers=new Headers(wire.headers);if(headers.has('authorization'))throw Error('wilds_clearance_worker_credentials_forbidden');
+   if(args[0]==='/api/document-verify'&&input.marketReplayIdentity){
+    const file=wire.form?.[0];
+    if(wire.form?.length!==1||file?.[0]!=='file'||!(file[1] instanceof File))throw Error('wilds_clearance_transport_invalid');
+    const form=new FormData();form.set('file',file[1]);
+    const response=await (input.fetcher??fetch)('/api/document-verify',{method:'POST',body:form,credentials:'same-origin',cache:'no-store',redirect:'error',signal});
+    return {status:response.status,headers:[...response.headers],bytes:await response.arrayBuffer()};
+   }
+   if(args[0]!=='/api/wilds/wallet/source-sdk')throw Error('wilds_clearance_callback_invalid');
    let body:BodyInit,path:string,nativeMethod:string,query:string;
    if(wire.form){const form=new FormData();for(const [name,value] of wire.form)form.append(name,value);path=String(form.get('wildzSdkPath'));nativeMethod=String(form.get('wildzSdkMethod'));query=String(form.get('wildzSdkQuery'));body=form;}
    else{if(typeof wire.text!=='string'||wire.text.length>2_000_000)throw Error('wilds_clearance_transport_invalid');const value=JSON.parse(wire.text);({path,method:nativeMethod,query}=value);body=wire.text;}
-   if(!isWildsWalletSourceSdkPathV128(path,nativeMethod,query)||!['/api/public-proof/by-url','/api/public-proof/registry/feed','/api/sdk/v1/domains/verified-replay','/api/sdk/v1/sources/publish','/api/sdk/v1/assets/seal'].includes(path))throw Error('wilds_clearance_transport_invalid');
-   if(path==='/api/public-proof/by-url'){const url=new URLSearchParams(query).get('url')??'';if(url!==WILDS_WALLET_RESOURCE_SOURCE_URL_V128&&!isWildsWalletResourceSourcePageUrlV128(url))throw Error('wilds_clearance_transport_invalid');}
+   if(!isWildsWalletSourceSdkPathV128(path,nativeMethod,query)||![WILDS_RESOURCE_SOURCE_PUBLISHER_PATH_V128,'/api/public-proof/by-url','/api/public-proof/registry/feed','/api/sdk/v1/domains/verified-replay','/api/sdk/v1/sources/publish','/api/sdk/v1/assets/seal'].includes(path))throw Error('wilds_clearance_transport_invalid');
+   if(path==='/api/public-proof/by-url'){const url=new URLSearchParams(query).get('url')??'';if(url!==WILDS_WALLET_RESOURCE_SOURCE_URL_V128&&!isWildsWalletResourceSourcePageUrlV128(url)&&!isWildsResourceSourceOwnerUrlV128(url))throw Error('wilds_clearance_transport_invalid');}
    headers.set('authorization',`Bearer ${input.author.grant.accessToken}`);
    const response=await (input.fetcher??fetch)('/api/wilds/wallet/source-sdk',{method:'POST',headers,body,credentials:'same-origin',cache:'no-store',redirect:'error',signal});
    return {status:response.status,headers:[...response.headers],bytes:await response.arrayBuffer()};
@@ -78,6 +97,7 @@ export function createWildsClearanceActionWorkerRuntime(input:WildsClearanceActi
   return result;
  };
  const exchange:Exchange={
+  reserveCardOrigin:async request=>await run('reserveCardOrigin',[request],input.assertMarketCurrent,input.assertMarketCurrent) as Awaited<ReturnType<Exchange['reserveCardOrigin']>>,
   previewGameplay:async()=>{assertCurrent();const result=await run('previewGameplay',[]);assertCurrent();return result as Awaited<ReturnType<Exchange['previewGameplay']>>;},
   admitMaterialCommand:async(request,beforeCommit,beforeReject)=>{assertCurrent();const result=await run('admitMaterialCommand',[request],async()=>{assertCurrent();await beforeCommit?.();assertCurrent();},async()=>{assertCurrent();await beforeReject?.();assertCurrent();});assertCurrent();return result as Awaited<ReturnType<Exchange['admitMaterialCommand']>>;},
   readCurrent:async()=>{assertCurrent();return await run('readCurrent',[]) as Awaited<ReturnType<Exchange['readCurrent']>>;},

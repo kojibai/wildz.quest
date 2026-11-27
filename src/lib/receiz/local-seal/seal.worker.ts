@@ -1,16 +1,11 @@
 import { createReceizOfflineSealer } from "@receiz/sdk/offline";
 import { createWildzBrowserSealStore } from "./store";
+import { loadWildzLocalSealResources } from "./resources";
 
 let runtime: Promise<ReturnType<typeof createReceizOfflineSealer>> | undefined;
 function prepare() {
   return runtime ??= (async () => {
-    const load = async (path: string) => {
-      const response = await fetch(path, { credentials: "omit" }).catch(() => null);
-      if (!response?.ok) throw new Error("wildz_offline_seal_resources_unavailable");
-      return new Uint8Array(await response.arrayBuffer());
-    };
-    const [wasm, zkey] = await Promise.all([load("/zk/document_seal_proof_js/sigil_proof.wasm"), load("/zk/document_seal_proof_final.zkey")]);
-    const resources = { wasm, zkey };
+    const resources = await loadWildzLocalSealResources();
     return createReceizOfflineSealer({ resources, store: await createWildzBrowserSealStore(resources),
       enrollmentUrl: "/api/receiz/local-signer/enroll",
       fetch: (url, init) => fetch(url, init).catch(() => { throw new Error("wildz_local_enrollment_unreachable"); })

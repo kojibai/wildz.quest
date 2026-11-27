@@ -10,7 +10,7 @@ export function createWildsClearanceActionWorkerClient(input:{
   dispose(){disposed=true;cancel?.();},
   async run(method:string,args:unknown[],beforeCommit?:()=>Promise<void>,assertScope?:()=>Promise<void>):Promise<unknown>{
    if(disposed)throw Error('wilds_clearance_worker_disposed');
-   if(!['readCurrent','previewGameplay','admitMaterialCommand','deriveClearance','admitClearancePickup','recoverClearance'].includes(method))throw Error('wilds_clearance_worker_method_invalid');
+   if(!['readCurrent','previewGameplay','admitMaterialCommand','deriveClearance','admitClearancePickup','recoverClearance','reserveCardOrigin'].includes(method))throw Error('wilds_clearance_worker_method_invalid');
    if(cancel)throw Error('wilds_clearance_worker_busy');
    const worker=input.worker();
    return new Promise((resolve,reject)=>{

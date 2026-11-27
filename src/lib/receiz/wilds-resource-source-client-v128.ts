@@ -8,6 +8,7 @@ import {
   type ReceizPortableSealedArtifactV124, type ReceizProofAuthorityChallengeV123,
   type ReceizProofAuthorityV123,
 } from "@receiz/sdk";
+import type { createReceizOfflineSealer } from "@receiz/sdk/offline";
 import {assertWildsMaterialPublicationOpenV128} from "./wilds-material-publication-fence-v128";
 import {reopenWildsIssuedAuthoritySession} from "./wilds-authority-session-recovery";
 import type { WildzContinuityDatabase } from "../storage/wildz-indexed-db";
@@ -27,6 +28,7 @@ type SourceAttempt = Readonly<{
   preparation: StoredPreparation;
   predecessorArtifact: ReceizPortableSealedArtifactV124 | null;
   sourceArtifact: ReceizPortableSealedArtifactV124 | null;
+  localReplaySeal?: true;
 }>;
 const keyFor = (owner: string, attempt: string) => JSON.stringify(["wildz.resource-source-attempt.v128", owner, attempt]);
 const conflict = () => { throw Error("wilds_resource_source_attempt_conflict"); };
@@ -111,6 +113,7 @@ export function createWildsResourceSourceClientV128(input: Readonly<{
   authority: WildsResourceSourceAuthorV128;
   session: ReceizAuthoritySessionV124;
   recoveryStore: WildsResourceSourceRecoveryStoreV128;
+  sealPreparedReplay?: ReturnType<typeof createReceizOfflineSealer>["sealPreparedReplay"];
 }>) {
   const pending = new Map<string, Promise<WildsResourceSourcePublishResultV128>>();
   const execute = async (request: Readonly<{ attemptId: string; page: WildsResourceSourcePageV128; beforeCommit?: (sourceArtifact: ReceizPortableSealedArtifactV124) => Promise<void> }>): Promise<WildsResourceSourcePublishResultV128> => {
@@ -123,20 +126,70 @@ export function createWildsResourceSourceClientV128(input: Readonly<{
       attemptId: request.attemptId, domainId: page.domainId, registryDigest: page.registryDigest, reducerDigest: page.reducerDigest,
       genesisHead: page.genesisHead, appendId: page.appendId, event: page.event, namespace: page.namespace,
       namespaceName: page.namespaceName, namespaceHead: page.namespaceHead, predecessorArtifactSha256: page.predecessor?.artifact.artifactSha256 ?? null });
-    let retained = await input.recoveryStore.read(ownerReceizId, request.attemptId);
+    let storageAttemptId = request.attemptId;
+    let retained = await input.recoveryStore.read(ownerReceizId, storageAttemptId);
     if (retained && (retained.schema !== "wildz.resource-source-attempt.v128" || retained.ownerReceizId !== ownerReceizId
       || retained.attemptId !== request.attemptId || retained.requestDigest !== requestDigest)) return conflict();
     let prepared: Prepared | undefined;
+    if (input.sealPreparedReplay && retained && !retained.localReplaySeal) {
+      prepared = await revalidatePreparation(retained, page, input.authority.grant.applicationId);
+      let needsCapturedSeal = !retained.sourceArtifact;
+      if (retained.sourceArtifact) {
+        const { verifyAndReadReceizDomainReplayProofObjectV124 } = await import("@receiz/sdk/offline");
+        const prior = await verifyAndReadReceizDomainReplayProofObjectV124(retained.sourceArtifact);
+        if (prior.artifact.payloadSha256 !== await sha256ReceizBytes(prepared.candidate.proofObject.payload.bytes)) return conflict();
+        needsCapturedSeal = prior.artifactKaiPulse !== prepared.candidate.carrier.head.kai.pulse;
+      }
+      if (needsCapturedSeal) {
+        // Keep the old signed attempt and any Seal. The same logical append
+        // can only use a new capture after proving the old attempt could not be admitted.
+        storageAttemptId = `local-kai:${requestDigest}`;
+        retained = await input.recoveryStore.read(ownerReceizId, storageAttemptId);
+        if (retained && (retained.schema !== "wildz.resource-source-attempt.v128" || retained.ownerReceizId !== ownerReceizId
+          || retained.attemptId !== storageAttemptId || retained.requestDigest !== requestDigest
+          || !retained.localReplaySeal || !retained.sourceArtifact)) return conflict();
+        prepared = undefined;
+      }
+    }
     if (!retained) {
-      const fresh = await prepareWildsResourceSourcePageV128({ authority: input.authority, page });
+      let sourceArtifact: ReceizPortableSealedArtifactV124 | null = null;
+      const sealPreparedReplay = input.sealPreparedReplay;
+      if (sealPreparedReplay) {
+        let capturedPreparation: Prepared | undefined;
+        const sealed = await sealPreparedReplay(async sealCapture => {
+          const fresh = await prepareWildsResourceSourcePageV128({ authority: input.authority, page, sealCapture });
+          capturedPreparation = fresh;
+          return { ...fresh.candidate.proofObject.payload, filename: `wildz-resource-source-${requestDigest}.receizbundle` };
+        });
+        if (!capturedPreparation) throw Error("wilds_resource_source_preparation_missing");
+        prepared = capturedPreparation;
+        sourceArtifact = {
+          schema: "receiz.sealed-artifact-bytes.v124",
+          exactBytesB64u: receizBase64UrlEncode(sealed.artifactBytes),
+          filename: sealed.filename,
+          mimeType: sealed.mimeType,
+          artifactSha256: await sha256ReceizBytes(sealed.artifactBytes),
+          payloadSha256: await sha256ReceizBytes(prepared.candidate.proofObject.payload.bytes),
+        };
+        const { readReceizDomainReplaySegmentSourceV124 } = await import("@receiz/sdk/offline");
+        const admitted = await readReceizDomainReplaySegmentSourceV124({ artifact: sourceArtifact,
+          expected: { applicationId: input.authority.grant.applicationId, audience: input.session.audience },
+          ...(page.predecessor ? { predecessorArtifact: page.predecessor.artifact } : {}),
+        });
+        if (admitted.head.headDigest !== prepared.candidate.carrier.head.headDigest
+          || admitted.sourceAuthority.ownerReceizId !== ownerReceizId) throw Error("wilds_resource_source_seal_binding_invalid");
+      } else {
+        prepared = await prepareWildsResourceSourcePageV128({ authority: input.authority, page });
+      }
       const reservation: SourceAttempt = { schema: "wildz.resource-source-attempt.v128", ownerReceizId,
-        attemptId: request.attemptId, requestDigest, idempotencyKey: `wildz:resource-source:${requestDigest}`,
-        preparation: { ...fresh, appendIndex: [...fresh.appendIndex] },
-        predecessorArtifact: page.predecessor?.artifact ?? null, sourceArtifact: null };
+        attemptId: storageAttemptId, requestDigest, idempotencyKey: `wildz:resource-source:${requestDigest}`,
+        preparation: { ...prepared, appendIndex: [...prepared.appendIndex] },
+        predecessorArtifact: page.predecessor?.artifact ?? null, sourceArtifact,
+        ...(sourceArtifact ? { localReplaySeal: true } : {}) };
       retained = await input.recoveryStore.reserve(reservation);
-      // Reuse the same signed preparation after our reservation commits.
-      // A reopened or concurrently reserved preparation still needs validation.
-      if (retained === reservation) prepared = fresh;
+      // Keep the preparation just reserved. A concurrent reservation can only
+      // supply its own verified bytes.
+      if (retained !== reservation) prepared = undefined;
     }
     prepared ??= await revalidatePreparation(retained, page, input.authority.grant.applicationId);
     try {

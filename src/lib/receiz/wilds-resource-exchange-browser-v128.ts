@@ -1,6 +1,6 @@
 'use client';
 
-import {canonicalizeReceizV122,createReceizProofAuthorityChallenge,digestReceizCanonicalV122,signReceizIdentityLoginProof,
+import {canonicalizeReceizV122,createReceizProofAuthorityChallenge,digestReceizCanonicalV122,receizKaiNow,signReceizIdentityLoginProof,
  type ReceizKeyFile,type ReceizPortableSealedArtifactV124} from '@receiz/sdk';
 import type {PortableCardAsset} from '../../features/play/portable-card';
 import type {WildzContinuityDatabase} from '../storage/wildz-indexed-db';
@@ -49,8 +49,29 @@ export async function openWildsResourcePackageExchangeBrowserV128(input:Readonly
  const sdk=dependencies.createSdk({...configuration,accessToken:grant.accessToken,fetcher});
  const opened=await openWildsResourceSourceAuthorityV128({sdk,keyFile,grant,identityArtifact:transport.artifact,signedGrantChallenge});
  const locator=createWildsResourcePublicStoreLocatorV128({sdk,authority:opened.author,sourceUrl:WILDS_WALLET_RESOURCE_SOURCE_URL_V128});
- const exchange=createWildsResourcePackageExchangeV128({sdk,database,authority:opened.author,session:opened.session,gameplayOwnerId:input.gameplayOwnerId,locator,
+ const nativeExchange=createWildsResourcePackageExchangeV128({sdk,database,authority:opened.author,session:opened.session,gameplayOwnerId:input.gameplayOwnerId,locator,
   ...(input.resolveOriginal?{resolveOriginal:input.resolveOriginal}:{})});
+ const exchange={...nativeExchange,async reserveCardOrigin(request:Parameters<typeof nativeExchange.reserveCardOrigin>[0]){
+   // This market action keeps native proving and the exact-byte replay off the game thread.
+   const {createWildsClearanceActionWorkerRuntime}=await import('./wilds-clearance-action-worker-runtime');
+   const current=()=>{if(opened.session.expiresAtKaiUPulse<=receizKaiNow().uPulse)throw Error('wilds_resource_source_authority_session_invalid');};
+   const assertMarketCurrent=async()=>{
+    const {defaultIdentityRepository}=await import('./wildz-active-identity');
+    if((await defaultIdentityRepository.active())?.keyId!==input.keyId)throw Error('wildz_market_identity_changed');
+    current();
+   };
+   const worker=createWildsClearanceActionWorkerRuntime({configuration,author:opened.author,session:opened.session,gameplayOwnerId:input.gameplayOwnerId,sdk,assertCurrent:current,assertMarketCurrent,fetcher,
+     async marketReplayIdentity(){
+      const {readHeldWildsWalletStagedTradeIdentityOriginal}=await import('../../features/play/wallet/wilds-wallet-staged-trade-identity');
+      const original=await readHeldWildsWalletStagedTradeIdentityOriginal(input.keyId,opened.author.ownerReceizId);
+      current();
+      const challenge=`WILDZ-STAGED-IDENTITY-SOURCE-V1\n${original.artifactSha256}\n${input.keyId}\n${opened.author.ownerReceizId}`;
+      const proof=await signReceizIdentityLoginProof({keyFile,challengeText:challenge});
+      return {original,challenge,proof};
+     },
+   });
+   try{return await worker.exchange.reserveCardOrigin(request);}finally{worker.dispose();}
+ }};
  // Exact grant/session live only in this operation's SDK closure. Recovery
  // stores public source bytes; it never stores an access token or signing key.
  return {openClearanceExchange:async(assertCurrent:()=>void)=>{

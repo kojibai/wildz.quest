@@ -11,6 +11,7 @@ import {
   type ReceizDomainReplayV124, type ReceizKeyFile, type ReceizPortableSealedArtifactV124,
   type ReceizProofAuthorityV123,
 } from "@receiz/sdk";
+import type { ReceizOfflineReplaySealCapture } from "@receiz/sdk/offline";
 import {encodeWildsResourceEventV128} from './wilds-resource-event-codec-v128';
 
 export const WILDS_RESOURCE_SOURCE_WRITE_SCOPES_V128 = Object.freeze([
@@ -116,6 +117,7 @@ function fibonacciWitness(segmentIds: readonly string[], position: number, artif
 export async function prepareWildsResourceSourcePageV128(input: Readonly<{
   authority: WildsResourceSourceAuthorV128;
   page: WildsResourceSourcePageV128;
+  sealCapture?: ReceizOfflineReplaySealCapture;
 }>) {
   checkAuthor(input.authority);
   const author = input.authority, APP = author.grant.applicationId, page = structuredClone(input.page), previous = page.predecessor;
@@ -146,20 +148,23 @@ export async function prepareWildsResourceSourcePageV128(input: Readonly<{
   const actorSubjectBindingDigest = await digestReceizCanonicalV122({ schema: "receiz.v124.actor-subject-binding", applicationId: APP, ownerReceizId: author.ownerReceizId, keyId: author.grant.keyId });
   const proofHeadBindingDigest = await digestReceizCanonicalV122({ schema: "receiz.v124.proof-head-binding", applicationId: APP, authorityDigest: author.grant.authorityDigest, artifactDigest: author.grant.artifactDigest, revocationHead: author.grant.revocationHead, actorSubjectBindingDigest });
   const sourceAuthority = await createReceizDomainReplaySourceAuthorityV124({ applicationId: APP, audience: APP, domainId: page.domainId, ownerReceizId: author.ownerReceizId, actorSubjectId: author.actorSubjectId, actorSubjectHead: author.actorSubjectHead, v123AuthorityDigest: author.grant.authorityDigest, v123KeyId: author.grant.keyId, v123IdentityArtifactDigest: author.grant.artifactDigest, proofHeadBindingDigest, acceptedHead: replay.head, ownership: portable.ownership, provenance: portable.provenance });
-  // The SDK challenge factory samples its own live Kai after asynchronous
+  const { sealCapture } = input;
+  // The standalone SDK challenge factory samples its own live Kai after asynchronous
   // intent hashing. A rollover must rebuild the unsigned time-bound tuple;
   // never sign a challenge that starts after its source, or rewrite a retained
   // preparation. Codec, replay and history witnesses above remain unchanged.
   const prepareTimedConsent = async () => {
     for (let attempt = 0; attempt < 4; attempt++) {
-      const moment = receizKaiNow(), kai = { pulse: moment.pulse, uPulse: moment.uPulse };
+      const kai = sealCapture?.kai ?? receizKaiNow();
       if (kai.pulse < author.grant.issuedAtKai || kai.pulse >= author.grant.expiresAtKai) fail("authority_expired");
       const journalAppends = await createReceizDomainAppendCommandsV124({ replay, replayReceipt, kai, acceptedAtKaiUPulses: [kai.uPulse], externalCausalParentHeads: causalParents.map(appendId => ({ appendId, head: previous!.appendIndex.get(appendId)!.newHead })) });
       const sourceIntent = await createReceizDomainReplaySourceIntentV124({ applicationId: APP, audience: APP, domainId: page.domainId, registryDigest: page.registryDigest, reducerDigest: page.reducerDigest, acceptedHead: replay.head, sourceKai: kai, predecessorArtifactSha256: previous?.artifact.artifactSha256 ?? null, replay, replayReceipt, journalAppends, causalParentWitnesses, sourceAuthority, ownership: portable.ownership, provenance: portable.provenance });
-      const ttlPulses = Math.min(60, author.grant.expiresAtKai - receizKaiNow().pulse);
+      const ttlPulses = Math.min(60, author.grant.expiresAtKai - (sealCapture?.kai.pulse ?? receizKaiNow().pulse));
       if (ttlPulses < 1) fail("authority_expired");
-      const challenge = createReceizProofAuthorityChallenge({ applicationId: APP, artifactDigest: author.grant.artifactDigest, scopes: author.grant.grantedScopes, consentStatementDigest: sourceIntent.consentStatementDigest, ttlPulses });
+      const createChallenge = sealCapture?.createProofAuthorityChallenge ?? createReceizProofAuthorityChallenge;
+      const challenge = createChallenge({ applicationId: APP, artifactDigest: author.grant.artifactDigest, scopes: author.grant.grantedScopes, consentStatementDigest: sourceIntent.consentStatementDigest, ttlPulses });
       if (kai.pulse >= challenge.challenge.issuedAtKai && kai.pulse < challenge.challenge.expiresAtKai) return { kai, journalAppends, sourceIntent, challenge };
+      if (sealCapture) return fail("seal_coordinate_mismatch");
     }
     return fail("preparation_clock_advanced");
   };

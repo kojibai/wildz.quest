@@ -14,8 +14,15 @@ export async function runWildsClearanceWorkerExchange(initial:WildsClearanceActi
  const publicStore={...sdk.publicStore,signPublish:async(value:Parameters<typeof sdk.publicStore.signPublish>[0])=>await callback('signPublish',[value]) as Awaited<ReturnType<typeof sdk.publicStore.signPublish>>};
  const signingSdk=new Proxy(sdk,{get(target,key){if(key==='publicStore')return publicStore;const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;}});
  const locator=createWildsResourcePublicStoreLocatorV128({sdk:signingSdk,authority:author,sourceUrl:WILDS_WALLET_RESOURCE_SOURCE_URL_V128});
- const exchange=createWildsResourcePackageExchangeV128({sdk:signingSdk,database:createWildzContinuityDatabase(),authority:author,session:initial.session,gameplayOwnerId:initial.gameplayOwnerId,locator,
+ const sealPreparedReplay: Parameters<typeof createWildsResourcePackageExchangeV128>[0]["sealPreparedReplay"] =
+   method !== 'reserveCardOrigin' ? undefined : async prepare => {
+    const {openWildzMarketReplaySealer}=await import('./local-seal/market-replay');
+    const identity=await callback('marketReplayIdentity',[]) as Parameters<typeof openWildzMarketReplaySealer>[0]['identity'];
+    return (await openWildzMarketReplaySealer({author,identity})).sealPreparedReplay(prepare);
+   };
+ const exchange=createWildsResourcePackageExchangeV128({sdk:signingSdk,database:createWildzContinuityDatabase(),authority:author,session:initial.session,gameplayOwnerId:initial.gameplayOwnerId,locator,sealPreparedReplay,
   resolveOriginal:async card=>await callback('resolveOriginal',[card]) as Awaited<ReturnType<NonNullable<Parameters<typeof createWildsResourcePackageExchangeV128>[0]['resolveOriginal']>>>});
+ if(method==='reserveCardOrigin'){await callback('assertScope',[]);return exchange.reserveCardOrigin(args[0] as Parameters<typeof exchange.reserveCardOrigin>[0],async()=>{await callback('beforeCommit',[]);});}
  return projectWildsClearanceWorkerResult(method,await dispatchWildsClearanceWorkerExchange(exchange,method,args,async()=>{await callback('beforeCommit',[]);},async()=>{await callback('assertScope',[]);}));
 }
 export async function dispatchWildsClearanceWorkerExchange(exchange:Pick<ReturnType<typeof createWildsResourcePackageExchangeV128>,'readCurrent'|'previewGameplay'|'admitMaterialCommand'|'deriveClearance'|'admitClearancePickup'|'recoverClearance'>,method:string,args:unknown[],beforeCommit:()=>Promise<void>,assertScope:()=>Promise<void>=async()=>{}){

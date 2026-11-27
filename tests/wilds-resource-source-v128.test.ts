@@ -4,7 +4,9 @@ import {
   canonicalizeReceizV122,
   createReceizIdentityKeyFile,
   digestReceizCanonicalV122,
+  proofAuthorityChallengeBasisV123,
   receizBase64UrlDecode,
+  receizBase64UrlEncode,
   receizKaiNow,
 } from "@receiz/sdk";
 import { prepareWildsResourceSourcePageV128 } from "../src/lib/receiz/wilds-resource-source-v128";
@@ -123,4 +125,46 @@ test('delegated source consent uses public author only and unchanged released ca
  assert.equal(child.authoringEvidence.identity.keyId,input.authority.keyFile.keyId);
  assert.equal(child.replay.additions[0].exactEventBytesB64u,prepared.replay.additions[0].exactEventBytesB64u);
  await assert.rejects(prepareWildsResourceSourcePageV128({...input,authority:{...author,signChallenge:async text=>{const proof=await author.signChallenge(text);return {...proof,signatureB64Url:'invalid'};}}}),/SIGNATURE|signature|PROOF|proof/);
+});
+
+test('source authoring keeps the sealer capture through rollover while signing the exact replay once', async t => {
+  const input = await fixture();
+  const { signReceizIdentityLoginProof } = await import('@receiz/sdk');
+  const originalDateNow = Date.now;
+  const originalDigest = crypto.subtle.digest.bind(crypto.subtle);
+  let clock = originalDateNow() + 120_000, rolled = false, signatures = 0;
+  t.mock.method(Date, 'now', () => clock);
+  const capture = receizKaiNow();
+  t.mock.method(crypto.subtle, 'digest', async (algorithm: AlgorithmIdentifier, bytes: BufferSource) => {
+    if (!rolled && new TextDecoder().decode(bytes).includes('"schema":"receiz.domain-replay-source-intent.v124"')) {
+      clock += 6_000;
+      rolled = true;
+    }
+    return originalDigest(algorithm, bytes);
+  });
+  const prepared = await prepareWildsResourceSourcePageV128({
+    ...input,
+    authority: { ...input.authority, signChallenge: async challengeText => {
+      signatures++;
+      return signReceizIdentityLoginProof({ keyFile: input.authority.keyFile, challengeText });
+    } },
+    sealCapture: {
+      kai: capture,
+      createProofAuthorityChallenge: ({ applicationId, artifactDigest, scopes, consentStatementDigest, ttlPulses }) => {
+        const challenge = {
+          schema: "receiz.identity.proof-authority-challenge.v123" as const,
+          audience: applicationId, nonce: receizBase64UrlEncode(crypto.getRandomValues(new Uint8Array(32))),
+          issuedAtKai: capture.pulse, expiresAtKai: capture.pulse + ttlPulses,
+          consent: { approved: true, statementDigest: consentStatementDigest },
+        };
+        const basis = proofAuthorityChallengeBasisV123({ challenge, applicationId, artifactDigest, scopes });
+        return { challenge, challengeB64Url: receizBase64UrlEncode(new TextEncoder().encode(canonicalizeReceizV122(basis))) };
+      },
+    },
+  });
+  assert.equal(rolled, true);
+  assert.ok(receizKaiNow().pulse > capture.pulse);
+  assert.deepEqual(prepared.candidate.carrier.head.kai, capture);
+  assert.deepEqual(prepared.sourceIntent.sourceKai, capture);
+  assert.equal(signatures, 1);
 });
